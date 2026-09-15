@@ -61,7 +61,7 @@ export function MapaPage() {
         <div>
           <h1 className="page-title">Mapa por CEP</h1>
           <p className="page-subtitle">
-            Localização das pessoas cadastradas pelas nerites, agrupada por CEP
+            Mapa de calor: quanto mais pessoas no mesmo CEP, mais quente o ponto
           </p>
         </div>
       </div>
