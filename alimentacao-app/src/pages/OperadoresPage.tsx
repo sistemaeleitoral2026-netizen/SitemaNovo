@@ -208,7 +208,7 @@ export function OperadoresPage() {
       <Modal
         open={createOpen}
         title="Nova nerite"
-        description="O administrador define o e-mail e a senha de acesso. A nerite não vê o dashboard."
+        description="Informe nome, e-mail e senha. A conta já fica pronta para entrar — sem confirmar e-mail."
         onClose={() => !creating && setCreateOpen(false)}
         onConfirm={handleCreate}
         confirmLabel="Criar conta"
