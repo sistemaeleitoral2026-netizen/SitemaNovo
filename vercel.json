@@ -3,5 +3,7 @@
   "installCommand": "npm install --prefix alimentacao-app",
   "buildCommand": "npm run build --prefix alimentacao-app",
   "outputDirectory": "alimentacao-app/dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
 }
