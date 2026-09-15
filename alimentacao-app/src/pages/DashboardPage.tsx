@@ -150,7 +150,7 @@ function AdminDashboard() {
         className="chart-card"
       >
         <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
-          Cada marcador representa um CEP onde as nerites cadastraram pessoas.{' '}
+          Calor por CEP — quanto mais cadastros no mesmo CEP, mais intenso o vermelho.{' '}
           <Link to="/mapa" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>Abrir mapa completo</Link>
         </p>
         <CadastrosMap markers={mapMarkers} height={360} />
