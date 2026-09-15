@@ -121,37 +121,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const adminSession = sessionData.session
     if (!adminSession) return { error: 'Sessão do administrador expirada.' }
 
-    const { data, error } = await supabase.auth.signUp({
-      email: input.email.trim().toLowerCase(),
-      password: input.password,
-      options: {
-        data: {
-          nome: input.nome.trim(),
-          role: 'operador',
+    try {
+      const res = await fetch('/api/create-nerite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminSession.access_token}`,
         },
-      },
-    })
-
-    if (error) return { error: error.message }
-    if (!data.user) return { error: 'Não foi possível criar a nerite.' }
-
-    // Garante nome/role no perfil (trigger já cria a linha)
-    await supabase
-      .from('profiles')
-      .update({
-        nome: input.nome.trim(),
-        role: 'operador',
-        ativo: true,
+        body: JSON.stringify({
+          nome: input.nome.trim(),
+          email: input.email.trim().toLowerCase(),
+          password: input.password,
+        }),
       })
-      .eq('id', data.user.id)
 
-    // Restaura a sessão do admin (signUp pode trocar a sessão)
-    await supabase.auth.setSession({
-      access_token: adminSession.access_token,
-      refresh_token: adminSession.refresh_token,
-    })
-
-    return { error: null }
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        return { error: payload.error || 'Não foi possível criar a nerite.' }
+      }
+      return { error: null }
+    } catch {
+      return { error: 'Falha de conexão ao criar a nerite.' }
+    }
   }, [])
 
   const value = useMemo(
