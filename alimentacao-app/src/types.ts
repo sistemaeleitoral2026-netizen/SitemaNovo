@@ -1,0 +1,107 @@
+export type UserRole = 'admin' | 'operador'
+
+export interface Profile {
+  id: string
+  nome: string
+  email: string
+  role: UserRole
+  ativo: boolean
+  created_at: string
+}
+
+export interface Cadastro {
+  id: string
+  operator_id: string
+  nome_completo: string
+  cpf: string
+  telefone: string
+  titulo: string
+  zona: string
+  secao: string
+  nome_mae: string
+  cep: string
+  lat: number | null
+  lng: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Importacao {
+  id: string
+  operator_id: string
+  nome_arquivo: string
+  total: number
+  validos: number
+  duplicados: number
+  erros: number
+  confirmada: boolean
+  detalhes: ImportacaoDetalhes
+  created_at: string
+}
+
+export interface ImportacaoDetalhes {
+  linhas?: ImportLineError[]
+}
+
+export interface ImportLineError {
+  linha: number
+  mensagem: string
+  dados?: Record<string, string>
+}
+
+export interface ImportPreviewRow {
+  linha: number
+  nome_completo: string
+  cpf: string
+  telefone: string
+  titulo: string
+  zona: string
+  secao: string
+  nome_mae: string
+  cep: string
+  status: 'valido' | 'duplicado' | 'erro'
+  mensagem?: string
+}
+
+export interface ImportPreview {
+  total: number
+  validos: number
+  duplicados: number
+  erros: number
+  linhas: ImportPreviewRow[]
+}
+
+export interface CadastroFormData {
+  nome_completo: string
+  cpf: string
+  telefone: string
+  titulo: string
+  zona: string
+  secao: string
+  nome_mae: string
+  cep: string
+}
+
+export interface PeriodFilter {
+  start: Date | null
+  end: Date | null
+}
+
+export interface MapMarkerData {
+  lat: number
+  lng: number
+  cep: string
+  zona: string
+  secao: string
+  count: number
+}
+
+export interface OperadorStats {
+  id: string
+  nome: string
+  email: string
+  ativo: boolean
+  total: number
+  periodo: number
+  ultima_atividade: string | null
+}
