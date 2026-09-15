@@ -30,28 +30,14 @@ export function AppShell({ children }: { children?: ReactNode }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh' }}>
+    <div className="app-shell">
       <Sidebar role={profile.role} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div
-        style={{
-          marginLeft: 0,
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-        className="main-content"
-      >
+      <div className="main-content">
         <Header onMenuClick={() => setSidebarOpen(true)} />
-        <main style={{ flex: 1, padding: '1.5rem' }}>
+        <main className="main-content-body">
           {children ?? <Outlet />}
         </main>
       </div>
-
-      <style>{`
-        @media (min-width: 1024px) {
-          .main-content { margin-left: var(--sidebar-width); }
-        }
-      `}</style>
     </div>
   )
 }
