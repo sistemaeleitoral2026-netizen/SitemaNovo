@@ -9,6 +9,7 @@ import {
   Settings,
   UserPlus,
   X,
+  Sparkles,
 } from 'lucide-react'
 import type { UserRole } from '../../types'
 
@@ -45,9 +46,8 @@ export function Sidebar({ role, open, onClose }: SidebarProps) {
       {open && <div className="sidebar-overlay" onClick={onClose} aria-hidden />}
       <aside className={`app-sidebar ${open ? 'sidebar-open' : 'sidebar-closed'}`}>
         <div className="app-sidebar-brand">
-          <div>
-            <div className="app-sidebar-title">AlimentaAção</div>
-            <div className="app-sidebar-subtitle">Cadastro e Geolocalização</div>
+          <div className="app-sidebar-brand-lockup">
+            <div className="app-sidebar-title">Nerites</div>
           </div>
           <button
             type="button"
@@ -59,7 +59,8 @@ export function Sidebar({ role, open, onClose }: SidebarProps) {
           </button>
         </div>
 
-        <nav className="app-sidebar-nav">
+        <nav className="app-sidebar-nav" aria-label="Navegação principal">
+          <div className="app-sidebar-section-label">Visão geral</div>
           {items.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
@@ -69,10 +70,18 @@ export function Sidebar({ role, open, onClose }: SidebarProps) {
               className={({ isActive }) => `app-sidebar-link${isActive ? ' active' : ''}`}
             >
               <Icon size={18} />
-              {label}
+              <span>{label}</span>
             </NavLink>
           ))}
         </nav>
+
+        <div className="app-sidebar-footer">
+          <Sparkles size={15} />
+          <div>
+            <strong>Central de dados</strong>
+            <span>Informações seguras e atualizadas</span>
+          </div>
+        </div>
       </aside>
     </>
   )
