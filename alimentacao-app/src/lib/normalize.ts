@@ -18,7 +18,8 @@ export function normalizeCpf(value: string): string {
   return digitsOnly(value).slice(0, 11)
 }
 
-export function formatCpf(value: string): string {
+export function formatCpf(value: string | null | undefined): string {
+  if (!value) return '—'
   const d = normalizeCpf(value)
   if (d.length !== 11) return value
   return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
@@ -43,7 +44,8 @@ export function normalizeCep(value: string): string {
   return digitsOnly(value).slice(0, 8)
 }
 
-export function formatCep(value: string): string {
+export function formatCep(value: string | null | undefined): string {
+  if (!value) return '—'
   const d = normalizeCep(value)
   if (d.length !== 8) return value
   return d.replace(/(\d{5})(\d{3})/, '$1-$2')

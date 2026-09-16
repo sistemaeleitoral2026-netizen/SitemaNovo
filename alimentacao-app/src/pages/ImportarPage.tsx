@@ -4,8 +4,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
-import { parseSpreadsheet, analyzeImport } from '../lib/import'
-import { fetchExistingCpfs } from '../lib/cadastros'
+import { parseSpreadsheet, analyzeImport, SPREADSHEET_ACCEPT } from '../lib/import'
+import { fetchExistingTitulos } from '../lib/cadastros'
 import { geocodeFromCep } from '../lib/geocode'
 import { logAudit } from '../lib/audit'
 import { supabase } from '../lib/supabase'
@@ -28,8 +28,8 @@ export function ImportarPage() {
     setFile(f)
     try {
       const rows = await parseSpreadsheet(f)
-      const existingCpfs = await fetchExistingCpfs()
-      const result = await analyzeImport(rows, existingCpfs)
+      const existingTitulos = await fetchExistingTitulos()
+      const result = await analyzeImport(rows, existingTitulos)
       setPreview(result)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao processar arquivo.')
@@ -59,7 +59,11 @@ export function ImportarPage() {
     const validRows = preview.linhas.filter((l) => l.status === 'valido')
     const errorLines = preview.linhas
       .filter((l) => l.status !== 'valido')
-      .map((l) => ({ linha: l.linha, mensagem: l.mensagem ?? l.status, dados: { cpf: l.cpf } }))
+      .map((l) => ({
+        linha: l.linha,
+        mensagem: l.mensagem ?? l.status,
+        dados: { titulo: l.titulo, nome: l.nome_completo },
+      }))
 
     const { data: importRow, error: importError } = await supabase
       .from('importacoes')
@@ -84,17 +88,17 @@ export function ImportarPage() {
 
     let inserted = 0
     for (const row of validRows) {
-      const coords = await geocodeFromCep(row.cep)
+      const coords = row.cep ? await geocodeFromCep(row.cep) : null
       const { error: insertError } = await supabase.from('cadastros').insert({
         operator_id: profile.id,
         nome_completo: row.nome_completo,
-        cpf: row.cpf,
+        cpf: row.cpf || null,
         telefone: row.telefone,
         titulo: row.titulo,
         zona: row.zona,
         secao: row.secao,
         nome_mae: row.nome_mae,
-        cep: row.cep,
+        cep: row.cep || null,
         lat: coords?.lat ?? null,
         lng: coords?.lng ?? null,
       })
@@ -124,7 +128,7 @@ export function ImportarPage() {
         <div>
           <h1 className="page-title">Importar Planilha</h1>
           <p className="page-subtitle">
-            Área da nerite — importe cadastros reais (zona e seção são eleitorais; localização usa o CEP)
+            Importe a planilha com os cabeçalhos oficiais. Aceita Excel, CSV e ODS.
           </p>
         </div>
       </div>
@@ -141,15 +145,21 @@ export function ImportarPage() {
           <p style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Arraste e solte...</p>
           <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>Clique para selecionar</p>
           <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.5rem' }}>
-            Formatos: .xlsx, .xls, .csv
+            Formatos: .xlsx, .xls, .xlsm, .xlsb, .csv, .ods, .tsv, .txt
           </p>
           <input
             id="file-input"
             type="file"
-            accept=".xlsx,.xls,.csv"
+            accept={SPREADSHEET_ACCEPT}
             style={{ display: 'none' }}
             onChange={handleFileInput}
           />
+        </div>
+
+        <div className="notice" style={{ marginTop: '1rem' }}>
+          <b>Cabeçalhos obrigatórios (1ª linha):</b>
+          <br />
+          NOME COMPLETO | TELEFONE | TITULO | ZONA | SESSAO | NOME COMPLETO DA MÃE
         </div>
 
         {file && (
@@ -184,7 +194,8 @@ export function ImportarPage() {
                   <tr>
                     <th>Linha</th>
                     <th>Status</th>
-                    <th>CPF</th>
+                    <th>Nome</th>
+                    <th>Título</th>
                     <th>Mensagem</th>
                   </tr>
                 </thead>
@@ -199,7 +210,8 @@ export function ImportarPage() {
                             {l.status}
                           </span>
                         </td>
-                        <td>{l.cpf}</td>
+                        <td>{l.nome_completo}</td>
+                        <td>{l.titulo}</td>
                         <td>{l.mensagem}</td>
                       </tr>
                     ))}

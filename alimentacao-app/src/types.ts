@@ -13,13 +13,13 @@ export interface Cadastro {
   id: string
   operator_id: string
   nome_completo: string
-  cpf: string
+  cpf: string | null
   telefone: string
   titulo: string
   zona: string
   secao: string
   nome_mae: string
-  cep: string
+  cep: string | null
   lat: number | null
   lng: number | null
   created_at: string
