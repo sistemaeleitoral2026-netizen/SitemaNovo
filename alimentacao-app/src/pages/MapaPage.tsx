@@ -49,7 +49,7 @@ export function MapaPage() {
   const markers = useMemo(() => buildMapMarkers(filtered), [filtered])
 
   const ceps = useMemo(
-    () => [...new Set(cadastros.map((c) => c.cep).filter(Boolean))].sort(),
+    () => [...new Set(cadastros.map((c) => c.cep).filter((c): c is string => Boolean(c)))].sort(),
     [cadastros],
   )
   const zonas = useMemo(() => [...new Set(cadastros.map((c) => c.zona))].sort(), [cadastros])
@@ -94,11 +94,11 @@ export function MapaPage() {
             options={zonas.map((z) => ({ value: z, label: `Zona ${z}` }))}
           />
           <Select
-            label="Seção eleitoral"
+            label="Sessão eleitoral"
             value={secao}
             onChange={(e) => setSecao(e.target.value)}
             placeholder="Todas"
-            options={secoes.map((s) => ({ value: s, label: `Seção ${s}` }))}
+            options={secoes.map((s) => ({ value: s, label: `Sessão ${s}` }))}
           />
         </div>
       </Card>
