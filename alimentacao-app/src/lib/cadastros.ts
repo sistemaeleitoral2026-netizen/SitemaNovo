@@ -32,10 +32,10 @@ export async function fetchCadastros(options?: {
     const term = options.search.toLowerCase().replace(/\D/g, '')
     const textTerm = options.search.toLowerCase()
     results = results.filter((c) => {
-      const cpfDigits = c.cpf.replace(/\D/g, '')
+      const cpfDigits = (c.cpf ?? '').replace(/\D/g, '')
       return (
         c.nome_completo.toLowerCase().includes(textTerm)
-        || cpfDigits.includes(term)
+        || (cpfDigits && cpfDigits.includes(term))
         || c.telefone.includes(term)
         || c.titulo.toLowerCase().includes(textTerm)
       )
@@ -48,7 +48,21 @@ export async function fetchCadastros(options?: {
 export async function fetchExistingCpfs(): Promise<Set<string>> {
   const { data, error } = await supabase.from('cadastros').select('cpf')
   if (error) throw error
-  return new Set((data ?? []).map((r: { cpf: string }) => r.cpf))
+  return new Set(
+    (data ?? [])
+      .map((r: { cpf: string | null }) => r.cpf)
+      .filter((cpf): cpf is string => Boolean(cpf)),
+  )
+}
+
+export async function fetchExistingTitulos(): Promise<Set<string>> {
+  const { data, error } = await supabase.from('cadastros').select('titulo')
+  if (error) throw error
+  return new Set(
+    (data ?? [])
+      .map((r: { titulo: string }) => r.titulo.trim().toLowerCase())
+      .filter(Boolean),
+  )
 }
 
 export function buildEvolutionData(cadastros: Cadastro[]): { date: string; total: number }[] {

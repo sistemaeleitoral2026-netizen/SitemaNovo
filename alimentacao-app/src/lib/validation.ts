@@ -31,10 +31,10 @@ export function validateCadastroForm(data: CadastroFormData): FieldErrors {
   }
 
   const cpf = normalizeCpf(data.cpf)
-  if (!cpf) {
-    errors.cpf = 'CPF é obrigatório.'
-  } else if (!validateCpfAlgorithm(cpf)) {
-    errors.cpf = 'CPF inválido.'
+  if (cpf) {
+    if (!validateCpfAlgorithm(cpf)) {
+      errors.cpf = 'CPF inválido.'
+    }
   }
 
   const phone = normalizePhone(data.telefone)
@@ -61,10 +61,42 @@ export function validateCadastroForm(data: CadastroFormData): FieldErrors {
   }
 
   const cep = normalizeCep(data.cep)
-  if (!cep) {
-    errors.cep = 'CEP é obrigatório.'
-  } else if (cep.length !== 8) {
+  if (cep && cep.length !== 8) {
     errors.cep = 'CEP inválido.'
+  }
+
+  return errors
+}
+
+/** Validação da planilha oficial (sem CPF e CEP). */
+export function validateImportRow(data: CadastroFormData): FieldErrors {
+  const errors: FieldErrors = {}
+
+  if (!normalizeName(data.nome_completo)) {
+    errors.nome_completo = 'Nome completo é obrigatório.'
+  }
+
+  const phone = normalizePhone(data.telefone)
+  if (!phone) {
+    errors.telefone = 'Telefone é obrigatório.'
+  } else if (phone.length < 10 || phone.length > 11) {
+    errors.telefone = 'Telefone inválido.'
+  }
+
+  if (!data.titulo.trim()) {
+    errors.titulo = 'Título de eleitor é obrigatório.'
+  }
+
+  if (!normalizeZona(data.zona)) {
+    errors.zona = 'Zona eleitoral é obrigatória.'
+  }
+
+  if (!normalizeSecao(data.secao)) {
+    errors.secao = 'Sessão/seção eleitoral é obrigatória.'
+  }
+
+  if (!normalizeName(data.nome_mae)) {
+    errors.nome_mae = 'Nome completo da mãe é obrigatório.'
   }
 
   return errors

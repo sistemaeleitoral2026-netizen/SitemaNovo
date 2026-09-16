@@ -41,13 +41,13 @@ export function CadastroFormPage() {
       if (data) {
         setForm({
           nome_completo: data.nome_completo,
-          cpf: formatCpf(data.cpf),
+          cpf: formatCpf(data.cpf ?? ''),
           telefone: formatPhone(data.telefone),
           titulo: data.titulo,
           zona: data.zona,
           secao: data.secao,
           nome_mae: data.nome_mae,
-          cep: formatCep(data.cep),
+          cep: formatCep(data.cep ?? ''),
         })
       }
       setLoading(false)
@@ -85,7 +85,14 @@ export function CadastroFormPage() {
     const coords = await geocodeFromCep(normalized.cep)
 
     const payload = {
-      ...normalized,
+      nome_completo: normalized.nome_completo,
+      cpf: normalized.cpf || null,
+      telefone: normalized.telefone,
+      titulo: normalized.titulo,
+      zona: normalized.zona,
+      secao: normalized.secao,
+      nome_mae: normalized.nome_mae,
+      cep: normalized.cep || null,
       lat: coords?.lat ?? null,
       lng: coords?.lng ?? null,
       operator_id: profile!.id,
@@ -146,7 +153,7 @@ export function CadastroFormPage() {
               error={errors.nome_completo}
             />
             <Input
-              label="CPF"
+              label="CPF (opcional)"
               value={form.cpf}
               onChange={(e) => updateField('cpf', formatCpf(e.target.value))}
               error={errors.cpf}
@@ -172,7 +179,7 @@ export function CadastroFormPage() {
               error={errors.zona}
             />
             <Input
-              label="Seção eleitoral"
+              label="Sessão eleitoral"
               value={form.secao}
               onChange={(e) => updateField('secao', e.target.value)}
               error={errors.secao}
@@ -184,7 +191,7 @@ export function CadastroFormPage() {
               error={errors.nome_mae}
             />
             <Input
-              label="CEP"
+              label="CEP (opcional)"
               value={form.cep}
               onChange={(e) => updateField('cep', formatCep(e.target.value))}
               error={errors.cep}
