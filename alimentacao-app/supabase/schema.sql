@@ -14,20 +14,21 @@ create table if not exists public.cadastros (
   id uuid primary key default gen_random_uuid(),
   operator_id uuid not null references public.profiles(id),
   nome_completo text not null,
-  cpf text not null,
+  cpf text,
   telefone text not null,
   titulo text not null,
   zona text not null,
   secao text not null,
   nome_mae text not null,
-  cep text not null,
+  cep text,
   lat double precision,
   lng double precision,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint cadastros_cpf_unique unique (cpf),
-  constraint cadastros_cpf_digits check (cpf ~ '^[0-9]{11}$'),
-  constraint cadastros_cep_digits check (cep ~ '^[0-9]{8}$')
+  constraint cadastros_cpf_digits check (cpf is null or cpf ~ '^[0-9]{11}$'),
+  constraint cadastros_cep_digits check (cep is null or cep ~ '^[0-9]{8}$'),
+  constraint cadastros_titulo_unique unique (titulo)
 );
 
 create index if not exists cadastros_operator_id_idx on public.cadastros(operator_id);
