@@ -1,44 +1,105 @@
 import * as XLSX from 'xlsx'
 import { normalizeCadastroFields } from './normalize'
-import { validateCadastroForm } from './validation'
+import { validateImportRow } from './validation'
 import type { ImportPreview, ImportPreviewRow } from '../types'
 
-const EXPECTED_HEADERS = [
+/** Cabeçalhos oficiais da planilha (após normalização). */
+const REQUIRED_HEADERS = [
   'nome completo',
-  'cpf',
   'telefone',
   'titulo',
-  'título',
   'zona',
-  'secao',
-  'seção',
-  'nome da mae completo',
-  'nome da mãe completo',
-  'cep',
+  'sessao',
+  'nome completo da mae',
+] as const
+
+const SPREADSHEET_EXTENSIONS = [
+  '.xlsx',
+  '.xls',
+  '.xlsm',
+  '.xlsb',
+  '.csv',
+  '.ods',
+  '.tsv',
+  '.txt',
 ]
 
+export const SPREADSHEET_ACCEPT = SPREADSHEET_EXTENSIONS.join(',')
+
 function normalizeHeader(h: string): string {
-  return h.trim().toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')
+  return h
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/\s+/g, ' ')
+}
+
+function isAllowedSpreadsheet(file: File): boolean {
+  const name = file.name.toLowerCase()
+  return SPREADSHEET_EXTENSIONS.some((ext) => name.endsWith(ext))
 }
 
 function mapRow(raw: Record<string, unknown>): Record<string, string> {
-  const mapped: Record<string, string> = {}
+  const mapped: Record<string, string> = {
+    nome_completo: '',
+    cpf: '',
+    telefone: '',
+    titulo: '',
+    zona: '',
+    secao: '',
+    nome_mae: '',
+    cep: '',
+  }
+
   for (const [key, value] of Object.entries(raw)) {
     const k = normalizeHeader(key)
     const v = String(value ?? '').trim()
-    if (k.includes('nome completo') && !k.includes('mae') && !k.includes('mãe')) mapped.nome_completo = v
-    else if (k === 'cpf') mapped.cpf = v
-    else if (k === 'telefone') mapped.telefone = v
-    else if (k === 'titulo' || k === 'título') mapped.titulo = v
-    else if (k === 'zona') mapped.zona = v
-    else if (k === 'secao' || k === 'seção') mapped.secao = v
-    else if (k.includes('mae') || k.includes('mãe')) mapped.nome_mae = v
-    else if (k === 'cep') mapped.cep = v
+
+    if (k === 'nome completo' || (k.includes('nome completo') && !k.includes('mae'))) {
+      mapped.nome_completo = v
+    } else if (k === 'telefone') {
+      mapped.telefone = v
+    } else if (k === 'titulo') {
+      mapped.titulo = v
+    } else if (k === 'zona') {
+      mapped.zona = v
+    } else if (k === 'sessao' || k === 'secao') {
+      mapped.secao = v
+    } else if (k.includes('mae') || k === 'nome completo da mae') {
+      mapped.nome_mae = v
+    } else if (k === 'cpf') {
+      mapped.cpf = v
+    } else if (k === 'cep') {
+      mapped.cep = v
+    }
   }
+
   return mapped
 }
 
+function hasRequiredHeaders(keys: string[]): boolean {
+  const set = new Set(keys)
+  const hasNome = [...set].some((k) => k === 'nome completo' || (k.includes('nome completo') && !k.includes('mae')))
+  const hasMae = [...set].some((k) => k.includes('mae'))
+  const hasSessao = set.has('sessao') || set.has('secao')
+  return (
+    hasNome
+    && set.has('telefone')
+    && set.has('titulo')
+    && set.has('zona')
+    && hasSessao
+    && hasMae
+  )
+}
+
 export async function parseSpreadsheet(file: File): Promise<Record<string, string>[]> {
+  if (!isAllowedSpreadsheet(file)) {
+    throw new Error(
+      `Formato não suportado. Use: ${SPREADSHEET_EXTENSIONS.join(', ')}`,
+    )
+  }
+
   const buffer = await file.arrayBuffer()
   const workbook = XLSX.read(buffer, { type: 'array' })
   const sheet = workbook.Sheets[workbook.SheetNames[0]]
@@ -47,9 +108,10 @@ export async function parseSpreadsheet(file: File): Promise<Record<string, strin
   if (!json.length) return []
 
   const firstKeys = Object.keys(json[0]).map(normalizeHeader)
-  const hasValidHeader = firstKeys.some((h) => EXPECTED_HEADERS.includes(h))
-  if (!hasValidHeader) {
-    throw new Error('Cabeçalhos inválidos. Verifique o modelo da planilha.')
+  if (!hasRequiredHeaders(firstKeys)) {
+    throw new Error(
+      'Cabeçalhos inválidos. Use: NOME COMPLETO, TELEFONE, TITULO, ZONA, SESSAO, NOME COMPLETO DA MÃE.',
+    )
   }
 
   return json.map(mapRow)
@@ -57,9 +119,9 @@ export async function parseSpreadsheet(file: File): Promise<Record<string, strin
 
 export async function analyzeImport(
   rows: Record<string, string>[],
-  existingCpfs: Set<string>,
+  existingTitulos: Set<string>,
 ): Promise<ImportPreview> {
-  const seenCpfs = new Set<string>()
+  const seenTitulos = new Set<string>()
   const linhas: ImportPreviewRow[] = []
 
   rows.forEach((raw, index) => {
@@ -75,7 +137,7 @@ export async function analyzeImport(
       cep: raw.cep ?? '',
     })
 
-    const errors = validateCadastroForm(normalized)
+    const errors = validateImportRow(normalized)
     const errorMessages = Object.values(errors)
 
     if (errorMessages.length) {
@@ -88,18 +150,19 @@ export async function analyzeImport(
       return
     }
 
-    if (existingCpfs.has(normalized.cpf) || seenCpfs.has(normalized.cpf)) {
+    const tituloKey = normalized.titulo.toLowerCase()
+    if (existingTitulos.has(tituloKey) || seenTitulos.has(tituloKey)) {
       linhas.push({
         linha,
         ...normalized,
         status: 'duplicado',
-        mensagem: 'Este CPF já está cadastrado.',
+        mensagem: 'Este título de eleitor já está cadastrado.',
       })
-      seenCpfs.add(normalized.cpf)
+      seenTitulos.add(tituloKey)
       return
     }
 
-    seenCpfs.add(normalized.cpf)
+    seenTitulos.add(tituloKey)
     linhas.push({ linha, ...normalized, status: 'valido' })
   })
 
@@ -111,3 +174,5 @@ export async function analyzeImport(
     linhas,
   }
 }
+
+export { REQUIRED_HEADERS }
