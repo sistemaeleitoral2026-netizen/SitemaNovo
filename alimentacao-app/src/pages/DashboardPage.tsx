@@ -15,8 +15,9 @@ import { PeriodFilterSelect } from '../components/ui/PeriodFilter'
 import { Spinner } from '../components/ui/Spinner'
 import { EvolutionChart } from '../components/charts/EvolutionChart'
 import { ZonaDonutChart } from '../components/charts/ZonaDonutChart'
+import { CadastrosMap } from '../components/map/CadastrosMap'
 import { getPeriodFromPreset, type PeriodPreset } from '../lib/period'
-import { buildEvolutionData, buildZonaData, fetchCadastros } from '../lib/cadastros'
+import { buildEvolutionData, buildMapMarkers, buildZonaData, fetchCadastros } from '../lib/cadastros'
 import { supabase } from '../lib/supabase'
 import { formatCep } from '../lib/format'
 import type { Cadastro, Coordenador, Lider, Profile } from '../types'
@@ -170,6 +171,7 @@ function AdminDashboard() {
 
   const evolution = useMemo(() => buildEvolutionData(scopedCadastros), [scopedCadastros])
   const zonaData = useMemo(() => buildZonaData(scopedCadastros), [scopedCadastros])
+  const mapMarkers = useMemo(() => buildMapMarkers(scopedCadastros), [scopedCadastros])
   const maxRank = ranking[0]?.total || 1
 
   if (loading) {
@@ -310,6 +312,16 @@ function AdminDashboard() {
           </Card>
         )}
       </div>
+
+      <Card
+        title="Mapa por zona eleitoral"
+        subtitle="Manchas coloridas por intensidade de cadastros"
+        className="chart-card"
+        style={{ marginBottom: '1.25rem' }}
+        action={<Link to="/mapa" className="diretoria-open-link">Abrir mapa completo →</Link>}
+      >
+        <CadastrosMap markers={mapMarkers} height={380} />
+      </Card>
 
       <div className="dashboard-main-grid">
         <Card title="Evolução dos cadastros" subtitle="Últimos registros do período" className="chart-card chart-card-wide">
@@ -457,6 +469,7 @@ function DiretoriaDashboard() {
   const zonas = useMemo(() => new Set(cadastros.map((c) => c.zona).filter(Boolean)).size, [cadastros])
   const evolution = useMemo(() => buildEvolutionData(cadastros), [cadastros])
   const zonaData = useMemo(() => buildZonaData(cadastros), [cadastros])
+  const mapMarkers = useMemo(() => buildMapMarkers(cadastros), [cadastros])
 
   const ranking = useMemo(() => {
     const counts = new Map<string, number>()
@@ -583,6 +596,16 @@ function DiretoriaDashboard() {
           <strong className="tabular-nums">{nerites.filter((n) => n.ativo).length}</strong>
         </div>
       </div>
+
+      <Card
+        title="Mapa por zona eleitoral"
+        subtitle="Manchas coloridas por intensidade de cadastros"
+        className="chart-card"
+        style={{ marginBottom: '1.25rem' }}
+        action={<Link to="/mapa" className="diretoria-open-link">Abrir mapa completo →</Link>}
+      >
+        <CadastrosMap markers={mapMarkers} height={360} />
+      </Card>
 
       <div className="dashboard-main-grid">
         <Card title="Evolução" subtitle="Cadastros da sua diretoria" className="chart-card chart-card-wide">
