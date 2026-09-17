@@ -19,7 +19,7 @@ export function MapaPage() {
   const [zona, setZona] = useState('')
   const [secao, setSecao] = useState('')
   const [minCount, setMinCount] = useState('')
-  const [layerMode, setLayerMode] = useState<'markers' | 'density'>('markers')
+  const [layerMode, setLayerMode] = useState<'markers' | 'density'>('density')
   const [focus, setFocus] = useState<{ lat: number; lng: number } | null>(null)
   const [resetKey, setResetKey] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -86,7 +86,7 @@ export function MapaPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Mapa por Zona Eleitoral</h1>
-          <p className="page-subtitle">Distribuição dos cadastros no mapa conforme a zona eleitoral.</p>
+          <p className="page-subtitle">Mancha cobrindo os bairros de cada zona eleitoral cadastrada.</p>
         </div>
       </div>
 
@@ -139,8 +139,8 @@ export function MapaPage() {
             value={layerMode}
             onChange={(e) => setLayerMode(e.target.value as 'markers' | 'density')}
             options={[
-              { value: 'markers', label: 'Marcadores numerados' },
-              { value: 'density', label: 'Densidade' },
+              { value: 'density', label: 'Mancha dos bairros' },
+              { value: 'markers', label: 'Mancha + marcador' },
             ]}
           />
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
@@ -160,7 +160,7 @@ export function MapaPage() {
           <div className="map-panel-head">
             <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
               <MapPin size={16} color="#2f6fed" />
-              <strong>Maranhão · distribuição por zona eleitoral</strong>
+              <strong>Maranhão · mancha por zona (bairros cobertos)</strong>
             </div>
             <Button variant="secondary" size="sm" onClick={() => { setFocus(null); setResetKey((k) => k + 1) }}>
               <RotateCcw size={14} /> Ver todo o Maranhão
@@ -182,11 +182,11 @@ export function MapaPage() {
         </Card>
 
         <div className="map-side">
-          <Card title="Zonas com mais cadastros" subtitle="Clique para centralizar no mapa">
+          <Card title="Zonas com mancha no mapa" subtitle="Clique para aproximar a área da zona">
             {!markers.length ? (
               <div className="empty-card">
-                <strong>Nenhum ponto no mapa</strong>
-                <span>As zonas aparecem conforme os cadastros com zona eleitoral forem registrados.</span>
+                <strong>Nenhuma mancha no mapa</strong>
+                <span>As zonas aparecem com cobertura dos bairros quando houver cadastros.</span>
               </div>
             ) : (
               markers.slice(0, 12).map((m, index) => (
