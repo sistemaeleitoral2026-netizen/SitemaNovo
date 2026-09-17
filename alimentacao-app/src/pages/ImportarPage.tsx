@@ -99,10 +99,12 @@ export function ImportarPage() {
         secao: row.secao,
         nome_mae: row.nome_mae,
         coordenador: row.coordenador || '',
+        lider: row.lider || '',
         data_nascimento: row.data_nascimento || null,
         cep: row.cep || null,
         lat: coords?.lat ?? null,
         lng: coords?.lng ?? null,
+        diretoria_id: profile.diretoria_id ?? null,
       })
       if (!insertError) inserted += 1
     }
