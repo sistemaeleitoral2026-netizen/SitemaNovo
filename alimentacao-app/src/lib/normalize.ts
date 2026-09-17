@@ -71,6 +71,7 @@ export function normalizeCadastroFields<T extends {
   zona: string
   secao: string
   nome_mae: string
+  coordenador: string
   cep: string
 }>(data: T): T {
   return {
@@ -82,6 +83,7 @@ export function normalizeCadastroFields<T extends {
     zona: normalizeZona(data.zona),
     secao: normalizeSecao(data.secao),
     nome_mae: normalizeName(data.nome_mae),
+    coordenador: normalizeName(data.coordenador),
     cep: normalizeCep(data.cep),
   }
 }

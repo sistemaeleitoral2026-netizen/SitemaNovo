@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { Upload } from 'lucide-react'
+import { FolderOpen, Info, Upload } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -98,6 +98,7 @@ export function ImportarPage() {
         zona: row.zona,
         secao: row.secao,
         nome_mae: row.nome_mae,
+        coordenador: row.coordenador || '',
         cep: row.cep || null,
         lat: coords?.lat ?? null,
         lng: coords?.lng ?? null,
@@ -141,11 +142,16 @@ export function ImportarPage() {
           onDrop={handleDrop}
           onClick={() => document.getElementById('file-input')?.click()}
         >
-          <Upload size={32} color="var(--color-primary)" style={{ marginBottom: '0.75rem' }} />
-          <p style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Arraste e solte...</p>
-          <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>Clique para selecionar</p>
-          <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.5rem' }}>
-            Formatos: .xlsx, .xls, .xlsm, .xlsb, .csv, .ods, .tsv, .txt
+          <div className="dropzone-icon">
+            <Upload size={26} color="#2f6fed" />
+          </div>
+          <strong style={{ fontSize: '1rem', fontWeight: 700 }}>Arraste e solte sua planilha aqui</strong>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.84rem', margin: '0.3rem 0 1rem' }}>
+            Ou clique para selecionar um arquivo no seu computador
+          </p>
+          <span className="dropzone-select"><FolderOpen size={15} /> Selecionar arquivo</span>
+          <p style={{ color: '#8a95a7', fontSize: '0.72rem', margin: '1rem 0 0' }}>
+            Formatos aceitos: .xlsx, .xls, .xlsm, .xlsb, .csv, .ods, .tsv, .txt
           </p>
           <input
             id="file-input"
@@ -156,10 +162,15 @@ export function ImportarPage() {
           />
         </div>
 
-        <div className="notice" style={{ marginTop: '1rem' }}>
-          <b>Cabeçalhos obrigatórios (1ª linha):</b>
-          <br />
-          NOME COMPLETO | TELEFONE | TITULO | ZONA | SESSAO | NOME COMPLETO DA MÃE
+        <div className="headers-box">
+          <Info size={18} color="#6c788d" />
+          <div>
+            <strong>Cabeçalhos obrigatórios (1ª linha):</strong>
+            <span>NOME COMPLETO | TELEFONE | TITULO | ZONA | SESSAO | NOME COMPLETO DA MÃE</span>
+            <span style={{ color: '#6c788d', fontWeight: 500, marginTop: '.35rem' }}>
+              Opcional: COORDENADOR
+            </span>
+          </div>
         </div>
 
         {file && (
