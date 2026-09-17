@@ -698,21 +698,13 @@ export function EquipePage() {
                   {filteredLideres.map((l) => (
                     <tr key={l.id}>
                       <td>
-                        <button
-                          type="button"
+                        <Link
+                          to={`/cadastros?lider=${encodeURIComponent(l.nome)}`}
                           className="equipe-drill-link"
-                          onClick={() =>
-                            patchParams({
-                              tab: 'nerites',
-                              lider: l.id,
-                              coordenador: l.coordenador_id || coordenadorFromUrl || null,
-                              ...(isAdmin ? { diretoria: l.diretoria_id } : {}),
-                            })
-                          }
                         >
                           <strong>{l.nome}</strong>
-                          <span>Ver nerites →</span>
-                        </button>
+                          <span>Ver fichas →</span>
+                        </Link>
                       </td>
                       <td>{coordenadores.find((c) => c.id === l.coordenador_id)?.nome ?? '—'}</td>
                       {isAdmin && <td>{dirName(l.diretoria_id)}</td>}
