@@ -99,6 +99,7 @@ export function ImportarPage() {
         secao: row.secao,
         nome_mae: row.nome_mae,
         coordenador: row.coordenador || '',
+        data_nascimento: row.data_nascimento || null,
         cep: row.cep || null,
         lat: coords?.lat ?? null,
         lng: coords?.lng ?? null,
@@ -168,7 +169,7 @@ export function ImportarPage() {
             <strong>Cabeçalhos obrigatórios (1ª linha):</strong>
             <span>NOME COMPLETO | TELEFONE | TITULO | ZONA | SESSAO | NOME COMPLETO DA MÃE</span>
             <span style={{ color: '#6c788d', fontWeight: 500, marginTop: '.35rem' }}>
-              Opcional: COORDENADOR
+              Opcional: COORDENADOR | DATA DE NASCIMENTO
             </span>
           </div>
         </div>

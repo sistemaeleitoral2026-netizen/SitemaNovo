@@ -20,6 +20,7 @@ export interface Cadastro {
   secao: string
   nome_mae: string
   coordenador: string
+  data_nascimento: string | null
   cep: string | null
   lat: number | null
   lng: number | null
@@ -60,6 +61,7 @@ export interface ImportPreviewRow {
   secao: string
   nome_mae: string
   coordenador: string
+  data_nascimento: string
   cep: string
   status: 'valido' | 'duplicado' | 'erro'
   mensagem?: string
@@ -82,6 +84,7 @@ export interface CadastroFormData {
   secao: string
   nome_mae: string
   coordenador: string
+  data_nascimento: string
   cep: string
 }
 
