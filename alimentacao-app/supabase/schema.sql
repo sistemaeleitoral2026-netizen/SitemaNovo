@@ -21,6 +21,7 @@ create table if not exists public.cadastros (
   secao text not null,
   nome_mae text not null,
   coordenador text not null default '',
+  data_nascimento date,
   cep text,
   lat double precision,
   lng double precision,

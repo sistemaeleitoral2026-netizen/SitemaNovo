@@ -188,10 +188,11 @@ export function CadastrosPage() {
   }
 
   function exportCsv() {
-    const header = ['Nome', 'Coordenador', 'Telefone', 'Titulo', 'Zona', 'Secao', 'CEP', 'Data']
+    const header = ['Nome', 'Coordenador', 'Data nascimento', 'Telefone', 'Titulo', 'Zona', 'Secao', 'CEP', 'Data']
     const rows = filteredCadastros.map((c) => [
       c.nome_completo,
       c.coordenador || '',
+      c.data_nascimento ? formatDate(c.data_nascimento) : '',
       c.telefone,
       c.titulo,
       c.zona,
@@ -371,6 +372,7 @@ export function CadastrosPage() {
                     <th>Nome</th>
                     {!isOwnOnly && <th>Nerite</th>}
                     <th>Coordenador</th>
+                    <th>Nascimento</th>
                     <th>CPF</th>
                     <th>Telefone</th>
                     <th>Título</th>
@@ -390,6 +392,7 @@ export function CadastrosPage() {
                         <td><strong style={{ fontWeight: 600, fontSize: '.8rem' }}>{c.nome_completo}</strong></td>
                         {!isOwnOnly && <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{neriteNames.get(c.operator_id) ?? '—'}</span></td>}
                         <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{c.coordenador || '—'}</span></td>
+                        <td>{c.data_nascimento ? formatDate(c.data_nascimento) : '—'}</td>
                         <td>{formatCpf(c.cpf)}</td>
                         <td>{formatPhone(c.telefone)}</td>
                         <td>{c.titulo}</td>
@@ -448,6 +451,7 @@ export function CadastrosPage() {
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.6rem .75rem', marginTop: '.8rem', paddingTop: '.7rem', borderTop: '1px solid #e9edf4' }}>
                       <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>Coordenador</span><strong style={{ fontSize: '.76rem' }}>{c.coordenador || '—'}</strong></div>
+                      <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>Nascimento</span><strong style={{ fontSize: '.76rem' }}>{c.data_nascimento ? formatDate(c.data_nascimento) : '—'}</strong></div>
                       <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>CPF</span><strong style={{ fontSize: '.76rem' }}>{formatCpf(c.cpf)}</strong></div>
                       <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>Título</span><strong style={{ fontSize: '.76rem' }}>{c.titulo}</strong></div>
                       <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>Zona / Seção</span><strong style={{ fontSize: '.76rem' }}>{c.zona} / {c.secao}</strong></div>

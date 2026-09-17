@@ -63,6 +63,21 @@ export function normalizeSecao(value: string): string {
   return digits.padStart(4, '0')
 }
 
+export function normalizeBirthDate(value: string): string {
+  const raw = value.trim()
+  if (!raw) return ''
+
+  // YYYY-MM-DD (input type="date")
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+
+  // DD/MM/YYYY or DD-MM-YYYY
+  const br = raw.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/)
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`
+
+  // Excel serial-ish fallback: leave empty if invalid
+  return ''
+}
+
 export function normalizeCadastroFields<T extends {
   nome_completo: string
   cpf: string
@@ -72,6 +87,7 @@ export function normalizeCadastroFields<T extends {
   secao: string
   nome_mae: string
   coordenador: string
+  data_nascimento: string
   cep: string
 }>(data: T): T {
   return {
@@ -84,6 +100,7 @@ export function normalizeCadastroFields<T extends {
     secao: normalizeSecao(data.secao),
     nome_mae: normalizeName(data.nome_mae),
     coordenador: normalizeName(data.coordenador),
+    data_nascimento: normalizeBirthDate(data.data_nascimento),
     cep: normalizeCep(data.cep),
   }
 }
