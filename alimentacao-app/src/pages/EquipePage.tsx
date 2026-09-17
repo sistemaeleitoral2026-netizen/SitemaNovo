@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Pencil, Plus, Search, Trash2, UserPlus, Users, UserCog, Crown } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { Pencil, Plus, Search, Trash2, UserPlus, Users, UserCog, Crown, ClipboardList } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -17,7 +17,7 @@ type Tab = 'nerites' | 'coordenadores' | 'lideres'
 const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
   nerites: {
     title: 'Nerites',
-    subtitle: 'Crie contas das nerites da sua diretoria. Elas ficam vinculadas a você.',
+    subtitle: 'Cadastre, edite ou exclua as nerites da sua diretoria.',
   },
   coordenadores: {
     title: 'Coordenadores',
@@ -59,15 +59,24 @@ export function EquipePage() {
   const [neriteOpen, setNeriteOpen] = useState(false)
   const [coordOpen, setCoordOpen] = useState(false)
   const [liderOpen, setLiderOpen] = useState(false)
+  const [editingNeriteId, setEditingNeriteId] = useState<string | null>(null)
   const [editingCoordId, setEditingCoordId] = useState<string | null>(null)
   const [editingLiderId, setEditingLiderId] = useState<string | null>(null)
+  const [deleteNeriteId, setDeleteNeriteId] = useState<string | null>(null)
   const [deleteCoordId, setDeleteCoordId] = useState<string | null>(null)
   const [deleteLiderId, setDeleteLiderId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [neriteForm, setNeriteForm] = useState({
-    nome: '', email: '', password: '', confirm: '', diretoria_id: '', coordenador_id: '', lider_id: '',
+    nome: '',
+    email: '',
+    password: '',
+    confirm: '',
+    diretoria_id: '',
+    coordenador_id: '',
+    lider_id: '',
+    ativo: true,
   })
   const [coordForm, setCoordForm] = useState({ nome: '', diretoria_id: '' })
   const [liderForm, setLiderForm] = useState({ nome: '', diretoria_id: '', coordenador_id: '' })
@@ -161,34 +170,130 @@ export function EquipePage() {
     setLiderOpen(true)
   }
 
-  async function handleCreateNerite() {
+  function openNewNerite() {
     setError(null)
-    if (neriteForm.password !== neriteForm.confirm) {
-      setError('As senhas não coincidem.')
-      return
-    }
-    const targetDir = isAdmin ? neriteForm.diretoria_id : diretoriaId
-    if (!targetDir) {
-      setError('Selecione a diretoria.')
-      return
-    }
-    setSaving(true)
-    const { error: err } = await createNerite({
-      nome: neriteForm.nome,
-      email: neriteForm.email,
-      password: neriteForm.password,
-      role: 'operador',
-      diretoria_id: targetDir,
-      coordenador_id: neriteForm.coordenador_id || null,
-      lider_id: neriteForm.lider_id || null,
+    setEditingNeriteId(null)
+    setNeriteForm({
+      nome: '',
+      email: '',
+      password: '',
+      confirm: '',
+      diretoria_id: diretoriaId ?? '',
+      coordenador_id: '',
+      lider_id: '',
+      ativo: true,
     })
+    setNeriteOpen(true)
+  }
+
+  function openEditNerite(n: Profile) {
+    setError(null)
+    setEditingNeriteId(n.id)
+    setNeriteForm({
+      nome: n.nome,
+      email: n.email,
+      password: '',
+      confirm: '',
+      diretoria_id: n.diretoria_id ?? '',
+      coordenador_id: n.coordenador_id ?? '',
+      lider_id: n.lider_id ?? '',
+      ativo: n.ativo,
+    })
+    setNeriteOpen(true)
+  }
+
+  async function manageNeriteRequest(method: 'POST' | 'DELETE', body: Record<string, unknown>) {
+    const { data: sessionData } = await supabase.auth.getSession()
+    const token = sessionData.session?.access_token
+    if (!token) return { error: 'Sessão expirada.' }
+    const res = await fetch('/api/manage-nerite', {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    })
+    const payload = await res.json().catch(() => ({}))
+    if (!res.ok) return { error: payload.error || 'Não foi possível concluir a operação.' }
+    return { error: null }
+  }
+
+  async function handleSaveNerite() {
+    setError(null)
+    const targetDir = isAdmin ? neriteForm.diretoria_id : diretoriaId
+    if (!neriteForm.nome.trim() || !targetDir) {
+      setError('Informe o nome e a diretoria.')
+      return
+    }
+
+    if (editingNeriteId) {
+      if (neriteForm.password || neriteForm.confirm) {
+        if (neriteForm.password !== neriteForm.confirm) {
+          setError('As senhas não coincidem.')
+          return
+        }
+        if (neriteForm.password.length < 8) {
+          setError('A nova senha precisa ter no mínimo 8 caracteres.')
+          return
+        }
+      }
+      setSaving(true)
+      const { error: err } = await manageNeriteRequest('POST', {
+        id: editingNeriteId,
+        nome: neriteForm.nome.trim(),
+        diretoria_id: targetDir,
+        coordenador_id: neriteForm.coordenador_id || null,
+        lider_id: neriteForm.lider_id || null,
+        ativo: neriteForm.ativo,
+        password: neriteForm.password || undefined,
+      })
+      setSaving(false)
+      if (err) {
+        setError(err)
+        return
+      }
+    } else {
+      if (neriteForm.password !== neriteForm.confirm) {
+        setError('As senhas não coincidem.')
+        return
+      }
+      setSaving(true)
+      const { error: err } = await createNerite({
+        nome: neriteForm.nome,
+        email: neriteForm.email,
+        password: neriteForm.password,
+        role: 'operador',
+        diretoria_id: targetDir,
+        coordenador_id: neriteForm.coordenador_id || null,
+        lider_id: neriteForm.lider_id || null,
+      })
+      setSaving(false)
+      if (err) {
+        setError(err)
+        return
+      }
+    }
+
+    setNeriteOpen(false)
+    setEditingNeriteId(null)
+    setNeriteForm({
+      nome: '', email: '', password: '', confirm: '', diretoria_id: '', coordenador_id: '', lider_id: '', ativo: true,
+    })
+    await load()
+  }
+
+  async function handleDeleteNerite() {
+    if (!deleteNeriteId) return
+    setSaving(true)
+    const { error: err } = await manageNeriteRequest('DELETE', { id: deleteNeriteId })
     setSaving(false)
     if (err) {
       setError(err)
+      setDeleteNeriteId(null)
       return
     }
-    setNeriteOpen(false)
-    setNeriteForm({ nome: '', email: '', password: '', confirm: '', diretoria_id: '', coordenador_id: '', lider_id: '' })
+    setDeleteNeriteId(null)
     await load()
   }
 
@@ -275,6 +380,7 @@ export function EquipePage() {
 
   const dirName = (id: string | null | undefined) => diretorias.find((d) => d.id === id)?.nome ?? '—'
   const meta = TAB_META[tab]
+  const deleteNeriteName = nerites.find((n) => n.id === deleteNeriteId)?.nome
   const deleteCoordName = coordenadores.find((c) => c.id === deleteCoordId)?.nome
   const deleteLiderName = lideres.find((l) => l.id === deleteLiderId)?.nome
 
@@ -299,7 +405,7 @@ export function EquipePage() {
         </div>
         <div className="page-header-actions">
           {tab === 'nerites' && (
-            <Button onClick={() => { setError(null); setNeriteOpen(true) }}><UserPlus size={16} /> Nova nerite</Button>
+            <Button onClick={openNewNerite}><UserPlus size={16} /> Nova nerite</Button>
           )}
           {tab === 'coordenadores' && (
             <Button onClick={openNewCoord}><Plus size={16} /> Novo coordenador</Button>
@@ -353,7 +459,7 @@ export function EquipePage() {
             <EmptyState
               title="Nenhuma nerite"
               description="Crie a primeira nerite da sua diretoria. Ela ficará vinculada a você."
-              action={<Button onClick={() => setNeriteOpen(true)}><UserPlus size={16} /> Nova nerite</Button>}
+              action={<Button onClick={openNewNerite}><UserPlus size={16} /> Nova nerite</Button>}
             />
           ) : (
             <div className="table-wrapper">
@@ -364,15 +470,43 @@ export function EquipePage() {
                     <th>E-mail</th>
                     {isAdmin && <th>Diretoria</th>}
                     <th>Status</th>
+                    {canManageTeam && <th>Ações</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredNerites.map((n) => (
                     <tr key={n.id}>
-                      <td><strong>{n.nome}</strong></td>
+                      <td>
+                        <Link to={`/nerites/${n.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                          <strong>{n.nome}</strong>
+                        </Link>
+                      </td>
                       <td>{n.email}</td>
                       {isAdmin && <td>{dirName(n.diretoria_id)}</td>}
                       <td><span className={`badge ${n.ativo ? 'badge-success' : 'badge-danger'}`}>{n.ativo ? 'Ativa' : 'Inativa'}</span></td>
+                      {canManageTeam && (
+                        <td>
+                          <div style={{ display: 'flex', gap: '0.35rem' }}>
+                            <Link to={`/cadastros?operator=${encodeURIComponent(n.id)}`}>
+                              <Button variant="ghost" size="sm" aria-label="Ver fichas">
+                                <ClipboardList size={16} />
+                              </Button>
+                            </Link>
+                            <Button variant="ghost" size="sm" aria-label="Editar" onClick={() => openEditNerite(n)}>
+                              <Pencil size={16} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label="Excluir"
+                              onClick={() => { setError(null); setDeleteNeriteId(n.id) }}
+                              disabled={!n.ativo}
+                            >
+                              <Trash2 size={16} color="var(--color-danger)" />
+                            </Button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -406,6 +540,11 @@ export function EquipePage() {
                       {canManageTeam && (
                         <td>
                           <div style={{ display: 'flex', gap: '0.35rem' }}>
+                            <Link to={`/cadastros?coordenador=${encodeURIComponent(c.nome)}`}>
+                              <Button variant="ghost" size="sm" aria-label="Ver fichas">
+                                <ClipboardList size={16} />
+                              </Button>
+                            </Link>
                             <Button variant="ghost" size="sm" aria-label="Editar" onClick={() => openEditCoord(c)}>
                               <Pencil size={16} />
                             </Button>
@@ -450,6 +589,11 @@ export function EquipePage() {
                       {canManageTeam && (
                         <td>
                           <div style={{ display: 'flex', gap: '0.35rem' }}>
+                            <Link to={`/cadastros?lider=${encodeURIComponent(l.nome)}`}>
+                              <Button variant="ghost" size="sm" aria-label="Ver fichas">
+                                <ClipboardList size={16} />
+                              </Button>
+                            </Link>
                             <Button variant="ghost" size="sm" aria-label="Editar" onClick={() => openEditLider(l)}>
                               <Pencil size={16} />
                             </Button>
@@ -468,7 +612,14 @@ export function EquipePage() {
         )}
       </Card>
 
-      <Modal open={neriteOpen} title="Nova nerite" onClose={() => !saving && setNeriteOpen(false)} onConfirm={handleCreateNerite} confirmLabel="Criar nerite" loading={saving}>
+      <Modal
+        open={neriteOpen}
+        title={editingNeriteId ? 'Editar nerite' : 'Nova nerite'}
+        onClose={() => !saving && setNeriteOpen(false)}
+        onConfirm={handleSaveNerite}
+        confirmLabel="Salvar"
+        loading={saving}
+      >
         <div style={{ display: 'grid', gap: '.75rem' }}>
           {isAdmin && (
             <Select
@@ -480,7 +631,13 @@ export function EquipePage() {
             />
           )}
           <Input label="Nome" value={neriteForm.nome} onChange={(e) => setNeriteForm((f) => ({ ...f, nome: e.target.value }))} />
-          <Input label="E-mail" type="email" value={neriteForm.email} onChange={(e) => setNeriteForm((f) => ({ ...f, email: e.target.value }))} />
+          <Input
+            label="E-mail"
+            type="email"
+            value={neriteForm.email}
+            onChange={(e) => setNeriteForm((f) => ({ ...f, email: e.target.value }))}
+            disabled={Boolean(editingNeriteId)}
+          />
           <Select
             label="Coordenador"
             value={neriteForm.coordenador_id}
@@ -495,8 +652,30 @@ export function EquipePage() {
             options={liderOptionsForForm.map((l) => ({ value: l.id, label: l.nome }))}
             placeholder="Opcional"
           />
-          <Input label="Senha" type="password" value={neriteForm.password} onChange={(e) => setNeriteForm((f) => ({ ...f, password: e.target.value }))} />
-          <Input label="Confirmar senha" type="password" value={neriteForm.confirm} onChange={(e) => setNeriteForm((f) => ({ ...f, confirm: e.target.value }))} />
+          {editingNeriteId && (
+            <Select
+              label="Status"
+              value={neriteForm.ativo ? '1' : '0'}
+              onChange={(e) => setNeriteForm((f) => ({ ...f, ativo: e.target.value === '1' }))}
+              options={[
+                { value: '1', label: 'Ativa' },
+                { value: '0', label: 'Inativa' },
+              ]}
+            />
+          )}
+          <Input
+            label={editingNeriteId ? 'Nova senha (opcional)' : 'Senha'}
+            type="password"
+            value={neriteForm.password}
+            onChange={(e) => setNeriteForm((f) => ({ ...f, password: e.target.value }))}
+            placeholder={editingNeriteId ? 'Deixe em branco para manter' : undefined}
+          />
+          <Input
+            label={editingNeriteId ? 'Confirmar nova senha' : 'Confirmar senha'}
+            type="password"
+            value={neriteForm.confirm}
+            onChange={(e) => setNeriteForm((f) => ({ ...f, confirm: e.target.value }))}
+          />
           {error && <div className="alert alert-error">{error}</div>}
         </div>
       </Modal>
@@ -553,6 +732,17 @@ export function EquipePage() {
           {error && <div className="alert alert-error">{error}</div>}
         </div>
       </Modal>
+
+      <Modal
+        open={Boolean(deleteNeriteId)}
+        title="Excluir nerite?"
+        description={`Remover o acesso de "${deleteNeriteName ?? 'esta nerite'}". Os cadastros feitos por ela permanecem no sistema.`}
+        onClose={() => !saving && setDeleteNeriteId(null)}
+        onConfirm={handleDeleteNerite}
+        confirmLabel="Excluir"
+        confirmVariant="danger"
+        loading={saving}
+      />
 
       <Modal
         open={Boolean(deleteCoordId)}

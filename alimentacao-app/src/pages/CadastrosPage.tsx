@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { Download, Filter, Pencil, Plus, RotateCcw, Search, Trash2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
@@ -23,12 +23,16 @@ type ViewMode = 'todos' | 'mapped' | 'unmapped' | 'week7'
 export function CadastrosPage() {
   const { profile } = useAuth()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const isOwnOnly = location.pathname === '/meus-cadastros'
 
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
   const [nerites, setNerites] = useState<Profile[]>([])
   const [search, setSearch] = useState('')
-  const [operatorFilter, setOperatorFilter] = useState('')
+  const [operatorFilter, setOperatorFilter] = useState(() => searchParams.get('operator') ?? '')
+  const [coordenadorFilter, setCoordenadorFilter] = useState(() => searchParams.get('coordenador') ?? '')
+  const [liderFilter, setLiderFilter] = useState(() => searchParams.get('lider') ?? '')
+  const [diretoriaFilter, setDiretoriaFilter] = useState(() => searchParams.get('diretoria') ?? '')
   const [zonaFilter, setZonaFilter] = useState('')
   const [secaoFilter, setSecaoFilter] = useState('')
   const [geoFilter, setGeoFilter] = useState('')
@@ -67,8 +71,22 @@ export function CadastrosPage() {
     load()
   }, [load])
 
+  useEffect(() => {
+    const next = new URLSearchParams()
+    if (operatorFilter) next.set('operator', operatorFilter)
+    if (coordenadorFilter) next.set('coordenador', coordenadorFilter)
+    if (liderFilter) next.set('lider', liderFilter)
+    if (diretoriaFilter) next.set('diretoria', diretoriaFilter)
+    setSearchParams(next, { replace: true })
+  }, [operatorFilter, coordenadorFilter, liderFilter, diretoriaFilter, setSearchParams])
+
   const neriteNames = useMemo(
     () => new Map(nerites.map((nerite) => [nerite.id, nerite.nome])),
+    [nerites],
+  )
+
+  const neriteById = useMemo(
+    () => new Map(nerites.map((n) => [n.id, n])),
     [nerites],
   )
 
@@ -80,6 +98,16 @@ export function CadastrosPage() {
     () => [...new Set(cadastros.filter((c) => !zonaFilter || c.zona === zonaFilter).map((c) => c.secao).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })),
     [cadastros, zonaFilter],
+  )
+  const coordenadoresOpts = useMemo(
+    () => [...new Set(cadastros.map((c) => c.coordenador?.trim()).filter(Boolean) as string[])]
+      .sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [cadastros],
+  )
+  const lideresOpts = useMemo(
+    () => [...new Set(cadastros.map((c) => c.lider?.trim()).filter(Boolean) as string[])]
+      .sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [cadastros],
   )
 
   const period = useMemo(() => getPeriodFromPreset(periodPreset), [periodPreset])
@@ -99,11 +127,14 @@ export function CadastrosPage() {
     const digitTerm = search.replace(/\D/g, '')
     const cepTerm = cepFilter.replace(/\D/g, '')
     const tituloTerm = tituloFilter.trim().toLowerCase()
+    const coordTerm = coordenadorFilter.trim().toLowerCase()
+    const liderTerm = liderFilter.trim().toLowerCase()
 
     return cadastros.filter((c) => {
       const matchesSearch = !textTerm || [
         c.nome_completo,
         c.coordenador ?? '',
+        c.lider ?? '',
         c.cpf ?? '',
         c.telefone,
         c.titulo,
@@ -116,6 +147,13 @@ export function CadastrosPage() {
 
       if (!matchesSearch) return false
       if (operatorFilter && c.operator_id !== operatorFilter) return false
+      if (coordTerm && (c.coordenador ?? '').trim().toLowerCase() !== coordTerm) return false
+      if (liderTerm && (c.lider ?? '').trim().toLowerCase() !== liderTerm) return false
+      if (diretoriaFilter) {
+        const nerite = neriteById.get(c.operator_id)
+        const dirId = c.diretoria_id || nerite?.diretoria_id
+        if (dirId !== diretoriaFilter) return false
+      }
       if (zonaFilter && c.zona !== zonaFilter) return false
       if (secaoFilter && c.secao !== secaoFilter) return false
 
@@ -140,19 +178,30 @@ export function CadastrosPage() {
       return true
     })
   }, [
-    cadastros, search, operatorFilter, zonaFilter, secaoFilter, geoFilter, view, weekAgo,
-    period, dateFrom, dateTo, cepFilter, tituloFilter, dupFilter, duplicateTitles, neriteNames,
+    cadastros, search, operatorFilter, coordenadorFilter, liderFilter, diretoriaFilter,
+    zonaFilter, secaoFilter, geoFilter, view, weekAgo,
+    period, dateFrom, dateTo, cepFilter, tituloFilter, dupFilter, duplicateTitles, neriteNames, neriteById,
   ])
 
   useEffect(() => setPage(0), [
-    search, operatorFilter, zonaFilter, secaoFilter, geoFilter, view, periodPreset,
+    search, operatorFilter, coordenadorFilter, liderFilter, diretoriaFilter,
+    zonaFilter, secaoFilter, geoFilter, view, periodPreset,
     dateFrom, dateTo, cepFilter, tituloFilter, dupFilter, pageSize,
   ])
 
   const hasFilters = Boolean(
-    search || operatorFilter || zonaFilter || secaoFilter || geoFilter || periodPreset !== 'all'
+    search || operatorFilter || coordenadorFilter || liderFilter || diretoriaFilter
+    || zonaFilter || secaoFilter || geoFilter || periodPreset !== 'all'
     || dateFrom || dateTo || cepFilter || tituloFilter || dupFilter || view !== 'todos',
   )
+
+  const scopeHint = useMemo(() => {
+    const parts: string[] = []
+    if (liderFilter) parts.push(`Liderança ${liderFilter}`)
+    if (coordenadorFilter) parts.push(`Coordenador ${coordenadorFilter}`)
+    if (operatorFilter) parts.push(neriteNames.get(operatorFilter) ?? 'Nerite')
+    return parts.join(' · ')
+  }, [liderFilter, coordenadorFilter, operatorFilter, neriteNames])
 
   const totalPages = Math.max(1, Math.ceil(filteredCadastros.length / pageSize))
   const pageItems = filteredCadastros.slice(page * pageSize, (page + 1) * pageSize)
@@ -160,6 +209,9 @@ export function CadastrosPage() {
   function clearFilters() {
     setSearch('')
     setOperatorFilter('')
+    setCoordenadorFilter('')
+    setLiderFilter('')
+    setDiretoriaFilter('')
     setZonaFilter('')
     setSecaoFilter('')
     setGeoFilter('')
@@ -170,6 +222,7 @@ export function CadastrosPage() {
     setTituloFilter('')
     setDupFilter('')
     setView('todos')
+    setSearchParams({}, { replace: true })
   }
 
   const canEdit = (c: Cadastro) =>
@@ -188,10 +241,11 @@ export function CadastrosPage() {
   }
 
   function exportCsv() {
-    const header = ['Nome', 'Coordenador', 'Data nascimento', 'Telefone', 'Titulo', 'Zona', 'Secao', 'CEP', 'Data']
+    const header = ['Nome', 'Coordenador', 'Lideranca', 'Data nascimento', 'Telefone', 'Titulo', 'Zona', 'Secao', 'CEP', 'Data']
     const rows = filteredCadastros.map((c) => [
       c.nome_completo,
       c.coordenador || '',
+      c.lider || '',
       c.data_nascimento ? formatDate(c.data_nascimento) : '',
       c.telefone,
       c.titulo,
@@ -290,6 +344,24 @@ export function CadastrosPage() {
                 aria-label="Nerite"
               />
             )}
+            {!isOwnOnly && (
+              <Select
+                value={coordenadorFilter}
+                onChange={(e) => setCoordenadorFilter(e.target.value)}
+                options={coordenadoresOpts.map((nome) => ({ value: nome, label: nome }))}
+                placeholder="Todos os coordenadores"
+                aria-label="Coordenador"
+              />
+            )}
+            {!isOwnOnly && (
+              <Select
+                value={liderFilter}
+                onChange={(e) => setLiderFilter(e.target.value)}
+                options={lideresOpts.map((nome) => ({ value: nome, label: nome }))}
+                placeholder="Todas as lideranças"
+                aria-label="Liderança"
+              />
+            )}
             <Select
               value={zonaFilter}
               onChange={(e) => { setZonaFilter(e.target.value); setSecaoFilter('') }}
@@ -348,7 +420,10 @@ export function CadastrosPage() {
           )}
 
           <div className="filter-results" style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-            <span><strong>{filteredCadastros.length}</strong> de {cadastros.length} registros encontrados</span>
+            <span>
+              <strong>{filteredCadastros.length}</strong> de {cadastros.length} registros encontrados
+              {scopeHint ? <span style={{ color: '#657084' }}> · {scopeHint}</span> : null}
+            </span>
             <span style={{ color: '#8a95a7', fontSize: '.68rem' }}>Ordenado por data</span>
           </div>
         </div>
