@@ -9,7 +9,7 @@ import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/Spinner'
 import { normalizeCadastroFields, formatCpf, formatPhone, formatCep } from '../lib/normalize'
 import { validateCadastroForm, isDuplicateCpfError } from '../lib/validation'
-import { geocodeFromCep } from '../lib/geocode'
+import { geocodeFromZona } from '../lib/geocode'
 import { logAudit } from '../lib/audit'
 import { supabase } from '../lib/supabase'
 import type { CadastroFormData, Coordenador, Lider } from '../types'
@@ -164,7 +164,9 @@ export function CadastroFormPage() {
 
     setSaving(true)
 
-    const coords = await geocodeFromCep(normalized.cep)
+    const coords = normalized.zona
+      ? await geocodeFromZona(normalized.zona)
+      : null
 
     const payload = {
       nome_completo: normalized.nome_completo || '',

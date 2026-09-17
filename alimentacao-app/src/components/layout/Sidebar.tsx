@@ -38,7 +38,7 @@ const navItems: NavItem[] = [
   { to: '/equipe?tab=lideres', label: 'Lideranças', icon: Crown, roles: ['diretoria'] },
   { to: '/nerites', label: 'Nerites', icon: Users, roles: ['admin'] },
   { to: '/cadastros', label: 'Todos os Cadastros', icon: ClipboardList, roles: ['admin', 'diretoria'] },
-  { to: '/mapa', label: 'Mapa por CEP', icon: Map, roles: ['admin', 'diretoria'] },
+  { to: '/mapa', label: 'Mapa por Zona', icon: Map, roles: ['admin', 'diretoria'] },
   { to: '/relatorios', label: 'Relatórios', icon: BarChart3, roles: ['admin', 'diretoria'] },
   { to: '/configuracoes', label: 'Configurações', icon: Settings, roles: ['admin', 'diretoria'] },
   { to: '/meus-cadastros', label: 'Meus Cadastros', icon: ClipboardList, roles: ['operador'] },

@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { parseSpreadsheet, analyzeImport, SPREADSHEET_ACCEPT } from '../lib/import'
 import { fetchExistingTitulos } from '../lib/cadastros'
-import { geocodeFromCep } from '../lib/geocode'
+import { geocodeFromZona } from '../lib/geocode'
 import { logAudit } from '../lib/audit'
 import { supabase } from '../lib/supabase'
 import type { ImportPreview } from '../types'
@@ -88,7 +88,7 @@ export function ImportarPage() {
 
     let inserted = 0
     for (const row of validRows) {
-      const coords = row.cep ? await geocodeFromCep(row.cep) : null
+      const coords = row.zona ? await geocodeFromZona(row.zona) : null
       const { error: insertError } = await supabase.from('cadastros').insert({
         operator_id: profile.id,
         nome_completo: row.nome_completo,
