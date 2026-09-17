@@ -86,7 +86,7 @@ export function MapaPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Mapa por Zona Eleitoral</h1>
-          <p className="page-subtitle">Mancha cobrindo os bairros de cada zona eleitoral cadastrada.</p>
+          <p className="page-subtitle">Mancha clara por zona eleitoral oficial (TRE-MA), com sede, municípios e bairros.</p>
         </div>
       </div>
 
