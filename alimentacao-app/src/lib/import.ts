@@ -50,6 +50,7 @@ function mapRow(raw: Record<string, unknown>): Record<string, string> {
     secao: '',
     nome_mae: '',
     coordenador: '',
+    data_nascimento: '',
     cep: '',
   }
 
@@ -71,6 +72,8 @@ function mapRow(raw: Record<string, unknown>): Record<string, string> {
       mapped.nome_mae = v
     } else if (k === 'coordenador' || k.includes('coordenador')) {
       mapped.coordenador = v
+    } else if (k === 'data de nascimento' || k === 'nascimento' || k.includes('nascimento')) {
+      mapped.data_nascimento = v
     } else if (k === 'cpf') {
       mapped.cpf = v
     } else if (k === 'cep') {
@@ -138,6 +141,7 @@ export async function analyzeImport(
       secao: raw.secao ?? '',
       nome_mae: raw.nome_mae ?? '',
       coordenador: raw.coordenador ?? '',
+      data_nascimento: raw.data_nascimento ?? '',
       cep: raw.cep ?? '',
     })
 
