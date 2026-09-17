@@ -72,6 +72,9 @@ export function EquipePage() {
   const [nerites, setNerites] = useState<Profile[]>([])
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
   const [lideres, setLideres] = useState<Lider[]>([])
+  const [fichasByCoord, setFichasByCoord] = useState<Record<string, number>>({})
+  const [fichasByLider, setFichasByLider] = useState<Record<string, number>>({})
+  const [fichasByNerite, setFichasByNerite] = useState<Record<string, number>>({})
   const [filterDiretoria, setFilterDiretoria] = useState(diretoriaFromUrl)
   const [search, setSearch] = useState('')
 
@@ -117,6 +120,7 @@ export function EquipePage() {
     let neritesQuery = supabase.from('profiles').select('*').eq('role', 'operador').order('nome')
     let coordsQuery = supabase.from('coordenadores').select('*').order('nome')
     let lideresQuery = supabase.from('lideres').select('*').order('nome')
+    let fichasQuery = supabase.from('cadastros').select('operator_id, coordenador, lider, diretoria_id')
 
     const scope = isAdmin ? filterDiretoria : diretoriaId
     if (scope) {
@@ -125,10 +129,36 @@ export function EquipePage() {
       lideresQuery = lideresQuery.eq('diretoria_id', scope)
     }
 
-    const [n, c, l] = await Promise.all([neritesQuery, coordsQuery, lideresQuery])
-    setNerites((n.data ?? []) as Profile[])
-    setCoordenadores((c.data ?? []) as Coordenador[])
-    setLideres((l.data ?? []) as Lider[])
+    const [n, c, l, f] = await Promise.all([neritesQuery, coordsQuery, lideresQuery, fichasQuery])
+    const neriteRows = (n.data ?? []) as Profile[]
+    const coordRows = (c.data ?? []) as Coordenador[]
+    const liderRows = (l.data ?? []) as Lider[]
+    setNerites(neriteRows)
+    setCoordenadores(coordRows)
+    setLideres(liderRows)
+
+    const neriteIds = new Set(neriteRows.map((row) => row.id))
+    const byCoord: Record<string, number> = {}
+    const byLider: Record<string, number> = {}
+    const byNerite: Record<string, number> = {}
+
+    ;((f.data ?? []) as { operator_id: string; coordenador: string | null; lider: string | null; diretoria_id: string | null }[])
+      .forEach((row) => {
+        if (scope) {
+          const inScope =
+            row.diretoria_id === scope || neriteIds.has(row.operator_id)
+          if (!inScope) return
+        }
+        const coord = row.coordenador?.trim()
+        const lider = row.lider?.trim()
+        if (coord) byCoord[coord] = (byCoord[coord] ?? 0) + 1
+        if (lider) byLider[lider] = (byLider[lider] ?? 0) + 1
+        if (row.operator_id) byNerite[row.operator_id] = (byNerite[row.operator_id] ?? 0) + 1
+      })
+
+    setFichasByCoord(byCoord)
+    setFichasByLider(byLider)
+    setFichasByNerite(byNerite)
     setLoading(false)
   }
 
@@ -562,13 +592,16 @@ export function EquipePage() {
                   <tr>
                     <th>Nerite</th>
                     <th>E-mail</th>
+                    <th>Fichas</th>
                     {isAdmin && <th>Diretoria</th>}
                     <th>Status</th>
                     {canManageTeam && <th>Ações</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredNerites.map((n) => (
+                  {filteredNerites.map((n) => {
+                    const fichas = fichasByNerite[n.id] ?? 0
+                    return (
                     <tr key={n.id}>
                       <td>
                         <Link to={`/nerites/${n.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
@@ -576,16 +609,25 @@ export function EquipePage() {
                         </Link>
                       </td>
                       <td>{n.email}</td>
+                      <td>
+                        <span className={`fichas-count${fichas ? '' : ' zero'}`}>{fichas}</span>
+                      </td>
                       {isAdmin && <td>{dirName(n.diretoria_id)}</td>}
                       <td><span className={`badge ${n.ativo ? 'badge-success' : 'badge-danger'}`}>{n.ativo ? 'Ativa' : 'Inativa'}</span></td>
                       {canManageTeam && (
                         <td>
                           <div style={{ display: 'flex', gap: '0.35rem' }}>
-                            <Link to={`/cadastros?operator=${encodeURIComponent(n.id)}`}>
-                              <Button variant="ghost" size="sm" aria-label="Ver fichas">
+                            {fichas > 0 ? (
+                              <Link to={`/cadastros?operator=${encodeURIComponent(n.id)}`}>
+                                <Button variant="ghost" size="sm" aria-label="Ver fichas">
+                                  <ClipboardList size={16} />
+                                </Button>
+                              </Link>
+                            ) : (
+                              <Button variant="ghost" size="sm" aria-label="Sem fichas" disabled>
                                 <ClipboardList size={16} />
                               </Button>
-                            </Link>
+                            )}
                             <Button variant="ghost" size="sm" aria-label="Editar" onClick={() => openEditNerite(n)}>
                               <Pencil size={16} />
                             </Button>
@@ -602,7 +644,8 @@ export function EquipePage() {
                         </td>
                       )}
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -622,12 +665,15 @@ export function EquipePage() {
                 <thead>
                   <tr>
                     <th>Coordenador</th>
+                    <th>Fichas</th>
                     {isAdmin && <th>Diretoria</th>}
                     {canManageTeam && <th>Ações</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredCoords.map((c) => (
+                  {filteredCoords.map((c) => {
+                    const fichas = fichasByCoord[c.nome] ?? 0
+                    return (
                     <tr key={c.id}>
                       <td>
                         <button
@@ -646,15 +692,24 @@ export function EquipePage() {
                           <span>Ver lideranças →</span>
                         </button>
                       </td>
+                      <td>
+                        <span className={`fichas-count${fichas ? '' : ' zero'}`}>{fichas}</span>
+                      </td>
                       {isAdmin && <td>{dirName(c.diretoria_id)}</td>}
                       {canManageTeam && (
                         <td>
                           <div style={{ display: 'flex', gap: '0.35rem' }}>
-                            <Link to={`/cadastros?coordenador=${encodeURIComponent(c.nome)}`}>
-                              <Button variant="ghost" size="sm" aria-label="Ver fichas">
+                            {fichas > 0 ? (
+                              <Link to={`/cadastros?coordenador=${encodeURIComponent(c.nome)}`}>
+                                <Button variant="ghost" size="sm" aria-label="Ver fichas">
+                                  <ClipboardList size={16} />
+                                </Button>
+                              </Link>
+                            ) : (
+                              <Button variant="ghost" size="sm" aria-label="Sem fichas" disabled>
                                 <ClipboardList size={16} />
                               </Button>
-                            </Link>
+                            )}
                             <Button variant="ghost" size="sm" aria-label="Editar" onClick={() => openEditCoord(c)}>
                               <Pencil size={16} />
                             </Button>
@@ -665,7 +720,8 @@ export function EquipePage() {
                         </td>
                       )}
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -690,32 +746,51 @@ export function EquipePage() {
                   <tr>
                     <th>Liderança</th>
                     <th>Coordenador</th>
+                    <th>Fichas</th>
                     {isAdmin && <th>Diretoria</th>}
                     {canManageTeam && <th>Ações</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredLideres.map((l) => (
+                  {filteredLideres.map((l) => {
+                    const fichas = fichasByLider[l.nome] ?? 0
+                    return (
                     <tr key={l.id}>
                       <td>
-                        <Link
-                          to={`/cadastros?lider=${encodeURIComponent(l.nome)}`}
-                          className="equipe-drill-link"
-                        >
-                          <strong>{l.nome}</strong>
-                          <span>Ver fichas →</span>
-                        </Link>
+                        {fichas > 0 ? (
+                          <Link
+                            to={`/cadastros?lider=${encodeURIComponent(l.nome)}`}
+                            className="equipe-drill-link"
+                          >
+                            <strong>{l.nome}</strong>
+                            <span>{fichas} ficha{fichas === 1 ? '' : 's'} →</span>
+                          </Link>
+                        ) : (
+                          <div className="equipe-drill-link muted">
+                            <strong>{l.nome}</strong>
+                            <span>0 fichas</span>
+                          </div>
+                        )}
                       </td>
                       <td>{coordenadores.find((c) => c.id === l.coordenador_id)?.nome ?? '—'}</td>
+                      <td>
+                        <span className={`fichas-count${fichas ? '' : ' zero'}`}>{fichas}</span>
+                      </td>
                       {isAdmin && <td>{dirName(l.diretoria_id)}</td>}
                       {canManageTeam && (
                         <td>
                           <div style={{ display: 'flex', gap: '0.35rem' }}>
-                            <Link to={`/cadastros?lider=${encodeURIComponent(l.nome)}`}>
-                              <Button variant="ghost" size="sm" aria-label="Ver fichas">
+                            {fichas > 0 ? (
+                              <Link to={`/cadastros?lider=${encodeURIComponent(l.nome)}`}>
+                                <Button variant="ghost" size="sm" aria-label="Ver fichas">
+                                  <ClipboardList size={16} />
+                                </Button>
+                              </Link>
+                            ) : (
+                              <Button variant="ghost" size="sm" aria-label="Sem fichas" disabled>
                                 <ClipboardList size={16} />
                               </Button>
-                            </Link>
+                            )}
                             <Button variant="ghost" size="sm" aria-label="Editar" onClick={() => openEditLider(l)}>
                               <Pencil size={16} />
                             </Button>
@@ -726,7 +801,8 @@ export function EquipePage() {
                         </td>
                       )}
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

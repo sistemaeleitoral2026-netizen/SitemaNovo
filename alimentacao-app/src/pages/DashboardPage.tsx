@@ -244,8 +244,8 @@ function AdminDashboard() {
 
       <div className="dashboard-heading">
         <div>
-          <h1>Dashboard Eleitoral · Maranhão</h1>
-          <p>Acompanhamento consolidado por diretorias, coordenadores, lideranças e cadastros.</p>
+          <h1>Dashboard</h1>
+          <p>Visão geral das fichas, diretorias e desempenho da equipe.</p>
         </div>
         <div className="dashboard-heading-actions">
           <div className="dir-filter-group" role="group" aria-label="Filtro de diretoria">
@@ -254,7 +254,7 @@ function AdminDashboard() {
               className={`dir-filter-btn${dirFilter === 'all' ? ' active' : ''}`}
               onClick={() => setDirFilter('all')}
             >
-              Geral MA
+              Geral
             </button>
             {dirStats.map((d) => (
               <button
@@ -263,7 +263,7 @@ function AdminDashboard() {
                 className={`dir-filter-btn${dirFilter === d.id ? ' active' : ''}`}
                 onClick={() => setDirFilter(d.id)}
               >
-                {d.nome}
+                {d.nome.replace(/^Diretora\s+/i, '')}
               </button>
             ))}
           </div>
@@ -271,64 +271,60 @@ function AdminDashboard() {
         </div>
       </div>
 
-      <div className={`meta-goal-banner${goal.batida ? ' done' : ''}`}>
-        <div className="meta-goal-banner-icon">
-          <ClipboardList size={20} strokeWidth={1.75} />
-        </div>
-        <div className="meta-goal-banner-copy">
-          <strong>
-            {goal.batida
-              ? 'Meta de fichas atingida'
-              : `Faltam ${goal.restante.toLocaleString('pt-BR')} fichas para a meta`}
-          </strong>
-          <span>
-            {goal.atual.toLocaleString('pt-BR')} de {goal.meta.toLocaleString('pt-BR')} fichas confirmadas no sistema
-            {' · '}
-            <Link to="/configuracoes">ajustar meta</Link>
-          </span>
-          <div className="meta-goal-banner-bar" role="progressbar" aria-valuenow={goal.pct} aria-valuemin={0} aria-valuemax={100}>
+      <div className="admin-top-grid">
+        <div className={`meta-goal-card${goal.batida ? ' done' : ''}`}>
+          <div className="meta-goal-card-head">
+            <span>Meta do sistema</span>
+            <Link to="/configuracoes">Ajustar</Link>
+          </div>
+          <div className="meta-goal-card-body">
+            <div>
+              <strong className="tabular-nums">
+                {goal.batida
+                  ? goal.atual.toLocaleString('pt-BR')
+                  : goal.restante.toLocaleString('pt-BR')}
+              </strong>
+              <span>{goal.batida ? 'fichas confirmadas' : 'faltam para a meta'}</span>
+            </div>
+            <em className="tabular-nums">{goal.pct}%</em>
+          </div>
+          <div className="meta-goal-card-bar" role="progressbar" aria-valuenow={goal.pct} aria-valuemin={0} aria-valuemax={100}>
             <i style={{ width: `${Math.max(goal.pct, goal.batida ? 100 : 2)}%` }} />
           </div>
+          <p className="meta-goal-card-foot">
+            {goal.atual.toLocaleString('pt-BR')} de {goal.meta.toLocaleString('pt-BR')} fichas
+          </p>
         </div>
-        <div className="meta-goal-banner-pct">
-          <em>{goal.pct}%</em>
-          <span>{goal.batida ? 'batida' : 'da meta'}</span>
-        </div>
-      </div>
 
-      <div className="kpi-grid kpi-grid-3">
         <div className="dash-kpi-card">
           <div className="dash-kpi-top">
             <span className="dash-kpi-icon tone-blue"><ClipboardList size={18} /></span>
-            <span className="dash-kpi-label" style={{ flex: 1 }}>Total de Fichadas</span>
-            <i className="dot dot-blue" />
+            <span className="dash-kpi-label" style={{ flex: 1 }}>Fichas no período</span>
           </div>
           <strong className="tabular-nums">{scopedCadastros.length.toLocaleString('pt-BR')}</strong>
-          <p className="dash-kpi-hint">Cadastros no período</p>
+          <p className="dash-kpi-hint">Conforme o filtro ativo</p>
         </div>
         <div className="dash-kpi-card">
           <div className="dash-kpi-top">
             <span className="dash-kpi-icon tone-emerald"><CalendarDays size={18} /></span>
-            <span className="dash-kpi-label" style={{ flex: 1 }}>Cadastros Hoje</span>
-            <i className="dot dot-emerald" />
+            <span className="dash-kpi-label" style={{ flex: 1 }}>Hoje</span>
           </div>
           <strong className="tabular-nums">{todayCount.toLocaleString('pt-BR')}</strong>
-          <p className="dash-kpi-hint success">Cadastros registrados hoje</p>
+          <p className="dash-kpi-hint success">Cadastros do dia</p>
         </div>
         <div className="dash-kpi-card">
           <div className="dash-kpi-top">
             <span className="dash-kpi-icon tone-amber"><MapPin size={18} /></span>
-            <span className="dash-kpi-label" style={{ flex: 1 }}>Zonas Eleitorais</span>
-            <i className="dot dot-amber" />
+            <span className="dash-kpi-label" style={{ flex: 1 }}>Zonas</span>
           </div>
           <strong className="tabular-nums">{zonas}</strong>
-          <p className="dash-kpi-hint">Zonas com registros no período</p>
+          <p className="dash-kpi-hint">Com registro no período</p>
         </div>
       </div>
 
       <div className="section-label-row">
         <h2 className="section-label">Diretorias</h2>
-        <span className="section-label-hint">Carol e Nicole — visão consolidada só do admin</span>
+        <span className="section-label-hint">Clique no card para filtrar o painel</span>
       </div>
 
       <div className="diretoria-cards-grid">
@@ -348,13 +344,10 @@ function AdminDashboard() {
                     <span className={`dir-avatar tone-${d.tone}`}>{initials(d.nome)}</span>
                     <h2>{d.nome}</h2>
                     <span className={`role-pill tone-${d.tone}`}>Diretora</span>
-                    <span className={`status-pill tone-${d.tone}`}>
-                      {dirFilter === d.id ? 'Filtro ativo' : 'Visualizando'}
-                    </span>
                   </div>
                 </div>
                 <div className="diretoria-card-count">
-                  <span>Fichadas Confirmadas</span>
+                  <span>Fichas</span>
                   <strong className={`tabular-nums tone-text-${d.tone}`}>{d.fichadas.toLocaleString('pt-BR')}</strong>
                 </div>
               </div>
@@ -374,8 +367,8 @@ function AdminDashboard() {
                     className="diretoria-mini-link"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <span className={`tone-text-${d.tone}`}>Líderes</span>
-                    <strong className={`tabular-nums tone-text-${d.tone}`}>{d.lideres}</strong>
+                    <span>Lideranças</span>
+                    <strong className="tabular-nums">{d.lideres}</strong>
                   </Link>
                   <Link
                     to={`/equipe?tab=nerites&diretoria=${d.id}`}
@@ -389,13 +382,13 @@ function AdminDashboard() {
               </div>
 
               <div className="diretoria-card-foot">
-                <span className={`tone-text-${d.tone}`}>Visualizar dados de {d.nome} →</span>
+                <span>{dirFilter === d.id ? 'Filtro ativo neste painel' : 'Usar como filtro do painel'}</span>
                 <Link
                   to={`/cadastros?diretoria=${d.id}`}
                   className="diretoria-open-link"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  Abrir cadastros
+                  Abrir fichas
                 </Link>
               </div>
             </button>
@@ -411,41 +404,51 @@ function AdminDashboard() {
         )}
       </div>
 
+      <div className="section-label-row" style={{ marginTop: '1.25rem' }}>
+        <h2 className="section-label">Mapa e evolução</h2>
+        <span className="section-label-hint">Cobertura territorial e ritmo de cadastro</span>
+      </div>
+
       <Card
         title="Mapa por zona eleitoral"
-        subtitle="Manchas coloridas por intensidade de cadastros"
+        subtitle="Intensidade pelos cadastros do filtro"
         className="chart-card map-preview-card"
-        style={{ marginBottom: '1.25rem' }}
-        action={<Link to="/mapa" className="diretoria-open-link">Abrir mapa completo →</Link>}
+        style={{ marginBottom: '1rem' }}
+        action={<Link to="/mapa" className="diretoria-open-link">Mapa completo →</Link>}
       >
-        <CadastrosMap markers={mapMarkers} height={380} />
+        <CadastrosMap markers={mapMarkers} height={360} />
       </Card>
 
       <div className="dashboard-main-grid">
-        <Card title="Evolução dos cadastros" subtitle="Últimos registros do período" className="chart-card chart-card-wide">
+        <Card title="Evolução" subtitle="Cadastros no período" className="chart-card chart-card-wide">
           {evolution.length ? (
             <EvolutionChart data={evolution} />
           ) : (
             <div className="empty-card">
               <strong>Sem dados no período</strong>
-              <span>A curva aparece quando os primeiros cadastros forem registrados.</span>
+              <span>A curva aparece quando houver cadastros.</span>
             </div>
           )}
         </Card>
-        <Card title="Distribuição por zona" subtitle="Participação de cada zona" className="chart-card">
+        <Card title="Por zona" subtitle="Distribuição" className="chart-card">
           {zonaData.length ? (
             <ZonaDonutChart data={zonaData} />
           ) : (
             <div className="empty-card">
               <strong>Nenhuma zona com registros</strong>
-              <span>A distribuição é calculada a partir dos cadastros.</span>
+              <span>A distribuição sai dos cadastros filtrados.</span>
             </div>
           )}
         </Card>
       </div>
 
+      <div className="section-label-row" style={{ marginTop: '1.15rem' }}>
+        <h2 className="section-label">Desempenho</h2>
+        <span className="section-label-hint">Ranking e atividade recente</span>
+      </div>
+
       <div className="dashboard-analysis-grid">
-        <Card title="Top nerites" subtitle="Cadastros no período" className="analysis-card">
+        <Card title="Top nerites" subtitle="Com fichas no período" className="analysis-card">
           {ranking.length ? (
             <div className="ranking-list">
               {ranking.map((nerite, index) => (
@@ -465,12 +468,12 @@ function AdminDashboard() {
           ) : (
             <div className="empty-card">
               <strong>Sem ranking ainda</strong>
-              <span>O ranking aparece quando as nerites começarem a cadastrar.</span>
+              <span>Aparece quando houver fichas no período.</span>
             </div>
           )}
         </Card>
 
-        <Card title="Atividade recente" subtitle="Últimos cadastros" className="analysis-card">
+        <Card title="Atividade recente" subtitle="Últimas fichas" className="analysis-card">
           {ultimos.length ? (
             <div className="recent-list">
               {ultimos.map((item) => (
@@ -490,13 +493,13 @@ function AdminDashboard() {
             </div>
           ) : (
             <div className="empty-card">
-              <strong>Nenhum cadastro registrado</strong>
+              <strong>Nenhum cadastro</strong>
               <span>Os últimos registros aparecem aqui.</span>
             </div>
           )}
         </Card>
 
-        <Card title="Top lideranças" subtitle="Fichas no período" className="analysis-card">
+        <Card title="Top lideranças" subtitle="Só com fichas" className="analysis-card">
           {topLideres.length ? (
             <div className="ranking-list">
               {topLideres.map((lider, index) => (
@@ -519,8 +522,8 @@ function AdminDashboard() {
             </div>
           ) : (
             <div className="empty-card">
-              <strong>Sem lideranças ainda</strong>
-              <span>As fichas com liderança aparecem aqui.</span>
+              <strong>Sem lideranças com fichas</strong>
+              <span>Só entram nomes que já têm cadastro.</span>
             </div>
           )}
         </Card>
