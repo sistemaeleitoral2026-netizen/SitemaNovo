@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'operador'
+export type UserRole = 'admin' | 'diretoria' | 'operador'
 
 export interface Profile {
   id: string
@@ -6,12 +6,33 @@ export interface Profile {
   email: string
   role: UserRole
   ativo: boolean
+  diretoria_id?: string | null
+  coordenador_id?: string | null
+  lider_id?: string | null
+  created_at: string
+}
+
+export interface Coordenador {
+  id: string
+  diretoria_id: string
+  nome: string
+  ativo: boolean
+  created_at: string
+}
+
+export interface Lider {
+  id: string
+  diretoria_id: string
+  coordenador_id: string | null
+  nome: string
+  ativo: boolean
   created_at: string
 }
 
 export interface Cadastro {
   id: string
   operator_id: string
+  diretoria_id?: string | null
   nome_completo: string
   cpf: string | null
   telefone: string
@@ -20,6 +41,7 @@ export interface Cadastro {
   secao: string
   nome_mae: string
   coordenador: string
+  lider: string
   data_nascimento: string | null
   cep: string | null
   lat: number | null
@@ -61,6 +83,7 @@ export interface ImportPreviewRow {
   secao: string
   nome_mae: string
   coordenador: string
+  lider: string
   data_nascimento: string
   cep: string
   status: 'valido' | 'duplicado' | 'erro'
@@ -84,6 +107,7 @@ export interface CadastroFormData {
   secao: string
   nome_mae: string
   coordenador: string
+  lider: string
   data_nascimento: string
   cep: string
 }

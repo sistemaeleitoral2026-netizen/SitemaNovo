@@ -13,11 +13,21 @@ import { MapaPage } from './pages/MapaPage'
 import { ImportarPage } from './pages/ImportarPage'
 import { RelatoriosPage } from './pages/RelatoriosPage'
 import { ConfiguracoesPage } from './pages/ConfiguracoesPage'
+import { EquipePage } from './pages/EquipePage'
 
-function AdminRoute({ children }: { children: React.ReactNode }) {
+function StaffRoute({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
   if (loading) return <Spinner />
-  if (profile?.role !== 'admin') return <Navigate to="/meus-cadastros" replace />
+  if (profile?.role !== 'admin' && profile?.role !== 'diretoria') {
+    return <Navigate to="/meus-cadastros" replace />
+  }
+  return children
+}
+
+function AdminOnlyRoute({ children }: { children: React.ReactNode }) {
+  const { profile, loading } = useAuth()
+  if (loading) return <Spinner />
+  if (profile?.role !== 'admin') return <Navigate to="/" replace />
   return children
 }
 
@@ -63,18 +73,20 @@ function AppRoutes() {
 
       <Route element={<AppShell />}>
         <Route index element={<HomeRedirect />} />
-        <Route path="nerites" element={<AdminRoute><OperadoresPage /></AdminRoute>} />
-        <Route path="nerites/:id" element={<AdminRoute><OperadorDetailPage /></AdminRoute>} />
+        <Route path="equipe" element={<StaffRoute><EquipePage /></StaffRoute>} />
+        <Route path="nerites" element={<StaffRoute><OperadoresPage /></StaffRoute>} />
+        <Route path="nerites/:id" element={<StaffRoute><OperadorDetailPage /></StaffRoute>} />
         <Route path="operadores" element={<Navigate to="/nerites" replace />} />
         <Route path="operadores/:id" element={<OperadoresIdRedirect />} />
-        <Route path="cadastros" element={<AdminRoute><CadastrosPage /></AdminRoute>} />
+        <Route path="cadastros" element={<StaffRoute><CadastrosPage /></StaffRoute>} />
         <Route path="meus-cadastros" element={<NeriteRoute><CadastrosPage /></NeriteRoute>} />
         <Route path="cadastros/novo" element={<NeriteRoute><CadastroFormPage /></NeriteRoute>} />
         <Route path="cadastros/:id/editar" element={<CadastroFormPage />} />
-        <Route path="mapa" element={<AdminRoute><MapaPage /></AdminRoute>} />
+        <Route path="mapa" element={<StaffRoute><MapaPage /></StaffRoute>} />
         <Route path="importar" element={<NeriteRoute><ImportarPage /></NeriteRoute>} />
-        <Route path="relatorios" element={<AdminRoute><RelatoriosPage /></AdminRoute>} />
-        <Route path="configuracoes" element={<AdminRoute><ConfiguracoesPage /></AdminRoute>} />
+        <Route path="relatorios" element={<StaffRoute><RelatoriosPage /></StaffRoute>} />
+        <Route path="configuracoes" element={<StaffRoute><ConfiguracoesPage /></StaffRoute>} />
+        <Route path="admin-only" element={<AdminOnlyRoute><DashboardPage /></AdminOnlyRoute>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

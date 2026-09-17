@@ -40,7 +40,11 @@ export function Header({ onMenuClick, title }: HeaderProps) {
         <div className="header-user-copy">
           <div>{profile?.nome}</div>
           <span>
-            {profile?.role === 'admin' ? 'Administrador' : 'Nerite'}
+            {profile?.role === 'admin'
+              ? 'Administrador'
+              : profile?.role === 'diretoria'
+                ? 'Diretoria'
+                : 'Nerite'}
           </span>
         </div>
         <Button variant="ghost" size="sm" onClick={() => signOut()} aria-label="Sair">

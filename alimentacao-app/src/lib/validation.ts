@@ -23,55 +23,67 @@ export interface FieldErrors {
   [key: string]: string
 }
 
+/** Nenhum campo é obrigatório; só valida formato quando preenchido. */
 export function validateCadastroForm(data: CadastroFormData): FieldErrors {
   const errors: FieldErrors = {}
 
-  if (!normalizeName(data.nome_completo)) {
-    errors.nome_completo = 'Nome completo é obrigatório.'
-  }
-
   const cpf = normalizeCpf(data.cpf)
-  if (cpf) {
-    if (!validateCpfAlgorithm(cpf)) {
-      errors.cpf = 'CPF inválido.'
-    }
+  if (cpf && !validateCpfAlgorithm(cpf)) {
+    errors.cpf = 'CPF inválido.'
   }
 
   const phone = normalizePhone(data.telefone)
-  if (!phone) {
-    errors.telefone = 'Telefone é obrigatório.'
-  } else if (phone.length < 10 || phone.length > 11) {
+  if (phone && (phone.length < 10 || phone.length > 11)) {
     errors.telefone = 'Telefone inválido.'
   }
 
-  if (!data.titulo.trim()) {
-    errors.titulo = 'Título de eleitor é obrigatório.'
+  if (data.data_nascimento.trim()) {
+    const birth = normalizeBirthDate(data.data_nascimento)
+    if (!birth) {
+      errors.data_nascimento = 'Data de nascimento inválida.'
+    } else {
+      const date = new Date(`${birth}T12:00:00`)
+      if (Number.isNaN(date.getTime()) || date > new Date()) {
+        errors.data_nascimento = 'Data de nascimento inválida.'
+      }
+    }
   }
 
-  if (!normalizeZona(data.zona)) {
-    errors.zona = 'Zona eleitoral é obrigatória.'
+  const cep = normalizeCep(data.cep)
+  if (cep && cep.length !== 8) {
+    errors.cep = 'CEP inválido.'
   }
 
-  if (!normalizeSecao(data.secao)) {
-    errors.secao = 'Seção eleitoral é obrigatória.'
+  // zona/seção: se preenchidos, só normalizam — sem erro de obrigatoriedade
+  void normalizeZona(data.zona)
+  void normalizeSecao(data.secao)
+  void normalizeName(data.nome_completo)
+  void normalizeName(data.nome_mae)
+  void normalizeName(data.coordenador)
+  void normalizeName(data.lider)
+
+  return errors
+}
+
+/** Validação da planilha: nenhum campo obrigatório; só formato quando houver valor. */
+export function validateImportRow(data: CadastroFormData): FieldErrors {
+  const errors: FieldErrors = {}
+
+  const phone = normalizePhone(data.telefone)
+  if (phone && (phone.length < 10 || phone.length > 11)) {
+    errors.telefone = 'Telefone inválido.'
   }
 
-  if (!normalizeName(data.nome_mae)) {
-    errors.nome_mae = 'Nome completo da mãe é obrigatório.'
-  }
-
-  if (!normalizeName(data.coordenador)) {
-    errors.coordenador = 'Coordenador é obrigatório.'
-  }
-
-  const birth = normalizeBirthDate(data.data_nascimento)
-  if (!birth) {
-    errors.data_nascimento = 'Data de nascimento é obrigatória.'
-  } else {
-    const date = new Date(`${birth}T12:00:00`)
-    if (Number.isNaN(date.getTime()) || date > new Date()) {
+  if (data.data_nascimento.trim()) {
+    const birth = normalizeBirthDate(data.data_nascimento)
+    if (!birth) {
       errors.data_nascimento = 'Data de nascimento inválida.'
     }
+  }
+
+  const cpf = normalizeCpf(data.cpf)
+  if (cpf && !validateCpfAlgorithm(cpf)) {
+    errors.cpf = 'CPF inválido.'
   }
 
   const cep = normalizeCep(data.cep)
@@ -82,48 +94,10 @@ export function validateCadastroForm(data: CadastroFormData): FieldErrors {
   return errors
 }
 
-/** Validação da planilha oficial (sem CPF e CEP). */
-export function validateImportRow(data: CadastroFormData): FieldErrors {
-  const errors: FieldErrors = {}
-
-  if (!normalizeName(data.nome_completo)) {
-    errors.nome_completo = 'Nome completo é obrigatório.'
-  }
-
-  const phone = normalizePhone(data.telefone)
-  if (!phone) {
-    errors.telefone = 'Telefone é obrigatório.'
-  } else if (phone.length < 10 || phone.length > 11) {
-    errors.telefone = 'Telefone inválido.'
-  }
-
-  if (!data.titulo.trim()) {
-    errors.titulo = 'Título de eleitor é obrigatório.'
-  }
-
-  if (!normalizeZona(data.zona)) {
-    errors.zona = 'Zona eleitoral é obrigatória.'
-  }
-
-  if (!normalizeSecao(data.secao)) {
-    errors.secao = 'Sessão/seção eleitoral é obrigatória.'
-  }
-
-  if (!normalizeName(data.nome_mae)) {
-    errors.nome_mae = 'Nome completo da mãe é obrigatório.'
-  }
-
-  // Coordenador e data de nascimento são opcionais na planilha.
-  if (data.data_nascimento.trim()) {
-    const birth = normalizeBirthDate(data.data_nascimento)
-    if (!birth) {
-      errors.data_nascimento = 'Data de nascimento inválida.'
-    }
-  }
-
-  return errors
-}
-
 export function isDuplicateCpfError(message: string): boolean {
   return message.includes('cadastros_cpf_unique') || message.toLowerCase().includes('duplicate')
+}
+
+export function isDuplicateTituloError(message: string): boolean {
+  return message.includes('cadastros_titulo_unique') || message.toLowerCase().includes('titulo')
 }
