@@ -44,8 +44,27 @@ export function EquipePage() {
         ? 'nerites'
         : 'coordenadores'
 
+  const diretoriaFromUrl = searchParams.get('diretoria') ?? ''
+  const coordenadorFromUrl = searchParams.get('coordenador') ?? ''
+  const liderFromUrl = searchParams.get('lider') ?? ''
+
+  function patchParams(patch: Record<string, string | null>) {
+    const next = new URLSearchParams(searchParams)
+    Object.entries(patch).forEach(([key, value]) => {
+      if (value === null || value === '') next.delete(key)
+      else next.set(key, value)
+    })
+    setSearchParams(next)
+  }
+
   function setTab(next: Tab) {
-    setSearchParams({ tab: next })
+    if (next === 'coordenadores') {
+      patchParams({ tab: next, coordenador: null, lider: null })
+    } else if (next === 'lideres') {
+      patchParams({ tab: next, lider: null })
+    } else {
+      patchParams({ tab: next })
+    }
   }
 
   const [loading, setLoading] = useState(true)
@@ -53,8 +72,17 @@ export function EquipePage() {
   const [nerites, setNerites] = useState<Profile[]>([])
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
   const [lideres, setLideres] = useState<Lider[]>([])
-  const [filterDiretoria, setFilterDiretoria] = useState('')
+  const [filterDiretoria, setFilterDiretoria] = useState(diretoriaFromUrl)
   const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    setFilterDiretoria(diretoriaFromUrl)
+  }, [diretoriaFromUrl])
+
+  function setAdminDiretoria(id: string) {
+    setFilterDiretoria(id)
+    patchParams({ diretoria: id || null })
+  }
 
   const [neriteOpen, setNeriteOpen] = useState(false)
   const [coordOpen, setCoordOpen] = useState(false)
@@ -109,17 +137,55 @@ export function EquipePage() {
   }, [filterDiretoria, diretoriaId, isAdmin])
 
   const q = search.trim().toLowerCase()
+
+  const selectedCoord = useMemo(
+    () => coordenadores.find((c) => c.id === coordenadorFromUrl) ?? null,
+    [coordenadores, coordenadorFromUrl],
+  )
+  const selectedLider = useMemo(
+    () => lideres.find((l) => l.id === liderFromUrl) ?? null,
+    [lideres, liderFromUrl],
+  )
+
   const filteredNerites = useMemo(
-    () => nerites.filter((n) => !q || n.nome.toLowerCase().includes(q) || n.email.toLowerCase().includes(q)),
-    [nerites, q],
+    () =>
+      nerites.filter((n) => {
+        if (coordenadorFromUrl && n.coordenador_id !== coordenadorFromUrl) return false
+        if (liderFromUrl && n.lider_id !== liderFromUrl) return false
+        if (!q) return true
+        return n.nome.toLowerCase().includes(q) || n.email.toLowerCase().includes(q)
+      }),
+    [nerites, q, coordenadorFromUrl, liderFromUrl],
   )
   const filteredCoords = useMemo(
     () => coordenadores.filter((c) => !q || c.nome.toLowerCase().includes(q)),
     [coordenadores, q],
   )
   const filteredLideres = useMemo(
-    () => lideres.filter((l) => !q || l.nome.toLowerCase().includes(q)),
-    [lideres, q],
+    () =>
+      lideres.filter((l) => {
+        if (coordenadorFromUrl && l.coordenador_id !== coordenadorFromUrl) return false
+        if (!q) return true
+        return l.nome.toLowerCase().includes(q)
+      }),
+    [lideres, q, coordenadorFromUrl],
+  )
+
+  const lideresCount = useMemo(
+    () =>
+      coordenadorFromUrl
+        ? lideres.filter((l) => l.coordenador_id === coordenadorFromUrl).length
+        : lideres.length,
+    [lideres, coordenadorFromUrl],
+  )
+  const neritesCount = useMemo(
+    () =>
+      nerites.filter((n) => {
+        if (coordenadorFromUrl && n.coordenador_id !== coordenadorFromUrl) return false
+        if (liderFromUrl && n.lider_id !== liderFromUrl) return false
+        return true
+      }).length,
+    [nerites, coordenadorFromUrl, liderFromUrl],
   )
 
   const coordOptionsForForm = useMemo(() => {
@@ -155,7 +221,11 @@ export function EquipePage() {
   function openNewLider() {
     setError(null)
     setEditingLiderId(null)
-    setLiderForm({ nome: '', diretoria_id: diretoriaId ?? '', coordenador_id: '' })
+    setLiderForm({
+      nome: '',
+      diretoria_id: diretoriaId ?? filterDiretoria ?? '',
+      coordenador_id: coordenadorFromUrl || '',
+    })
     setLiderOpen(true)
   }
 
@@ -178,9 +248,9 @@ export function EquipePage() {
       email: '',
       password: '',
       confirm: '',
-      diretoria_id: diretoriaId ?? '',
-      coordenador_id: '',
-      lider_id: '',
+      diretoria_id: diretoriaId ?? filterDiretoria ?? '',
+      coordenador_id: coordenadorFromUrl || '',
+      lider_id: liderFromUrl || '',
       ativo: true,
     })
     setNeriteOpen(true)
@@ -432,11 +502,31 @@ export function EquipePage() {
           <button key={key} type="button" className={`view-chip${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>
             <Icon size={14} /> {label}
             <em className="view-chip-count">
-              {key === 'nerites' ? nerites.length : key === 'coordenadores' ? coordenadores.length : lideres.length}
+              {key === 'nerites' ? neritesCount : key === 'coordenadores' ? coordenadores.length : lideresCount}
             </em>
           </button>
         ))}
       </div>
+
+      {(selectedCoord || selectedLider) && (
+        <div className="ficha-setup-banner" style={{ marginBottom: '0.85rem' }}>
+          <strong>Filtro ativo</strong>
+          <span>
+            {selectedCoord ? `Coordenador: ${selectedCoord.nome}` : null}
+            {selectedCoord && selectedLider ? ' · ' : null}
+            {selectedLider ? `Liderança: ${selectedLider.nome}` : null}
+            {tab === 'lideres' && selectedCoord ? ' — mostrando só as lideranças deste coordenador.' : null}
+            {tab === 'nerites' && (selectedCoord || selectedLider) ? ' — mostrando só as nerites deste vínculo.' : null}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => patchParams({ coordenador: null, lider: null })}
+          >
+            Limpar
+          </Button>
+        </div>
+      )}
 
       <Card>
         <div className="filters-grid filters-grid-nerites" style={{ marginBottom: '1rem' }}>
@@ -447,7 +537,7 @@ export function EquipePage() {
           {isAdmin && (
             <Select
               value={filterDiretoria}
-              onChange={(e) => setFilterDiretoria(e.target.value)}
+              onChange={(e) => setAdminDiretoria(e.target.value)}
               placeholder="Todas as diretorias"
               options={diretorias.map((d) => ({ value: d.id, label: d.nome }))}
             />
@@ -458,7 +548,11 @@ export function EquipePage() {
           !filteredNerites.length ? (
             <EmptyState
               title="Nenhuma nerite"
-              description="Crie a primeira nerite da sua diretoria. Ela ficará vinculada a você."
+              description={
+                selectedLider || selectedCoord
+                  ? 'Nenhuma nerite encontrada para este filtro. Cadastre uma nerite vinculada a este coordenador/liderança.'
+                  : 'Crie a primeira nerite da sua diretoria. Ela ficará vinculada a você.'
+              }
               action={<Button onClick={openNewNerite}><UserPlus size={16} /> Nova nerite</Button>}
             />
           ) : (
@@ -535,7 +629,23 @@ export function EquipePage() {
                 <tbody>
                   {filteredCoords.map((c) => (
                     <tr key={c.id}>
-                      <td><strong>{c.nome}</strong></td>
+                      <td>
+                        <button
+                          type="button"
+                          className="equipe-drill-link"
+                          onClick={() =>
+                            patchParams({
+                              tab: 'lideres',
+                              coordenador: c.id,
+                              lider: null,
+                              ...(isAdmin ? { diretoria: c.diretoria_id } : {}),
+                            })
+                          }
+                        >
+                          <strong>{c.nome}</strong>
+                          <span>Ver lideranças →</span>
+                        </button>
+                      </td>
                       {isAdmin && <td>{dirName(c.diretoria_id)}</td>}
                       {canManageTeam && (
                         <td>
@@ -566,7 +676,11 @@ export function EquipePage() {
           !filteredLideres.length ? (
             <EmptyState
               title="Nenhuma liderança"
-              description="Cadastre as lideranças que vão aparecer para seleção na ficha das nerites."
+              description={
+                selectedCoord
+                  ? `Nenhuma liderança vinculada a ${selectedCoord.nome}. Cadastre uma liderança para este coordenador.`
+                  : 'Cadastre as lideranças que vão aparecer para seleção na ficha das nerites.'
+              }
               action={<Button onClick={openNewLider}><Plus size={16} /> Nova liderança</Button>}
             />
           ) : (
@@ -583,7 +697,23 @@ export function EquipePage() {
                 <tbody>
                   {filteredLideres.map((l) => (
                     <tr key={l.id}>
-                      <td><strong>{l.nome}</strong></td>
+                      <td>
+                        <button
+                          type="button"
+                          className="equipe-drill-link"
+                          onClick={() =>
+                            patchParams({
+                              tab: 'nerites',
+                              lider: l.id,
+                              coordenador: l.coordenador_id || coordenadorFromUrl || null,
+                              ...(isAdmin ? { diretoria: l.diretoria_id } : {}),
+                            })
+                          }
+                        >
+                          <strong>{l.nome}</strong>
+                          <span>Ver nerites →</span>
+                        </button>
+                      </td>
                       <td>{coordenadores.find((c) => c.id === l.coordenador_id)?.nome ?? '—'}</td>
                       {isAdmin && <td>{dirName(l.diretoria_id)}</td>}
                       {canManageTeam && (
