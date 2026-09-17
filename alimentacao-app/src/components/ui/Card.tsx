@@ -21,32 +21,19 @@ export function Card({
 }: CardProps) {
   return (
     <div
-      className={className}
+      className={`ui-card ${className}`}
       style={{
-        background: 'var(--color-white)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius)',
-        boxShadow: 'var(--shadow)',
         ...style,
       }}
     >
       {(title || action) && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: '1rem',
-            padding: padding ? '1rem 1.25rem' : undefined,
-            borderBottom: title ? '1px solid var(--color-border)' : undefined,
-          }}
-        >
+        <div className="ui-card-header" style={{ padding: padding ? undefined : 0 }}>
           <div>
             {title && (
-              <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>{title}</h3>
+              <h3>{title}</h3>
             )}
             {subtitle && (
-              <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginTop: '0.125rem' }}>
+              <p>
                 {subtitle}
               </p>
             )}
@@ -54,7 +41,7 @@ export function Card({
           {action}
         </div>
       )}
-      <div style={{ padding: padding ? '1.25rem' : undefined }}>{children}</div>
+      <div className="ui-card-body" style={{ padding: padding ? undefined : 0 }}>{children}</div>
     </div>
   )
 }

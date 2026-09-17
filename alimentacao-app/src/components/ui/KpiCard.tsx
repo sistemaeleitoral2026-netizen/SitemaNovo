@@ -5,6 +5,9 @@ interface KpiCardProps {
   value: string | number
   icon: LucideIcon
   accent: 'blue' | 'green' | 'purple' | 'orange'
+  helper?: string
+  delta?: string
+  deltaTone?: 'up' | 'neutral'
 }
 
 const accentColors = {
@@ -14,42 +17,30 @@ const accentColors = {
   orange: 'var(--color-kpi-orange)',
 }
 
-export function KpiCard({ label, value, icon: Icon, accent }: KpiCardProps) {
+export function KpiCard({
+  label,
+  value,
+  icon: Icon,
+  accent,
+  helper,
+  delta,
+  deltaTone = 'neutral',
+}: KpiCardProps) {
   const color = accentColors[accent]
 
   return (
-    <div
-      style={{
-        background: 'var(--color-white)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius)',
-        boxShadow: 'var(--shadow)',
-        padding: '1.25rem',
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '1rem',
-      }}
-    >
-      <div
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: 'var(--radius)',
-          background: `${color}15`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-        }}
-      >
-        <Icon size={22} color={color} />
+    <div className="kpi-card" style={{ '--kpi-accent': color } as React.CSSProperties}>
+      <div className="kpi-card-top">
+        <div className="kpi-icon" style={{ background: `${color}14` }}>
+          <Icon size={20} color={color} />
+        </div>
+        {delta && (
+          <span className={`kpi-delta kpi-delta-${deltaTone}`}>{delta}</span>
+        )}
       </div>
-      <div>
-        <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginBottom: '0.25rem' }}>
-          {label}
-        </p>
-        <p style={{ fontSize: '1.75rem', fontWeight: 700, lineHeight: 1.2 }}>{value}</p>
-      </div>
+      <p className="kpi-label">{label}</p>
+      <p className="kpi-value">{value}</p>
+      {helper && <span className="kpi-helper">{helper}</span>}
     </div>
   )
 }

@@ -19,6 +19,7 @@ export interface Cadastro {
   zona: string
   secao: string
   nome_mae: string
+  coordenador: string
   cep: string | null
   lat: number | null
   lng: number | null
@@ -58,6 +59,7 @@ export interface ImportPreviewRow {
   zona: string
   secao: string
   nome_mae: string
+  coordenador: string
   cep: string
   status: 'valido' | 'duplicado' | 'erro'
   mensagem?: string
@@ -79,6 +81,7 @@ export interface CadastroFormData {
   zona: string
   secao: string
   nome_mae: string
+  coordenador: string
   cep: string
 }
 

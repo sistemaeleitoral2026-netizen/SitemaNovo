@@ -49,6 +49,7 @@ function mapRow(raw: Record<string, unknown>): Record<string, string> {
     zona: '',
     secao: '',
     nome_mae: '',
+    coordenador: '',
     cep: '',
   }
 
@@ -56,7 +57,7 @@ function mapRow(raw: Record<string, unknown>): Record<string, string> {
     const k = normalizeHeader(key)
     const v = String(value ?? '').trim()
 
-    if (k === 'nome completo' || (k.includes('nome completo') && !k.includes('mae'))) {
+    if (k === 'nome completo' || (k.includes('nome completo') && !k.includes('mae') && !k.includes('coordenador'))) {
       mapped.nome_completo = v
     } else if (k === 'telefone') {
       mapped.telefone = v
@@ -68,6 +69,8 @@ function mapRow(raw: Record<string, unknown>): Record<string, string> {
       mapped.secao = v
     } else if (k.includes('mae') || k === 'nome completo da mae') {
       mapped.nome_mae = v
+    } else if (k === 'coordenador' || k.includes('coordenador')) {
+      mapped.coordenador = v
     } else if (k === 'cpf') {
       mapped.cpf = v
     } else if (k === 'cep') {
@@ -134,6 +137,7 @@ export async function analyzeImport(
       zona: raw.zona ?? '',
       secao: raw.secao ?? '',
       nome_mae: raw.nome_mae ?? '',
+      coordenador: raw.coordenador ?? '',
       cep: raw.cep ?? '',
     })
 
