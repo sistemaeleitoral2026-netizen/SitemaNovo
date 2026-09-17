@@ -56,7 +56,7 @@ export function getZonaArea(zona: string, center?: GeocodeResult | null): ZonaAr
   }
 }
 
-/** Pontos suaves para heat — intensidade baixa (mancha clara). */
+/** Pontos suaves para heat — um núcleo por bairro + anel para cobrir a área. */
 export function scatterHeatPoints(
   area: ZonaArea,
   intensity: number,
@@ -66,13 +66,17 @@ export function scatterHeatPoints(
 
   area.bairros.forEach((b) => {
     points.push([b.lat, b.lng, weight])
-    for (let i = 0; i < 3; i++) {
-      const a = (i / 3) * Math.PI * 2
-      points.push([
-        b.lat + Math.cos(a) * 0.006,
-        b.lng + Math.sin(a) * 0.006,
-        weight * 0.6,
-      ])
+    for (let ring = 0; ring < 2; ring++) {
+      const r = 0.004 + ring * 0.005
+      const n = 4 + ring * 2
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2
+        points.push([
+          b.lat + Math.cos(a) * r,
+          b.lng + Math.sin(a) * r,
+          weight * (ring === 0 ? 0.65 : 0.4),
+        ])
+      }
     }
   })
 
