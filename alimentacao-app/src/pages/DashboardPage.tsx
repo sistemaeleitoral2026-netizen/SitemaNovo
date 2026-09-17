@@ -299,7 +299,7 @@ function AdminDashboard() {
               <div className="diretoria-card-body">
                 <div className="diretoria-mini-grid">
                   <Link
-                    to="/equipe?tab=coordenadores"
+                    to={`/equipe?tab=coordenadores&diretoria=${d.id}`}
                     className="diretoria-mini-link"
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -307,7 +307,7 @@ function AdminDashboard() {
                     <strong className="tabular-nums">{d.coordenadores}</strong>
                   </Link>
                   <Link
-                    to="/equipe?tab=lideres"
+                    to={`/equipe?tab=lideres&diretoria=${d.id}`}
                     className="diretoria-mini-link"
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -315,7 +315,7 @@ function AdminDashboard() {
                     <strong className={`tabular-nums tone-text-${d.tone}`}>{d.lideres}</strong>
                   </Link>
                   <Link
-                    to="/equipe?tab=nerites"
+                    to={`/equipe?tab=nerites&diretoria=${d.id}`}
                     className="diretoria-mini-link"
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -608,18 +608,18 @@ function DiretoriaDashboard() {
           </div>
           <div className="diretoria-card-body">
             <div className="diretoria-mini-grid">
-              <div>
+              <Link to="/equipe?tab=coordenadores" className="diretoria-mini-link">
                 <span>Coordenadores</span>
                 <strong className="tabular-nums">{coordenadores.length}</strong>
-              </div>
-              <div>
+              </Link>
+              <Link to="/equipe?tab=lideres" className="diretoria-mini-link">
                 <span className="tone-text-blue">Líderes</span>
                 <strong className="tabular-nums tone-text-blue">{lideres.length}</strong>
-              </div>
-              <div>
+              </Link>
+              <Link to="/equipe?tab=nerites" className="diretoria-mini-link">
                 <span>Nerites</span>
                 <strong className="tabular-nums">{nerites.length}</strong>
-              </div>
+              </Link>
             </div>
           </div>
           <div className="diretoria-card-foot">
