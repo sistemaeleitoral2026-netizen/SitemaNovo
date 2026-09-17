@@ -24,10 +24,6 @@ function heatColor(count: number): string {
   return '#ef4444'
 }
 
-function formatCep(cep: string): string {
-  return cep.replace(/(\d{5})(\d{3})/, '$1-$2')
-}
-
 const LEGEND = [
   { label: '1–5', color: '#3b82f6' },
   { label: '6–20', color: '#22d3ee' },
@@ -113,10 +109,9 @@ export function CadastrosMap({
         })
 
         circle.bindPopup(
-          `<strong>CEP ${formatCep(m.cep)}</strong><br/>` +
-            `Pessoas neste CEP: <b>${m.count}</b><br/>` +
-            `Zona eleitoral ${m.zona}<br/>` +
-            `Seção ${m.secao}`,
+          `<strong>Zona eleitoral ${m.zona}</strong><br/>` +
+            `Pessoas nesta zona: <b>${m.count}</b>` +
+            (m.secao ? `<br/>Seção ${m.secao}` : ''),
         )
         layer.addLayer(circle)
       })
@@ -158,7 +153,7 @@ export function CadastrosMap({
       <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <EmptyState
           title="Nenhum ponto no mapa"
-          description="Os CEPs aparecem conforme os cadastros forem geolocalizados."
+          description="As zonas aparecem conforme os cadastros com zona eleitoral forem registrados."
         />
       </div>
     )
@@ -185,7 +180,7 @@ export function CadastrosMap({
             boxShadow: 'var(--shadow)',
           }}
         >
-          <div style={{ fontWeight: 700, marginBottom: 6, fontSize: '.72rem' }}>Cadastros por CEP</div>
+          <div style={{ fontWeight: 700, marginBottom: 6, fontSize: '.72rem' }}>Cadastros por zona</div>
           {LEGEND.map((item) => (
             <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
               <i style={{ width: 10, height: 10, borderRadius: 99, background: item.color, display: 'block' }} />
