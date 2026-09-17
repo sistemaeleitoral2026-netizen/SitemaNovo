@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Search, UserPlus, Users, UserCog, Crown } from 'lucide-react'
+import { Pencil, Plus, Search, Trash2, UserPlus, Users, UserCog, Crown } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
@@ -21,17 +21,18 @@ const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
   },
   coordenadores: {
     title: 'Coordenadores',
-    subtitle: 'Cadastre os coordenadores. As nerites selecionam esses nomes na ficha.',
+    subtitle: 'Cadastre, edite ou exclua os coordenadores da sua diretoria.',
   },
   lideres: {
     title: 'Lideranças',
-    subtitle: 'Cadastre as lideranças. As nerites selecionam esses nomes na ficha.',
+    subtitle: 'Cadastre, edite ou exclua as lideranças da sua diretoria.',
   },
 }
 
 export function EquipePage() {
   const { profile, createNerite } = useAuth()
   const isAdmin = profile?.role === 'admin'
+  const canManageTeam = isAdmin || profile?.role === 'diretoria'
   const diretoriaId = profile?.role === 'diretoria' ? profile.id : null
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -58,6 +59,10 @@ export function EquipePage() {
   const [neriteOpen, setNeriteOpen] = useState(false)
   const [coordOpen, setCoordOpen] = useState(false)
   const [liderOpen, setLiderOpen] = useState(false)
+  const [editingCoordId, setEditingCoordId] = useState<string | null>(null)
+  const [editingLiderId, setEditingLiderId] = useState<string | null>(null)
+  const [deleteCoordId, setDeleteCoordId] = useState<string | null>(null)
+  const [deleteLiderId, setDeleteLiderId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -109,7 +114,9 @@ export function EquipePage() {
   )
 
   const coordOptionsForForm = useMemo(() => {
-    const dir = isAdmin ? (neriteForm.diretoria_id || coordForm.diretoria_id || liderForm.diretoria_id) : diretoriaId
+    const dir = isAdmin
+      ? (neriteForm.diretoria_id || coordForm.diretoria_id || liderForm.diretoria_id)
+      : diretoriaId
     return coordenadores.filter((c) => !dir || c.diretoria_id === dir)
   }, [coordenadores, isAdmin, neriteForm.diretoria_id, coordForm.diretoria_id, liderForm.diretoria_id, diretoriaId])
 
@@ -121,6 +128,38 @@ export function EquipePage() {
       return true
     })
   }, [lideres, isAdmin, neriteForm.diretoria_id, neriteForm.coordenador_id, diretoriaId])
+
+  function openNewCoord() {
+    setError(null)
+    setEditingCoordId(null)
+    setCoordForm({ nome: '', diretoria_id: diretoriaId ?? '' })
+    setCoordOpen(true)
+  }
+
+  function openEditCoord(c: Coordenador) {
+    setError(null)
+    setEditingCoordId(c.id)
+    setCoordForm({ nome: c.nome, diretoria_id: c.diretoria_id })
+    setCoordOpen(true)
+  }
+
+  function openNewLider() {
+    setError(null)
+    setEditingLiderId(null)
+    setLiderForm({ nome: '', diretoria_id: diretoriaId ?? '', coordenador_id: '' })
+    setLiderOpen(true)
+  }
+
+  function openEditLider(l: Lider) {
+    setError(null)
+    setEditingLiderId(l.id)
+    setLiderForm({
+      nome: l.nome,
+      diretoria_id: l.diretoria_id,
+      coordenador_id: l.coordenador_id ?? '',
+    })
+    setLiderOpen(true)
+  }
 
   async function handleCreateNerite() {
     setError(null)
@@ -153,7 +192,7 @@ export function EquipePage() {
     await load()
   }
 
-  async function handleCreateCoord() {
+  async function handleSaveCoord() {
     setError(null)
     const targetDir = isAdmin ? coordForm.diretoria_id : diretoriaId
     if (!coordForm.nome.trim() || !targetDir) {
@@ -161,21 +200,25 @@ export function EquipePage() {
       return
     }
     setSaving(true)
-    const { error: err } = await supabase.from('coordenadores').insert({
+    const payload = {
       nome: coordForm.nome.trim(),
       diretoria_id: targetDir,
-    })
+    }
+    const { error: err } = editingCoordId
+      ? await supabase.from('coordenadores').update(payload).eq('id', editingCoordId)
+      : await supabase.from('coordenadores').insert(payload)
     setSaving(false)
     if (err) {
       setError(err.message)
       return
     }
     setCoordOpen(false)
+    setEditingCoordId(null)
     setCoordForm({ nome: '', diretoria_id: '' })
     await load()
   }
 
-  async function handleCreateLider() {
+  async function handleSaveLider() {
     setError(null)
     const targetDir = isAdmin ? liderForm.diretoria_id : diretoriaId
     if (!liderForm.nome.trim() || !targetDir) {
@@ -183,23 +226,57 @@ export function EquipePage() {
       return
     }
     setSaving(true)
-    const { error: err } = await supabase.from('lideres').insert({
+    const payload = {
       nome: liderForm.nome.trim(),
       diretoria_id: targetDir,
       coordenador_id: liderForm.coordenador_id || null,
-    })
+    }
+    const { error: err } = editingLiderId
+      ? await supabase.from('lideres').update(payload).eq('id', editingLiderId)
+      : await supabase.from('lideres').insert(payload)
     setSaving(false)
     if (err) {
       setError(err.message)
       return
     }
     setLiderOpen(false)
+    setEditingLiderId(null)
     setLiderForm({ nome: '', diretoria_id: '', coordenador_id: '' })
+    await load()
+  }
+
+  async function handleDeleteCoord() {
+    if (!deleteCoordId) return
+    setSaving(true)
+    const { error: err } = await supabase.from('coordenadores').delete().eq('id', deleteCoordId)
+    setSaving(false)
+    if (err) {
+      setError(err.message)
+      setDeleteCoordId(null)
+      return
+    }
+    setDeleteCoordId(null)
+    await load()
+  }
+
+  async function handleDeleteLider() {
+    if (!deleteLiderId) return
+    setSaving(true)
+    const { error: err } = await supabase.from('lideres').delete().eq('id', deleteLiderId)
+    setSaving(false)
+    if (err) {
+      setError(err.message)
+      setDeleteLiderId(null)
+      return
+    }
+    setDeleteLiderId(null)
     await load()
   }
 
   const dirName = (id: string | null | undefined) => diretorias.find((d) => d.id === id)?.nome ?? '—'
   const meta = TAB_META[tab]
+  const deleteCoordName = coordenadores.find((c) => c.id === deleteCoordId)?.nome
+  const deleteLiderName = lideres.find((l) => l.id === deleteLiderId)?.nome
 
   if (loading) {
     return (
@@ -225,10 +302,10 @@ export function EquipePage() {
             <Button onClick={() => { setError(null); setNeriteOpen(true) }}><UserPlus size={16} /> Nova nerite</Button>
           )}
           {tab === 'coordenadores' && (
-            <Button onClick={() => { setError(null); setCoordOpen(true) }}><Plus size={16} /> Novo coordenador</Button>
+            <Button onClick={openNewCoord}><Plus size={16} /> Novo coordenador</Button>
           )}
           {tab === 'lideres' && (
-            <Button onClick={() => { setError(null); setLiderOpen(true) }}><Plus size={16} /> Nova liderança</Button>
+            <Button onClick={openNewLider}><Plus size={16} /> Nova liderança</Button>
           )}
         </div>
       </div>
@@ -309,7 +386,7 @@ export function EquipePage() {
             <EmptyState
               title="Nenhum coordenador"
               description="Cadastre os coordenadores que vão aparecer para seleção na ficha das nerites."
-              action={<Button onClick={() => setCoordOpen(true)}><Plus size={16} /> Novo coordenador</Button>}
+              action={<Button onClick={openNewCoord}><Plus size={16} /> Novo coordenador</Button>}
             />
           ) : (
             <div className="table-wrapper">
@@ -318,7 +395,7 @@ export function EquipePage() {
                   <tr>
                     <th>Coordenador</th>
                     {isAdmin && <th>Diretoria</th>}
-                    <th>Status</th>
+                    {canManageTeam && <th>Ações</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -326,7 +403,18 @@ export function EquipePage() {
                     <tr key={c.id}>
                       <td><strong>{c.nome}</strong></td>
                       {isAdmin && <td>{dirName(c.diretoria_id)}</td>}
-                      <td><span className={`badge ${c.ativo ? 'badge-success' : 'badge-danger'}`}>{c.ativo ? 'Ativo' : 'Inativo'}</span></td>
+                      {canManageTeam && (
+                        <td>
+                          <div style={{ display: 'flex', gap: '0.35rem' }}>
+                            <Button variant="ghost" size="sm" aria-label="Editar" onClick={() => openEditCoord(c)}>
+                              <Pencil size={16} />
+                            </Button>
+                            <Button variant="ghost" size="sm" aria-label="Excluir" onClick={() => { setError(null); setDeleteCoordId(c.id) }}>
+                              <Trash2 size={16} color="var(--color-danger)" />
+                            </Button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -340,7 +428,7 @@ export function EquipePage() {
             <EmptyState
               title="Nenhuma liderança"
               description="Cadastre as lideranças que vão aparecer para seleção na ficha das nerites."
-              action={<Button onClick={() => setLiderOpen(true)}><Plus size={16} /> Nova liderança</Button>}
+              action={<Button onClick={openNewLider}><Plus size={16} /> Nova liderança</Button>}
             />
           ) : (
             <div className="table-wrapper">
@@ -350,7 +438,7 @@ export function EquipePage() {
                     <th>Liderança</th>
                     <th>Coordenador</th>
                     {isAdmin && <th>Diretoria</th>}
-                    <th>Status</th>
+                    {canManageTeam && <th>Ações</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -359,7 +447,18 @@ export function EquipePage() {
                       <td><strong>{l.nome}</strong></td>
                       <td>{coordenadores.find((c) => c.id === l.coordenador_id)?.nome ?? '—'}</td>
                       {isAdmin && <td>{dirName(l.diretoria_id)}</td>}
-                      <td><span className={`badge ${l.ativo ? 'badge-success' : 'badge-danger'}`}>{l.ativo ? 'Ativo' : 'Inativo'}</span></td>
+                      {canManageTeam && (
+                        <td>
+                          <div style={{ display: 'flex', gap: '0.35rem' }}>
+                            <Button variant="ghost" size="sm" aria-label="Editar" onClick={() => openEditLider(l)}>
+                              <Pencil size={16} />
+                            </Button>
+                            <Button variant="ghost" size="sm" aria-label="Excluir" onClick={() => { setError(null); setDeleteLiderId(l.id) }}>
+                              <Trash2 size={16} color="var(--color-danger)" />
+                            </Button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -402,7 +501,14 @@ export function EquipePage() {
         </div>
       </Modal>
 
-      <Modal open={coordOpen} title="Novo coordenador" onClose={() => !saving && setCoordOpen(false)} onConfirm={handleCreateCoord} confirmLabel="Salvar" loading={saving}>
+      <Modal
+        open={coordOpen}
+        title={editingCoordId ? 'Editar coordenador' : 'Novo coordenador'}
+        onClose={() => !saving && setCoordOpen(false)}
+        onConfirm={handleSaveCoord}
+        confirmLabel="Salvar"
+        loading={saving}
+      >
         <div style={{ display: 'grid', gap: '.75rem' }}>
           {isAdmin && (
             <Select
@@ -418,7 +524,14 @@ export function EquipePage() {
         </div>
       </Modal>
 
-      <Modal open={liderOpen} title="Nova liderança" onClose={() => !saving && setLiderOpen(false)} onConfirm={handleCreateLider} confirmLabel="Salvar" loading={saving}>
+      <Modal
+        open={liderOpen}
+        title={editingLiderId ? 'Editar liderança' : 'Nova liderança'}
+        onClose={() => !saving && setLiderOpen(false)}
+        onConfirm={handleSaveLider}
+        confirmLabel="Salvar"
+        loading={saving}
+      >
         <div style={{ display: 'grid', gap: '.75rem' }}>
           {isAdmin && (
             <Select
@@ -440,6 +553,28 @@ export function EquipePage() {
           {error && <div className="alert alert-error">{error}</div>}
         </div>
       </Modal>
+
+      <Modal
+        open={Boolean(deleteCoordId)}
+        title="Excluir coordenador?"
+        description={`Remover "${deleteCoordName ?? 'este coordenador'}" da lista. As fichas já cadastradas mantêm o nome salvo.`}
+        onClose={() => !saving && setDeleteCoordId(null)}
+        onConfirm={handleDeleteCoord}
+        confirmLabel="Excluir"
+        confirmVariant="danger"
+        loading={saving}
+      />
+
+      <Modal
+        open={Boolean(deleteLiderId)}
+        title="Excluir liderança?"
+        description={`Remover "${deleteLiderName ?? 'esta liderança'}" da lista. As fichas já cadastradas mantêm o nome salvo.`}
+        onClose={() => !saving && setDeleteLiderId(null)}
+        onConfirm={handleDeleteLider}
+        confirmLabel="Excluir"
+        confirmVariant="danger"
+        loading={saving}
+      />
     </div>
   )
 }
