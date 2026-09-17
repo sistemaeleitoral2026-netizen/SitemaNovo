@@ -22,6 +22,7 @@ const emptyForm: CadastroFormData = {
   secao: '',
   nome_mae: '',
   coordenador: '',
+  data_nascimento: '',
   cep: '',
 }
 
@@ -50,6 +51,7 @@ export function CadastroFormPage() {
           secao: data.secao,
           nome_mae: data.nome_mae,
           coordenador: data.coordenador ?? '',
+          data_nascimento: data.data_nascimento ? String(data.data_nascimento).slice(0, 10) : '',
           cep: formatCep(data.cep ?? ''),
         })
       }
@@ -96,6 +98,7 @@ export function CadastroFormPage() {
       secao: normalized.secao,
       nome_mae: normalized.nome_mae,
       coordenador: normalized.coordenador,
+      data_nascimento: normalized.data_nascimento || null,
       cep: normalized.cep || null,
       lat: coords?.lat ?? null,
       lng: coords?.lng ?? null,
@@ -172,6 +175,14 @@ export function CadastroFormPage() {
               onChange={(e) => updateField('coordenador', e.target.value)}
               error={errors.coordenador}
               placeholder="Nome do coordenador desta ficha"
+              required
+            />
+            <Input
+              label="Data de nascimento"
+              type="date"
+              value={form.data_nascimento}
+              onChange={(e) => updateField('data_nascimento', e.target.value)}
+              error={errors.data_nascimento}
               required
             />
             <Input
