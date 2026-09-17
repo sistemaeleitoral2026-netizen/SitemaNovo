@@ -21,15 +21,11 @@ import { supabase } from '../lib/supabase'
 import { formatCep } from '../lib/format'
 import type { Cadastro, Coordenador, Lider, Profile } from '../types'
 
-const META_GLOBAL = 5000
-const META_DIRETORIA = 2500
-
 type DirFilter = 'all' | string
 
 interface DiretoriaStats {
   id: string
   nome: string
-  subtitle: string
   tone: 'blue' | 'emerald'
   fichadas: number
   coordenadores: number
@@ -102,9 +98,6 @@ function AdminDashboard() {
       return {
         id: dir.id,
         nome: dir.nome.startsWith('Diretora') ? dir.nome : `Diretora ${dir.nome}`,
-        subtitle: index === 0
-          ? 'Diretoria Sindical · Mobilização Geral'
-          : 'Diretoria Sindical · Expansão & Interior',
         tone: index === 0 ? 'blue' : 'emerald',
         fichadas,
         coordenadores: coordenadores.filter((c) => c.diretoria_id === dir.id).length,
@@ -138,8 +131,6 @@ function AdminDashboard() {
     const set = new Set(scopedCadastros.map((c) => c.zona).filter(Boolean))
     return set.size
   }, [scopedCadastros])
-
-  const globalPct = Math.min(100, (scopedCadastros.length / META_GLOBAL) * 100)
 
   const ranking = useMemo(() => {
     const counts = new Map<string, number>()
@@ -227,10 +218,7 @@ function AdminDashboard() {
             <i className="dot-blue" />
           </div>
           <strong className="tabular-nums">{scopedCadastros.length.toLocaleString('pt-BR')}</strong>
-          <div className="dash-progress">
-            <i style={{ width: `${globalPct}%` }} />
-          </div>
-          <small>{globalPct.toFixed(1)}% da meta global ({META_GLOBAL.toLocaleString('pt-BR')})</small>
+          <p className="dash-kpi-hint">Cadastros no período</p>
         </div>
         <div className="dash-kpi-card">
           <div className="dash-kpi-top">
@@ -257,7 +245,6 @@ function AdminDashboard() {
 
       <div className="diretoria-cards-grid">
         {dirStats.map((d) => {
-          const pct = Math.min(100, (d.fichadas / META_DIRETORIA) * 100)
           const active = dirFilter === 'all' || dirFilter === d.id
           const dimmed = dirFilter !== 'all' && dirFilter !== d.id
           return (
@@ -277,7 +264,6 @@ function AdminDashboard() {
                       {dirFilter === d.id ? 'Filtro Ativo' : 'Visualizando'}
                     </span>
                   </div>
-                  <p>{d.subtitle}</p>
                 </div>
                 <div className="diretoria-card-count">
                   <span>Fichadas Confirmadas</span>
@@ -286,13 +272,6 @@ function AdminDashboard() {
               </div>
 
               <div className="diretoria-card-body">
-                <div className="diretoria-meta-row">
-                  <span>Meta da Diretoria ({META_DIRETORIA.toLocaleString('pt-BR')} fichadas)</span>
-                  <strong>{pct.toFixed(1)}%</strong>
-                </div>
-                <div className="dash-progress tall">
-                  <i className={`bar-${d.tone}`} style={{ width: `${pct}%` }} />
-                </div>
                 <div className="diretoria-mini-grid">
                   <div>
                     <span>Coordenadores</span>
@@ -476,7 +455,6 @@ function DiretoriaDashboard() {
   }, [cadastros])
 
   const zonas = useMemo(() => new Set(cadastros.map((c) => c.zona).filter(Boolean)).size, [cadastros])
-  const pct = Math.min(100, (cadastros.length / META_DIRETORIA) * 100)
   const evolution = useMemo(() => buildEvolutionData(cadastros), [cadastros])
   const zonaData = useMemo(() => buildZonaData(cadastros), [cadastros])
 
@@ -569,13 +547,6 @@ function DiretoriaDashboard() {
             </div>
           </div>
           <div className="diretoria-card-body">
-            <div className="diretoria-meta-row">
-              <span>Meta da Diretoria ({META_DIRETORIA.toLocaleString('pt-BR')} fichadas)</span>
-              <strong>{pct.toFixed(1)}%</strong>
-            </div>
-            <div className="dash-progress tall">
-              <i className="bar-blue" style={{ width: `${pct}%` }} />
-            </div>
             <div className="diretoria-mini-grid">
               <div>
                 <span>Coordenadores</span>
