@@ -60,6 +60,10 @@ export function validateCadastroForm(data: CadastroFormData): FieldErrors {
     errors.nome_mae = 'Nome completo da mãe é obrigatório.'
   }
 
+  if (!normalizeName(data.coordenador)) {
+    errors.coordenador = 'Coordenador é obrigatório.'
+  }
+
   const cep = normalizeCep(data.cep)
   if (cep && cep.length !== 8) {
     errors.cep = 'CEP inválido.'
@@ -99,6 +103,7 @@ export function validateImportRow(data: CadastroFormData): FieldErrors {
     errors.nome_mae = 'Nome completo da mãe é obrigatório.'
   }
 
+  // Coordenador é opcional na planilha (pode vir vazio); no formulário é obrigatório.
   return errors
 }
 

@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { MapPin, RotateCcw } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { Select } from '../components/ui/Select'
+import { Input } from '../components/ui/Input'
+import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/Spinner'
 import { PeriodFilterSelect } from '../components/ui/PeriodFilter'
 import { CadastrosMap } from '../components/map/CadastrosMap'
@@ -13,11 +16,15 @@ import type { Cadastro, Profile } from '../types'
 export function MapaPage() {
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
   const [nerites, setNerites] = useState<Profile[]>([])
-  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('30d')
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
   const [operatorId, setOperatorId] = useState('')
   const [cep, setCep] = useState('')
   const [zona, setZona] = useState('')
   const [secao, setSecao] = useState('')
+  const [minCount, setMinCount] = useState('')
+  const [layerMode, setLayerMode] = useState<'markers' | 'density'>('markers')
+  const [focus, setFocus] = useState<{ lat: number; lng: number } | null>(null)
+  const [resetKey, setResetKey] = useState(0)
   const [loading, setLoading] = useState(true)
 
   const period = useMemo(() => getPeriodFromPreset(periodPreset), [periodPreset])
@@ -37,40 +44,73 @@ export function MapaPage() {
   }, [period])
 
   const filtered = useMemo(() => {
+    const cepDigits = cep.replace(/\D/g, '')
     return cadastros.filter((c) => {
       if (operatorId && c.operator_id !== operatorId) return false
-      if (cep && c.cep !== cep) return false
+      if (cepDigits && !(c.cep ?? '').replace(/\D/g, '').includes(cepDigits)) return false
       if (zona && c.zona !== zona) return false
       if (secao && c.secao !== secao) return false
       return true
     })
   }, [cadastros, operatorId, cep, zona, secao])
 
-  const markers = useMemo(() => buildMapMarkers(filtered), [filtered])
+  const markers = useMemo(() => {
+    const all = buildMapMarkers(filtered)
+    const min = minCount === '6' ? 6 : minCount === '21' ? 21 : minCount === '51' ? 51 : 0
+    return all.filter((m) => m.count >= min).sort((a, b) => b.count - a.count)
+  }, [filtered, minCount])
 
-  const ceps = useMemo(
-    () => [...new Set(cadastros.map((c) => c.cep).filter((c): c is string => Boolean(c)))].sort(),
+  const zonas = useMemo(
+    () => [...new Set(cadastros.map((c) => c.zona).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })),
     [cadastros],
   )
-  const zonas = useMemo(() => [...new Set(cadastros.map((c) => c.zona))].sort(), [cadastros])
-  const secoes = useMemo(() => [...new Set(cadastros.map((c) => c.secao))].sort(), [cadastros])
+  const secoes = useMemo(
+    () => [...new Set(cadastros.filter((c) => !zona || c.zona === zona).map((c) => c.secao).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })),
+    [cadastros, zona],
+  )
+
+  const zonaBars = useMemo(() => {
+    const map = new Map<string, number>()
+    filtered.forEach((c) => map.set(c.zona, (map.get(c.zona) ?? 0) + 1))
+    return Array.from(map.entries())
+      .map(([label, total]) => ({ label, total }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 8)
+  }, [filtered])
+
+  const maxZona = zonaBars[0]?.total || 1
+  const maxCep = markers[0]?.count || 1
+  const periodNote =
+    periodPreset === 'all' ? 'Período integral' :
+    periodPreset === '7d' ? 'Últimos 7 dias' :
+    periodPreset === '30d' ? 'Últimos 30 dias' : 'Últimos 90 dias'
+
+  function clearFilters() {
+    setPeriodPreset('all')
+    setOperatorId('')
+    setCep('')
+    setZona('')
+    setSecao('')
+    setMinCount('')
+    setLayerMode('markers')
+    setFocus(null)
+  }
 
   return (
     <div>
       <div className="page-header">
         <div>
           <h1 className="page-title">Mapa por CEP</h1>
-          <p className="page-subtitle">
-            Mapa de calor: quanto mais pessoas no mesmo CEP, mais quente o ponto
-          </p>
+          <p className="page-subtitle">Visualize a distribuição dos cadastros no mapa.</p>
         </div>
       </div>
 
-      <Card style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', alignItems: 'end' }}>
+      <Card style={{ marginBottom: '1rem' }}>
+        <div className="map-filters-grid">
           <div>
-            <label style={{ fontSize: '0.875rem', fontWeight: 500, display: 'block', marginBottom: '0.375rem' }}>Período</label>
-            <PeriodFilterSelect value={periodPreset} onChange={setPeriodPreset} />
+            <label className="field-label">Período</label>
+            <PeriodFilterSelect value={periodPreset} onChange={setPeriodPreset} showRange={false} />
           </div>
           <Select
             label="Nerite"
@@ -80,44 +120,140 @@ export function MapaPage() {
             options={nerites.map((o) => ({ value: o.id, label: o.nome }))}
           />
           <Select
-            label="CEP"
-            value={cep}
-            onChange={(e) => setCep(e.target.value)}
-            placeholder="Todos"
-            options={ceps.map((c) => ({ value: c, label: formatCep(c) }))}
-          />
-          <Select
             label="Zona eleitoral"
             value={zona}
-            onChange={(e) => setZona(e.target.value)}
+            onChange={(e) => { setZona(e.target.value); setSecao('') }}
             placeholder="Todas"
             options={zonas.map((z) => ({ value: z, label: `Zona ${z}` }))}
           />
           <Select
-            label="Sessão eleitoral"
+            label="Seção eleitoral"
             value={secao}
             onChange={(e) => setSecao(e.target.value)}
             placeholder="Todas"
-            options={secoes.map((s) => ({ value: s, label: `Sessão ${s}` }))}
+            options={secoes.map((s) => ({ value: s, label: `Seção ${s}` }))}
           />
+          <div>
+            <label className="field-label">CEP</label>
+            <Input value={cep} onChange={(e) => setCep(e.target.value)} placeholder="00000-000" />
+          </div>
+          <Select
+            label="Mínimo por ponto"
+            value={minCount}
+            onChange={(e) => setMinCount(e.target.value)}
+            placeholder="Qualquer quantidade"
+            options={[
+              { value: '6', label: '6 ou mais' },
+              { value: '21', label: '21 ou mais' },
+              { value: '51', label: '51 ou mais' },
+            ]}
+          />
+          <Select
+            label="Agrupar por"
+            value="cep"
+            onChange={() => undefined}
+            options={[{ value: 'cep', label: 'CEP' }]}
+          />
+          <Select
+            label="Camada"
+            value={layerMode}
+            onChange={(e) => setLayerMode(e.target.value as 'markers' | 'density')}
+            options={[
+              { value: 'markers', label: 'Marcadores numerados' },
+              { value: 'density', label: 'Densidade' },
+            ]}
+          />
+          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+            <Button variant="secondary" onClick={clearFilters}>
+              <RotateCcw size={15} /> Limpar
+            </Button>
+          </div>
+        </div>
+        <div className="map-summary">
+          <strong>{markers.length} pontos · {filtered.length} cadastros</strong>
+          <span>{periodNote}</span>
         </div>
       </Card>
 
-      <Card padding={false}>
-        {loading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
-            <Spinner size={40} />
+      <div className="map-layout">
+        <Card padding={false}>
+          <div className="map-panel-head">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+              <MapPin size={16} color="#2f6fed" />
+              <strong>Maranhão · distribuição por CEP</strong>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => { setFocus(null); setResetKey((k) => k + 1) }}>
+              <RotateCcw size={14} /> Ver todo o Maranhão
+            </Button>
           </div>
-        ) : (
-          <CadastrosMap markers={markers} height={520} />
-        )}
-      </Card>
+          {loading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
+              <Spinner size={40} />
+            </div>
+          ) : (
+            <CadastrosMap
+              markers={markers}
+              height={480}
+              focus={focus}
+              resetKey={resetKey}
+              layerMode={layerMode}
+            />
+          )}
+        </Card>
 
-      {!loading && (
-        <p style={{ marginTop: '0.75rem', fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
-          {markers.length} CEP(s) no mapa · {filtered.length} cadastro(s) filtrados
-        </p>
-      )}
+        <div className="map-side">
+          <Card title="CEPs com mais cadastros" subtitle="Clique para centralizar no mapa">
+            {!markers.length ? (
+              <div className="empty-card">
+                <strong>Nenhum ponto no mapa</strong>
+                <span>Os CEPs aparecem conforme os cadastros forem geolocalizados.</span>
+              </div>
+            ) : (
+              markers.slice(0, 8).map((m, index) => (
+                <button
+                  key={m.cep}
+                  type="button"
+                  className="map-rank-btn"
+                  onClick={() => setFocus({ lat: m.lat, lng: m.lng })}
+                >
+                  <span style={{ color: '#8a95a7', fontSize: '.68rem', fontWeight: 700 }}>{index + 1}</span>
+                  <span style={{ minWidth: 0 }}>
+                    <strong style={{ display: 'block', color: '#263248', fontSize: '.76rem' }}>
+                      CEP {formatCep(m.cep)}
+                    </strong>
+                    <span style={{ display: 'block', height: 5, borderRadius: 99, background: '#edf1f6', overflow: 'hidden', marginTop: '.3rem' }}>
+                      <i style={{ display: 'block', height: '100%', width: `${Math.max((m.count / maxCep) * 100, 4)}%`, borderRadius: 'inherit', background: 'linear-gradient(90deg,#2f6fed,#78a2fb)' }} />
+                    </span>
+                  </span>
+                  <strong style={{ textAlign: 'right', color: '#263248', fontSize: '.76rem' }}>{m.count}</strong>
+                </button>
+              ))
+            )}
+          </Card>
+
+          <Card title="Cadastros por zona eleitoral">
+            {!zonaBars.length ? (
+              <div className="empty-card">
+                <strong>Sem dados por zona</strong>
+              </div>
+            ) : (
+              <div className="bar-list">
+                {zonaBars.map((row) => (
+                  <div className="bar-row" key={row.label}>
+                    <div className="bar-row-top">
+                      <span>Zona {row.label}</span>
+                      <strong>{row.total}</strong>
+                    </div>
+                    <div className="bar-track">
+                      <i style={{ width: `${Math.max((row.total / maxZona) * 100, 4)}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }

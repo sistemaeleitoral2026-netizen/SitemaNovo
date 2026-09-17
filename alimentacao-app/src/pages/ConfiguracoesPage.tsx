@@ -46,17 +46,29 @@ export function ConfiguracoesPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Configurações</h1>
-          <p className="page-subtitle">Perfil e segurança da conta</p>
+          <p className="page-subtitle">Perfil e segurança da conta.</p>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gap: '1.5rem', maxWidth: 560 }}>
+      <div style={{ display: 'grid', gap: '1rem', maxWidth: 620 }}>
         <Card title="Informações do perfil">
-          <div style={{ display: 'grid', gap: '0.75rem', fontSize: '0.9375rem' }}>
-            <div><strong>Nome:</strong> {profile?.nome}</div>
-            <div><strong>E-mail:</strong> {profile?.email}</div>
-            <div><strong>Função:</strong> {profile?.role === 'admin' ? 'Administrador' : 'Nerite'}</div>
-            <div><strong>Conta criada:</strong> {formatDateTime(profile?.created_at)}</div>
+          <div className="profile-rows">
+            <div className="profile-row">
+              <span>Nome</span>
+              <strong>{profile?.nome ?? '—'}</strong>
+            </div>
+            <div className="profile-row">
+              <span>E-mail</span>
+              <strong>{profile?.email ?? '—'}</strong>
+            </div>
+            <div className="profile-row">
+              <span>Função</span>
+              <strong>{profile?.role === 'admin' ? 'Administrador' : 'Nerite'}</strong>
+            </div>
+            <div className="profile-row">
+              <span>Conta criada</span>
+              <strong>{formatDateTime(profile?.created_at)}</strong>
+            </div>
           </div>
         </Card>
 
