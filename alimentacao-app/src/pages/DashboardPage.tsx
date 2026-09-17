@@ -7,6 +7,7 @@ import {
   UserCog,
   Crown,
   UserPlus,
+  CalendarDays,
 } from 'lucide-react'
 import { format, parseISO, startOfDay } from 'date-fns'
 import { useAuth } from '../contexts/AuthContext'
@@ -19,7 +20,6 @@ import { CadastrosMap } from '../components/map/CadastrosMap'
 import { getPeriodFromPreset, type PeriodPreset } from '../lib/period'
 import { buildEvolutionData, buildMapMarkers, buildZonaData, fetchCadastros } from '../lib/cadastros'
 import { supabase } from '../lib/supabase'
-import { formatCep } from '../lib/format'
 import type { Cadastro, Coordenador, Lider, Profile } from '../types'
 
 type DirFilter = 'all' | string
@@ -41,7 +41,6 @@ export function DashboardPage() {
 }
 
 function AdminDashboard() {
-  const { profile } = useAuth()
   const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('30d')
   const [dirFilter, setDirFilter] = useState<DirFilter>('all')
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
@@ -147,6 +146,25 @@ function AdminDashboard() {
       }))
   }, [scopedCadastros, scopedNerites])
 
+  const topLideres = useMemo(() => {
+    const counts = new Map<string, number>()
+    scopedCadastros.forEach((c) => {
+      const nome = c.lider?.trim()
+      if (!nome) return
+      counts.set(nome, (counts.get(nome) ?? 0) + 1)
+    })
+    return Array.from(counts.entries())
+      .map(([nome, total]) => ({
+        nome,
+        total,
+        share: scopedCadastros.length ? Math.round((total / scopedCadastros.length) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5)
+  }, [scopedCadastros])
+
+  const maxLider = topLideres[0]?.total || 1
+
   const neriteById = useMemo(() => {
     const map = new Map<string, Profile>()
     nerites.forEach((n) => map.set(n.id, n))
@@ -162,7 +180,9 @@ function AdminDashboard() {
           id: c.id,
           nome: c.nome_completo,
           nerite: neriteById.get(c.operator_id)?.nome ?? '—',
-          cep: c.cep ? formatCep(c.cep) : '—',
+          zona: c.zona || '—',
+          secao: c.secao || '—',
+          coordenador: c.coordenador || '—',
           data: formatShortDateTime(c.created_at),
           dir: diretorias.find((d) => d.id === (c.diretoria_id || neriteById.get(c.operator_id)?.diretoria_id))?.nome,
         })),
@@ -216,26 +236,29 @@ function AdminDashboard() {
       <div className="kpi-grid kpi-grid-3">
         <div className="dash-kpi-card">
           <div className="dash-kpi-top">
-            <span>Total de Fichadas</span>
-            <i className="dot-blue" />
+            <span className="dash-kpi-icon tone-blue"><ClipboardList size={18} /></span>
+            <span className="dash-kpi-label" style={{ flex: 1 }}>Total de Fichadas</span>
+            <i className="dot dot-blue" />
           </div>
           <strong className="tabular-nums">{scopedCadastros.length.toLocaleString('pt-BR')}</strong>
           <p className="dash-kpi-hint">Cadastros no período</p>
         </div>
         <div className="dash-kpi-card">
           <div className="dash-kpi-top">
-            <span>Cadastros Hoje</span>
-            <i className="dot-emerald" />
+            <span className="dash-kpi-icon tone-emerald"><CalendarDays size={18} /></span>
+            <span className="dash-kpi-label" style={{ flex: 1 }}>Cadastros Hoje</span>
+            <i className="dot dot-emerald" />
           </div>
           <strong className="tabular-nums">{todayCount.toLocaleString('pt-BR')}</strong>
           <p className="dash-kpi-hint success">Cadastros registrados hoje</p>
         </div>
         <div className="dash-kpi-card">
           <div className="dash-kpi-top">
-            <span>Zonas Eleitorais</span>
-            <i className="dot-amber" />
+            <span className="dash-kpi-icon tone-amber"><MapPin size={18} /></span>
+            <span className="dash-kpi-label" style={{ flex: 1 }}>Zonas Eleitorais</span>
+            <i className="dot dot-amber" />
           </div>
-          <strong className="tabular-nums">{zonas} Zonas</strong>
+          <strong className="tabular-nums">{zonas}</strong>
           <p className="dash-kpi-hint">Zonas com registros no período</p>
         </div>
       </div>
@@ -259,11 +282,11 @@ function AdminDashboard() {
               <div className="diretoria-card-head">
                 <div>
                   <div className="diretoria-card-title-row">
-                    <span className={`tone-dot tone-${d.tone}`} />
+                    <span className={`dir-avatar tone-${d.tone}`}>{initials(d.nome)}</span>
                     <h2>{d.nome}</h2>
                     <span className={`role-pill tone-${d.tone}`}>Diretora</span>
                     <span className={`status-pill tone-${d.tone}`}>
-                      {dirFilter === d.id ? 'Filtro Ativo' : 'Visualizando'}
+                      {dirFilter === d.id ? 'Filtro ativo' : 'Visualizando'}
                     </span>
                   </div>
                 </div>
@@ -275,25 +298,37 @@ function AdminDashboard() {
 
               <div className="diretoria-card-body">
                 <div className="diretoria-mini-grid">
-                  <div>
+                  <Link
+                    to="/equipe?tab=coordenadores"
+                    className="diretoria-mini-link"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <span>Coordenadores</span>
                     <strong className="tabular-nums">{d.coordenadores}</strong>
-                  </div>
-                  <div>
+                  </Link>
+                  <Link
+                    to="/equipe?tab=lideres"
+                    className="diretoria-mini-link"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <span className={`tone-text-${d.tone}`}>Líderes</span>
                     <strong className={`tabular-nums tone-text-${d.tone}`}>{d.lideres}</strong>
-                  </div>
-                  <div>
+                  </Link>
+                  <Link
+                    to="/equipe?tab=nerites"
+                    className="diretoria-mini-link"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <span>Nerites</span>
                     <strong className="tabular-nums">{d.nerites}</strong>
-                  </div>
+                  </Link>
                 </div>
               </div>
 
               <div className="diretoria-card-foot">
                 <span className={`tone-text-${d.tone}`}>Visualizar dados de {d.nome} →</span>
                 <Link
-                  to="/cadastros"
+                  to={`/cadastros?diretoria=${d.id}`}
                   className="diretoria-open-link"
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -316,7 +351,7 @@ function AdminDashboard() {
       <Card
         title="Mapa por zona eleitoral"
         subtitle="Manchas coloridas por intensidade de cadastros"
-        className="chart-card"
+        className="chart-card map-preview-card"
         style={{ marginBottom: '1.25rem' }}
         action={<Link to="/mapa" className="diretoria-open-link">Abrir mapa completo →</Link>}
       >
@@ -376,18 +411,18 @@ function AdminDashboard() {
           {ultimos.length ? (
             <div className="recent-list">
               {ultimos.map((item) => (
-                <div className="recent-row" key={item.id}>
+                <Link to={`/cadastros/${item.id}/editar`} className="recent-row" key={item.id}>
                   <div>
                     <strong>{item.nome}</strong>
                     <span>
+                      Zona {item.zona} · Seção {item.secao}
+                      {item.coordenador !== '—' ? ` · ${item.coordenador}` : ''}
+                      {' · '}
                       {item.nerite}
-                      {item.dir ? ` · ${item.dir}` : ''}
-                      {' · CEP '}
-                      {item.cep}
                     </span>
                   </div>
                   <time>{item.data}</time>
-                </div>
+                </Link>
               ))}
             </div>
           ) : (
@@ -398,27 +433,33 @@ function AdminDashboard() {
           )}
         </Card>
 
-        <Card title="Resumo da equipe" subtitle="Visão rápida" className="analysis-card">
-          <div className="situacao-list">
-            <div className="situacao-row situacao-success">
-              <div className="situacao-icon"><Users size={17} /></div>
-              <span>Nerites</span>
-              <strong>{scopedNerites.length}</strong>
+        <Card title="Top lideranças" subtitle="Fichas no período" className="analysis-card">
+          {topLideres.length ? (
+            <div className="ranking-list">
+              {topLideres.map((lider, index) => (
+                <Link
+                  to={`/cadastros?lider=${encodeURIComponent(lider.nome)}`}
+                  className="ranking-row"
+                  key={lider.nome}
+                >
+                  <span className="ranking-position">{index + 1}</span>
+                  <span className="ranking-person">
+                    <strong>{lider.nome}</strong>
+                    <span className="ranking-progress">
+                      <i style={{ width: `${Math.max((lider.total / maxLider) * 100, 4)}%` }} />
+                    </span>
+                  </span>
+                  <strong className="ranking-count">{lider.total}</strong>
+                  <span className="ranking-pct">{lider.share}%</span>
+                </Link>
+              ))}
             </div>
-            <div className="situacao-row situacao-neutral">
-              <div className="situacao-icon"><ClipboardList size={17} /></div>
-              <span>Fichadas</span>
-              <strong>{scopedCadastros.length}</strong>
+          ) : (
+            <div className="empty-card">
+              <strong>Sem lideranças ainda</strong>
+              <span>As fichas com liderança aparecem aqui.</span>
             </div>
-            <div className="situacao-row situacao-warning">
-              <div className="situacao-icon"><MapPin size={17} /></div>
-              <span>Zonas</span>
-              <strong>{zonas}</strong>
-            </div>
-          </div>
-          <p style={{ marginTop: '0.85rem', fontSize: '0.78rem', color: 'var(--muted)' }}>
-            Olá, {profile?.nome ?? 'Administrador'} — apenas o admin vê o consolidado das duas diretorias.
-          </p>
+          )}
         </Card>
       </div>
     </div>
@@ -547,12 +588,18 @@ function DiretoriaDashboard() {
           <div className="diretoria-card-head">
             <div>
               <div className="diretoria-card-title-row">
-                <span className="tone-dot tone-blue" />
+                <span className="dir-avatar tone-blue">
+                  {initials(
+                    /^diretora/i.test(profile?.nome ?? '')
+                      ? (profile?.nome ?? 'D')
+                      : `Diretora ${profile?.nome ?? 'D'}`,
+                  )}
+                </span>
                 <h2>{profile?.nome}</h2>
                 <span className="role-pill tone-blue">Diretora</span>
                 <span className="status-pill tone-blue">Sua diretoria</span>
               </div>
-              <p>Painel exclusivo da diretoria</p>
+              <p>Painel da sua equipe</p>
             </div>
             <div className="diretoria-card-count">
               <span>Fichadas Confirmadas</span>
@@ -584,23 +631,38 @@ function DiretoriaDashboard() {
 
       <div className="kpi-grid kpi-grid-3">
         <div className="dash-kpi-card">
-          <div className="dash-kpi-top"><span>Cadastros hoje</span><i className="dot-emerald" /></div>
+          <div className="dash-kpi-top">
+            <span className="dash-kpi-icon tone-emerald"><CalendarDays size={18} /></span>
+            <span className="dash-kpi-label" style={{ flex: 1 }}>Cadastros hoje</span>
+            <i className="dot dot-emerald" />
+          </div>
           <strong className="tabular-nums">{todayCount}</strong>
+          <p className="dash-kpi-hint success">Registros de hoje</p>
         </div>
         <div className="dash-kpi-card">
-          <div className="dash-kpi-top"><span>Zonas</span><i className="dot-amber" /></div>
+          <div className="dash-kpi-top">
+            <span className="dash-kpi-icon tone-amber"><MapPin size={18} /></span>
+            <span className="dash-kpi-label" style={{ flex: 1 }}>Zonas</span>
+            <i className="dot dot-amber" />
+          </div>
           <strong className="tabular-nums">{zonas}</strong>
+          <p className="dash-kpi-hint">Com fichadas no período</p>
         </div>
         <div className="dash-kpi-card">
-          <div className="dash-kpi-top"><span>Nerites ativas</span><i className="dot-blue" /></div>
+          <div className="dash-kpi-top">
+            <span className="dash-kpi-icon tone-blue"><Users size={18} /></span>
+            <span className="dash-kpi-label" style={{ flex: 1 }}>Nerites ativas</span>
+            <i className="dot dot-blue" />
+          </div>
           <strong className="tabular-nums">{nerites.filter((n) => n.ativo).length}</strong>
+          <p className="dash-kpi-hint">Na sua diretoria</p>
         </div>
       </div>
 
       <Card
         title="Mapa por zona eleitoral"
         subtitle="Manchas coloridas por intensidade de cadastros"
-        className="chart-card"
+        className="chart-card map-preview-card"
         style={{ marginBottom: '1.25rem' }}
         action={<Link to="/mapa" className="diretoria-open-link">Abrir mapa completo →</Link>}
       >
@@ -653,4 +715,17 @@ function formatShortDateTime(value: string) {
   } catch {
     return '—'
   }
+}
+
+function initials(nome: string) {
+  if (/^diretora\s+/i.test(nome)) {
+    const rest = nome.replace(/^diretora\s+/i, '').trim()
+    const first = rest.split(/\s+/).find(Boolean) ?? ''
+    return `D${(first[0] ?? '?').toUpperCase()}`
+  }
+  const parts = nome.split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+  }
+  return (parts[0] ?? '?').slice(0, 2).toUpperCase()
 }

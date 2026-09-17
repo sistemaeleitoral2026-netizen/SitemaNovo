@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ClipboardList, FileText, Layers, MapPin, Users } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { Spinner } from '../components/ui/Spinner'
@@ -11,11 +12,13 @@ import { fetchCadastros } from '../lib/cadastros'
 import { supabase } from '../lib/supabase'
 import type { Cadastro, Profile } from '../types'
 
+type GroupKey = 'zona' | 'secao' | 'nerite' | 'coordenador' | 'lider'
+
 export function RelatoriosPage() {
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
   const [operadores, setOperadores] = useState<Profile[]>([])
   const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
-  const [groupBy, setGroupBy] = useState('zona')
+  const [groupBy, setGroupBy] = useState<GroupKey>('zona')
   const [loading, setLoading] = useState(true)
   const [tick, setTick] = useState(0)
 
@@ -72,7 +75,86 @@ export function RelatoriosPage() {
       }))
   }, [cadastros])
 
-  const maxZona = porZona[0]?.total || 1
+  const porNerite = useMemo(() => {
+    return operadores
+      .map((op) => ({
+        id: op.id,
+        nome: op.nome,
+        total: cadastros.filter((c) => c.operator_id === op.id).length,
+      }))
+      .filter((o) => o.total > 0)
+      .sort((a, b) => b.total - a.total)
+  }, [cadastros, operadores])
+
+  const porCoordenador = useMemo(() => {
+    const map = new Map<string, number>()
+    cadastros.forEach((c) => {
+      const nome = c.coordenador?.trim()
+      if (!nome) return
+      map.set(nome, (map.get(nome) ?? 0) + 1)
+    })
+    return Array.from(map.entries())
+      .map(([nome, total]) => ({ nome, total }))
+      .sort((a, b) => b.total - a.total)
+  }, [cadastros])
+
+  const porLider = useMemo(() => {
+    const map = new Map<string, number>()
+    cadastros.forEach((c) => {
+      const nome = c.lider?.trim()
+      if (!nome) return
+      map.set(nome, (map.get(nome) ?? 0) + 1)
+    })
+    return Array.from(map.entries())
+      .map(([nome, total]) => ({ nome, total }))
+      .sort((a, b) => b.total - a.total)
+  }, [cadastros])
+
+  const barRows = useMemo(() => {
+    if (groupBy === 'nerite') {
+      return porNerite.map((row) => ({
+        key: row.id,
+        label: row.nome,
+        total: row.total,
+        to: `/cadastros?operator=${row.id}`,
+      }))
+    }
+    if (groupBy === 'coordenador') {
+      return porCoordenador.map((row) => ({
+        key: row.nome,
+        label: row.nome,
+        total: row.total,
+        to: `/cadastros?coordenador=${encodeURIComponent(row.nome)}`,
+      }))
+    }
+    if (groupBy === 'lider') {
+      return porLider.map((row) => ({
+        key: row.nome,
+        label: row.nome,
+        total: row.total,
+        to: `/cadastros?lider=${encodeURIComponent(row.nome)}`,
+      }))
+    }
+    return porZona.map((row) => ({
+      key: row.zona,
+      label: `Zona ${row.zona}`,
+      total: row.total,
+      to: null as string | null,
+    }))
+  }, [groupBy, porZona, porNerite, porCoordenador, porLider])
+
+  const maxBar = barRows[0]?.total || 1
+
+  const groupTitle =
+    groupBy === 'nerite'
+      ? 'Cadastros por nerite'
+      : groupBy === 'coordenador'
+        ? 'Cadastros por coordenador'
+        : groupBy === 'lider'
+          ? 'Cadastros por liderança'
+          : groupBy === 'secao'
+            ? 'Cadastros por seção'
+            : 'Cadastros por zona eleitoral'
 
   if (loading) {
     return (
@@ -93,11 +175,13 @@ export function RelatoriosPage() {
           <PeriodFilterSelect value={periodPreset} onChange={setPeriodPreset} showRange={false} />
           <Select
             value={groupBy}
-            onChange={(e) => setGroupBy(e.target.value)}
+            onChange={(e) => setGroupBy(e.target.value as GroupKey)}
             options={[
               { value: 'zona', label: 'Zona eleitoral' },
               { value: 'secao', label: 'Seção eleitoral' },
               { value: 'nerite', label: 'Nerite' },
+              { value: 'coordenador', label: 'Coordenador' },
+              { value: 'lider', label: 'Liderança' },
             ]}
             aria-label="Agrupar relatório"
           />
@@ -132,31 +216,51 @@ export function RelatoriosPage() {
         </Card>
       ) : (
         <div className="rel-grid">
-          <Card title="Cadastros por zona eleitoral">
-            {groupBy === 'nerite' ? (
-              <div className="bar-list">
-                {operadores
-                  .map((op) => ({
-                    nome: op.nome,
-                    total: cadastros.filter((c) => c.operator_id === op.id).length,
-                  }))
-                  .filter((o) => o.total > 0)
-                  .sort((a, b) => b.total - a.total)
-                  .map((row) => (
-                    <div className="bar-row" key={row.nome}>
-                      <div className="bar-row-top"><span>{row.nome}</span><strong>{row.total}</strong></div>
-                      <div className="bar-track"><i style={{ width: `${Math.max((row.total / maxZona) * 100, 4)}%` }} /></div>
+          <Card title={groupTitle}>
+            {groupBy === 'secao' ? (
+              !porSecao.length ? (
+                <EmptyState title="Nenhuma seção com registros" />
+              ) : (
+                <div className="bar-list">
+                  {porSecao.map((row) => (
+                    <div className="bar-row" key={`${row.zona}-${row.secao}`}>
+                      <div className="bar-row-top">
+                        <span>Seção {row.secao} · Zona {row.zona}</span>
+                        <strong>{row.total}</strong>
+                      </div>
+                      <div className="bar-track">
+                        <i style={{ width: `${Math.max((row.total / maxBar) * 100, 4)}%` }} />
+                      </div>
                     </div>
                   ))}
-              </div>
+                </div>
+              )
+            ) : !barRows.length ? (
+              <EmptyState title="Sem registros para este agrupamento" />
             ) : (
               <div className="bar-list">
-                {porZona.map((row) => (
-                  <div className="bar-row" key={row.zona}>
-                    <div className="bar-row-top"><span>Zona {row.zona}</span><strong>{row.total}</strong></div>
-                    <div className="bar-track"><i style={{ width: `${Math.max((row.total / maxZona) * 100, 4)}%` }} /></div>
-                  </div>
-                ))}
+                {barRows.map((row) => {
+                  const inner = (
+                    <>
+                      <div className="bar-row-top">
+                        <span>{row.label}</span>
+                        <strong>{row.total}</strong>
+                      </div>
+                      <div className="bar-track">
+                        <i style={{ width: `${Math.max((row.total / maxBar) * 100, 4)}%` }} />
+                      </div>
+                    </>
+                  )
+                  return row.to ? (
+                    <Link to={row.to} className="bar-row bar-row-link" key={row.key}>
+                      {inner}
+                    </Link>
+                  ) : (
+                    <div className="bar-row" key={row.key}>
+                      {inner}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </Card>
