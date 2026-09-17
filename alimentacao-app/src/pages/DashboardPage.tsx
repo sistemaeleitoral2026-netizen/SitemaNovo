@@ -14,11 +14,18 @@ import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
 import { PeriodFilterSelect } from '../components/ui/PeriodFilter'
 import { Spinner } from '../components/ui/Spinner'
+import { MetaGoalPopup } from '../components/ui/MetaGoalPopup'
 import { EvolutionChart } from '../components/charts/EvolutionChart'
 import { ZonaDonutChart } from '../components/charts/ZonaDonutChart'
 import { CadastrosMap } from '../components/map/CadastrosMap'
 import { getPeriodFromPreset, type PeriodPreset } from '../lib/period'
 import { buildEvolutionData, buildMapMarkers, buildZonaData, fetchCadastros } from '../lib/cadastros'
+import {
+  getMetaFichas,
+  markMetaPopupSeen,
+  metaProgress,
+  shouldShowMetaPopup,
+} from '../lib/meta'
 import { supabase } from '../lib/supabase'
 import type { Cadastro, Coordenador, Lider, Profile } from '../types'
 
@@ -41,29 +48,39 @@ export function DashboardPage() {
 }
 
 function AdminDashboard() {
+  const { profile } = useAuth()
   const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('30d')
   const [dirFilter, setDirFilter] = useState<DirFilter>('all')
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
+  const [totalFichas, setTotalFichas] = useState(0)
   const [diretorias, setDiretorias] = useState<Profile[]>([])
   const [nerites, setNerites] = useState<Profile[]>([])
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
   const [lideres, setLideres] = useState<Lider[]>([])
   const [loading, setLoading] = useState(true)
+  const [meta, setMeta] = useState(() => getMetaFichas())
+  const [metaPopupOpen, setMetaPopupOpen] = useState(false)
 
   const period = useMemo(() => getPeriodFromPreset(periodPreset), [periodPreset])
+
+  useEffect(() => {
+    setMeta(getMetaFichas())
+  }, [])
 
   useEffect(() => {
     async function load() {
       setLoading(true)
       try {
-        const [cData, dirs, ops, coords, lids] = await Promise.all([
+        const [cData, totalRes, dirs, ops, coords, lids] = await Promise.all([
           fetchCadastros({ period }),
+          supabase.from('cadastros').select('*', { count: 'exact', head: true }),
           supabase.from('profiles').select('*').eq('role', 'diretoria').order('nome'),
           supabase.from('profiles').select('*').eq('role', 'operador').order('nome'),
           supabase.from('coordenadores').select('*'),
           supabase.from('lideres').select('*'),
         ])
         setCadastros(cData)
+        setTotalFichas(totalRes.count ?? 0)
         setDiretorias((dirs.data ?? []) as Profile[])
         setNerites((ops.data ?? []) as Profile[])
         setCoordenadores((coords.data ?? []) as Coordenador[])
@@ -74,6 +91,20 @@ function AdminDashboard() {
     }
     load()
   }, [period])
+
+  useEffect(() => {
+    if (loading || !profile?.id) return
+    if (shouldShowMetaPopup(profile.id)) {
+      setMetaPopupOpen(true)
+    }
+  }, [loading, profile?.id])
+
+  function closeMetaPopup() {
+    if (profile?.id) markMetaPopupSeen(profile.id)
+    setMetaPopupOpen(false)
+  }
+
+  const goal = useMemo(() => metaProgress(totalFichas, meta), [totalFichas, meta])
 
   const orderedDirs = useMemo(() => {
     const preferred = ['Carol', 'Nicole']
@@ -204,6 +235,13 @@ function AdminDashboard() {
 
   return (
     <div className="dashboard-page">
+      <MetaGoalPopup
+        open={metaPopupOpen}
+        atual={totalFichas}
+        meta={meta}
+        onClose={closeMetaPopup}
+      />
+
       <div className="dashboard-heading">
         <div>
           <h1>Dashboard Eleitoral · Maranhão</h1>
@@ -230,6 +268,31 @@ function AdminDashboard() {
             ))}
           </div>
           <PeriodFilterSelect value={periodPreset} onChange={setPeriodPreset} />
+        </div>
+      </div>
+
+      <div className={`meta-goal-banner${goal.batida ? ' done' : ''}`}>
+        <div className="meta-goal-banner-icon">
+          <ClipboardList size={20} strokeWidth={1.75} />
+        </div>
+        <div className="meta-goal-banner-copy">
+          <strong>
+            {goal.batida
+              ? 'Meta de fichas atingida'
+              : `Faltam ${goal.restante.toLocaleString('pt-BR')} fichas para a meta`}
+          </strong>
+          <span>
+            {goal.atual.toLocaleString('pt-BR')} de {goal.meta.toLocaleString('pt-BR')} fichas confirmadas no sistema
+            {' · '}
+            <Link to="/configuracoes">ajustar meta</Link>
+          </span>
+          <div className="meta-goal-banner-bar" role="progressbar" aria-valuenow={goal.pct} aria-valuemin={0} aria-valuemax={100}>
+            <i style={{ width: `${Math.max(goal.pct, goal.batida ? 100 : 2)}%` }} />
+          </div>
+        </div>
+        <div className="meta-goal-banner-pct">
+          <em>{goal.pct}%</em>
+          <span>{goal.batida ? 'batida' : 'da meta'}</span>
         </div>
       </div>
 
