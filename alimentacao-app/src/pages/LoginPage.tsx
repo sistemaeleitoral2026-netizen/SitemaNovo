@@ -46,8 +46,8 @@ export function LoginPage() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
-          <h1>AlimentaAção</h1>
-          <p>Cadastro e Geolocalização</p>
+          <h1>Nerites</h1>
+          <p>Cadastro e geolocalização</p>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

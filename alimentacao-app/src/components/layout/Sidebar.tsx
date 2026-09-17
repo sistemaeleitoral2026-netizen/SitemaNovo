@@ -82,6 +82,7 @@ export function Sidebar({ role, open, onClose }: SidebarProps) {
             <span>Informações seguras e atualizadas</span>
           </div>
         </div>
+        <div className="app-sidebar-version">V 1.0.0</div>
       </aside>
     </>
   )

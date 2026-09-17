@@ -25,12 +25,18 @@ export function EvolutionChart({ data }: EvolutionChartProps) {
 
   return (
     <ResponsiveContainer width="100%" height={280}>
-      <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-        <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-        <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-        <Tooltip />
-        <Line type="monotone" dataKey="total" stroke="var(--color-kpi-green)" strokeWidth={2} dot={{ r: 3 }} />
+      <LineChart data={data} margin={{ top: 12, right: 12, left: -16, bottom: 0 }}>
+        <defs>
+          <linearGradient id="evolutionLine" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#2f6fed" />
+            <stop offset="100%" stopColor="#06a77d" />
+          </linearGradient>
+        </defs>
+        <CartesianGrid vertical={false} stroke="#e8edf5" />
+        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#7b879b' }} dy={8} />
+        <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#7b879b' }} />
+        <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e1e7f0', boxShadow: '0 10px 30px rgba(21, 39, 78, .12)' }} />
+        <Line type="monotone" dataKey="total" name="Cadastros" stroke="url(#evolutionLine)" strokeWidth={3} dot={false} activeDot={{ r: 5, fill: '#2f6fed', strokeWidth: 3, stroke: '#fff' }} />
       </LineChart>
     </ResponsiveContainer>
   )

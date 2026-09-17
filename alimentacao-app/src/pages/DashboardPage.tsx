@@ -2,23 +2,26 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Users,
-  ClipboardList,
   MapPin,
   Layers,
-  TrendingUp,
-  Map as MapIcon,
+  ClipboardList,
+  ShieldCheck,
+  CircleCheck,
+  CircleAlert,
+  CircleMinus,
 } from 'lucide-react'
+import { format, parseISO } from 'date-fns'
+import { useAuth } from '../contexts/AuthContext'
 import { KpiCard } from '../components/ui/KpiCard'
 import { Card } from '../components/ui/Card'
 import { PeriodFilterSelect } from '../components/ui/PeriodFilter'
 import { Spinner } from '../components/ui/Spinner'
-import { BarChartOperadores } from '../components/charts/BarChartOperadores'
 import { EvolutionChart } from '../components/charts/EvolutionChart'
 import { ZonaDonutChart } from '../components/charts/ZonaDonutChart'
-import { CadastrosMap } from '../components/map/CadastrosMap'
 import { getPeriodFromPreset, type PeriodPreset } from '../lib/period'
-import { buildEvolutionData, buildMapMarkers, buildZonaData, fetchCadastros } from '../lib/cadastros'
+import { buildEvolutionData, buildZonaData, fetchCadastros } from '../lib/cadastros'
 import { supabase } from '../lib/supabase'
+import { formatCep } from '../lib/format'
 import type { Cadastro, Profile } from '../types'
 
 export function DashboardPage() {
@@ -26,6 +29,7 @@ export function DashboardPage() {
 }
 
 function AdminDashboard() {
+  const { profile } = useAuth()
   const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('30d')
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
   const [nerites, setNerites] = useState<Profile[]>([])
@@ -39,7 +43,7 @@ function AdminDashboard() {
       try {
         const [cData, oData] = await Promise.all([
           fetchCadastros({ period }),
-          supabase.from('profiles').select('*').eq('role', 'operador').eq('ativo', true),
+          supabase.from('profiles').select('*').eq('role', 'operador').order('nome'),
         ])
         setCadastros(cData)
         setNerites((oData.data ?? []) as Profile[])
@@ -50,23 +54,28 @@ function AdminDashboard() {
     load()
   }, [period])
 
+  const neriteById = useMemo(() => {
+    const map = new Map<string, Profile>()
+    nerites.forEach((n) => map.set(n.id, n))
+    return map
+  }, [nerites])
+
   const kpis = useMemo(() => {
-    const zonas = new Set(cadastros.map((c) => c.zona))
-    const secoes = new Set(cadastros.map((c) => c.secao))
-    const ceps = new Set(cadastros.map((c) => c.cep).filter(Boolean))
+    const zonasSet = new Set(cadastros.map((c) => c.zona).filter(Boolean))
+    const secoesSet = new Set(cadastros.map((c) => c.secao).filter(Boolean))
     const neritesAtivas = new Set(cadastros.map((c) => c.operator_id))
     const comGeo = cadastros.filter((c) => c.lat != null && c.lng != null).length
+    const cobertura = cadastros.length ? Math.round((comGeo / cadastros.length) * 100) : 0
     return {
       total: cadastros.length,
       nerites: neritesAtivas.size,
-      zonas: zonas.size,
-      secoes: secoes.size,
-      ceps: ceps.size,
-      coberturaGeo: cadastros.length ? Math.round((comGeo / cadastros.length) * 100) : 0,
+      zonas: zonasSet.size,
+      secoes: secoesSet.size,
+      cobertura,
     }
   }, [cadastros])
 
-  const porNerite = useMemo(() => {
+  const ranking = useMemo(() => {
     const counts = new Map<string, number>()
     cadastros.forEach((c) => counts.set(c.operator_id, (counts.get(c.operator_id) ?? 0) + 1))
     return nerites
@@ -77,11 +86,45 @@ function AdminDashboard() {
       }))
       .filter((o) => o.total > 0)
       .sort((a, b) => b.total - a.total)
+      .slice(0, 5)
+      .map((item) => ({
+        ...item,
+        share: cadastros.length ? Math.round((item.total / cadastros.length) * 100) : 0,
+      }))
   }, [cadastros, nerites])
+
+  const ultimos = useMemo(
+    () =>
+      [...cadastros]
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .slice(0, 5)
+        .map((c) => ({
+          id: c.id,
+          nome: c.nome_completo,
+          nerite: neriteById.get(c.operator_id)?.nome ?? '—',
+          cep: c.cep ? formatCep(c.cep) : '—',
+          data: formatShortDateTime(c.created_at),
+        })),
+    [cadastros, neriteById],
+  )
+
+  const situacao = useMemo(() => {
+    const total = nerites.length
+    if (!total) return []
+    const ativas = nerites.filter((n) => n.ativo).length
+    const inativas = total - ativas
+    const withActivity = new Set(cadastros.map((c) => c.operator_id))
+    const semAtividade = nerites.filter((n) => !withActivity.has(n.id)).length
+    return [
+      { label: 'Ativas', pct: Math.round((ativas / total) * 100), tone: 'success' as const, icon: CircleCheck },
+      { label: 'Inativas', pct: Math.round((inativas / total) * 100), tone: 'warning' as const, icon: CircleAlert },
+      { label: 'Sem atividade', pct: Math.round((semAtividade / total) * 100), tone: 'neutral' as const, icon: CircleMinus },
+    ]
+  }, [nerites, cadastros])
 
   const evolution = useMemo(() => buildEvolutionData(cadastros), [cadastros])
   const zonaData = useMemo(() => buildZonaData(cadastros), [cadastros])
-  const mapMarkers = useMemo(() => buildMapMarkers(cadastros), [cadastros])
+  const maxRank = ranking[0]?.total || 1
 
   if (loading) {
     return (
@@ -92,69 +135,177 @@ function AdminDashboard() {
   }
 
   return (
-    <div>
-      <div
-        className="dashboard-hero"
-        style={{
-          background: 'linear-gradient(135deg, var(--color-navy) 0%, #1e3a8a 55%, var(--color-primary) 100%)',
-          borderRadius: '14px',
-          padding: '1.5rem 1.75rem',
-          color: '#fff',
-          marginBottom: '1.5rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          gap: '1rem',
-          flexWrap: 'wrap',
-          alignItems: 'flex-end',
-        }}
-      >
+    <div className="dashboard-page">
+      <div className="dashboard-heading">
         <div>
-          <p style={{ fontSize: '0.8125rem', opacity: 0.8, marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-            Painel administrativo
-          </p>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.35rem' }}>Dashboard</h1>
-          <p style={{ opacity: 0.85, maxWidth: 520, fontSize: '0.9375rem' }}>
-            Visão consolidada dos cadastros feitos pelas nerites, zonas eleitorais e localização por CEP.
-          </p>
+          <h1>Bem-vindo, {profile?.nome ?? 'Administrador'}</h1>
+          <p>Acompanhe o desempenho do levantamento em tempo real.</p>
         </div>
-        <PeriodFilterSelect value={periodPreset} onChange={setPeriodPreset} />
+        <div className="dashboard-heading-actions">
+          <PeriodFilterSelect value={periodPreset} onChange={setPeriodPreset} />
+        </div>
       </div>
 
-      <style>{`
-        .dashboard-hero span { color: rgba(255,255,255,0.75) !important; }
-      `}</style>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-        <KpiCard label="Total de cadastros" value={kpis.total} icon={ClipboardList} accent="blue" />
-        <KpiCard label="Nerites com atividade" value={kpis.nerites} icon={Users} accent="green" />
-        <KpiCard label="Zonas eleitorais" value={kpis.zonas} icon={MapPin} accent="purple" />
-        <KpiCard label="Seções eleitorais" value={kpis.secoes} icon={Layers} accent="orange" />
-        <KpiCard label="CEPs distintos" value={kpis.ceps} icon={MapIcon} accent="blue" />
-        <KpiCard label="Cobertura no mapa" value={`${kpis.coberturaGeo}%`} icon={TrendingUp} accent="green" />
+      <div className="kpi-grid">
+        <KpiCard
+          label="Cadastros realizados"
+          value={kpis.total.toLocaleString('pt-BR')}
+          icon={ClipboardList}
+          accent="blue"
+          helper="No período selecionado"
+          delta={kpis.total ? '↑' : '—'}
+          deltaTone={kpis.total ? 'up' : 'neutral'}
+        />
+        <KpiCard
+          label="Nerites ativas"
+          value={kpis.nerites}
+          icon={Users}
+          accent="green"
+          helper="Em atividade"
+          delta={kpis.nerites ? '↑' : '—'}
+          deltaTone={kpis.nerites ? 'up' : 'neutral'}
+        />
+        <KpiCard
+          label="Zonas alcançadas"
+          value={kpis.zonas}
+          icon={MapPin}
+          accent="purple"
+          helper="Cobertura de zonas"
+          delta={kpis.zonas ? `${kpis.zonas}` : '—'}
+          deltaTone="neutral"
+        />
+        <KpiCard
+          label="Seções mapeadas"
+          value={kpis.secoes}
+          icon={Layers}
+          accent="orange"
+          helper="Com registros"
+          delta={kpis.secoes ? '↑' : '—'}
+          deltaTone={kpis.secoes ? 'up' : 'neutral'}
+        />
+        <KpiCard
+          label="Cobertura territorial"
+          value={`${kpis.cobertura}%`}
+          icon={ShieldCheck}
+          accent="blue"
+          helper="Áreas com cadastros"
+          delta={kpis.cobertura ? '↑' : '—'}
+          deltaTone={kpis.cobertura ? 'up' : 'neutral'}
+        />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
-        <Card title="Cadastros por nerite" className="chart-card">
-          <BarChartOperadores data={porNerite} />
+      <div className="dashboard-main-grid">
+        <Card title="Evolução dos cadastros" subtitle="Últimos registros do período" className="chart-card chart-card-wide">
+          {evolution.length ? (
+            <EvolutionChart data={evolution} />
+          ) : (
+            <div className="empty-card">
+              <strong>Sem dados no período</strong>
+              <span>A curva aparece quando os primeiros cadastros forem registrados.</span>
+            </div>
+          )}
         </Card>
-        <Card title="Evolução temporal" className="chart-card">
-          <EvolutionChart data={evolution} />
-        </Card>
-        <Card title="Distribuição por zona eleitoral" className="chart-card">
-          <ZonaDonutChart data={zonaData} />
+        <Card title="Distribuição por zona eleitoral" subtitle="Participação de cada zona" className="chart-card">
+          {zonaData.length ? (
+            <ZonaDonutChart data={zonaData} />
+          ) : (
+            <div className="empty-card">
+              <strong>Nenhuma zona com registros</strong>
+              <span>A distribuição é calculada a partir dos cadastros.</span>
+            </div>
+          )}
         </Card>
       </div>
 
-      <Card
-        title="Mapa por CEP"
-        className="chart-card"
-      >
-        <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
-          Calor por CEP — quanto mais cadastros no mesmo CEP, mais intenso o vermelho.{' '}
-          <Link to="/mapa" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>Abrir mapa completo</Link>
-        </p>
-        <CadastrosMap markers={mapMarkers} height={360} />
-      </Card>
+      <div className="dashboard-analysis-grid">
+        <Card title="Top 5 nerites" subtitle="Cadastros no período selecionado" className="analysis-card">
+          {ranking.length ? (
+            <>
+              <div className="ranking-head">
+                <span>#</span>
+                <span>Nerite</span>
+                <span>Cadastros</span>
+                <span>%</span>
+              </div>
+              <div className="ranking-list">
+                {ranking.map((nerite, index) => (
+                  <Link to={`/nerites/${nerite.id}`} className="ranking-row" key={nerite.id}>
+                    <span className="ranking-position">{index + 1}</span>
+                    <span className="ranking-person">
+                      <strong>{nerite.nome}</strong>
+                      <span className="ranking-progress">
+                        <i style={{ width: `${Math.max((nerite.total / maxRank) * 100, 4)}%` }} />
+                      </span>
+                    </span>
+                    <strong className="ranking-count">{nerite.total}</strong>
+                    <span className="ranking-pct">{nerite.share}%</span>
+                  </Link>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="empty-card">
+              <strong>Sem ranking ainda</strong>
+              <span>O ranking aparece quando as nerites começarem a cadastrar.</span>
+            </div>
+          )}
+        </Card>
+
+        <Card title="Últimos cadastros" subtitle="Registros mais recentes" className="analysis-card">
+          {ultimos.length ? (
+            <div className="recent-list">
+              {ultimos.map((item) => (
+                <div className="recent-row" key={item.id}>
+                  <div>
+                    <strong>{item.nome}</strong>
+                    <span>
+                      {item.nerite} · CEP {item.cep}
+                    </span>
+                  </div>
+                  <time>{item.data}</time>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-card">
+              <strong>Nenhum cadastro registrado</strong>
+              <span>Os últimos registros aparecem aqui.</span>
+            </div>
+          )}
+        </Card>
+
+        <Card title="Situação das nerites" subtitle="Distribuição por atividade" className="analysis-card">
+          {situacao.length ? (
+            <div className="situacao-list">
+              {situacao.map((item) => {
+                const Icon = item.icon
+                return (
+                  <div className={`situacao-row situacao-${item.tone}`} key={item.label}>
+                    <div className="situacao-icon">
+                      <Icon size={17} />
+                    </div>
+                    <span>{item.label}</span>
+                    <strong>{item.pct}%</strong>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="empty-card">
+              <strong>Nenhuma nerite cadastrada</strong>
+              <span>Crie a primeira conta em Nerites → Nova nerite.</span>
+            </div>
+          )}
+        </Card>
+      </div>
     </div>
   )
+}
+
+function formatShortDateTime(value: string) {
+  try {
+    return format(parseISO(value), 'dd/MM HH:mm')
+  } catch {
+    return '—'
+  }
 }

@@ -1,4 +1,4 @@
-import { Menu, LogOut } from 'lucide-react'
+import { Menu, LogOut, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { Button } from '../ui/Button'
 
@@ -11,56 +11,25 @@ export function Header({ onMenuClick, title }: HeaderProps) {
   const { profile, signOut } = useAuth()
 
   return (
-    <header
-      style={{
-        height: 'var(--header-height)',
-        background: 'var(--color-white)',
-        borderBottom: '1px solid var(--color-border)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 1.25rem',
-        position: 'sticky',
-        top: 0,
-        zIndex: 30,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+    <header className="app-header">
+      <div className="app-header-left">
         <button
           type="button"
           onClick={onMenuClick}
           aria-label="Abrir menu"
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            color: 'var(--color-text)',
-            display: 'flex',
-            padding: '0.25rem',
-          }}
-          className="menu-btn"
+          className="menu-btn header-icon-btn"
         >
           <Menu size={22} />
         </button>
         {title && <span style={{ fontWeight: 600, fontSize: '0.9375rem' }}>{title}</span>}
+        <div className="header-security-status">
+          <ShieldCheck size={16} />
+          <span>Ambiente seguro</span>
+        </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        <div
-          aria-hidden
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: '50%',
-            background: 'var(--color-navy)',
-            color: '#fff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '0.8125rem',
-            fontWeight: 700,
-          }}
-        >
+      <div className="app-header-user">
+        <div aria-hidden className="header-avatar">
           {(profile?.nome ?? 'U')
             .split(' ')
             .slice(0, 2)
@@ -68,22 +37,17 @@ export function Header({ onMenuClick, title }: HeaderProps) {
             .join('')
             .toUpperCase()}
         </div>
-        <div style={{ textAlign: 'left' }}>
-          <div style={{ fontSize: '0.875rem', fontWeight: 600 }}>{profile?.nome}</div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+        <div className="header-user-copy">
+          <div>{profile?.nome}</div>
+          <span>
             {profile?.role === 'admin' ? 'Administrador' : 'Nerite'}
-          </div>
+          </span>
         </div>
         <Button variant="ghost" size="sm" onClick={() => signOut()} aria-label="Sair">
           <LogOut size={18} />
         </Button>
       </div>
 
-      <style>{`
-        @media (min-width: 1024px) {
-          .menu-btn { display: none; }
-        }
-      `}</style>
     </header>
   )
 }

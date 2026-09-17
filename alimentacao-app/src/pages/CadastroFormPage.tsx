@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { Save, User, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -20,6 +21,7 @@ const emptyForm: CadastroFormData = {
   zona: '',
   secao: '',
   nome_mae: '',
+  coordenador: '',
   cep: '',
 }
 
@@ -47,6 +49,7 @@ export function CadastroFormPage() {
           zona: data.zona,
           secao: data.secao,
           nome_mae: data.nome_mae,
+          coordenador: data.coordenador ?? '',
           cep: formatCep(data.cep ?? ''),
         })
       }
@@ -92,6 +95,7 @@ export function CadastroFormPage() {
       zona: normalized.zona,
       secao: normalized.secao,
       nome_mae: normalized.nome_mae,
+      coordenador: normalized.coordenador,
       cep: normalized.cep || null,
       lat: coords?.lat ?? null,
       lng: coords?.lng ?? null,
@@ -140,24 +144,35 @@ export function CadastroFormPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">{isEdit ? 'Editar Cadastro' : 'Novo Cadastro'}</h1>
+          <p className="page-subtitle">
+            {isEdit
+              ? 'Atualize os dados do cadastro selecionado.'
+              : 'Preencha os dados abaixo para realizar um novo cadastro.'}
+          </p>
         </div>
       </div>
 
       <Card>
         <form onSubmit={handleSubmit}>
+          <div className="form-section-title">
+            <User size={18} color="#2f6fed" />
+            <strong>Dados do eleitor</strong>
+          </div>
           <div className="form-grid">
             <Input
               label="Nome completo"
               value={form.nome_completo}
               onChange={(e) => updateField('nome_completo', e.target.value)}
               error={errors.nome_completo}
+              placeholder="Nome completo"
             />
             <Input
-              label="CPF (opcional)"
-              value={form.cpf}
-              onChange={(e) => updateField('cpf', formatCpf(e.target.value))}
-              error={errors.cpf}
-              placeholder="000.000.000-00"
+              label="Coordenador"
+              value={form.coordenador}
+              onChange={(e) => updateField('coordenador', e.target.value)}
+              error={errors.coordenador}
+              placeholder="Nome do coordenador desta ficha"
+              required
             />
             <Input
               label="Telefone"
@@ -171,24 +186,42 @@ export function CadastroFormPage() {
               value={form.titulo}
               onChange={(e) => updateField('titulo', e.target.value)}
               error={errors.titulo}
+              placeholder="Somente números"
             />
             <Input
               label="Zona eleitoral"
               value={form.zona}
               onChange={(e) => updateField('zona', e.target.value)}
               error={errors.zona}
+              placeholder="Zona"
             />
             <Input
               label="Sessão eleitoral"
               value={form.secao}
               onChange={(e) => updateField('secao', e.target.value)}
               error={errors.secao}
+              placeholder="Sessão"
             />
+            <Input
+              label="CPF (opcional)"
+              value={form.cpf}
+              onChange={(e) => updateField('cpf', formatCpf(e.target.value))}
+              error={errors.cpf}
+              placeholder="000.000.000-00"
+            />
+          </div>
+
+          <div className="form-section-title form-section-gap">
+            <Users size={18} color="#2f6fed" />
+            <strong>Dados complementares</strong>
+          </div>
+          <div className="form-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
             <Input
               label="Nome completo da mãe"
               value={form.nome_mae}
               onChange={(e) => updateField('nome_mae', e.target.value)}
               error={errors.nome_mae}
+              placeholder="Nome completo da mãe"
             />
             <Input
               label="CEP (opcional)"
@@ -207,7 +240,7 @@ export function CadastroFormPage() {
 
           <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
             <Button type="submit" loading={saving}>
-              Salvar Cadastro
+              <Save size={16} /> Salvar Cadastro
             </Button>
             <Button type="button" variant="secondary" onClick={handleClear}>
               Limpar
