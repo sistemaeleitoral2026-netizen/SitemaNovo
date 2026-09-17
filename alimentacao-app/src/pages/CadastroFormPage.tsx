@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Save, User, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
+import { Select } from '../components/ui/Select'
 import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/Spinner'
 import { normalizeCadastroFields, formatCpf, formatPhone, formatCep } from '../lib/normalize'
@@ -11,7 +12,7 @@ import { validateCadastroForm, isDuplicateCpfError } from '../lib/validation'
 import { geocodeFromCep } from '../lib/geocode'
 import { logAudit } from '../lib/audit'
 import { supabase } from '../lib/supabase'
-import type { CadastroFormData } from '../types'
+import type { CadastroFormData, Coordenador, Lider } from '../types'
 
 const emptyForm: CadastroFormData = {
   nome_completo: '',
@@ -22,6 +23,7 @@ const emptyForm: CadastroFormData = {
   secao: '',
   nome_mae: '',
   coordenador: '',
+  lider: '',
   data_nascimento: '',
   cep: '',
 }
@@ -34,9 +36,50 @@ export function CadastroFormPage() {
 
   const [form, setForm] = useState<CadastroFormData>(emptyForm)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [loading, setLoading] = useState(isEdit)
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [globalError, setGlobalError] = useState<string | null>(null)
+  const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
+  const [lideres, setLideres] = useState<Lider[]>([])
+  const [coordenadorId, setCoordenadorId] = useState('')
+  const [liderId, setLiderId] = useState('')
+
+  const diretoriaId =
+    profile?.role === 'diretoria'
+      ? profile.id
+      : profile?.diretoria_id ?? null
+
+  useEffect(() => {
+    async function loadOptions() {
+      if (!diretoriaId) {
+        setCoordenadores([])
+        setLideres([])
+        if (!isEdit) setLoading(false)
+        return
+      }
+
+      const [coords, lids] = await Promise.all([
+        supabase
+          .from('coordenadores')
+          .select('*')
+          .eq('diretoria_id', diretoriaId)
+          .eq('ativo', true)
+          .order('nome'),
+        supabase
+          .from('lideres')
+          .select('*')
+          .eq('diretoria_id', diretoriaId)
+          .eq('ativo', true)
+          .order('nome'),
+      ])
+
+      setCoordenadores((coords.data ?? []) as Coordenador[])
+      setLideres((lids.data ?? []) as Lider[])
+      if (!isEdit) setLoading(false)
+    }
+
+    loadOptions()
+  }, [diretoriaId, isEdit])
 
   useEffect(() => {
     if (!id) return
@@ -51,6 +94,7 @@ export function CadastroFormPage() {
           secao: data.secao,
           nome_mae: data.nome_mae,
           coordenador: data.coordenador ?? '',
+          lider: data.lider ?? '',
           data_nascimento: data.data_nascimento ? String(data.data_nascimento).slice(0, 10) : '',
           cep: formatCep(data.cep ?? ''),
         })
@@ -58,6 +102,26 @@ export function CadastroFormPage() {
       setLoading(false)
     })
   }, [id])
+
+  // Resolve selected IDs from saved names once options load (edit mode)
+  useEffect(() => {
+    if (!coordenadores.length && !lideres.length) return
+    if (form.coordenador && !coordenadorId) {
+      const match = coordenadores.find(
+        (c) => c.nome.toLowerCase() === form.coordenador.toLowerCase(),
+      )
+      if (match) setCoordenadorId(match.id)
+    }
+    if (form.lider && !liderId) {
+      const match = lideres.find((l) => l.nome.toLowerCase() === form.lider.toLowerCase())
+      if (match) setLiderId(match.id)
+    }
+  }, [coordenadores, lideres, form.coordenador, form.lider, coordenadorId, liderId])
+
+  const lideresFiltrados = useMemo(() => {
+    if (!coordenadorId) return lideres
+    return lideres.filter((l) => !l.coordenador_id || l.coordenador_id === coordenadorId)
+  }, [lideres, coordenadorId])
 
   function updateField(field: keyof CadastroFormData, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -68,8 +132,38 @@ export function CadastroFormPage() {
     })
   }
 
+  function handleCoordenadorChange(value: string) {
+    setCoordenadorId(value)
+    const nome = coordenadores.find((c) => c.id === value)?.nome ?? ''
+    updateField('coordenador', nome)
+    // Reset líder if it no longer belongs to this coordenador
+    if (liderId) {
+      const current = lideres.find((l) => l.id === liderId)
+      if (current?.coordenador_id && current.coordenador_id !== value) {
+        setLiderId('')
+        updateField('lider', '')
+      }
+    }
+  }
+
+  function handleLiderChange(value: string) {
+    setLiderId(value)
+    const lid = lideres.find((l) => l.id === value)
+    updateField('lider', lid?.nome ?? '')
+    // Auto-fill coordenador if líder is linked to one
+    if (lid?.coordenador_id) {
+      const coord = coordenadores.find((c) => c.id === lid.coordenador_id)
+      if (coord) {
+        setCoordenadorId(coord.id)
+        updateField('coordenador', coord.nome)
+      }
+    }
+  }
+
   function handleClear() {
     setForm(emptyForm)
+    setCoordenadorId('')
+    setLiderId('')
     setErrors({})
     setGlobalError(null)
   }
@@ -90,19 +184,26 @@ export function CadastroFormPage() {
     const coords = await geocodeFromCep(normalized.cep)
 
     const payload = {
-      nome_completo: normalized.nome_completo,
+      nome_completo: normalized.nome_completo || '',
       cpf: normalized.cpf || null,
-      telefone: normalized.telefone,
-      titulo: normalized.titulo,
-      zona: normalized.zona,
-      secao: normalized.secao,
-      nome_mae: normalized.nome_mae,
-      coordenador: normalized.coordenador,
+      telefone: normalized.telefone || '',
+      titulo: normalized.titulo || null,
+      zona: normalized.zona || '',
+      secao: normalized.secao || '',
+      nome_mae: normalized.nome_mae || '',
+      coordenador: normalized.coordenador || '',
+      lider: normalized.lider || '',
       data_nascimento: normalized.data_nascimento || null,
       cep: normalized.cep || null,
       lat: coords?.lat ?? null,
       lng: coords?.lng ?? null,
       operator_id: profile!.id,
+      diretoria_id:
+        profile?.role === 'operador'
+          ? (profile.diretoria_id ?? null)
+          : profile?.role === 'diretoria'
+            ? profile.id
+            : null,
     }
 
     if (isEdit && id) {
@@ -117,7 +218,7 @@ export function CadastroFormPage() {
         return
       }
       await logAudit('atualizar', 'cadastros', id, { cpf: normalized.cpf })
-      navigate(profile?.role === 'admin' ? '/cadastros' : '/meus-cadastros')
+      navigate(profile?.role === 'operador' ? '/meus-cadastros' : '/cadastros')
     } else {
       const { data, error } = await supabase.from('cadastros').insert(payload).select('id').single()
       setSaving(false)
@@ -130,7 +231,7 @@ export function CadastroFormPage() {
         return
       }
       await logAudit('criar', 'cadastros', data.id, { cpf: normalized.cpf })
-      navigate(profile?.role === 'admin' ? '/cadastros' : '/meus-cadastros')
+      navigate(profile?.role === 'operador' ? '/meus-cadastros' : '/cadastros')
     }
   }
 
@@ -150,7 +251,7 @@ export function CadastroFormPage() {
           <p className="page-subtitle">
             {isEdit
               ? 'Atualize os dados do cadastro selecionado.'
-              : 'Preencha os dados abaixo para realizar um novo cadastro.'}
+              : 'Todos os campos são opcionais. Preencha o que tiver e salve.'}
           </p>
         </div>
       </div>
@@ -158,7 +259,7 @@ export function CadastroFormPage() {
       <Card>
         <form onSubmit={handleSubmit}>
           <div className="form-section-title">
-            <User size={18} color="#2f6fed" />
+            <User size={18} color="#2459c4" />
             <strong>Dados do eleitor</strong>
           </div>
           <div className="form-grid">
@@ -169,13 +270,21 @@ export function CadastroFormPage() {
               error={errors.nome_completo}
               placeholder="Nome completo"
             />
-            <Input
+            <Select
               label="Coordenador"
-              value={form.coordenador}
-              onChange={(e) => updateField('coordenador', e.target.value)}
+              value={coordenadorId}
+              onChange={(e) => handleCoordenadorChange(e.target.value)}
               error={errors.coordenador}
-              placeholder="Nome do coordenador desta ficha"
-              required
+              placeholder={coordenadores.length ? 'Selecione o coordenador' : 'Nenhum cadastrado ainda'}
+              options={coordenadores.map((c) => ({ value: c.id, label: c.nome }))}
+            />
+            <Select
+              label="Liderança"
+              value={liderId}
+              onChange={(e) => handleLiderChange(e.target.value)}
+              error={errors.lider}
+              placeholder={lideresFiltrados.length ? 'Selecione o líder' : 'Nenhuma cadastrada ainda'}
+              options={lideresFiltrados.map((l) => ({ value: l.id, label: l.nome }))}
             />
             <Input
               label="Data de nascimento"
@@ -183,7 +292,6 @@ export function CadastroFormPage() {
               value={form.data_nascimento}
               onChange={(e) => updateField('data_nascimento', e.target.value)}
               error={errors.data_nascimento}
-              required
             />
             <Input
               label="Telefone"
@@ -223,7 +331,7 @@ export function CadastroFormPage() {
           </div>
 
           <div className="form-section-title form-section-gap">
-            <Users size={18} color="#2f6fed" />
+            <Users size={18} color="#2459c4" />
             <strong>Dados complementares</strong>
           </div>
           <div className="form-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>

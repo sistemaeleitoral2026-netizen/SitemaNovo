@@ -9,7 +9,7 @@ import {
 } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
-import type { Profile } from '../types'
+import type { Profile, UserRole } from '../types'
 
 interface AuthContextValue {
   session: Session | null
@@ -23,6 +23,10 @@ interface AuthContextValue {
     nome: string
     email: string
     password: string
+    role?: UserRole
+    diretoria_id?: string | null
+    coordenador_id?: string | null
+    lider_id?: string | null
   }) => Promise<{ error: string | null }>
   refreshProfile: () => Promise<void>
 }
@@ -116,10 +120,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     nome: string
     email: string
     password: string
+    role?: UserRole
+    diretoria_id?: string | null
+    coordenador_id?: string | null
+    lider_id?: string | null
   }) => {
     const { data: sessionData } = await supabase.auth.getSession()
     const adminSession = sessionData.session
-    if (!adminSession) return { error: 'Sessão do administrador expirada.' }
+    if (!adminSession) return { error: 'Sessão expirada.' }
 
     try {
       const res = await fetch('/api/create-nerite', {
@@ -132,16 +140,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           nome: input.nome.trim(),
           email: input.email.trim().toLowerCase(),
           password: input.password,
+          role: input.role ?? 'operador',
+          diretoria_id: input.diretoria_id ?? null,
+          coordenador_id: input.coordenador_id ?? null,
+          lider_id: input.lider_id ?? null,
         }),
       })
 
       const payload = await res.json().catch(() => ({}))
       if (!res.ok) {
-        return { error: payload.error || 'Não foi possível criar a nerite.' }
+        return { error: payload.error || 'Não foi possível criar o usuário.' }
       }
       return { error: null }
     } catch {
-      return { error: 'Falha de conexão ao criar a nerite.' }
+      return { error: 'Falha de conexão ao criar o usuário.' }
     }
   }, [])
 
