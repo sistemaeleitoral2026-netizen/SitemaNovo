@@ -50,6 +50,7 @@ function mapRow(raw: Record<string, unknown>): Record<string, string> {
     secao: '',
     nome_mae: '',
     coordenador: '',
+    lider: '',
     data_nascimento: '',
     cep: '',
   }
@@ -58,7 +59,7 @@ function mapRow(raw: Record<string, unknown>): Record<string, string> {
     const k = normalizeHeader(key)
     const v = String(value ?? '').trim()
 
-    if (k === 'nome completo' || (k.includes('nome completo') && !k.includes('mae') && !k.includes('coordenador'))) {
+    if (k === 'nome completo' || (k.includes('nome completo') && !k.includes('mae') && !k.includes('coordenador') && !k.includes('lider'))) {
       mapped.nome_completo = v
     } else if (k === 'telefone') {
       mapped.telefone = v
@@ -72,6 +73,8 @@ function mapRow(raw: Record<string, unknown>): Record<string, string> {
       mapped.nome_mae = v
     } else if (k === 'coordenador' || k.includes('coordenador')) {
       mapped.coordenador = v
+    } else if (k === 'lider' || k.includes('lider')) {
+      mapped.lider = v
     } else if (k === 'data de nascimento' || k === 'nascimento' || k.includes('nascimento')) {
       mapped.data_nascimento = v
     } else if (k === 'cpf') {
@@ -85,18 +88,7 @@ function mapRow(raw: Record<string, unknown>): Record<string, string> {
 }
 
 function hasRequiredHeaders(keys: string[]): boolean {
-  const set = new Set(keys)
-  const hasNome = [...set].some((k) => k === 'nome completo' || (k.includes('nome completo') && !k.includes('mae')))
-  const hasMae = [...set].some((k) => k.includes('mae'))
-  const hasSessao = set.has('sessao') || set.has('secao')
-  return (
-    hasNome
-    && set.has('telefone')
-    && set.has('titulo')
-    && set.has('zona')
-    && hasSessao
-    && hasMae
-  )
+  return keys.length > 0
 }
 
 export async function parseSpreadsheet(file: File): Promise<Record<string, string>[]> {
@@ -115,9 +107,7 @@ export async function parseSpreadsheet(file: File): Promise<Record<string, strin
 
   const firstKeys = Object.keys(json[0]).map(normalizeHeader)
   if (!hasRequiredHeaders(firstKeys)) {
-    throw new Error(
-      'Cabeçalhos inválidos. Use: NOME COMPLETO, TELEFONE, TITULO, ZONA, SESSAO, NOME COMPLETO DA MÃE.',
-    )
+    throw new Error('Planilha vazia ou sem cabeçalhos.')
   }
 
   return json.map(mapRow)
@@ -141,6 +131,7 @@ export async function analyzeImport(
       secao: raw.secao ?? '',
       nome_mae: raw.nome_mae ?? '',
       coordenador: raw.coordenador ?? '',
+      lider: raw.lider ?? '',
       data_nascimento: raw.data_nascimento ?? '',
       cep: raw.cep ?? '',
     })

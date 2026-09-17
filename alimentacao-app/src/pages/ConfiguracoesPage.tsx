@@ -63,7 +63,13 @@ export function ConfiguracoesPage() {
             </div>
             <div className="profile-row">
               <span>Função</span>
-              <strong>{profile?.role === 'admin' ? 'Administrador' : 'Nerite'}</strong>
+              <strong>
+                {profile?.role === 'admin'
+                  ? 'Administrador'
+                  : profile?.role === 'diretoria'
+                    ? 'Diretoria'
+                    : 'Nerite'}
+              </strong>
             </div>
             <div className="profile-row">
               <span>Conta criada</span>
