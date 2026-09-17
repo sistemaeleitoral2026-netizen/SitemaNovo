@@ -29,15 +29,21 @@ export function BarChartOperadores({ data }: BarChartOperadoresProps) {
 
   return (
     <ResponsiveContainer width="100%" height={280}>
-      <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-        <XAxis dataKey="nome" tick={{ fontSize: 12 }} interval={0} angle={-20} textAnchor="end" height={60} />
-        <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-        <Tooltip />
+      <BarChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+        <defs>
+          <linearGradient id="barFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#2f6fed" />
+            <stop offset="100%" stopColor="#75a1ff" />
+          </linearGradient>
+        </defs>
+        <CartesianGrid vertical={false} stroke="#e8edf5" />
+        <XAxis dataKey="nome" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#7b879b' }} interval={0} angle={-20} textAnchor="end" height={60} />
+        <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#7b879b' }} />
+        <Tooltip cursor={{ fill: '#f4f7fc' }} contentStyle={{ borderRadius: 12, border: '1px solid #e1e7f0', boxShadow: '0 10px 30px rgba(21, 39, 78, .12)' }} />
         <Bar
           dataKey="total"
-          fill="var(--color-primary)"
-          radius={[4, 4, 0, 0]}
+          fill="url(#barFill)"
+          radius={[7, 7, 0, 0]}
           cursor="pointer"
           onClick={(barData) => {
             const item = barData.payload as DataPoint

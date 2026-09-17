@@ -29,7 +29,7 @@ export function ForgotPasswordPage() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
-          <h1>AlimentaAção</h1>
+          <h1>Nerites</h1>
           <p>Recuperar senha</p>
         </div>
 

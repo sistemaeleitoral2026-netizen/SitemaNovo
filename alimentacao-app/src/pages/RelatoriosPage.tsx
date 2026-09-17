@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { ClipboardList, FileText, Layers, MapPin, Users } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { Spinner } from '../components/ui/Spinner'
 import { PeriodFilterSelect } from '../components/ui/PeriodFilter'
+import { Select } from '../components/ui/Select'
+import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { getPeriodFromPreset, type PeriodPreset } from '../lib/period'
 import { fetchCadastros } from '../lib/cadastros'
@@ -11,8 +14,10 @@ import type { Cadastro, Profile } from '../types'
 export function RelatoriosPage() {
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
   const [operadores, setOperadores] = useState<Profile[]>([])
-  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('30d')
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
+  const [groupBy, setGroupBy] = useState('zona')
   const [loading, setLoading] = useState(true)
+  const [tick, setTick] = useState(0)
 
   const period = useMemo(() => getPeriodFromPreset(periodPreset), [periodPreset])
 
@@ -28,28 +33,46 @@ export function RelatoriosPage() {
       setLoading(false)
     }
     load()
-  }, [period])
+  }, [period, tick])
+
+  const kpis = useMemo(() => {
+    const zonas = new Set(cadastros.map((c) => c.zona).filter(Boolean))
+    const secoes = new Set(cadastros.map((c) => c.secao).filter(Boolean))
+    const neritesAtivas = new Set(cadastros.map((c) => c.operator_id))
+    return {
+      total: cadastros.length,
+      nerites: neritesAtivas.size,
+      zonas: zonas.size,
+      secoes: secoes.size,
+    }
+  }, [cadastros])
 
   const porZona = useMemo(() => {
     const map = new Map<string, number>()
     cadastros.forEach((c) => map.set(c.zona, (map.get(c.zona) ?? 0) + 1))
-    return Array.from(map.entries()).sort((a, b) => b[1] - a[1])
+    return Array.from(map.entries())
+      .map(([zona, total]) => ({ zona, total }))
+      .sort((a, b) => b.total - a.total)
   }, [cadastros])
 
   const porSecao = useMemo(() => {
-    const map = new Map<string, number>()
-    cadastros.forEach((c) => map.set(c.secao, (map.get(c.secao) ?? 0) + 1))
-    return Array.from(map.entries()).sort((a, b) => b[1] - a[1])
+    const map = new Map<string, { secao: string; zona: string; total: number }>()
+    cadastros.forEach((c) => {
+      const key = `${c.zona}::${c.secao}`
+      const existing = map.get(key)
+      if (existing) existing.total += 1
+      else map.set(key, { secao: c.secao, zona: c.zona, total: 1 })
+    })
+    return Array.from(map.values())
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 12)
+      .map((row) => ({
+        ...row,
+        pct: cadastros.length ? `${Math.round((row.total / cadastros.length) * 100)}%` : '0%',
+      }))
   }, [cadastros])
 
-  const porOperador = useMemo(() => {
-    const map = new Map<string, number>()
-    cadastros.forEach((c) => map.set(c.operator_id, (map.get(c.operator_id) ?? 0) + 1))
-    return operadores
-      .map((op) => ({ nome: op.nome, total: map.get(op.id) ?? 0 }))
-      .filter((o) => o.total > 0)
-      .sort((a, b) => b.total - a.total)
-  }, [cadastros, operadores])
+  const maxZona = porZona[0]?.total || 1
 
   if (loading) {
     return (
@@ -64,53 +87,102 @@ export function RelatoriosPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Relatórios</h1>
-          <p className="page-subtitle">Resumo consolidado dos cadastros</p>
+          <p className="page-subtitle">Analise os dados coletados de forma consolidada.</p>
         </div>
-        <PeriodFilterSelect value={periodPreset} onChange={setPeriodPreset} />
+        <div className="page-header-actions">
+          <PeriodFilterSelect value={periodPreset} onChange={setPeriodPreset} showRange={false} />
+          <Select
+            value={groupBy}
+            onChange={(e) => setGroupBy(e.target.value)}
+            options={[
+              { value: 'zona', label: 'Zona eleitoral' },
+              { value: 'secao', label: 'Seção eleitoral' },
+              { value: 'nerite', label: 'Nerite' },
+            ]}
+            aria-label="Agrupar relatório"
+          />
+          <Button onClick={() => setTick((t) => t + 1)}>
+            <FileText size={16} /> Gerar relatório
+          </Button>
+        </div>
+      </div>
+
+      <div className="rel-kpi-grid">
+        <div className="rel-kpi">
+          <div className="rel-kpi-icon" style={{ background: '#eaf1fe', color: '#2f6fed' }}><ClipboardList size={20} /></div>
+          <div><span>Total de cadastros</span><strong>{kpis.total.toLocaleString('pt-BR')}</strong></div>
+        </div>
+        <div className="rel-kpi">
+          <div className="rel-kpi-icon" style={{ background: '#e6f7f2', color: '#06a77d' }}><Users size={20} /></div>
+          <div><span>Nerites ativas</span><strong>{kpis.nerites}</strong></div>
+        </div>
+        <div className="rel-kpi">
+          <div className="rel-kpi-icon" style={{ background: '#f0ecfd', color: '#7656d8' }}><MapPin size={20} /></div>
+          <div><span>Zonas alcançadas</span><strong>{kpis.zonas}</strong></div>
+        </div>
+        <div className="rel-kpi">
+          <div className="rel-kpi-icon" style={{ background: '#fef1e5', color: '#ee8b35' }}><Layers size={20} /></div>
+          <div><span>Seções mapeadas</span><strong>{kpis.secoes}</strong></div>
+        </div>
       </div>
 
       {!cadastros.length ? (
         <Card>
-          <EmptyState title="Sem dados no período" description="Não há cadastros para gerar relatórios." />
+          <EmptyState title="Sem dados para o relatório" description="Os gráficos são gerados a partir dos cadastros do período." />
         </Card>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
-          <Card title={`Por zona eleitoral (${cadastros.length} total)`}>
-            <div className="table-wrapper">
-              <table className="data-table">
-                <thead><tr><th>Zona eleitoral</th><th>Quantidade</th></tr></thead>
-                <tbody>
-                  {porZona.map(([zona, qtd]) => (
-                    <tr key={zona}><td>{zona}</td><td>{qtd}</td></tr>
+        <div className="rel-grid">
+          <Card title="Cadastros por zona eleitoral">
+            {groupBy === 'nerite' ? (
+              <div className="bar-list">
+                {operadores
+                  .map((op) => ({
+                    nome: op.nome,
+                    total: cadastros.filter((c) => c.operator_id === op.id).length,
+                  }))
+                  .filter((o) => o.total > 0)
+                  .sort((a, b) => b.total - a.total)
+                  .map((row) => (
+                    <div className="bar-row" key={row.nome}>
+                      <div className="bar-row-top"><span>{row.nome}</span><strong>{row.total}</strong></div>
+                      <div className="bar-track"><i style={{ width: `${Math.max((row.total / maxZona) * 100, 4)}%` }} /></div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
+              </div>
+            ) : (
+              <div className="bar-list">
+                {porZona.map((row) => (
+                  <div className="bar-row" key={row.zona}>
+                    <div className="bar-row-top"><span>Zona {row.zona}</span><strong>{row.total}</strong></div>
+                    <div className="bar-track"><i style={{ width: `${Math.max((row.total / maxZona) * 100, 4)}%` }} /></div>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
 
-          <Card title="Por seção eleitoral">
-            <div className="table-wrapper">
-              <table className="data-table">
-                <thead><tr><th>Seção eleitoral</th><th>Quantidade</th></tr></thead>
-                <tbody>
-                  {porSecao.map(([secao, qtd]) => (
-                    <tr key={secao}><td>{secao}</td><td>{qtd}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-
-          <Card title="Por nerite">
-            {!porOperador.length ? (
-              <EmptyState title="Sem dados por nerite" />
+          <Card title="Resumo por seção eleitoral">
+            {!porSecao.length ? (
+              <EmptyState title="Nenhuma seção com registros" />
             ) : (
               <div className="table-wrapper">
                 <table className="data-table">
-                  <thead><tr><th>Nerite</th><th>Quantidade</th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th>Seção</th>
+                      <th>Zona</th>
+                      <th>Cadastros</th>
+                      <th>%</th>
+                    </tr>
+                  </thead>
                   <tbody>
-                    {porOperador.map((o) => (
-                      <tr key={o.nome}><td>{o.nome}</td><td>{o.total}</td></tr>
+                    {porSecao.map((row) => (
+                      <tr key={`${row.zona}-${row.secao}`}>
+                        <td><strong style={{ fontWeight: 600, fontSize: '.8rem' }}>{row.secao}</strong></td>
+                        <td>{row.zona}</td>
+                        <td>{row.total}</td>
+                        <td>{row.pct}</td>
+                      </tr>
                     ))}
                   </tbody>
                 </table>
