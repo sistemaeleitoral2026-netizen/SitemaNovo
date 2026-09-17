@@ -1,4 +1,4 @@
-import { normalizeCpf, normalizeCep, normalizePhone, normalizeZona, normalizeSecao, normalizeName } from './normalize'
+import { normalizeCpf, normalizeCep, normalizePhone, normalizeZona, normalizeSecao, normalizeName, normalizeBirthDate } from './normalize'
 import type { CadastroFormData } from '../types'
 
 export function validateCpfAlgorithm(cpf: string): boolean {
@@ -64,6 +64,16 @@ export function validateCadastroForm(data: CadastroFormData): FieldErrors {
     errors.coordenador = 'Coordenador é obrigatório.'
   }
 
+  const birth = normalizeBirthDate(data.data_nascimento)
+  if (!birth) {
+    errors.data_nascimento = 'Data de nascimento é obrigatória.'
+  } else {
+    const date = new Date(`${birth}T12:00:00`)
+    if (Number.isNaN(date.getTime()) || date > new Date()) {
+      errors.data_nascimento = 'Data de nascimento inválida.'
+    }
+  }
+
   const cep = normalizeCep(data.cep)
   if (cep && cep.length !== 8) {
     errors.cep = 'CEP inválido.'
@@ -103,7 +113,14 @@ export function validateImportRow(data: CadastroFormData): FieldErrors {
     errors.nome_mae = 'Nome completo da mãe é obrigatório.'
   }
 
-  // Coordenador é opcional na planilha (pode vir vazio); no formulário é obrigatório.
+  // Coordenador e data de nascimento são opcionais na planilha.
+  if (data.data_nascimento.trim()) {
+    const birth = normalizeBirthDate(data.data_nascimento)
+    if (!birth) {
+      errors.data_nascimento = 'Data de nascimento inválida.'
+    }
+  }
+
   return errors
 }
 
