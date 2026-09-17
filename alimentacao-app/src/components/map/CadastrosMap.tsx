@@ -17,20 +17,26 @@ interface CadastrosMapProps {
   layerMode?: 'markers' | 'density'
 }
 
-/** Paleta clara e profissional (não cobre o mapa-base). */
+/** Cores distintas por intensidade (ainda claras para ler o mapa-base). */
 function zoneStyle(count: number, maxCount: number) {
   const t = maxCount ? count / maxCount : 0
-  if (t <= 0.2) return { stroke: '#5b8def', fill: '#93c5fd' }
-  if (t <= 0.45) return { stroke: '#3b82f6', fill: '#60a5fa' }
-  if (t <= 0.7) return { stroke: '#2563eb', fill: '#3b82f6' }
-  return { stroke: '#1d4ed8', fill: '#2563eb' }
+  if (t <= 0.25) {
+    return { stroke: '#0d9488', fill: '#5eead4', label: '#0f766e' } // baixa — teal
+  }
+  if (t <= 0.5) {
+    return { stroke: '#ca8a04', fill: '#fde047', label: '#a16207' } // média — amarelo
+  }
+  if (t <= 0.75) {
+    return { stroke: '#ea580c', fill: '#fdba74', label: '#c2410c' } // alta — laranja
+  }
+  return { stroke: '#dc2626', fill: '#f87171', label: '#b91c1c' } // muito alta — vermelho
 }
 
 const LEGEND = [
-  { label: 'Baixa', color: '#93c5fd' },
-  { label: 'Média', color: '#60a5fa' },
-  { label: 'Alta', color: '#3b82f6' },
-  { label: 'Muito alta', color: '#2563eb' },
+  { label: 'Baixa', color: '#5eead4' },
+  { label: 'Média', color: '#fde047' },
+  { label: 'Alta', color: '#fdba74' },
+  { label: 'Muito alta', color: '#f87171' },
 ]
 
 export function CadastrosMap({
@@ -80,9 +86,8 @@ export function CadastrosMap({
 
       const intensity = m.count / maxCount
       const colors = zoneStyle(m.count, maxCount)
-      // Mancha bem clara para ler nomes do mapa-base / bairros
-      const fillOpacity = 0.10 + intensity * 0.12
-      const strokeOpacity = 0.55 + intensity * 0.2
+      const fillOpacity = 0.18 + intensity * 0.16
+      const strokeOpacity = 0.65 + intensity * 0.2
 
       const popupHtml = `
         <div style="min-width:200px;max-width:280px;font-family:Inter,system-ui,sans-serif">
@@ -100,7 +105,7 @@ export function CadastrosMap({
           hull.map((p) => [p.lat, p.lng] as [number, number]),
           {
             color: colors.stroke,
-            weight: 1.5,
+            weight: 1.75,
             opacity: strokeOpacity,
             fillColor: colors.fill,
             fillOpacity,
@@ -113,7 +118,7 @@ export function CadastrosMap({
         const circle = L.circle([m.lat, m.lng], {
           radius: area.radiusMeters,
           color: colors.stroke,
-          weight: 1.5,
+          weight: 1.75,
           opacity: strokeOpacity,
           fillColor: colors.fill,
           fillOpacity,
@@ -123,16 +128,15 @@ export function CadastrosMap({
         allBounds.push([m.lat, m.lng])
       }
 
-      // Rótulo discreto da zona no centro
       const label = L.marker([m.lat, m.lng], {
         interactive: false,
         icon: L.divIcon({
           className: 'zona-map-label',
           html: `<span style="
             display:inline-block;
-            background:rgba(255,255,255,.88);
+            background:rgba(255,255,255,.9);
             border:1px solid ${colors.stroke};
-            color:#1e3a5f;
+            color:${colors.label};
             font:650 11px/1 Inter,system-ui,sans-serif;
             padding:3px 7px;
             border-radius:6px;
@@ -171,12 +175,12 @@ export function CadastrosMap({
         blur: 26,
         maxZoom: 16,
         max: 1,
-        minOpacity: 0.12,
+        minOpacity: 0.15,
         gradient: {
-          0.2: 'rgba(147,197,253,0.35)',
-          0.5: 'rgba(96,165,250,0.4)',
-          0.8: 'rgba(59,130,246,0.45)',
-          1.0: 'rgba(37,99,235,0.5)',
+          0.2: 'rgba(94,234,212,0.45)',
+          0.45: 'rgba(253,224,71,0.5)',
+          0.7: 'rgba(253,186,116,0.55)',
+          1.0: 'rgba(248,113,113,0.6)',
         },
       })
       layer.addLayer(heat)
@@ -256,7 +260,7 @@ export function CadastrosMap({
           </div>
           {LEGEND.map((item) => (
             <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-              <i style={{ width: 12, height: 8, borderRadius: 3, background: item.color, opacity: 0.75, display: 'block' }} />
+              <i style={{ width: 12, height: 8, borderRadius: 3, background: item.color, display: 'block' }} />
               <span style={{ color: '#566176' }}>{item.label}</span>
             </div>
           ))}
