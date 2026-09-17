@@ -1,5 +1,6 @@
 import { format, parseISO } from 'date-fns'
 import { supabase } from './supabase'
+import { coordsFromZona } from './geocode'
 import type { Cadastro, MapMarkerData, PeriodFilter } from '../types'
 
 export async function fetchCadastros(options?: {
@@ -85,27 +86,61 @@ export function buildZonaData(cadastros: Cadastro[]): { name: string; value: num
     .sort((a, b) => b.value - a.value)
 }
 
-/** Agrupa marcadores por CEP (geolocalização das pessoas cadastradas). */
+/** Agrupa marcadores por zona eleitoral. */
 export function buildMapMarkers(cadastros: Cadastro[]): MapMarkerData[] {
-  const groups = new Map<string, MapMarkerData>()
+  const groups = new Map<string, {
+    zona: string
+    secao: string
+    count: number
+    lats: number[]
+    lngs: number[]
+  }>()
 
   cadastros.forEach((c) => {
-    if (c.lat == null || c.lng == null || !c.cep) return
-    const key = c.cep
-    const existing = groups.get(key)
+    const zona = (c.zona ?? '').trim()
+    if (!zona) return
+    const existing = groups.get(zona)
     if (existing) {
       existing.count += 1
+      if (c.lat != null && c.lng != null) {
+        existing.lats.push(c.lat)
+        existing.lngs.push(c.lng)
+      }
+      if (!existing.secao && c.secao) existing.secao = c.secao
     } else {
-      groups.set(key, {
-        lat: c.lat,
-        lng: c.lng,
-        cep: c.cep,
-        zona: c.zona,
-        secao: c.secao,
+      groups.set(zona, {
+        zona,
+        secao: c.secao || '',
         count: 1,
+        lats: c.lat != null ? [c.lat] : [],
+        lngs: c.lng != null ? [c.lng] : [],
       })
     }
   })
 
   return Array.from(groups.values())
+    .map((g) => {
+      const fromZona = coordsFromZona(g.zona)
+      const avgLat = g.lats.length
+        ? g.lats.reduce((a, b) => a + b, 0) / g.lats.length
+        : fromZona?.lat
+      const avgLng = g.lngs.length
+        ? g.lngs.reduce((a, b) => a + b, 0) / g.lngs.length
+        : fromZona?.lng
+
+      // Preferência: coordenada da zona eleitoral; senão média dos pontos existentes
+      const lat = fromZona?.lat ?? avgLat
+      const lng = fromZona?.lng ?? avgLng
+      if (lat == null || lng == null) return null
+
+      return {
+        lat,
+        lng,
+        zona: g.zona,
+        secao: g.secao,
+        count: g.count,
+      } satisfies MapMarkerData
+    })
+    .filter((m): m is MapMarkerData => m != null)
+    .sort((a, b) => b.count - a.count)
 }

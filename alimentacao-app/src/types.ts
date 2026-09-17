@@ -120,10 +120,10 @@ export interface PeriodFilter {
 export interface MapMarkerData {
   lat: number
   lng: number
-  cep: string
   zona: string
   secao: string
   count: number
+  cep?: string
 }
 
 export interface OperadorStats {
