@@ -5,32 +5,36 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   nome text not null,
   email text not null unique,
-  role text not null check (role in ('admin', 'operador')),
+  role text not null check (role in ('admin', 'diretoria', 'operador')),
   ativo boolean not null default true,
+  diretoria_id uuid references public.profiles(id),
+  coordenador_id uuid,
+  lider_id uuid,
   created_at timestamptz not null default now()
 );
 
 create table if not exists public.cadastros (
   id uuid primary key default gen_random_uuid(),
   operator_id uuid not null references public.profiles(id),
-  nome_completo text not null,
+  nome_completo text default '',
   cpf text,
-  telefone text not null,
-  titulo text not null,
-  zona text not null,
-  secao text not null,
-  nome_mae text not null,
+  telefone text default '',
+  titulo text,
+  zona text default '',
+  secao text default '',
+  nome_mae text default '',
   coordenador text not null default '',
+  lider text not null default '',
   data_nascimento date,
   cep text,
   lat double precision,
   lng double precision,
+  diretoria_id uuid references public.profiles(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint cadastros_cpf_unique unique (cpf),
   constraint cadastros_cpf_digits check (cpf is null or cpf ~ '^[0-9]{11}$'),
-  constraint cadastros_cep_digits check (cep is null or cep ~ '^[0-9]{8}$'),
-  constraint cadastros_titulo_unique unique (titulo)
+  constraint cadastros_cep_digits check (cep is null or cep ~ '^[0-9]{8}$')
 );
 
 create index if not exists cadastros_operator_id_idx on public.cadastros(operator_id);

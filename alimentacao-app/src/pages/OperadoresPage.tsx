@@ -28,9 +28,12 @@ function initials(nome: string) {
 }
 
 export function OperadoresPage() {
-  const { createNerite } = useAuth()
+  const { profile, createNerite } = useAuth()
+  const isAdmin = profile?.role === 'admin'
+  const diretoriaId = profile?.role === 'diretoria' ? profile.id : null
   const [operadores, setOperadores] = useState<Profile[]>([])
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
+  const [diretorias, setDiretorias] = useState<Profile[]>([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [activityFilter, setActivityFilter] = useState('')
@@ -40,22 +43,29 @@ export function OperadoresPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
-  const [form, setForm] = useState({ nome: '', email: '', password: '', confirm: '' })
+  const [form, setForm] = useState({ nome: '', email: '', password: '', confirm: '', diretoria_id: '' })
 
   async function load() {
     setLoading(true)
-    const [ops, cads] = await Promise.all([
-      supabase.from('profiles').select('*').eq('role', 'operador').order('nome'),
+    let opsQuery = supabase.from('profiles').select('*').eq('role', 'operador').order('nome')
+    if (diretoriaId) opsQuery = opsQuery.eq('diretoria_id', diretoriaId)
+
+    const [ops, cads, dirs] = await Promise.all([
+      opsQuery,
       supabase.from('cadastros').select('*'),
+      isAdmin
+        ? supabase.from('profiles').select('*').eq('role', 'diretoria').order('nome')
+        : Promise.resolve({ data: [] }),
     ])
     setOperadores((ops.data ?? []) as Profile[])
     setCadastros((cads.data ?? []) as Cadastro[])
+    setDiretorias((dirs.data ?? []) as Profile[])
     setLoading(false)
   }
 
   useEffect(() => {
     load()
-  }, [])
+  }, [diretoriaId, isAdmin])
 
   const stats = useMemo((): OperadorStats[] => {
     const searchTerm = search.trim().toLowerCase()
@@ -153,12 +163,18 @@ export function OperadoresPage() {
       setCreateError('As senhas não coincidem.')
       return
     }
+    const targetDir = isAdmin ? form.diretoria_id : diretoriaId
+    if (!targetDir) {
+      setCreateError('Selecione a diretoria da nerite.')
+      return
+    }
 
     setCreating(true)
     const { error } = await createNerite({
       nome: form.nome,
       email: form.email,
       password: form.password,
+      diretoria_id: targetDir,
     })
     setCreating(false)
 
@@ -168,7 +184,7 @@ export function OperadoresPage() {
     }
 
     setCreateOpen(false)
-    setForm({ nome: '', email: '', password: '', confirm: '' })
+    setForm({ nome: '', email: '', password: '', confirm: '', diretoria_id: '' })
     await load()
   }
 
@@ -373,6 +389,15 @@ export function OperadoresPage() {
         loading={creating}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {isAdmin && (
+            <Select
+              label="Diretoria"
+              value={form.diretoria_id}
+              onChange={(e) => setForm((f) => ({ ...f, diretoria_id: e.target.value }))}
+              options={diretorias.map((d) => ({ value: d.id, label: d.nome }))}
+              placeholder="Selecione a diretoria"
+            />
+          )}
           <Input label="Nome completo" value={form.nome} onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))} placeholder="Nome da nerite" />
           <Input label="E-mail de acesso" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="nerite@exemplo.com" />
           <Input label="Senha" type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder="Mínimo 8 caracteres" />
