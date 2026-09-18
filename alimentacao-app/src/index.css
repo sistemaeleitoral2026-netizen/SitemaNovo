@@ -2511,6 +2511,61 @@ a.recent-row:hover strong { color: #2459c4; }
 
 .ui-field { display: flex; flex-direction: column; gap: .4rem; }
 .ui-field-label { color: #344055; font-size: .8rem; font-weight: 650; }
+
+.phone-with-whatsapp {
+  display: flex;
+  align-items: stretch;
+  gap: .5rem;
+}
+.phone-with-whatsapp .ui-input {
+  flex: 1;
+  min-width: 0;
+}
+.whatsapp-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 42px;
+  min-height: 42px;
+  border-radius: 9px;
+  border: 1px solid #c6e8d4;
+  background: #edfaf2;
+  color: #25d366;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.whatsapp-link:hover {
+  background: #d8f5e4;
+  border-color: #25d366;
+  color: #128c7e;
+}
+.whatsapp-link.is-disabled {
+  opacity: .38;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.whatsapp-link-inline {
+  width: 28px;
+  min-height: 28px;
+  border-radius: 7px;
+}
+.phone-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .ui-input,
 .ui-select {
   width: 100%;

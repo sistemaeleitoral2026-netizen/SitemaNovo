@@ -28,6 +28,7 @@ export interface Lider {
   diretoria_id: string
   coordenador_id: string | null
   nome: string
+  telefone?: string | null
   ativo: boolean
   carros_adesivados?: number
   adesivos_casa?: number
