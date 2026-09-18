@@ -1,7 +1,8 @@
 import { format, parseISO } from 'date-fns'
 import { supabase } from './supabase'
 import { coordsFromZona } from './geocode'
-import type { Cadastro, MapMarkerData, PeriodFilter } from '../types'
+import type { Cadastro, ImportExistingKeys, MapMarkerData, PeriodFilter } from '../types'
+import { digitsOnly, normalizeName } from './normalize'
 
 /** Garante strings vazias em vez de null (evita crash em .trim() na UI). */
 function sanitizeCadastro(row: Cadastro): Cadastro {
@@ -82,6 +83,36 @@ export async function fetchExistingTitulos(): Promise<Set<string>> {
       .map((r: { titulo: string | null }) => (r.titulo ?? '').trim().toLowerCase())
       .filter(Boolean),
   )
+}
+
+function duplicatePersonKey(nome: string | null, telefone: string | null): string {
+  const normalizedName = normalizeName(nome ?? '')
+    .toLocaleLowerCase('pt-BR')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+  const phone = digitsOnly(telefone ?? '')
+  return normalizedName && phone ? `${normalizedName}|${phone}` : ''
+}
+
+/** Chaves usadas pela prévia para impedir duplicidade antes do insert. */
+export async function fetchExistingImportKeys(): Promise<ImportExistingKeys> {
+  const { data, error } = await supabase
+    .from('cadastros')
+    .select('titulo,cpf,nome_completo,telefone')
+  if (error) throw error
+
+  const rows = data ?? []
+  return {
+    titulos: new Set(rows.map((r) => String(r.titulo ?? '').trim().toLowerCase()).filter(Boolean)),
+    cpfs: new Set(rows.map((r) => digitsOnly(r.cpf ?? '')).filter(Boolean)),
+    pessoas: new Set(
+      rows
+        .map((r) => duplicatePersonKey(r.nome_completo ?? null, r.telefone ?? null))
+        .filter(Boolean),
+    ),
+  }
 }
 
 export function buildEvolutionData(cadastros: Cadastro[]): { date: string; total: number }[] {

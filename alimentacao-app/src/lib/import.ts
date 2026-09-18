@@ -1,7 +1,13 @@
 import * as XLSX from 'xlsx'
 import { normalizeCadastroFields } from './normalize'
 import { validateImportRow } from './validation'
-import type { ImportPreview, ImportPreviewRow } from '../types'
+import type {
+  ImportExistingKeys,
+  ImportPreview,
+  ImportPreviewRow,
+  ImportTeamContext,
+  ImportTeamMember,
+} from '../types'
 
 /** Cabeçalhos oficiais da planilha (após normalização). */
 const REQUIRED_HEADERS = [
@@ -33,6 +39,76 @@ function normalizeHeader(h: string): string {
     .normalize('NFD')
     .replace(/\p{M}/gu, '')
     .replace(/\s+/g, ' ')
+}
+
+function comparableName(value: unknown): string {
+  return String(value ?? '')
+    .trim()
+    .toLocaleLowerCase('pt-BR')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function findCanonicalMember(value: string, members: ImportTeamMember[]): ImportTeamMember | null {
+  const key = comparableName(value)
+  if (!key) return null
+  return members.find((member) => comparableName(member.nome) === key) ?? null
+}
+
+function assignedMember(id: string | null | undefined, members: ImportTeamMember[]) {
+  return id ? members.find((member) => member.id === id) ?? null : null
+}
+
+function duplicatePersonKey(nome: string, telefone: string) {
+  const name = comparableName(nome)
+  const phone = telefone.replace(/\D/g, '')
+  return name && phone ? `${name}|${phone}` : ''
+}
+
+export function canonicalizeTeam(
+  coordenador: string,
+  lider: string,
+  team?: ImportTeamContext,
+): { coordenador: string; lider: string; errors: string[] } {
+  if (!team) return { coordenador, lider, errors: [] }
+
+  const errors: string[] = []
+  const fixedCoordinator = assignedMember(team.coordenador_id, team.coordenadores)
+  const fixedLeader = assignedMember(team.lider_id, team.lideres)
+
+  let coordinator = fixedCoordinator ?? findCanonicalMember(coordenador, team.coordenadores)
+  const leader = fixedLeader ?? findCanonicalMember(lider, team.lideres)
+
+  if (leader?.coordenador_id) {
+    const leaderCoordinator = assignedMember(leader.coordenador_id, team.coordenadores)
+    if (leaderCoordinator) coordinator = leaderCoordinator
+  }
+
+  if (!coordinator) {
+    errors.push(
+      coordenador
+        ? `Coordenador "${coordenador}" não existe na equipe desta diretoria.`
+        : 'Coordenador não informado e a nerite não possui coordenador vinculado.',
+    )
+  }
+  if (!leader) {
+    errors.push(
+      lider
+        ? `Liderança "${lider}" não existe na equipe desta diretoria.`
+        : 'Liderança não informada e a nerite não possui liderança vinculada.',
+    )
+  }
+  if (leader?.coordenador_id && coordinator && leader.coordenador_id !== coordinator.id) {
+    errors.push(`A liderança ${leader.nome} não pertence ao coordenador ${coordinator.nome}.`)
+  }
+
+  return {
+    coordenador: coordinator?.nome ?? coordenador,
+    lider: leader?.nome ?? lider,
+    errors,
+  }
 }
 
 function isAllowedSpreadsheet(file: File): boolean {
@@ -115,9 +191,15 @@ export async function parseSpreadsheet(file: File): Promise<Record<string, strin
 
 export async function analyzeImport(
   rows: Record<string, string>[],
-  existingTitulos: Set<string>,
+  existing: Set<string> | ImportExistingKeys,
+  team?: ImportTeamContext,
 ): Promise<ImportPreview> {
+  const existingKeys: ImportExistingKeys = existing instanceof Set
+    ? { titulos: existing, cpfs: new Set(), pessoas: new Set() }
+    : existing
   const seenTitulos = new Set<string>()
+  const seenCpfs = new Set<string>()
+  const seenPessoas = new Set<string>()
   const linhas: ImportPreviewRow[] = []
 
   rows.forEach((raw, index) => {
@@ -136,8 +218,12 @@ export async function analyzeImport(
       cep: raw.cep ?? '',
     })
 
+    const teamResult = canonicalizeTeam(normalized.coordenador, normalized.lider, team)
+    normalized.coordenador = teamResult.coordenador
+    normalized.lider = teamResult.lider
+
     const errors = validateImportRow(normalized)
-    const errorMessages = Object.values(errors)
+    const errorMessages = [...Object.values(errors), ...teamResult.errors]
 
     if (errorMessages.length) {
       linhas.push({
@@ -150,18 +236,35 @@ export async function analyzeImport(
     }
 
     const tituloKey = normalized.titulo.toLowerCase()
-    if (existingTitulos.has(tituloKey) || seenTitulos.has(tituloKey)) {
+    const cpfKey = normalized.cpf
+    const pessoaKey = duplicatePersonKey(normalized.nome_completo, normalized.telefone)
+    const duplicateReasons: string[] = []
+    if (tituloKey && (existingKeys.titulos.has(tituloKey) || seenTitulos.has(tituloKey))) {
+      duplicateReasons.push('título de eleitor')
+    }
+    if (cpfKey && (existingKeys.cpfs.has(cpfKey) || seenCpfs.has(cpfKey))) {
+      duplicateReasons.push('CPF')
+    }
+    if (pessoaKey && (existingKeys.pessoas.has(pessoaKey) || seenPessoas.has(pessoaKey))) {
+      duplicateReasons.push('mesmo nome e telefone')
+    }
+
+    if (duplicateReasons.length) {
       linhas.push({
         linha,
         ...normalized,
         status: 'duplicado',
-        mensagem: 'Este título de eleitor já está cadastrado.',
+        mensagem: `Possível cadastro duplicado: ${duplicateReasons.join(', ')}.`,
       })
-      seenTitulos.add(tituloKey)
+      if (tituloKey) seenTitulos.add(tituloKey)
+      if (cpfKey) seenCpfs.add(cpfKey)
+      if (pessoaKey) seenPessoas.add(pessoaKey)
       return
     }
 
-    seenTitulos.add(tituloKey)
+    if (tituloKey) seenTitulos.add(tituloKey)
+    if (cpfKey) seenCpfs.add(cpfKey)
+    if (pessoaKey) seenPessoas.add(pessoaKey)
     linhas.push({ linha, ...normalized, status: 'valido' })
   })
 
