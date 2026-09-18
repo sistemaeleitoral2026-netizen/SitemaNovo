@@ -472,11 +472,19 @@ table {
   font-size: 13.5px;
   font-weight: 500;
   background: transparent;
-  color: #b9c2d1;
+  color: #9aa3b5;
+  text-decoration: none;
   transition: background 0.18s, color 0.18s;
 }
 
-.app-sidebar-link.active {
+.app-sidebar-link svg {
+  flex: none;
+  color: inherit;
+  opacity: 0.9;
+}
+
+.app-sidebar-link.active,
+.app-sidebar-link.is-active {
   font-weight: 500;
   background: #1f4fd8;
   color: #fff;
@@ -485,10 +493,21 @@ table {
   box-shadow: none;
 }
 
-.app-sidebar-link:not(.active):hover {
+.app-sidebar-link.active svg,
+.app-sidebar-link.is-active svg {
+  opacity: 1;
   color: #fff;
+}
+
+.app-sidebar-link:not(.active):not(.is-active):hover {
+  color: #e8ebf2;
   background: #162033;
   transform: none;
+}
+
+.app-sidebar-link:not(.active):not(.is-active):hover svg {
+  color: #e8ebf2;
+  opacity: 1;
 }
 
 .app-sidebar-footer-stack {
@@ -2391,9 +2410,10 @@ a.recent-row:hover strong { color: #2459c4; }
 .app-sidebar-logo { width: 30px; height: 30px; border-radius: 8px; background: #1f4fd8; color: #fff; box-shadow: none; font-size: 14px; }
 .app-sidebar-title { font-size: 14px; font-weight: 600; }
 .app-sidebar-subtitle { color: #7c879b; font-size: 11px; letter-spacing: 0; }
-.app-sidebar-link { min-height: 0; border-radius: 8px; color: #b9c2d1; }
-.app-sidebar-link.active { background: #1f4fd8; color: #fff; border-left: 0; padding-left: 10px; box-shadow: none; }
-.app-sidebar-link:not(.active):hover { background: #162033; color: #fff; }
+.app-sidebar-link { min-height: 0; border-radius: 8px; color: #9aa3b5; }
+.app-sidebar-link.active,
+.app-sidebar-link.is-active { background: #1f4fd8; color: #fff; border-left: 0; padding-left: 10px; box-shadow: none; }
+.app-sidebar-link:not(.active):not(.is-active):hover { background: #162033; color: #e8ebf2; }
 .app-sidebar-section-label { font-size: 10px; letter-spacing: .12em; color: #5d6a80; }
 .app-sidebar-footer { border-radius: 9px; background: #162033; border: 0; margin: 0; padding: 11px 12px; }
 .app-sidebar-footer-stack { margin-top: auto; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
