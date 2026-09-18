@@ -8,7 +8,7 @@ import { Select } from '../components/ui/Select'
 import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/Spinner'
 import { normalizeCadastroFields, formatCpf, formatPhone, formatCep } from '../lib/normalize'
-import { validateCadastroForm, isDuplicateCpfError } from '../lib/validation'
+import { validateCadastroForm, isDuplicateCpfError, isDuplicateTituloError } from '../lib/validation'
 import { geocodeFromZona } from '../lib/geocode'
 import { logAudit } from '../lib/audit'
 import { supabase } from '../lib/supabase'
@@ -201,9 +201,6 @@ export function CadastroFormPage() {
           : profile?.role === 'diretoria'
             ? profile.id
             : null
-      payload.carros_adesivados = 0
-      payload.adesivos_casa = 0
-      payload.postagens = 0
     } else if (isStaff) {
       payload.carros_adesivados = Math.max(0, Math.floor(Number(carrosAdesivados) || 0))
       payload.adesivos_casa = Math.max(0, Math.floor(Number(adesivosCasa) || 0))
@@ -219,6 +216,8 @@ export function CadastroFormPage() {
       if (error) {
         if (isDuplicateCpfError(error.message)) {
           setErrors({ cpf: 'Este CPF já está cadastrado.' })
+        } else if (isDuplicateTituloError(error.message)) {
+          setErrors({ titulo: 'Este título de eleitor já está cadastrado.' })
         } else {
           setGlobalError(error.message)
         }
@@ -232,6 +231,8 @@ export function CadastroFormPage() {
       if (error) {
         if (isDuplicateCpfError(error.message)) {
           setErrors({ cpf: 'Este CPF já está cadastrado.' })
+        } else if (isDuplicateTituloError(error.message)) {
+          setErrors({ titulo: 'Este título de eleitor já está cadastrado.' })
         } else {
           setGlobalError(error.message)
         }

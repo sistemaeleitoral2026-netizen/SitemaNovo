@@ -19,9 +19,10 @@ export function normalizeCpf(value: string): string {
 }
 
 export function formatCpf(value: string | null | undefined): string {
-  if (!value) return '—'
+  if (!value || value === '—') return ''
   const d = normalizeCpf(value)
-  if (d.length !== 11) return value
+  if (!d) return ''
+  if (d.length !== 11) return d
   return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
 }
 
@@ -45,9 +46,10 @@ export function normalizeCep(value: string): string {
 }
 
 export function formatCep(value: string | null | undefined): string {
-  if (!value) return '—'
+  if (!value || value === '—') return ''
   const d = normalizeCep(value)
-  if (d.length !== 8) return value
+  if (!d) return ''
+  if (d.length !== 8) return d
   return d.replace(/(\d{5})(\d{3})/, '$1-$2')
 }
 
