@@ -9,6 +9,8 @@ import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
+import { WhatsAppLink } from '../components/ui/WhatsAppLink'
+import { formatPhone } from '../lib/normalize'
 import { supabase } from '../lib/supabase'
 import type { Coordenador, Lider, Profile } from '../types'
 
@@ -110,7 +112,7 @@ export function EquipePage() {
     ativo: true,
   })
   const [coordForm, setCoordForm] = useState({ nome: '', diretoria_id: '' })
-  const [liderForm, setLiderForm] = useState({ nome: '', diretoria_id: '', coordenador_id: '' })
+  const [liderForm, setLiderForm] = useState({ nome: '', telefone: '', diretoria_id: '', coordenador_id: '' })
 
   async function load() {
     setLoading(true)
@@ -253,6 +255,7 @@ export function EquipePage() {
     setEditingLiderId(null)
     setLiderForm({
       nome: '',
+      telefone: '',
       diretoria_id: diretoriaId ?? filterDiretoria ?? '',
       coordenador_id: coordenadorFromUrl || '',
     })
@@ -264,6 +267,7 @@ export function EquipePage() {
     setEditingLiderId(l.id)
     setLiderForm({
       nome: l.nome,
+      telefone: formatPhone(l.telefone ?? ''),
       diretoria_id: l.diretoria_id,
       coordenador_id: l.coordenador_id ?? '',
     })
@@ -459,6 +463,7 @@ export function EquipePage() {
     setSaving(true)
     const payload = {
       nome: liderForm.nome.trim(),
+      telefone: liderForm.telefone.replace(/\D/g, '') || null,
       diretoria_id: targetDir,
       coordenador_id: liderForm.coordenador_id || null,
     }
@@ -472,7 +477,7 @@ export function EquipePage() {
     }
     setLiderOpen(false)
     setEditingLiderId(null)
-    setLiderForm({ nome: '', diretoria_id: '', coordenador_id: '' })
+    setLiderForm({ nome: '', telefone: '', diretoria_id: '', coordenador_id: '' })
     await load()
   }
 
@@ -771,6 +776,7 @@ export function EquipePage() {
                 <thead>
                   <tr>
                     <th>Liderança</th>
+                    <th>Contato</th>
                     <th>Coordenador</th>
                     <th>Fichas</th>
                     {isAdmin && <th>Diretoria</th>}
@@ -793,6 +799,12 @@ export function EquipePage() {
                         ) : (
                           <strong>{l.nome}</strong>
                         )}
+                      </td>
+                      <td>
+                        <span className="phone-cell">
+                          {formatPhone(l.telefone) || '—'}
+                          {l.telefone ? <WhatsAppLink phone={l.telefone} className="whatsapp-link-inline" /> : null}
+                        </span>
                       </td>
                       <td>{coordenadores.find((c) => c.id === l.coordenador_id)?.nome ?? '—'}</td>
                       <td>
@@ -949,6 +961,21 @@ export function EquipePage() {
             placeholder="Opcional — vincula ao coordenador"
           />
           <Input label="Nome da liderança" value={liderForm.nome} onChange={(e) => setLiderForm((f) => ({ ...f, nome: e.target.value }))} placeholder="Nome que aparece na ficha" />
+          <div className="ui-field">
+            <label htmlFor="lider-telefone" className="ui-field-label">
+              Contato (WhatsApp)
+            </label>
+            <div className="phone-with-whatsapp">
+              <input
+                id="lider-telefone"
+                value={liderForm.telefone}
+                onChange={(e) => setLiderForm((f) => ({ ...f, telefone: formatPhone(e.target.value) }))}
+                placeholder="(98) 99123-4567"
+                className="ui-input"
+              />
+              <WhatsAppLink phone={liderForm.telefone} />
+            </div>
+          </div>
           {error && <div className="alert alert-error">{error}</div>}
         </div>
       </Modal>

@@ -8,7 +8,9 @@ import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Pagination } from '../components/ui/Pagination'
 import { META_LIDERANCA_FICHAS } from '../lib/meta'
+import { formatPhone } from '../lib/normalize'
 import { supabase } from '../lib/supabase'
+import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import type { Coordenador, Lider } from '../types'
 
 type StatusView = 'todos' | 'finalizadas' | 'andamento'
@@ -16,6 +18,7 @@ type StatusView = 'todos' | 'finalizadas' | 'andamento'
 type LiderancaRow = {
   id: string
   nome: string
+  telefone: string | null
   coordenador: string
   fichas: number
   meta: number
@@ -110,6 +113,7 @@ export function LiderancaPage() {
         return {
           id: l.id,
           nome: l.nome,
+          telefone: l.telefone ?? null,
           coordenador: l.coordenador_id
             ? (coordById.get(l.coordenador_id) ?? '—')
             : '—',
@@ -242,6 +246,7 @@ export function LiderancaPage() {
                   <tr>
                     <th style={{ width: 48 }}>#</th>
                     <th>Liderança</th>
+                    <th>Contato</th>
                     <th>Coordenador</th>
                     <th>Fichas</th>
                     <th>Progresso</th>
@@ -255,6 +260,14 @@ export function LiderancaPage() {
                       <td className="tabular-nums">{page * pageSize + idx + 1}</td>
                       <td>
                         <strong>{row.nome}</strong>
+                      </td>
+                      <td>
+                        <span className="phone-cell">
+                          {formatPhone(row.telefone) || '—'}
+                          {row.telefone ? (
+                            <WhatsAppLink phone={row.telefone} className="whatsapp-link-inline" />
+                          ) : null}
+                        </span>
                       </td>
                       <td>
                         <span className="lideranca-coord">{row.coordenador}</span>
