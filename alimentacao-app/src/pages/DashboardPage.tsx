@@ -8,6 +8,7 @@ import {
   Crown,
   UserPlus,
   CalendarDays,
+  Car,
 } from 'lucide-react'
 import { format, parseISO, startOfDay } from 'date-fns'
 import { useAuth } from '../contexts/AuthContext'
@@ -53,6 +54,7 @@ function AdminDashboard() {
   const [dirFilter, setDirFilter] = useState<DirFilter>('all')
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
   const [totalFichas, setTotalFichas] = useState(0)
+  const [carrosAdesivados, setCarrosAdesivados] = useState(0)
   const [diretorias, setDiretorias] = useState<Profile[]>([])
   const [nerites, setNerites] = useState<Profile[]>([])
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
@@ -71,9 +73,12 @@ function AdminDashboard() {
     async function load() {
       setLoading(true)
       try {
-        const [cData, totalRes, dirs, ops, coords, lids] = await Promise.all([
+        const [cData, totalRes, adesivoCad, adesivoCoord, adesivoLider, dirs, ops, coords, lids] = await Promise.all([
           fetchCadastros({ period }),
           supabase.from('cadastros').select('*', { count: 'exact', head: true }),
+          supabase.from('cadastros').select('*', { count: 'exact', head: true }).eq('adesivou_carro', true),
+          supabase.from('coordenadores').select('*', { count: 'exact', head: true }).eq('adesivou_carro', true),
+          supabase.from('lideres').select('*', { count: 'exact', head: true }).eq('adesivou_carro', true),
           supabase.from('profiles').select('*').eq('role', 'diretoria').order('nome'),
           supabase.from('profiles').select('*').eq('role', 'operador').order('nome'),
           supabase.from('coordenadores').select('*'),
@@ -81,6 +86,9 @@ function AdminDashboard() {
         ])
         setCadastros(cData)
         setTotalFichas(totalRes.count ?? 0)
+        setCarrosAdesivados(
+          (adesivoCad.count ?? 0) + (adesivoCoord.count ?? 0) + (adesivoLider.count ?? 0),
+        )
         setDiretorias((dirs.data ?? []) as Profile[])
         setNerites((ops.data ?? []) as Profile[])
         setCoordenadores((coords.data ?? []) as Coordenador[])
@@ -320,6 +328,14 @@ function AdminDashboard() {
           <strong className="tabular-nums">{zonas}</strong>
           <p className="dash-kpi-hint">Com registro no período</p>
         </div>
+        <Link to="/mobilizacao?status=adesivo" className="dash-kpi-card dash-kpi-link">
+          <div className="dash-kpi-top">
+            <span className="dash-kpi-icon tone-blue"><Car size={18} /></span>
+            <span className="dash-kpi-label" style={{ flex: 1 }}>Carros adesivados</span>
+          </div>
+          <strong className="tabular-nums">{carrosAdesivados.toLocaleString('pt-BR')}</strong>
+          <p className="dash-kpi-hint">Ver mobilização →</p>
+        </Link>
       </div>
 
       <div className="section-label-row">

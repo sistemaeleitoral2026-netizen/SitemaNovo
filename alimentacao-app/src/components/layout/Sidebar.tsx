@@ -13,6 +13,8 @@ import {
   Network,
   UserCog,
   Crown,
+  Flag,
+  ListChecks,
 } from 'lucide-react'
 import type { UserRole } from '../../types'
 
@@ -23,6 +25,7 @@ interface SidebarProps {
 }
 
 interface NavItem {
+  type?: 'link'
   to: string
   label: string
   icon: typeof LayoutDashboard
@@ -30,7 +33,15 @@ interface NavItem {
   end?: boolean
 }
 
-const navItems: NavItem[] = [
+interface NavSection {
+  type: 'section'
+  label: string
+  roles: UserRole[]
+}
+
+type NavEntry = NavItem | NavSection
+
+const navEntries: NavEntry[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'diretoria'], end: true },
   { to: '/equipe', label: 'Equipe', icon: Network, roles: ['admin'] },
   { to: '/equipe?tab=nerites', label: 'Minhas Nerites', icon: Users, roles: ['diretoria'] },
@@ -38,6 +49,9 @@ const navItems: NavItem[] = [
   { to: '/equipe?tab=lideres', label: 'Lideranças', icon: Crown, roles: ['diretoria'] },
   { to: '/nerites', label: 'Nerites', icon: Users, roles: ['admin'] },
   { to: '/cadastros', label: 'Todos os Cadastros', icon: ClipboardList, roles: ['admin', 'diretoria'] },
+  { type: 'section', label: 'Gestão', roles: ['admin', 'diretoria'] },
+  { to: '/mobilizacao', label: 'Mobilização', icon: Flag, roles: ['admin', 'diretoria'] },
+  { to: '/lideranca', label: 'Liderança', icon: ListChecks, roles: ['admin', 'diretoria'] },
   { to: '/mapa', label: 'Mapa por Zona', icon: Map, roles: ['admin', 'diretoria'] },
   { to: '/relatorios', label: 'Relatórios', icon: BarChart3, roles: ['admin', 'diretoria'] },
   { to: '/configuracoes', label: 'Configurações', icon: Settings, roles: ['admin', 'diretoria'] },
@@ -55,8 +69,12 @@ function linkActive(to: string, pathname: string, search: string) {
   return pathname === to || pathname.startsWith(`${to}/`)
 }
 
+function isSection(entry: NavEntry): entry is NavSection {
+  return entry.type === 'section'
+}
+
 export function Sidebar({ role, open, onClose }: SidebarProps) {
-  const items = navItems.filter((item) => item.roles.includes(role))
+  const entries = navEntries.filter((entry) => entry.roles.includes(role))
   const location = useLocation()
 
   return (
@@ -74,9 +92,18 @@ export function Sidebar({ role, open, onClose }: SidebarProps) {
 
         <nav className="app-sidebar-nav" aria-label="Navegação principal">
           <div className="app-sidebar-section-label">
-            {role === 'diretoria' ? 'Sua diretoria' : 'Visão geral'}
+            {role === 'diretoria' ? 'Sua diretoria' : 'Menu'}
           </div>
-          {items.map(({ to, label, icon: Icon, end }) => {
+          {entries.map((entry) => {
+            if (isSection(entry)) {
+              return (
+                <div key={`section-${entry.label}`} className="app-sidebar-section-label app-sidebar-section-spacer">
+                  {entry.label}
+                </div>
+              )
+            }
+
+            const { to, label, icon: Icon, end } = entry
             const active = linkActive(to, location.pathname, location.search)
             return (
               <NavLink

@@ -144,3 +144,21 @@ export function buildMapMarkers(cadastros: Cadastro[]): MapMarkerData[] {
     .filter((m): m is MapMarkerData => m != null)
     .sort((a, b) => b.count - a.count)
 }
+
+export async function updateMobilizacaoFlags(
+  id: string,
+  flags: { adesivou_carro?: boolean; postou_rede?: boolean },
+) {
+  const { error } = await supabase.from('cadastros').update(flags).eq('id', id)
+  return { error: error?.message ?? null }
+}
+
+export async function updateEquipeMobilizacaoFlags(
+  table: 'coordenadores' | 'lideres',
+  id: string,
+  flags: { adesivou_carro?: boolean; postou_rede?: boolean },
+) {
+  const { error } = await supabase.from(table).update(flags).eq('id', id)
+  return { error: error?.message ?? null }
+}
+
