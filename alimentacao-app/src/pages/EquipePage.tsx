@@ -210,6 +210,14 @@ export function EquipePage() {
         : lideres.length,
     [lideres, coordenadorFromUrl],
   )
+  const lideresByCoord = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const l of lideres) {
+      if (!l.coordenador_id) continue
+      counts[l.coordenador_id] = (counts[l.coordenador_id] ?? 0) + 1
+    }
+    return counts
+  }, [lideres])
   const neritesCount = useMemo(
     () =>
       nerites.filter((n) => {
@@ -704,12 +712,16 @@ export function EquipePage() {
                 <tbody>
                   {filteredCoords.map((c) => {
                     const fichas = fichasByCoord[c.nome] ?? 0
+                    const qtdLiderancas = lideresByCoord[c.id] ?? 0
                     return (
                     <tr key={c.id}>
                       <td>
+                        <strong>{c.nome}</strong>
+                      </td>
+                      <td>
                         <button
                           type="button"
-                          className="equipe-drill-link"
+                          className={`fichas-count equipe-drill-count${qtdLiderancas ? '' : ' zero'}`}
                           onClick={() =>
                             patchParams({
                               tab: 'lideres',
@@ -718,13 +730,11 @@ export function EquipePage() {
                               ...(isAdmin ? { diretoria: c.diretoria_id } : {}),
                             })
                           }
+                          aria-label={`Ver lideranças de ${c.nome}`}
+                          title="Ver lideranças"
                         >
-                          <strong>{c.nome}</strong>
-                          <span>Ver lideranças →</span>
+                          {qtdLiderancas}
                         </button>
-                      </td>
-                      <td>
-                        <span className={`fichas-count${fichas ? '' : ' zero'}`}>{fichas}</span>
                       </td>
                       {isAdmin && <td>{dirName(c.diretoria_id)}</td>}
                       {canManageTeam && (
