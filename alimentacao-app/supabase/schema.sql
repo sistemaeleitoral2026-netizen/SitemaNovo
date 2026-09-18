@@ -30,6 +30,8 @@ create table if not exists public.cadastros (
   lat double precision,
   lng double precision,
   diretoria_id uuid references public.profiles(id),
+  adesivou_carro boolean not null default false,
+  postou_rede boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint cadastros_cpf_unique unique (cpf),

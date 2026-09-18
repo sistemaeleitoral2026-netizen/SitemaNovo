@@ -43,6 +43,11 @@ export function CadastroFormPage() {
   const [lideres, setLideres] = useState<Lider[]>([])
   const [coordenadorId, setCoordenadorId] = useState('')
   const [liderId, setLiderId] = useState('')
+  const [adesivouCarro, setAdesivouCarro] = useState(false)
+  const [postouRede, setPostouRede] = useState(false)
+
+  const isStaff = profile?.role === 'admin' || profile?.role === 'diretoria'
+  const showMobilizacao = isStaff && isEdit
 
   const diretoriaId =
     profile?.role === 'diretoria'
@@ -84,6 +89,8 @@ export function CadastroFormPage() {
           data_nascimento: data.data_nascimento ? String(data.data_nascimento).slice(0, 10) : '',
           cep: formatCep(data.cep ?? ''),
         })
+        setAdesivouCarro(Boolean(data.adesivou_carro))
+        setPostouRede(Boolean(data.postou_rede))
       }
       setLoading(false)
     })
@@ -168,7 +175,7 @@ export function CadastroFormPage() {
       ? await geocodeFromZona(normalized.zona)
       : null
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       nome_completo: normalized.nome_completo || '',
       cpf: normalized.cpf || null,
       telefone: normalized.telefone || '',
@@ -182,13 +189,24 @@ export function CadastroFormPage() {
       cep: normalized.cep || null,
       lat: coords?.lat ?? null,
       lng: coords?.lng ?? null,
-      operator_id: profile!.id,
-      diretoria_id:
+    }
+
+    if (!isEdit) {
+      payload.operator_id = profile!.id
+      payload.diretoria_id =
         profile?.role === 'operador'
           ? (profile.diretoria_id ?? null)
           : profile?.role === 'diretoria'
             ? profile.id
-            : null,
+            : null
+      payload.adesivou_carro = false
+      payload.postou_rede = false
+    } else if (isStaff) {
+      payload.adesivou_carro = adesivouCarro
+      payload.postou_rede = postouRede
+      if (profile?.role === 'diretoria') {
+        payload.diretoria_id = profile.id
+      }
     }
 
     if (isEdit && id) {
@@ -240,6 +258,34 @@ export function CadastroFormPage() {
           </p>
         </div>
       </div>
+
+      {showMobilizacao && (
+        <div className="ficha-mobilizacao-bar">
+          <strong>Mobilização</strong>
+          <label className="ficha-mobilizacao-field">
+            <span>Adesivou o carro</span>
+            <select
+              className="mobilizacao-select"
+              value={adesivouCarro ? 'sim' : 'nao'}
+              onChange={(e) => setAdesivouCarro(e.target.value === 'sim')}
+            >
+              <option value="nao">Não</option>
+              <option value="sim">Sim</option>
+            </select>
+          </label>
+          <label className="ficha-mobilizacao-field">
+            <span>Postou na rede</span>
+            <select
+              className="mobilizacao-select"
+              value={postouRede ? 'sim' : 'nao'}
+              onChange={(e) => setPostouRede(e.target.value === 'sim')}
+            >
+              <option value="nao">Não</option>
+              <option value="sim">Sim</option>
+            </select>
+          </label>
+        </div>
+      )}
 
       <Card>
         <form onSubmit={handleSubmit}>
