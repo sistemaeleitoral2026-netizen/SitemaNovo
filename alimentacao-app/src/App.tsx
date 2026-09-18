@@ -14,6 +14,8 @@ import { ImportarPage } from './pages/ImportarPage'
 import { RelatoriosPage } from './pages/RelatoriosPage'
 import { ConfiguracoesPage } from './pages/ConfiguracoesPage'
 import { EquipePage } from './pages/EquipePage'
+import { MobilizacaoPage } from './pages/MobilizacaoPage'
+import { LiderancaPage } from './pages/LiderancaPage'
 
 function StaffRoute({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
@@ -85,6 +87,8 @@ function AppRoutes() {
         <Route path="mapa" element={<StaffRoute><MapaPage /></StaffRoute>} />
         <Route path="importar" element={<NeriteRoute><ImportarPage /></NeriteRoute>} />
         <Route path="relatorios" element={<StaffRoute><RelatoriosPage /></StaffRoute>} />
+        <Route path="mobilizacao" element={<StaffRoute><MobilizacaoPage /></StaffRoute>} />
+        <Route path="lideranca" element={<StaffRoute><LiderancaPage /></StaffRoute>} />
         <Route path="configuracoes" element={<StaffRoute><ConfiguracoesPage /></StaffRoute>} />
         <Route path="admin-only" element={<AdminOnlyRoute><DashboardPage /></AdminOnlyRoute>} />
       </Route>
