@@ -20,6 +20,7 @@ import type { Cadastro, Profile } from '../types'
 
 type ViewMode = 'todos' | 'mapped' | 'unmapped' | 'week7'
 type ColumnKey = 'nome' | 'nerite' | 'coordenador' | 'lider' | 'nascimento' | 'cpf' | 'telefone' | 'titulo' | 'zona' | 'secao' | 'cep' | 'localizacao' | 'data' | 'acoes'
+type CadastroOperator = Pick<Profile, 'id' | 'nome' | 'diretoria_id'>
 
 const columnOptions: { key: ColumnKey; label: string; defaultVisible: boolean }[] = [
   { key: 'nome', label: 'Nome', defaultVisible: true },
@@ -38,6 +39,12 @@ const columnOptions: { key: ColumnKey; label: string; defaultVisible: boolean }[
   { key: 'acoes', label: 'Ações', defaultVisible: true },
 ]
 
+async function fetchCadastroOperators() {
+  const rpcResult = await supabase.rpc('list_cadastro_operadores')
+  if (!rpcResult.error) return rpcResult
+  return supabase.from('profiles').select('id, nome, diretoria_id').eq('role', 'operador').order('nome')
+}
+
 export function CadastrosPage() {
   const { profile } = useAuth()
   const location = useLocation()
@@ -45,7 +52,7 @@ export function CadastrosPage() {
   const isOwnOnly = location.pathname === '/meus-cadastros'
 
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
-  const [nerites, setNerites] = useState<Profile[]>([])
+  const [nerites, setNerites] = useState<CadastroOperator[]>([])
   const [search, setSearch] = useState('')
   const [operatorFilter, setOperatorFilter] = useState(() => searchParams.get('operator') ?? '')
   const [coordenadorFilter, setCoordenadorFilter] = useState(() => searchParams.get('coordenador') ?? '')
@@ -90,10 +97,10 @@ export function CadastrosPage() {
         fetchCadastros({ operatorId: isOwnOnly ? profile?.id : undefined }),
         isOwnOnly
           ? Promise.resolve({ data: [] })
-          : supabase.from('profiles').select('*').eq('role', 'operador').order('nome'),
+          : fetchCadastroOperators(),
       ])
       setCadastros(data)
-      setNerites((profilesResult.data ?? []) as Profile[])
+      setNerites((profilesResult.data ?? []) as CadastroOperator[])
       setPage(0)
     } finally {
       setLoading(false)
@@ -266,8 +273,21 @@ export function CadastrosPage() {
   const canEdit = (c: Cadastro) =>
     profile?.role === 'admin' || c.operator_id === profile?.id
 
+  const canDelete = (c: Cadastro) => {
+    if (profile?.role === 'admin') return true
+    if (c.operator_id === profile?.id) return true
+    if (profile?.role !== 'diretoria') return false
+    const cadastroDiretoriaId = c.diretoria_id || neriteById.get(c.operator_id)?.diretoria_id
+    return cadastroDiretoriaId === profile.id
+  }
+
   async function handleDelete() {
     if (!deleteId) return
+    const cadastro = cadastros.find((item) => item.id === deleteId)
+    if (!cadastro || !canDelete(cadastro)) {
+      setDeleteId(null)
+      return
+    }
     setDeleting(true)
     const { error } = await supabase.from('cadastros').delete().eq('id', deleteId)
     if (!error) {
@@ -559,14 +579,18 @@ export function CadastrosPage() {
                         {showColumn('data') && <td>{formatDate(c.created_at)}</td>}
                         {showColumn('acoes') && <td className="sticky-actions-cell">
                           <div style={{ display: 'flex', gap: '0.35rem' }}>
-                            {canEdit(c) && (
+                            {(canEdit(c) || canDelete(c)) && (
                               <>
+                                {canEdit(c) && (
                                 <Link to={`/cadastros/${c.id}/editar`}>
                                   <Button variant="ghost" size="sm" aria-label="Editar"><Pencil size={16} /></Button>
                                 </Link>
+                                )}
+                                {canDelete(c) && (
                                 <Button variant="ghost" size="sm" aria-label="Excluir" onClick={() => setDeleteId(c.id)}>
                                   <Trash2 size={16} color="var(--color-danger)" />
                                 </Button>
+                                )}
                               </>
                             )}
                           </div>
@@ -592,14 +616,18 @@ export function CadastrosPage() {
                           <span>· {formatDate(c.created_at)} · {hasGeo ? 'Com localização' : 'Sem localização'}</span>
                         </span>
                       </div>
-                      {canEdit(c) && (
+                      {(canEdit(c) || canDelete(c)) && (
                         <div style={{ display: 'flex', gap: '.3rem' }}>
+                          {canEdit(c) && (
                           <Link to={`/cadastros/${c.id}/editar`}>
                             <Button variant="ghost" size="sm" aria-label="Editar"><Pencil size={16} /></Button>
                           </Link>
+                          )}
+                          {canDelete(c) && (
                           <Button variant="ghost" size="sm" aria-label="Excluir" onClick={() => setDeleteId(c.id)}>
                             <Trash2 size={16} color="var(--color-danger)" />
                           </Button>
+                          )}
                         </div>
                       )}
                     </div>

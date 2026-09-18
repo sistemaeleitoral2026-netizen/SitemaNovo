@@ -80,7 +80,7 @@ function AppRoutes() {
         <Route path="nerites/:id" element={<StaffRoute><OperadorDetailPage /></StaffRoute>} />
         <Route path="operadores" element={<Navigate to="/nerites" replace />} />
         <Route path="operadores/:id" element={<OperadoresIdRedirect />} />
-        <Route path="cadastros" element={<StaffRoute><CadastrosPage /></StaffRoute>} />
+        <Route path="cadastros" element={<CadastrosPage />} />
         <Route path="meus-cadastros" element={<NeriteRoute><CadastrosPage /></NeriteRoute>} />
         <Route path="cadastros/novo" element={<NeriteRoute><CadastroFormPage /></NeriteRoute>} />
         <Route path="cadastros/:id/editar" element={<CadastroFormPage />} />
