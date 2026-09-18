@@ -1,6 +1,9 @@
 const META_KEY = 'alimentacao_meta_fichas'
 const DEFAULT_META = 6000
 
+/** Meta fixa de fichas por liderança (vale para novas e antigas). */
+export const META_LIDERANCA_FICHAS = 20
+
 export function getMetaFichas(): number {
   try {
     const raw = localStorage.getItem(META_KEY)

@@ -665,7 +665,7 @@ export function EquipePage() {
                 <thead>
                   <tr>
                     <th>Coordenador</th>
-                    <th>Fichas</th>
+                    <th>Lideranças</th>
                     {isAdmin && <th>Diretoria</th>}
                     {canManageTeam && <th>Ações</th>}
                   </tr>
@@ -763,13 +763,9 @@ export function EquipePage() {
                             className="equipe-drill-link"
                           >
                             <strong>{l.nome}</strong>
-                            <span>{fichas} ficha{fichas === 1 ? '' : 's'} →</span>
                           </Link>
                         ) : (
-                          <div className="equipe-drill-link muted">
-                            <strong>{l.nome}</strong>
-                            <span>0 fichas</span>
-                          </div>
+                          <strong>{l.nome}</strong>
                         )}
                       </td>
                       <td>{coordenadores.find((c) => c.id === l.coordenador_id)?.nome ?? '—'}</td>
