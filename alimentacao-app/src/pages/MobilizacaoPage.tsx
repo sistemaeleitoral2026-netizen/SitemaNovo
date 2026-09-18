@@ -128,10 +128,10 @@ export function MobilizacaoPage() {
     const eleitores: PessoaRow[] = cadastros.map((c) => ({
       key: `eleitor-${c.id}`,
       id: c.id,
-      nome: c.nome_completo?.trim() || 'Sem nome',
+      nome: (c.nome_completo ?? '').trim() || 'Sem nome',
       tipo: 'eleitor',
       tipoLabel: 'Eleitor',
-      detalhe: [c.coordenador?.trim(), c.lider?.trim()].filter(Boolean).join(' · ') || '—',
+      detalhe: [(c.coordenador ?? '').trim(), (c.lider ?? '').trim()].filter(Boolean).join(' · ') || '—',
       carros_adesivados: toQty(c.carros_adesivados),
       adesivos_casa: toQty(c.adesivos_casa),
       postagens: toQty(c.postagens),

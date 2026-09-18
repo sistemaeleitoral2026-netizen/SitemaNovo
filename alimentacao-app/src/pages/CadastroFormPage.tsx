@@ -218,6 +218,8 @@ export function CadastroFormPage() {
           setErrors({ cpf: 'Este CPF já está cadastrado.' })
         } else if (isDuplicateTituloError(error.message)) {
           setErrors({ titulo: 'Este título de eleitor já está cadastrado.' })
+        } else if (/jwt|session|auth|token|not authenticated|expir/i.test(error.message)) {
+          setGlobalError('Sessão expirada. Saia e entre novamente para salvar o cadastro.')
         } else {
           setGlobalError(error.message)
         }
@@ -233,6 +235,8 @@ export function CadastroFormPage() {
           setErrors({ cpf: 'Este CPF já está cadastrado.' })
         } else if (isDuplicateTituloError(error.message)) {
           setErrors({ titulo: 'Este título de eleitor já está cadastrado.' })
+        } else if (/jwt|session|auth|token|not authenticated|expir/i.test(error.message)) {
+          setGlobalError('Sessão expirada. Saia e entre novamente para salvar o cadastro.')
         } else {
           setGlobalError(error.message)
         }

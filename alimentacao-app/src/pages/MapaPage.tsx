@@ -45,7 +45,7 @@ export function MapaPage() {
       if (operatorId && c.operator_id !== operatorId) return false
       if (zona && c.zona !== zona) return false
       if (secao && c.secao !== secao) return false
-      return Boolean(c.zona?.trim())
+      return Boolean((c.zona ?? '').trim())
     })
   }, [cadastros, operatorId, zona, secao])
 

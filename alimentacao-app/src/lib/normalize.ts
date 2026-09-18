@@ -1,20 +1,25 @@
-export function collapseSpaces(value: string): string {
-  return value.trim().replace(/\s+/g, ' ')
+export function safeTrim(value: unknown): string {
+  if (value == null) return ''
+  return String(value).trim()
 }
 
-export function normalizeName(value: string): string {
+export function collapseSpaces(value: unknown): string {
+  return safeTrim(value).replace(/\s+/g, ' ')
+}
+
+export function normalizeName(value: unknown): string {
   return collapseSpaces(value)
 }
 
-export function normalizeTitulo(value: string): string {
+export function normalizeTitulo(value: unknown): string {
   return collapseSpaces(value)
 }
 
-export function digitsOnly(value: string): string {
-  return value.replace(/\D/g, '')
+export function digitsOnly(value: unknown): string {
+  return String(value ?? '').replace(/\D/g, '')
 }
 
-export function normalizeCpf(value: string): string {
+export function normalizeCpf(value: unknown): string {
   return digitsOnly(value).slice(0, 11)
 }
 
@@ -26,7 +31,7 @@ export function formatCpf(value: string | null | undefined): string {
   return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
 }
 
-export function normalizePhone(value: string): string {
+export function normalizePhone(value: unknown): string {
   return digitsOnly(value).slice(0, 11)
 }
 
@@ -42,7 +47,7 @@ export function formatPhone(value: string | null | undefined): string {
   return value
 }
 
-export function normalizeCep(value: string): string {
+export function normalizeCep(value: unknown): string {
   return digitsOnly(value).slice(0, 8)
 }
 
@@ -54,20 +59,20 @@ export function formatCep(value: string | null | undefined): string {
   return d.replace(/(\d{5})(\d{3})/, '$1-$2')
 }
 
-export function normalizeZona(value: string): string {
+export function normalizeZona(value: unknown): string {
   const digits = digitsOnly(value)
   if (!digits) return ''
   return digits.padStart(3, '0')
 }
 
-export function normalizeSecao(value: string): string {
+export function normalizeSecao(value: unknown): string {
   const digits = digitsOnly(value)
   if (!digits) return ''
   return digits.padStart(4, '0')
 }
 
-export function normalizeBirthDate(value: string): string {
-  const raw = value.trim()
+export function normalizeBirthDate(value: unknown): string {
+  const raw = safeTrim(value)
   if (!raw) return ''
 
   // YYYY-MM-DD (input type="date")

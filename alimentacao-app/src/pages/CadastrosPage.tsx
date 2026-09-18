@@ -100,12 +100,12 @@ export function CadastrosPage() {
     [cadastros, zonaFilter],
   )
   const coordenadoresOpts = useMemo(
-    () => [...new Set(cadastros.map((c) => c.coordenador?.trim()).filter(Boolean) as string[])]
+    () => [...new Set(cadastros.map((c) => (c.coordenador ?? '').trim()).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b, 'pt-BR')),
     [cadastros],
   )
   const lideresOpts = useMemo(
-    () => [...new Set(cadastros.map((c) => c.lider?.trim()).filter(Boolean) as string[])]
+    () => [...new Set(cadastros.map((c) => (c.lider ?? '').trim()).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b, 'pt-BR')),
     [cadastros],
   )
