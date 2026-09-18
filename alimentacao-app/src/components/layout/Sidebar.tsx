@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   Users,
@@ -70,11 +70,16 @@ const navGroups: NavGroup[] = [
 
 function linkActive(to: string, pathname: string, search: string) {
   if (to === '/') return pathname === '/'
+
   if (to.includes('?')) {
     const [path, query] = to.split('?')
-    return pathname === path && search.replace(/^\?/, '') === query
+    const current = search.replace(/^\?/, '')
+    return pathname === path && current === query
   }
-  return pathname === to || pathname.startsWith(`${to}/`)
+
+  if (pathname === to) return true
+  // Sub-rotas de detalhe (ex.: /nerites/:id) mantêm o item pai ativo.
+  return pathname.startsWith(`${to}/`)
 }
 
 export function Sidebar({ role, open, onClose }: SidebarProps) {
@@ -107,19 +112,19 @@ export function Sidebar({ role, open, onClose }: SidebarProps) {
           {groups.map((group, groupIndex) => (
             <div key={group.label} className={`app-sidebar-group${groupIndex > 0 ? ' spaced' : ''}`}>
               <div className="app-sidebar-section-label">{group.label}</div>
-              {group.items.map(({ to, label, icon: Icon, end }) => {
+              {group.items.map(({ to, label, icon: Icon }) => {
                 const active = linkActive(to, location.pathname, location.search)
                 return (
-                  <NavLink
+                  <Link
                     key={to}
                     to={to}
-                    end={end}
                     onClick={onClose}
-                    className={`app-sidebar-link${active ? ' active' : ''}`}
+                    aria-current={active ? 'page' : undefined}
+                    className={`app-sidebar-link${active ? ' is-active' : ''}`}
                   >
-                    <Icon size={16} strokeWidth={1.6} />
+                    <Icon size={16} strokeWidth={1.6} aria-hidden />
                     <span>{label}</span>
-                  </NavLink>
+                  </Link>
                 )
               })}
             </div>
