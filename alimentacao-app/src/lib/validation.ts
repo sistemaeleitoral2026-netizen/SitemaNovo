@@ -37,7 +37,7 @@ export function validateCadastroForm(data: CadastroFormData): FieldErrors {
     errors.telefone = 'Telefone inválido.'
   }
 
-  if (data.data_nascimento.trim()) {
+  if ((data.data_nascimento ?? '').trim()) {
     const birth = normalizeBirthDate(data.data_nascimento)
     if (!birth) {
       errors.data_nascimento = 'Data de nascimento inválida.'
@@ -74,7 +74,7 @@ export function validateImportRow(data: CadastroFormData): FieldErrors {
     errors.telefone = 'Telefone inválido.'
   }
 
-  if (data.data_nascimento.trim()) {
+  if ((data.data_nascimento ?? '').trim()) {
     const birth = normalizeBirthDate(data.data_nascimento)
     if (!birth) {
       errors.data_nascimento = 'Data de nascimento inválida.'
