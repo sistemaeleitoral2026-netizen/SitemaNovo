@@ -3,6 +3,24 @@ import { supabase } from './supabase'
 import { coordsFromZona } from './geocode'
 import type { Cadastro, MapMarkerData, PeriodFilter } from '../types'
 
+/** Garante strings vazias em vez de null (evita crash em .trim() na UI). */
+function sanitizeCadastro(row: Cadastro): Cadastro {
+  return {
+    ...row,
+    nome_completo: row.nome_completo ?? '',
+    telefone: row.telefone ?? '',
+    titulo: row.titulo ?? '',
+    zona: row.zona ?? '',
+    secao: row.secao ?? '',
+    nome_mae: row.nome_mae ?? '',
+    coordenador: row.coordenador ?? '',
+    lider: row.lider ?? '',
+    cpf: row.cpf || null,
+    cep: row.cep || null,
+    data_nascimento: row.data_nascimento || null,
+  }
+}
+
 export async function fetchCadastros(options?: {
   operatorId?: string
   period?: PeriodFilter
@@ -27,7 +45,7 @@ export async function fetchCadastros(options?: {
   const { data, error } = await query
   if (error) throw error
 
-  let results = (data ?? []) as Cadastro[]
+  let results = ((data ?? []) as Cadastro[]).map(sanitizeCadastro)
 
   if (options?.search) {
     const term = options.search.toLowerCase().replace(/\D/g, '')
@@ -35,10 +53,10 @@ export async function fetchCadastros(options?: {
     results = results.filter((c) => {
       const cpfDigits = (c.cpf ?? '').replace(/\D/g, '')
       return (
-        (c.nome_completo ?? '').toLowerCase().includes(textTerm)
+        c.nome_completo.toLowerCase().includes(textTerm)
         || (cpfDigits && cpfDigits.includes(term))
-        || (c.telefone ?? '').includes(term)
-        || (c.titulo ?? '').toLowerCase().includes(textTerm)
+        || c.telefone.includes(term)
+        || c.titulo.toLowerCase().includes(textTerm)
       )
     })
   }
