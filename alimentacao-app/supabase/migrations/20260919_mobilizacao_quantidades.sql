@@ -41,3 +41,5 @@ comment on column public.coordenadores.postagens is 'Quantidade de postagens';
 comment on column public.lideres.carros_adesivados is 'Quantidade de carros adesivados';
 comment on column public.lideres.adesivos_casa is 'Quantidade de adesivos para casa';
 comment on column public.lideres.postagens is 'Quantidade de postagens';
+
+notify pgrst, 'reload schema';

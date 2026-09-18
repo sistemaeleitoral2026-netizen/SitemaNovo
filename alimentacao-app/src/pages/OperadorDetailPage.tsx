@@ -111,7 +111,7 @@ export function OperadorDetailPage() {
                   {lastRecords.map((c) => (
                     <tr key={c.id}>
                       <td>{c.nome_completo}</td>
-                      <td>{formatCpf(c.cpf)}</td>
+                      <td>{formatCpf(c.cpf) || '—'}</td>
                       <td>{formatDate(c.created_at)}</td>
                     </tr>
                   ))}

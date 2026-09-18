@@ -470,12 +470,12 @@ export function CadastrosPage() {
                         <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{c.coordenador || '—'}</span></td>
                         <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{c.lider || '—'}</span></td>
                         <td>{c.data_nascimento ? formatDate(c.data_nascimento) : '—'}</td>
-                        <td>{formatCpf(c.cpf)}</td>
+                        <td>{formatCpf(c.cpf) || '—'}</td>
                         <td>{formatPhone(c.telefone)}</td>
                         <td>{c.titulo}</td>
                         <td>{c.zona}</td>
                         <td>{c.secao}</td>
-                        <td>{formatCep(c.cep)}</td>
+                        <td>{formatCep(c.cep) || '—'}</td>
                         <td>
                           <span className={`badge ${hasGeo ? 'badge-success' : 'badge-warning'}`}>
                             {hasGeo ? 'Com localização' : 'Sem localização'}
@@ -530,10 +530,10 @@ export function CadastrosPage() {
                       <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>Coordenador</span><strong style={{ fontSize: '.76rem' }}>{c.coordenador || '—'}</strong></div>
                       <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>Líder</span><strong style={{ fontSize: '.76rem' }}>{c.lider || '—'}</strong></div>
                       <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>Nascimento</span><strong style={{ fontSize: '.76rem' }}>{c.data_nascimento ? formatDate(c.data_nascimento) : '—'}</strong></div>
-                      <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>CPF</span><strong style={{ fontSize: '.76rem' }}>{formatCpf(c.cpf)}</strong></div>
+                      <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>CPF</span><strong style={{ fontSize: '.76rem' }}>{formatCpf(c.cpf) || '—'}</strong></div>
                       <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>Título</span><strong style={{ fontSize: '.76rem' }}>{c.titulo}</strong></div>
                       <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>Zona / Seção</span><strong style={{ fontSize: '.76rem' }}>{c.zona} / {c.secao}</strong></div>
-                      <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>CEP</span><strong style={{ fontSize: '.76rem' }}>{formatCep(c.cep)}</strong></div>
+                      <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>CEP</span><strong style={{ fontSize: '.76rem' }}>{formatCep(c.cep) || '—'}</strong></div>
                     </div>
                   </div>
                 )
