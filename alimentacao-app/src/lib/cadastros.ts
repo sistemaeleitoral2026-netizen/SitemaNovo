@@ -97,7 +97,9 @@ export function buildEvolutionData(cadastros: Cadastro[]): { date: string; total
 export function buildZonaData(cadastros: Cadastro[]): { name: string; value: number }[] {
   const counts = new Map<string, number>()
   cadastros.forEach((c) => {
-    counts.set(c.zona, (counts.get(c.zona) ?? 0) + 1)
+    const zona = (c.zona ?? '').trim()
+    if (!zona) return
+    counts.set(zona, (counts.get(zona) ?? 0) + 1)
   })
   return Array.from(counts.entries())
     .map(([name, value]) => ({ name: `Zona eleitoral ${name}`, value }))
