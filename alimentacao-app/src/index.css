@@ -1995,6 +1995,28 @@ a.recent-row:hover strong { color: #2459c4; }
   opacity: .6;
   cursor: not-allowed;
 }
+.mobilizacao-qty {
+  width: 72px;
+  height: 34px;
+  padding: 0 .45rem;
+  border: 1px solid #d5deea;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  font-size: .86rem;
+  font-weight: 650;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.mobilizacao-qty:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+.mobilizacao-qty:focus {
+  outline: none;
+  border-color: #2459c4;
+  box-shadow: 0 0 0 3px rgba(36, 89, 196, .12);
+}
 .ficha-mobilizacao-field {
   display: inline-flex;
   align-items: center;
