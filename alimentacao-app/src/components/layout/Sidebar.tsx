@@ -12,7 +12,7 @@ import {
   Network,
   UserCog,
   Crown,
-  Flag,
+  Share2,
   ListChecks,
 } from 'lucide-react'
 import type { UserRole } from '../../types'
@@ -59,7 +59,7 @@ const navGroups: NavGroup[] = [
     label: 'Gestão',
     roles: ['admin', 'diretoria'],
     items: [
-      { to: '/mobilizacao', label: 'Mobilização', icon: Flag, roles: ['admin', 'diretoria'] },
+      { to: '/mobilizacao', label: 'Mobilização', icon: Share2, roles: ['admin', 'diretoria'] },
       { to: '/lideranca', label: 'Liderança', icon: ListChecks, roles: ['admin', 'diretoria'] },
       { to: '/mapa', label: 'Mapa por zona', icon: Map, roles: ['admin', 'diretoria'] },
       { to: '/relatorios', label: 'Relatórios', icon: BarChart3, roles: ['admin', 'diretoria'] },

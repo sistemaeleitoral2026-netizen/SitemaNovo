@@ -6,7 +6,7 @@ import {
   Sun,
   Network,
   TrendingUp,
-  Flag,
+  Share2,
   Map as MapIcon,
   BarChart3,
   Award,
@@ -636,7 +636,7 @@ function AdminDashboard() {
         <div className="nv-panel">
           <div className="nv-panel-head">
             <div>
-              <h2><Flag size={16} strokeWidth={1.6} aria-hidden />Mobilização</h2>
+              <h2><Share2 size={16} strokeWidth={1.6} aria-hidden />Mobilização</h2>
               <p>
                 {(mobilizacaoTotals.fichas + mobilizacaoTotals.equipe).toLocaleString('pt-BR')} pessoas no escopo · sem corte de período
               </p>
@@ -1105,7 +1105,7 @@ function DiretoriaDashboard() {
         <div className="nv-panel">
           <div className="nv-panel-head">
             <div>
-              <h2><Flag size={16} strokeWidth={1.6} aria-hidden />Mobilização</h2>
+              <h2><Share2 size={16} strokeWidth={1.6} aria-hidden />Mobilização</h2>
               <p>
                 {mobBase.toLocaleString('pt-BR')} pessoas no escopo · sem corte de período
               </p>
