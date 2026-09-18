@@ -78,10 +78,18 @@ export function canonicalizeTeam(
   const fixedCoordinator = assignedMember(team.coordenador_id, team.coordenadores)
   const fixedLeader = assignedMember(team.lider_id, team.lideres)
 
-  let coordinator = fixedCoordinator ?? findCanonicalMember(coordenador, team.coordenadores)
-  const leader = fixedLeader ?? findCanonicalMember(lider, team.lideres)
+  // Um vínculo da nerite só completa célula vazia. Nunca deve esconder um nome
+  // desconhecido escrito na planilha: esse caso precisa de revisão humana.
+  const coordinatorWasProvided = Boolean(coordenador.trim())
+  const leaderWasProvided = Boolean(lider.trim())
+  let coordinator = coordinatorWasProvided
+    ? findCanonicalMember(coordenador, team.coordenadores)
+    : fixedCoordinator
+  const leader = leaderWasProvided
+    ? findCanonicalMember(lider, team.lideres)
+    : fixedLeader
 
-  if (leader?.coordenador_id) {
+  if (leader?.coordenador_id && !coordinatorWasProvided) {
     const leaderCoordinator = assignedMember(leader.coordenador_id, team.coordenadores)
     if (leaderCoordinator) coordinator = leaderCoordinator
   }
