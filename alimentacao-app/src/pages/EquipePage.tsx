@@ -149,8 +149,8 @@ export function EquipePage() {
             row.diretoria_id === scope || neriteIds.has(row.operator_id)
           if (!inScope) return
         }
-        const coord = row.coordenador?.trim()
-        const lider = row.lider?.trim()
+        const coord = (row.coordenador ?? '').trim()
+        const lider = (row.lider ?? '').trim()
         if (coord) byCoord[coord] = (byCoord[coord] ?? 0) + 1
         if (lider) byLider[lider] = (byLider[lider] ?? 0) + 1
         if (row.operator_id) byNerite[row.operator_id] = (byNerite[row.operator_id] ?? 0) + 1

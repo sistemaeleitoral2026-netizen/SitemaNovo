@@ -232,7 +232,7 @@ function AdminDashboard() {
   const topLideres = useMemo(() => {
     const counts = new Map<string, number>()
     scopedCadastros.forEach((c) => {
-      const nome = c.lider?.trim()
+      const nome = (c.lider ?? '').trim()
       if (!nome) return
       counts.set(nome, (counts.get(nome) ?? 0) + 1)
     })
@@ -265,7 +265,7 @@ function AdminDashboard() {
           nerite: neriteById.get(c.operator_id)?.nome ?? '—',
           zona: c.zona || '—',
           secao: c.secao || '—',
-          lider: c.lider?.trim() || '—',
+          lider: (c.lider ?? '').trim() || '—',
           data: formatShortDateTime(c.created_at),
           dir: diretorias.find((d) => d.id === (c.diretoria_id || neriteById.get(c.operator_id)?.diretoria_id))?.nome,
         })),
@@ -317,7 +317,7 @@ function AdminDashboard() {
   const topSecoes = useMemo(() => {
     const map = new Map<string, number>()
     scopedCadastros.forEach((c) => {
-      const s = c.secao?.trim()
+      const s = (c.secao ?? '').trim()
       if (!s) return
       map.set(s, (map.get(s) ?? 0) + 1)
     })

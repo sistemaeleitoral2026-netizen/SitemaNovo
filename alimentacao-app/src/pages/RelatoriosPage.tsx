@@ -89,7 +89,7 @@ export function RelatoriosPage() {
   const porCoordenador = useMemo(() => {
     const map = new Map<string, number>()
     cadastros.forEach((c) => {
-      const nome = c.coordenador?.trim()
+      const nome = (c.coordenador ?? '').trim()
       if (!nome) return
       map.set(nome, (map.get(nome) ?? 0) + 1)
     })
@@ -101,7 +101,7 @@ export function RelatoriosPage() {
   const porLider = useMemo(() => {
     const map = new Map<string, number>()
     cadastros.forEach((c) => {
-      const nome = c.lider?.trim()
+      const nome = (c.lider ?? '').trim()
       if (!nome) return
       map.set(nome, (map.get(nome) ?? 0) + 1)
     })
