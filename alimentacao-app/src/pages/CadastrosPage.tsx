@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
-import { Download, Filter, Pencil, Plus, RotateCcw, Search, Trash2 } from 'lucide-react'
+import { Check, Columns3, Download, Filter, Pencil, Plus, RotateCcw, Search, Trash2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Button } from '../components/ui/Button'
@@ -20,6 +19,24 @@ import { supabase } from '../lib/supabase'
 import type { Cadastro, Profile } from '../types'
 
 type ViewMode = 'todos' | 'mapped' | 'unmapped' | 'week7'
+type ColumnKey = 'nome' | 'nerite' | 'coordenador' | 'lider' | 'nascimento' | 'cpf' | 'telefone' | 'titulo' | 'zona' | 'secao' | 'cep' | 'localizacao' | 'data' | 'acoes'
+
+const columnOptions: { key: ColumnKey; label: string; defaultVisible: boolean }[] = [
+  { key: 'nome', label: 'Nome', defaultVisible: true },
+  { key: 'nerite', label: 'Nerite', defaultVisible: true },
+  { key: 'coordenador', label: 'Coordenador', defaultVisible: true },
+  { key: 'lider', label: 'Líder', defaultVisible: true },
+  { key: 'nascimento', label: 'Nascimento', defaultVisible: false },
+  { key: 'cpf', label: 'CPF', defaultVisible: false },
+  { key: 'telefone', label: 'Telefone', defaultVisible: true },
+  { key: 'titulo', label: 'Título', defaultVisible: true },
+  { key: 'zona', label: 'Zona', defaultVisible: false },
+  { key: 'secao', label: 'Seção', defaultVisible: false },
+  { key: 'cep', label: 'CEP', defaultVisible: false },
+  { key: 'localizacao', label: 'Localização', defaultVisible: false },
+  { key: 'data', label: 'Data', defaultVisible: false },
+  { key: 'acoes', label: 'Ações', defaultVisible: true },
+]
 
 export function CadastrosPage() {
   const { profile } = useAuth()
@@ -50,6 +67,21 @@ export function CadastrosPage() {
   const [loading, setLoading] = useState(true)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [columnMenuOpen, setColumnMenuOpen] = useState(false)
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(
+    () => new Set(columnOptions.filter((column) => column.defaultVisible).map((column) => column.key)),
+  )
+
+  const showColumn = (key: ColumnKey) => visibleColumns.has(key) && (key !== 'nerite' || !isOwnOnly)
+
+  function toggleColumn(key: ColumnKey) {
+    setVisibleColumns((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -273,7 +305,7 @@ export function CadastrosPage() {
   }
 
   return (
-    <div>
+    <div className="cadastros-page">
       <div className="page-header">
         <div>
           <h1 className="page-title">{isOwnOnly ? 'Meus Cadastros' : 'Todos os Cadastros'}</h1>
@@ -288,15 +320,46 @@ export function CadastrosPage() {
             </Link>
           )}
           {!isOwnOnly && (
-            <Button variant="secondary" onClick={exportCsv}>
-              <Download size={16} /> Exportar
-            </Button>
+            <>
+              <div className="column-picker">
+                <Button variant="secondary" onClick={() => setColumnMenuOpen((open) => !open)} aria-expanded={columnMenuOpen}>
+                  <Columns3 size={15} /> Colunas visíveis
+                </Button>
+                {columnMenuOpen && (
+                  <div className="column-picker-menu">
+                    <div className="column-picker-title">
+                      <strong>Exibir colunas</strong>
+                      <span>{visibleColumns.size} selecionadas</span>
+                    </div>
+                    <div className="column-picker-grid">
+                      {columnOptions.map((column) => (
+                        <label key={column.key}>
+                          <input
+                            type="checkbox"
+                            checked={visibleColumns.has(column.key)}
+                            onChange={() => toggleColumn(column.key)}
+                          />
+                          <span className="column-check"><Check size={11} /></span>
+                          {column.label}
+                        </label>
+                      ))}
+                    </div>
+                    <div className="column-picker-footer">
+                      <button type="button" onClick={() => setVisibleColumns(new Set(columnOptions.map((column) => column.key)))}>Ver todas ({columnOptions.length})</button>
+                      <button type="button" className="apply-columns" onClick={() => setColumnMenuOpen(false)}>Aplicar</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <Button variant="secondary" onClick={exportCsv}>
+                <Download size={15} /> Exportar
+              </Button>
+            </>
           )}
         </div>
       </div>
 
-      <Card>
-        <div className="views-row">
+      <div className="views-row">
           {([
             ['todos', 'Todos'],
             ['mapped', 'Com localização'],
@@ -312,9 +375,9 @@ export function CadastrosPage() {
               {label}
             </button>
           ))}
-        </div>
+      </div>
 
-        <div className="filter-panel">
+      <div className="filter-panel cadastros-filter-panel">
           <div className="filter-panel-heading">
             <div>
               <Filter size={17} />
@@ -432,8 +495,9 @@ export function CadastrosPage() {
             </span>
             <span style={{ color: '#8a95a7', fontSize: '.68rem' }}>Ordenado por data</span>
           </div>
-        </div>
+      </div>
 
+      <div className="cadastros-table-card">
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
             <Spinner size={36} />
@@ -450,20 +514,20 @@ export function CadastrosPage() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Nome</th>
-                    {!isOwnOnly && <th>Nerite</th>}
-                    <th>Coordenador</th>
-                    <th>Líder</th>
-                    <th>Nascimento</th>
-                    <th>CPF</th>
-                    <th>Telefone</th>
-                    <th>Título</th>
-                    <th>Zona</th>
-                    <th>Seção</th>
-                    <th>CEP</th>
-                    <th>Localização</th>
-                    <th>Data</th>
-                    <th>Ações</th>
+                    {showColumn('nome') && <th>Nome</th>}
+                    {showColumn('nerite') && <th>Nerite</th>}
+                    {showColumn('coordenador') && <th>Coordenador</th>}
+                    {showColumn('lider') && <th>Líder</th>}
+                    {showColumn('nascimento') && <th>Nascimento</th>}
+                    {showColumn('cpf') && <th>CPF</th>}
+                    {showColumn('telefone') && <th>Telefone</th>}
+                    {showColumn('titulo') && <th>Título</th>}
+                    {showColumn('zona') && <th>Zona</th>}
+                    {showColumn('secao') && <th>Seção</th>}
+                    {showColumn('cep') && <th>CEP</th>}
+                    {showColumn('localizacao') && <th>Localização</th>}
+                    {showColumn('data') && <th>Data</th>}
+                    {showColumn('acoes') && <th className="sticky-actions-head">Ações</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -471,29 +535,29 @@ export function CadastrosPage() {
                     const hasGeo = c.lat != null && c.lng != null
                     return (
                       <tr key={c.id}>
-                        <td><strong style={{ fontWeight: 600, fontSize: '.8rem' }}>{c.nome_completo}</strong></td>
-                        {!isOwnOnly && <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{neriteNames.get(c.operator_id) ?? '—'}</span></td>}
-                        <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{c.coordenador || '—'}</span></td>
-                        <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{c.lider || '—'}</span></td>
-                        <td>{c.data_nascimento ? formatDate(c.data_nascimento) : '—'}</td>
-                        <td>{formatCpf(c.cpf) || '—'}</td>
-                        <td>
+                        {showColumn('nome') && <td><strong style={{ fontWeight: 600, fontSize: '.8rem' }}>{c.nome_completo}</strong></td>}
+                        {showColumn('nerite') && <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{neriteNames.get(c.operator_id) ?? '—'}</span></td>}
+                        {showColumn('coordenador') && <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{c.coordenador || '—'}</span></td>}
+                        {showColumn('lider') && <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{c.lider || '—'}</span></td>}
+                        {showColumn('nascimento') && <td>{c.data_nascimento ? formatDate(c.data_nascimento) : '—'}</td>}
+                        {showColumn('cpf') && <td>{formatCpf(c.cpf) || '—'}</td>}
+                        {showColumn('telefone') && <td>
                           <span className="phone-cell">
                             {formatPhone(c.telefone) || '—'}
                             {c.telefone ? <WhatsAppLink phone={c.telefone} className="whatsapp-link-inline" /> : null}
                           </span>
-                        </td>
-                        <td>{c.titulo}</td>
-                        <td>{c.zona}</td>
-                        <td>{c.secao}</td>
-                        <td>{formatCep(c.cep) || '—'}</td>
-                        <td>
+                        </td>}
+                        {showColumn('titulo') && <td className="mono-cell">{c.titulo}</td>}
+                        {showColumn('zona') && <td>{c.zona}</td>}
+                        {showColumn('secao') && <td>{c.secao}</td>}
+                        {showColumn('cep') && <td>{formatCep(c.cep) || '—'}</td>}
+                        {showColumn('localizacao') && <td>
                           <span className={`badge ${hasGeo ? 'badge-success' : 'badge-warning'}`}>
                             {hasGeo ? 'Com localização' : 'Sem localização'}
                           </span>
-                        </td>
-                        <td>{formatDate(c.created_at)}</td>
-                        <td>
+                        </td>}
+                        {showColumn('data') && <td>{formatDate(c.created_at)}</td>}
+                        {showColumn('acoes') && <td className="sticky-actions-cell">
                           <div style={{ display: 'flex', gap: '0.35rem' }}>
                             {canEdit(c) && (
                               <>
@@ -506,7 +570,7 @@ export function CadastrosPage() {
                               </>
                             )}
                           </div>
-                        </td>
+                        </td>}
                       </tr>
                     )
                   })}
@@ -564,7 +628,7 @@ export function CadastrosPage() {
             />
           </>
         )}
-      </Card>
+      </div>
 
       <Modal
         open={!!deleteId}
