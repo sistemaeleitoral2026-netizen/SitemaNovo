@@ -145,20 +145,39 @@ export function buildMapMarkers(cadastros: Cadastro[]): MapMarkerData[] {
     .sort((a, b) => b.count - a.count)
 }
 
+export type MobilizacaoQuantidades = {
+  carros_adesivados?: number
+  adesivos_casa?: number
+  postagens?: number
+}
+
+function sanitizeQty(value: number | undefined) {
+  if (value == null || !Number.isFinite(value)) return 0
+  return Math.max(0, Math.floor(value))
+}
+
 export async function updateMobilizacaoFlags(
   id: string,
-  flags: { adesivou_carro?: boolean; postou_rede?: boolean },
+  flags: MobilizacaoQuantidades,
 ) {
-  const { error } = await supabase.from('cadastros').update(flags).eq('id', id)
+  const payload: MobilizacaoQuantidades = {}
+  if (flags.carros_adesivados !== undefined) payload.carros_adesivados = sanitizeQty(flags.carros_adesivados)
+  if (flags.adesivos_casa !== undefined) payload.adesivos_casa = sanitizeQty(flags.adesivos_casa)
+  if (flags.postagens !== undefined) payload.postagens = sanitizeQty(flags.postagens)
+  const { error } = await supabase.from('cadastros').update(payload).eq('id', id)
   return { error: error?.message ?? null }
 }
 
 export async function updateEquipeMobilizacaoFlags(
   table: 'coordenadores' | 'lideres',
   id: string,
-  flags: { adesivou_carro?: boolean; postou_rede?: boolean },
+  flags: MobilizacaoQuantidades,
 ) {
-  const { error } = await supabase.from(table).update(flags).eq('id', id)
+  const payload: MobilizacaoQuantidades = {}
+  if (flags.carros_adesivados !== undefined) payload.carros_adesivados = sanitizeQty(flags.carros_adesivados)
+  if (flags.adesivos_casa !== undefined) payload.adesivos_casa = sanitizeQty(flags.adesivos_casa)
+  if (flags.postagens !== undefined) payload.postagens = sanitizeQty(flags.postagens)
+  const { error } = await supabase.from(table).update(payload).eq('id', id)
   return { error: error?.message ?? null }
 }
 
