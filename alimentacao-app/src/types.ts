@@ -108,6 +108,25 @@ export interface ImportPreview {
   linhas: ImportPreviewRow[]
 }
 
+export interface ImportExistingKeys {
+  titulos: Set<string>
+  cpfs: Set<string>
+  pessoas: Set<string>
+}
+
+export interface ImportTeamMember {
+  id: string
+  nome: string
+  coordenador_id?: string | null
+}
+
+export interface ImportTeamContext {
+  coordenadores: ImportTeamMember[]
+  lideres: ImportTeamMember[]
+  coordenador_id?: string | null
+  lider_id?: string | null
+}
+
 export interface CadastroFormData {
   nome_completo: string
   cpf: string
