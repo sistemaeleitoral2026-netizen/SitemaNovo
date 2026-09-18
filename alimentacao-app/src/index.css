@@ -1788,6 +1788,20 @@ a.recent-row:hover strong { color: #2459c4; }
   background: #f1f5f9;
   color: #94a3b8;
 }
+button.fichas-count.equipe-drill-count {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  transition: background-color .15s ease, color .15s ease;
+}
+button.fichas-count.equipe-drill-count:hover {
+  background: #dbe7fb;
+  color: #1e40af;
+}
+button.fichas-count.equipe-drill-count.zero:hover {
+  background: #e2e8f0;
+  color: #64748b;
+}
 
 .section-label-row {
   display: flex;
