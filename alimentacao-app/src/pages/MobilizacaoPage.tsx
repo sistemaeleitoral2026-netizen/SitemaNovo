@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Car, Home, Megaphone, CircleDashed, Search, ExternalLink, Save, CheckCircle2 } from 'lucide-react'
+import {
+  Car,
+  Home,
+  MessageSquare,
+  Minus,
+  Search,
+  ExternalLink,
+  Save,
+  CheckCircle2,
+} from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Button } from '../components/ui/Button'
@@ -310,6 +318,13 @@ export function MobilizacaoPage() {
     )
   }
 
+  const statusFilters = [
+    { key: 'carros' as const, label: 'Carros adesivados', value: counts.carros, Icon: Car },
+    { key: 'casa' as const, label: 'Adesivos para casa', value: counts.casa, Icon: Home },
+    { key: 'postagens' as const, label: 'Postagens', value: counts.postagens, Icon: MessageSquare },
+    { key: 'pendente' as const, label: 'Sem lançamento', value: counts.pendentes, Icon: Minus },
+  ]
+
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
@@ -319,80 +334,49 @@ export function MobilizacaoPage() {
   }
 
   return (
-    <div className="mobilizacao-page">
-      <div className="page-header">
+    <div className="mobilizacao-page nv-dash">
+      <div className="nv-heading">
         <div>
-          <h1 className="page-title">Mobilização</h1>
-          <p className="page-subtitle">
-            Informe as quantidades de carros adesivados, adesivos para casa e postagens.
+          <p className="nv-eyebrow">Gestão</p>
+          <h1>Mobilização</h1>
+          <p className="nv-sub">
+            Quantidades de carros adesivados, adesivos para casa e postagens.
           </p>
         </div>
-        <div className="page-header-actions">
+        <div className="nv-heading-actions page-header-actions">
           <Button
             type="button"
             onClick={saveAll}
             loading={savingAll}
             disabled={!dirtyRows.length}
           >
-            <Save size={17} />
-            {dirtyRows.length ? `Salvar alterações (${dirtyRows.length})` : 'Tudo salvo'}
+            <Save size={16} strokeWidth={1.6} />
+            {dirtyRows.length ? `Salvar (${dirtyRows.length})` : 'Tudo salvo'}
           </Button>
         </div>
       </div>
 
-      <div className="mobilizacao-kpi-grid">
-        <button
-          type="button"
-          className={`mobilizacao-kpi${status === 'carros' ? ' active' : ''}`}
-          onClick={() => setStatus(status === 'carros' ? 'todos' : 'carros')}
-        >
-          <span className="mobilizacao-kpi-icon"><Car size={18} /></span>
-          <div>
-            <span>Carros adesivados</span>
-            <strong className="tabular-nums">{counts.carros.toLocaleString('pt-BR')}</strong>
-          </div>
-        </button>
-        <button
-          type="button"
-          className={`mobilizacao-kpi${status === 'casa' ? ' active' : ''}`}
-          onClick={() => setStatus(status === 'casa' ? 'todos' : 'casa')}
-        >
-          <span className="mobilizacao-kpi-icon"><Home size={18} /></span>
-          <div>
-            <span>Adesivos para casa</span>
-            <strong className="tabular-nums">{counts.casa.toLocaleString('pt-BR')}</strong>
-          </div>
-        </button>
-        <button
-          type="button"
-          className={`mobilizacao-kpi${status === 'postagens' ? ' active' : ''}`}
-          onClick={() => setStatus(status === 'postagens' ? 'todos' : 'postagens')}
-        >
-          <span className="mobilizacao-kpi-icon"><Megaphone size={18} /></span>
-          <div>
-            <span>Postagens</span>
-            <strong className="tabular-nums">{counts.postagens.toLocaleString('pt-BR')}</strong>
-          </div>
-        </button>
-        <button
-          type="button"
-          className={`mobilizacao-kpi${status === 'pendente' ? ' active' : ''}`}
-          onClick={() => setStatus(status === 'pendente' ? 'todos' : 'pendente')}
-        >
-          <span className="mobilizacao-kpi-icon"><CircleDashed size={18} /></span>
-          <div>
-            <span>Sem registro</span>
-            <strong className="tabular-nums">{counts.pendentes.toLocaleString('pt-BR')}</strong>
-          </div>
-        </button>
+      <div className="mob-status-strip" role="group" aria-label="Filtro por status">
+        {statusFilters.map(({ key, label, value, Icon }) => (
+          <button
+            key={key}
+            type="button"
+            className={`mob-status-cell${status === key ? ' is-active' : ''}`}
+            onClick={() => setStatus(status === key ? 'todos' : key)}
+          >
+            <Icon size={15} strokeWidth={1.6} aria-hidden />
+            <span className="mob-status-label">{label}</span>
+            <strong className="tabular-nums">{value.toLocaleString('pt-BR')}</strong>
+          </button>
+        ))}
       </div>
 
-      <Card>
-        <div className="filters-grid filters-grid-nerites" style={{ marginBottom: '1rem' }}>
-          <div className="search-field">
-            <Search size={16} />
+      <div className="nv-panel mob-panel">
+        <div className="mob-toolbar">
+          <div className="mob-search">
+            <Search size={15} strokeWidth={1.6} aria-hidden />
             <Input
-              placeholder="Buscar por nome..."
+              placeholder="Buscar por nome, tipo ou detalhe…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -407,22 +391,22 @@ export function MobilizacaoPage() {
           />
         </div>
 
-        {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
+        {error && <div className="alert alert-error mob-alert">{error}</div>}
         {success && (
-          <div className="alert alert-success mobilizacao-feedback" role="status">
-            <CheckCircle2 size={16} /> {success}
+          <div className="alert alert-success mobilizacao-feedback mob-alert" role="status">
+            <CheckCircle2 size={15} strokeWidth={1.6} /> {success}
           </div>
         )}
 
         {!filtered.length ? (
           <EmptyState
             title="Nenhuma pessoa neste filtro"
-            description="Clique num card acima ou ajuste a busca."
+            description="Ajuste o status acima ou a busca."
           />
         ) : (
           <>
             <div className="table-wrapper mobilizacao-table-desktop">
-              <table className="data-table">
+              <table className="data-table mob-table">
                 <thead>
                   <tr>
                     <th>Nome</th>
@@ -436,14 +420,12 @@ export function MobilizacaoPage() {
                 </thead>
                 <tbody>
                   {pageItems.map((p) => (
-                    <tr key={p.key}>
+                    <tr key={p.key} className={drafts[p.key] ? 'is-dirty' : undefined}>
                       <td>
                         <strong>{p.nome}</strong>
                       </td>
                       <td>
-                        <span className={`mobilizacao-tipo mobilizacao-tipo-${p.tipo}`}>
-                          {p.tipoLabel}
-                        </span>
+                        <span className="mob-tipo">{p.tipoLabel}</span>
                       </td>
                       <td>
                         <span className="mobilizacao-name-cell">{p.detalhe}</span>
@@ -455,13 +437,13 @@ export function MobilizacaoPage() {
                         <div className="mobilizacao-actions">
                           {drafts[p.key] && (
                             <Button size="sm" onClick={() => saveRow(p)} loading={savingKey === p.key}>
-                              <Save size={15} /> Salvar
+                              <Save size={14} strokeWidth={1.6} /> Salvar
                             </Button>
                           )}
                           {p.href && (
                             <Link to={p.href}>
                               <Button variant="ghost" size="sm" aria-label={`Abrir ficha de ${p.nome}`} title="Abrir ficha">
-                                <ExternalLink size={16} />
+                                <ExternalLink size={15} strokeWidth={1.6} />
                               </Button>
                             </Link>
                           )}
@@ -481,7 +463,7 @@ export function MobilizacaoPage() {
                       <strong>{p.nome}</strong>
                       <span>{p.detalhe}</span>
                     </div>
-                    <span className={`mobilizacao-tipo mobilizacao-tipo-${p.tipo}`}>{p.tipoLabel}</span>
+                    <span className="mob-tipo">{p.tipoLabel}</span>
                   </div>
                   <div className="mobilizacao-mobile-fields">
                     <label><span>Carros</span>{qtyInput(p, 'carros_adesivados', 'Carros adesivados')}</label>
@@ -489,27 +471,33 @@ export function MobilizacaoPage() {
                     <label><span>Postagens</span>{qtyInput(p, 'postagens', 'Postagens')}</label>
                   </div>
                   <div className="mobilizacao-mobile-actions">
-                    {p.href && <Link to={p.href} className="mobilizacao-open-link"><ExternalLink size={15} /> Abrir ficha</Link>}
+                    {p.href && (
+                      <Link to={p.href} className="mobilizacao-open-link">
+                        <ExternalLink size={14} strokeWidth={1.6} /> Abrir ficha
+                      </Link>
+                    )}
                     <Button size="sm" onClick={() => saveRow(p)} loading={savingKey === p.key} disabled={!drafts[p.key]}>
-                      <Save size={15} /> {drafts[p.key] ? 'Salvar alterações' : 'Salvo'}
+                      <Save size={14} strokeWidth={1.6} /> {drafts[p.key] ? 'Salvar' : 'Salvo'}
                     </Button>
                   </div>
                 </article>
               ))}
             </div>
 
-            <Pagination
-              page={page}
-              totalPages={totalPages}
-              totalItems={filtered.length}
-              pageSize={pageSize}
-              onPageChange={setPage}
-              onPageSizeChange={(size) => { setPageSize(size); setPage(0) }}
-              pageSizeOptions={[25, 50, 100, 200]}
-            />
+            <div className="mob-pager">
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                totalItems={filtered.length}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={(size) => { setPageSize(size); setPage(0) }}
+                pageSizeOptions={[25, 50, 100, 200]}
+              />
+            </div>
           </>
         )}
-      </Card>
+      </div>
     </div>
   )
 }
