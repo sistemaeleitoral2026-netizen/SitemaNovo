@@ -11,6 +11,7 @@ import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Pagination } from '../components/ui/Pagination'
 import { PeriodFilterSelect } from '../components/ui/PeriodFilter'
+import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import { formatCpf, formatDate, formatPhone, formatCep } from '../lib/format'
 import { fetchCadastros } from '../lib/cadastros'
 import { logAudit } from '../lib/audit'
@@ -476,7 +477,12 @@ export function CadastrosPage() {
                         <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{c.lider || '—'}</span></td>
                         <td>{c.data_nascimento ? formatDate(c.data_nascimento) : '—'}</td>
                         <td>{formatCpf(c.cpf) || '—'}</td>
-                        <td>{formatPhone(c.telefone)}</td>
+                        <td>
+                          <span className="phone-cell">
+                            {formatPhone(c.telefone) || '—'}
+                            {c.telefone ? <WhatsAppLink phone={c.telefone} className="whatsapp-link-inline" /> : null}
+                          </span>
+                        </td>
                         <td>{c.titulo}</td>
                         <td>{c.zona}</td>
                         <td>{c.secao}</td>
@@ -516,8 +522,10 @@ export function CadastrosPage() {
                     <div className="mobile-card-top">
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <strong style={{ display: 'block', fontSize: '.88rem' }}>{c.nome_completo}</strong>
-                        <span style={{ display: 'block', color: '#8a95a7', fontSize: '.7rem', marginTop: '.1rem' }}>
-                          {formatPhone(c.telefone)} · {formatDate(c.created_at)} · {hasGeo ? 'Com localização' : 'Sem localização'}
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '.35rem', flexWrap: 'wrap', color: '#8a95a7', fontSize: '.7rem', marginTop: '.1rem' }}>
+                          {formatPhone(c.telefone) || '—'}
+                          {c.telefone ? <WhatsAppLink phone={c.telefone} className="whatsapp-link-inline" /> : null}
+                          <span>· {formatDate(c.created_at)} · {hasGeo ? 'Com localização' : 'Sem localização'}</span>
                         </span>
                       </div>
                       {canEdit(c) && (
