@@ -116,7 +116,7 @@ export function CadastrosPage() {
   const duplicateTitles = useMemo(() => {
     const counts = new Map<string, number>()
     cadastros.forEach((c) => {
-      const key = c.titulo.trim().toLowerCase()
+      const key = (c.titulo ?? '').trim().toLowerCase()
       if (key) counts.set(key, (counts.get(key) ?? 0) + 1)
     })
     return new Set([...counts.entries()].filter(([, n]) => n > 1).map(([k]) => k))
@@ -132,12 +132,12 @@ export function CadastrosPage() {
 
     return cadastros.filter((c) => {
       const matchesSearch = !textTerm || [
-        c.nome_completo,
+        c.nome_completo ?? '',
         c.coordenador ?? '',
         c.lider ?? '',
         c.cpf ?? '',
-        c.telefone,
-        c.titulo,
+        c.telefone ?? '',
+        c.titulo ?? '',
         c.cep ?? '',
         neriteNames.get(c.operator_id) ?? '',
       ].some((value) => {
@@ -169,11 +169,11 @@ export function CadastrosPage() {
       if (dateFrom && c.created_at.slice(0, 10) < dateFrom) return false
       if (dateTo && c.created_at.slice(0, 10) > dateTo) return false
       if (cepTerm && !(c.cep ?? '').replace(/\D/g, '').includes(cepTerm)) return false
-      if (tituloTerm && !c.titulo.toLowerCase().includes(tituloTerm)) return false
+      if (tituloTerm && !(c.titulo ?? '').toLowerCase().includes(tituloTerm)) return false
 
-      const titleKey = c.titulo.trim().toLowerCase()
+      const titleKey = (c.titulo ?? '').trim().toLowerCase()
       if (dupFilter === 'only' && !duplicateTitles.has(titleKey)) return false
-      if (dupFilter === 'hide' && duplicateTitles.has(titleKey)) return false
+      if (dupFilter === 'hide' && titleKey && duplicateTitles.has(titleKey)) return false
 
       return true
     })
