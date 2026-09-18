@@ -73,12 +73,12 @@ function AdminDashboard() {
     async function load() {
       setLoading(true)
       try {
-        const [cData, totalRes, adesivoCad, adesivoCoord, adesivoLider, dirs, ops, coords, lids] = await Promise.all([
+        const [cData, totalRes, cadMob, coordMob, liderMob, dirs, ops, coords, lids] = await Promise.all([
           fetchCadastros({ period }),
           supabase.from('cadastros').select('*', { count: 'exact', head: true }),
-          supabase.from('cadastros').select('*', { count: 'exact', head: true }).eq('adesivou_carro', true),
-          supabase.from('coordenadores').select('*', { count: 'exact', head: true }).eq('adesivou_carro', true),
-          supabase.from('lideres').select('*', { count: 'exact', head: true }).eq('adesivou_carro', true),
+          supabase.from('cadastros').select('carros_adesivados'),
+          supabase.from('coordenadores').select('carros_adesivados'),
+          supabase.from('lideres').select('carros_adesivados'),
           supabase.from('profiles').select('*').eq('role', 'diretoria').order('nome'),
           supabase.from('profiles').select('*').eq('role', 'operador').order('nome'),
           supabase.from('coordenadores').select('*'),
@@ -86,8 +86,12 @@ function AdminDashboard() {
         ])
         setCadastros(cData)
         setTotalFichas(totalRes.count ?? 0)
+        const sumCarros = (rows: { carros_adesivados?: number | null }[] | null) =>
+          (rows ?? []).reduce((acc, r) => acc + (Number(r.carros_adesivados) || 0), 0)
         setCarrosAdesivados(
-          (adesivoCad.count ?? 0) + (adesivoCoord.count ?? 0) + (adesivoLider.count ?? 0),
+          sumCarros(cadMob.data as { carros_adesivados?: number }[] | null)
+          + sumCarros(coordMob.data as { carros_adesivados?: number }[] | null)
+          + sumCarros(liderMob.data as { carros_adesivados?: number }[] | null),
         )
         setDiretorias((dirs.data ?? []) as Profile[])
         setNerites((ops.data ?? []) as Profile[])
@@ -328,7 +332,7 @@ function AdminDashboard() {
           <strong className="tabular-nums">{zonas}</strong>
           <p className="dash-kpi-hint">Com registro no período</p>
         </div>
-        <Link to="/mobilizacao?status=adesivo" className="dash-kpi-card dash-kpi-link">
+        <Link to="/mobilizacao?status=carros" className="dash-kpi-card dash-kpi-link">
           <div className="dash-kpi-top">
             <span className="dash-kpi-icon tone-blue"><Car size={18} /></span>
             <span className="dash-kpi-label" style={{ flex: 1 }}>Carros adesivados</span>

@@ -43,8 +43,9 @@ export function CadastroFormPage() {
   const [lideres, setLideres] = useState<Lider[]>([])
   const [coordenadorId, setCoordenadorId] = useState('')
   const [liderId, setLiderId] = useState('')
-  const [adesivouCarro, setAdesivouCarro] = useState(false)
-  const [postouRede, setPostouRede] = useState(false)
+  const [carrosAdesivados, setCarrosAdesivados] = useState(0)
+  const [adesivosCasa, setAdesivosCasa] = useState(0)
+  const [postagens, setPostagens] = useState(0)
 
   const isStaff = profile?.role === 'admin' || profile?.role === 'diretoria'
   const showMobilizacao = isStaff && isEdit
@@ -89,8 +90,9 @@ export function CadastroFormPage() {
           data_nascimento: data.data_nascimento ? String(data.data_nascimento).slice(0, 10) : '',
           cep: formatCep(data.cep ?? ''),
         })
-        setAdesivouCarro(Boolean(data.adesivou_carro))
-        setPostouRede(Boolean(data.postou_rede))
+        setCarrosAdesivados(Number(data.carros_adesivados) || 0)
+        setAdesivosCasa(Number(data.adesivos_casa) || 0)
+        setPostagens(Number(data.postagens) || 0)
       }
       setLoading(false)
     })
@@ -199,11 +201,13 @@ export function CadastroFormPage() {
           : profile?.role === 'diretoria'
             ? profile.id
             : null
-      payload.adesivou_carro = false
-      payload.postou_rede = false
+      payload.carros_adesivados = 0
+      payload.adesivos_casa = 0
+      payload.postagens = 0
     } else if (isStaff) {
-      payload.adesivou_carro = adesivouCarro
-      payload.postou_rede = postouRede
+      payload.carros_adesivados = Math.max(0, Math.floor(Number(carrosAdesivados) || 0))
+      payload.adesivos_casa = Math.max(0, Math.floor(Number(adesivosCasa) || 0))
+      payload.postagens = Math.max(0, Math.floor(Number(postagens) || 0))
       if (profile?.role === 'diretoria') {
         payload.diretoria_id = profile.id
       }
@@ -263,26 +267,37 @@ export function CadastroFormPage() {
         <div className="ficha-mobilizacao-bar">
           <strong>Mobilização</strong>
           <label className="ficha-mobilizacao-field">
-            <span>Adesivou o carro</span>
-            <select
-              className="mobilizacao-select"
-              value={adesivouCarro ? 'sim' : 'nao'}
-              onChange={(e) => setAdesivouCarro(e.target.value === 'sim')}
-            >
-              <option value="nao">Não</option>
-              <option value="sim">Sim</option>
-            </select>
+            <span>Carros adesivados</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              className="mobilizacao-qty"
+              value={carrosAdesivados ? String(carrosAdesivados) : ''}
+              placeholder="0"
+              onChange={(e) => setCarrosAdesivados(Number(e.target.value.replace(/\D/g, '') || 0))}
+            />
           </label>
           <label className="ficha-mobilizacao-field">
-            <span>Postou na rede</span>
-            <select
-              className="mobilizacao-select"
-              value={postouRede ? 'sim' : 'nao'}
-              onChange={(e) => setPostouRede(e.target.value === 'sim')}
-            >
-              <option value="nao">Não</option>
-              <option value="sim">Sim</option>
-            </select>
+            <span>Adesivos para casa</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              className="mobilizacao-qty"
+              value={adesivosCasa ? String(adesivosCasa) : ''}
+              placeholder="0"
+              onChange={(e) => setAdesivosCasa(Number(e.target.value.replace(/\D/g, '') || 0))}
+            />
+          </label>
+          <label className="ficha-mobilizacao-field">
+            <span>Postagens</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              className="mobilizacao-qty"
+              value={postagens ? String(postagens) : ''}
+              placeholder="0"
+              onChange={(e) => setPostagens(Number(e.target.value.replace(/\D/g, '') || 0))}
+            />
           </label>
         </div>
       )}

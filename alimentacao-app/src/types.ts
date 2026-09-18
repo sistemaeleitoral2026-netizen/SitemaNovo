@@ -17,8 +17,9 @@ export interface Coordenador {
   diretoria_id: string
   nome: string
   ativo: boolean
-  adesivou_carro?: boolean
-  postou_rede?: boolean
+  carros_adesivados?: number
+  adesivos_casa?: number
+  postagens?: number
   created_at: string
 }
 
@@ -28,8 +29,9 @@ export interface Lider {
   coordenador_id: string | null
   nome: string
   ativo: boolean
-  adesivou_carro?: boolean
-  postou_rede?: boolean
+  carros_adesivados?: number
+  adesivos_casa?: number
+  postagens?: number
   created_at: string
 }
 
@@ -50,8 +52,9 @@ export interface Cadastro {
   cep: string | null
   lat: number | null
   lng: number | null
-  adesivou_carro?: boolean
-  postou_rede?: boolean
+  carros_adesivados?: number
+  adesivos_casa?: number
+  postagens?: number
   created_at: string
   updated_at: string
 }

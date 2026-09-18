@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Car, Megaphone, CheckCircle2, CircleDashed, Search, ExternalLink } from 'lucide-react'
+import { Car, Home, Megaphone, CircleDashed, Search, ExternalLink } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -13,8 +13,9 @@ import { fetchCadastros, updateEquipeMobilizacaoFlags, updateMobilizacaoFlags } 
 import { supabase } from '../lib/supabase'
 import type { Cadastro, Coordenador, Lider } from '../types'
 
-type StatusFilter = 'todos' | 'ambos' | 'adesivo' | 'rede' | 'pendente'
+type StatusFilter = 'todos' | 'carros' | 'casa' | 'postagens' | 'pendente'
 type TipoPessoa = 'todos' | 'eleitor' | 'coordenador' | 'lideranca'
+type QtyField = 'carros_adesivados' | 'adesivos_casa' | 'postagens'
 
 type PessoaRow = {
   key: string
@@ -23,8 +24,9 @@ type PessoaRow = {
   tipo: 'eleitor' | 'coordenador' | 'lideranca'
   tipoLabel: string
   detalhe: string
-  adesivou_carro: boolean
-  postou_rede: boolean
+  carros_adesivados: number
+  adesivos_casa: number
+  postagens: number
   href: string | null
 }
 
@@ -35,12 +37,17 @@ const TIPO_LABEL: Record<TipoPessoa, string> = {
   lideranca: 'Lideranças',
 }
 
-function matchesStatus(adesivo: boolean, rede: boolean, status: StatusFilter) {
+function toQty(value: unknown) {
+  const n = Math.floor(Number(value))
+  return Number.isFinite(n) && n > 0 ? n : 0
+}
+
+function matchesStatus(row: PessoaRow, status: StatusFilter) {
   if (status === 'todos') return true
-  if (status === 'ambos') return adesivo && rede
-  if (status === 'adesivo') return adesivo && !rede
-  if (status === 'rede') return !adesivo && rede
-  return !adesivo && !rede
+  if (status === 'carros') return row.carros_adesivados > 0
+  if (status === 'casa') return row.adesivos_casa > 0
+  if (status === 'postagens') return row.postagens > 0
+  return row.carros_adesivados === 0 && row.adesivos_casa === 0 && row.postagens === 0
 }
 
 export function MobilizacaoPage() {
@@ -48,9 +55,11 @@ export function MobilizacaoPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const statusParam = searchParams.get('status')
   const status: StatusFilter =
-    statusParam === 'ambos' || statusParam === 'adesivo' || statusParam === 'rede' || statusParam === 'pendente'
+    statusParam === 'carros' || statusParam === 'casa' || statusParam === 'postagens' || statusParam === 'pendente'
       ? statusParam
-      : 'todos'
+      : statusParam === 'adesivo'
+        ? 'carros'
+        : 'todos'
 
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
@@ -62,6 +71,7 @@ export function MobilizacaoPage() {
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(25)
+  const [drafts, setDrafts] = useState<Record<string, Partial<Record<QtyField, string>>>>({})
 
   const diretoriaScope = profile?.role === 'diretoria' ? profile.id : null
 
@@ -112,8 +122,9 @@ export function MobilizacaoPage() {
       tipo: 'eleitor',
       tipoLabel: 'Eleitor',
       detalhe: [c.coordenador?.trim(), c.lider?.trim()].filter(Boolean).join(' · ') || '—',
-      adesivou_carro: Boolean(c.adesivou_carro),
-      postou_rede: Boolean(c.postou_rede),
+      carros_adesivados: toQty(c.carros_adesivados),
+      adesivos_casa: toQty(c.adesivos_casa),
+      postagens: toQty(c.postagens),
       href: `/cadastros/${c.id}/editar`,
     }))
 
@@ -124,8 +135,9 @@ export function MobilizacaoPage() {
       tipo: 'coordenador',
       tipoLabel: 'Coordenador',
       detalhe: 'Equipe',
-      adesivou_carro: Boolean(c.adesivou_carro),
-      postou_rede: Boolean(c.postou_rede),
+      carros_adesivados: toQty(c.carros_adesivados),
+      adesivos_casa: toQty(c.adesivos_casa),
+      postagens: toQty(c.postagens),
       href: null,
     }))
 
@@ -138,8 +150,9 @@ export function MobilizacaoPage() {
       detalhe: l.coordenador_id
         ? `Coord. ${coordById.get(l.coordenador_id) ?? '—'}`
         : 'Equipe',
-      adesivou_carro: Boolean(l.adesivou_carro),
-      postou_rede: Boolean(l.postou_rede),
+      carros_adesivados: toQty(l.carros_adesivados),
+      adesivos_casa: toQty(l.adesivos_casa),
+      postagens: toQty(l.postagens),
       href: null,
     }))
 
@@ -149,24 +162,24 @@ export function MobilizacaoPage() {
   }, [cadastros, coordenadores, lideres])
 
   const counts = useMemo(() => {
-    let adesivados = 0
+    let carros = 0
+    let casa = 0
     let postagens = 0
-    let ambos = 0
     let pendentes = 0
     pessoas.forEach((p) => {
-      if (p.adesivou_carro) adesivados += 1
-      if (p.postou_rede) postagens += 1
-      if (p.adesivou_carro && p.postou_rede) ambos += 1
-      if (!p.adesivou_carro && !p.postou_rede) pendentes += 1
+      carros += p.carros_adesivados
+      casa += p.adesivos_casa
+      postagens += p.postagens
+      if (p.carros_adesivados === 0 && p.adesivos_casa === 0 && p.postagens === 0) pendentes += 1
     })
-    return { adesivados, postagens, ambos, pendentes }
+    return { carros, casa, postagens, pendentes }
   }, [pessoas])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return pessoas.filter((p) => {
       if (tipoFilter !== 'todos' && p.tipo !== tipoFilter) return false
-      if (!matchesStatus(p.adesivou_carro, p.postou_rede, status)) return false
+      if (!matchesStatus(p, status)) return false
       if (!q) return true
       return (
         p.nome.toLowerCase().includes(q)
@@ -183,18 +196,46 @@ export function MobilizacaoPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const pageItems = filtered.slice(page * pageSize, (page + 1) * pageSize)
 
-  async function setFlag(row: PessoaRow, field: 'adesivou_carro' | 'postou_rede', value: boolean) {
-    if (row[field] === value) return
-    setSavingKey(row.key)
+  function draftValue(row: PessoaRow, field: QtyField) {
+    const draft = drafts[row.key]?.[field]
+    if (draft !== undefined) return draft
+    return String(row[field] || '')
+  }
+
+  function setDraft(rowKey: string, field: QtyField, value: string) {
+    const cleaned = value.replace(/\D/g, '')
+    setDrafts((prev) => ({
+      ...prev,
+      [rowKey]: { ...prev[rowKey], [field]: cleaned },
+    }))
+  }
+
+  async function commitQty(row: PessoaRow, field: QtyField) {
+    const raw = drafts[row.key]?.[field]
+    const next = raw === undefined ? row[field] : toQty(raw)
+    setDrafts((prev) => {
+      const copy = { ...prev }
+      if (copy[row.key]) {
+        const fields = { ...copy[row.key] }
+        delete fields[field]
+        if (Object.keys(fields).length === 0) delete copy[row.key]
+        else copy[row.key] = fields
+      }
+      return copy
+    })
+
+    if (next === row[field]) return
+
+    setSavingKey(`${row.key}-${field}`)
     setError(null)
 
     let err: string | null = null
     if (row.tipo === 'eleitor') {
-      ;({ error: err } = await updateMobilizacaoFlags(row.id, { [field]: value }))
+      ;({ error: err } = await updateMobilizacaoFlags(row.id, { [field]: next }))
     } else if (row.tipo === 'coordenador') {
-      ;({ error: err } = await updateEquipeMobilizacaoFlags('coordenadores', row.id, { [field]: value }))
+      ;({ error: err } = await updateEquipeMobilizacaoFlags('coordenadores', row.id, { [field]: next }))
     } else {
-      ;({ error: err } = await updateEquipeMobilizacaoFlags('lideres', row.id, { [field]: value }))
+      ;({ error: err } = await updateEquipeMobilizacaoFlags('lideres', row.id, { [field]: next }))
     }
 
     setSavingKey(null)
@@ -204,12 +245,34 @@ export function MobilizacaoPage() {
     }
 
     if (row.tipo === 'eleitor') {
-      setCadastros((prev) => prev.map((c) => (c.id === row.id ? { ...c, [field]: value } : c)))
+      setCadastros((prev) => prev.map((c) => (c.id === row.id ? { ...c, [field]: next } : c)))
     } else if (row.tipo === 'coordenador') {
-      setCoordenadores((prev) => prev.map((c) => (c.id === row.id ? { ...c, [field]: value } : c)))
+      setCoordenadores((prev) => prev.map((c) => (c.id === row.id ? { ...c, [field]: next } : c)))
     } else {
-      setLideres((prev) => prev.map((l) => (l.id === row.id ? { ...l, [field]: value } : l)))
+      setLideres((prev) => prev.map((l) => (l.id === row.id ? { ...l, [field]: next } : l)))
     }
+  }
+
+  function qtyInput(row: PessoaRow, field: QtyField, label: string) {
+    const busy = savingKey === `${row.key}-${field}`
+    return (
+      <input
+        type="text"
+        inputMode="numeric"
+        className="mobilizacao-qty"
+        value={draftValue(row, field)}
+        disabled={busy}
+        placeholder="0"
+        aria-label={`${label} — ${row.nome}`}
+        onChange={(e) => setDraft(row.key, field, e.target.value)}
+        onBlur={() => commitQty(row, field)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.currentTarget.blur()
+          }
+        }}
+      />
+    )
   }
 
   if (loading) {
@@ -226,7 +289,7 @@ export function MobilizacaoPage() {
         <div>
           <h1 className="page-title">Mobilização</h1>
           <p className="page-subtitle">
-            Eleitores, coordenadores e lideranças — marque quem adesivou e quem postou.
+            Informe as quantidades de carros adesivados, adesivos para casa e postagens.
           </p>
         </div>
       </div>
@@ -234,19 +297,30 @@ export function MobilizacaoPage() {
       <div className="mobilizacao-kpi-grid">
         <button
           type="button"
-          className={`mobilizacao-kpi${status === 'adesivo' ? ' active' : ''}`}
-          onClick={() => setStatus(status === 'adesivo' ? 'todos' : 'adesivo')}
+          className={`mobilizacao-kpi${status === 'carros' ? ' active' : ''}`}
+          onClick={() => setStatus(status === 'carros' ? 'todos' : 'carros')}
         >
           <span className="mobilizacao-kpi-icon"><Car size={18} /></span>
           <div>
             <span>Carros adesivados</span>
-            <strong className="tabular-nums">{counts.adesivados.toLocaleString('pt-BR')}</strong>
+            <strong className="tabular-nums">{counts.carros.toLocaleString('pt-BR')}</strong>
           </div>
         </button>
         <button
           type="button"
-          className={`mobilizacao-kpi${status === 'rede' ? ' active' : ''}`}
-          onClick={() => setStatus(status === 'rede' ? 'todos' : 'rede')}
+          className={`mobilizacao-kpi${status === 'casa' ? ' active' : ''}`}
+          onClick={() => setStatus(status === 'casa' ? 'todos' : 'casa')}
+        >
+          <span className="mobilizacao-kpi-icon"><Home size={18} /></span>
+          <div>
+            <span>Adesivos para casa</span>
+            <strong className="tabular-nums">{counts.casa.toLocaleString('pt-BR')}</strong>
+          </div>
+        </button>
+        <button
+          type="button"
+          className={`mobilizacao-kpi${status === 'postagens' ? ' active' : ''}`}
+          onClick={() => setStatus(status === 'postagens' ? 'todos' : 'postagens')}
         >
           <span className="mobilizacao-kpi-icon"><Megaphone size={18} /></span>
           <div>
@@ -256,23 +330,12 @@ export function MobilizacaoPage() {
         </button>
         <button
           type="button"
-          className={`mobilizacao-kpi${status === 'ambos' ? ' active' : ''}`}
-          onClick={() => setStatus(status === 'ambos' ? 'todos' : 'ambos')}
-        >
-          <span className="mobilizacao-kpi-icon"><CheckCircle2 size={18} /></span>
-          <div>
-            <span>Completos</span>
-            <strong className="tabular-nums">{counts.ambos.toLocaleString('pt-BR')}</strong>
-          </div>
-        </button>
-        <button
-          type="button"
           className={`mobilizacao-kpi${status === 'pendente' ? ' active' : ''}`}
           onClick={() => setStatus(status === 'pendente' ? 'todos' : 'pendente')}
         >
           <span className="mobilizacao-kpi-icon"><CircleDashed size={18} /></span>
           <div>
-            <span>Pendentes</span>
+            <span>Sem registro</span>
             <strong className="tabular-nums">{counts.pendentes.toLocaleString('pt-BR')}</strong>
           </div>
         </button>
@@ -314,65 +377,42 @@ export function MobilizacaoPage() {
                     <th>Nome</th>
                     <th>Tipo</th>
                     <th>Detalhe</th>
-                    <th>Adesivou</th>
-                    <th>Postou</th>
+                    <th>Carros</th>
+                    <th>Adesivos casa</th>
+                    <th>Postagens</th>
                     <th>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pageItems.map((p) => {
-                    const busy = savingKey === p.key
-                    return (
-                      <tr key={p.key}>
-                        <td>
-                          <strong>{p.nome}</strong>
-                        </td>
-                        <td>
-                          <span className={`mobilizacao-tipo mobilizacao-tipo-${p.tipo}`}>
-                            {p.tipoLabel}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="mobilizacao-name-cell">{p.detalhe}</span>
-                        </td>
-                        <td>
-                          <select
-                            className="mobilizacao-select"
-                            value={p.adesivou_carro ? 'sim' : 'nao'}
-                            disabled={busy}
-                            aria-label={`Adesivou — ${p.nome}`}
-                            onChange={(e) => setFlag(p, 'adesivou_carro', e.target.value === 'sim')}
-                          >
-                            <option value="nao">Não</option>
-                            <option value="sim">Sim</option>
-                          </select>
-                        </td>
-                        <td>
-                          <select
-                            className="mobilizacao-select"
-                            value={p.postou_rede ? 'sim' : 'nao'}
-                            disabled={busy}
-                            aria-label={`Postou — ${p.nome}`}
-                            onChange={(e) => setFlag(p, 'postou_rede', e.target.value === 'sim')}
-                          >
-                            <option value="nao">Não</option>
-                            <option value="sim">Sim</option>
-                          </select>
-                        </td>
-                        <td>
-                          {p.href ? (
-                            <Link to={p.href}>
-                              <Button variant="ghost" size="sm" aria-label="Abrir ficha">
-                                <ExternalLink size={16} />
-                              </Button>
-                            </Link>
-                          ) : (
-                            <span className="mobilizacao-name-cell">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
+                  {pageItems.map((p) => (
+                    <tr key={p.key}>
+                      <td>
+                        <strong>{p.nome}</strong>
+                      </td>
+                      <td>
+                        <span className={`mobilizacao-tipo mobilizacao-tipo-${p.tipo}`}>
+                          {p.tipoLabel}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="mobilizacao-name-cell">{p.detalhe}</span>
+                      </td>
+                      <td>{qtyInput(p, 'carros_adesivados', 'Carros adesivados')}</td>
+                      <td>{qtyInput(p, 'adesivos_casa', 'Adesivos para casa')}</td>
+                      <td>{qtyInput(p, 'postagens', 'Postagens')}</td>
+                      <td>
+                        {p.href ? (
+                          <Link to={p.href}>
+                            <Button variant="ghost" size="sm" aria-label="Abrir ficha">
+                              <ExternalLink size={16} />
+                            </Button>
+                          </Link>
+                        ) : (
+                          <span className="mobilizacao-name-cell">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
