@@ -95,6 +95,23 @@ as $$
   select p.role from public.profiles p where p.id = auth.uid() limit 1;
 $$;
 
+create or replace function public.list_cadastro_operadores()
+returns table (id uuid, nome text, diretoria_id uuid)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select p.id, p.nome, p.diretoria_id
+  from public.profiles p
+  where auth.uid() is not null
+    and p.role = 'operador'
+  order by p.nome;
+$$;
+
+revoke all on function public.list_cadastro_operadores() from public;
+grant execute on function public.list_cadastro_operadores() to authenticated;
+
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -194,7 +211,7 @@ create policy profiles_admin_insert on public.profiles
 drop policy if exists cadastros_select on public.cadastros;
 create policy cadastros_select on public.cadastros
   for select to authenticated
-  using (operator_id = auth.uid() or public.is_admin());
+  using (true);
 
 drop policy if exists cadastros_insert on public.cadastros;
 create policy cadastros_insert on public.cadastros
@@ -210,7 +227,19 @@ create policy cadastros_update on public.cadastros
 drop policy if exists cadastros_delete on public.cadastros;
 create policy cadastros_delete on public.cadastros
   for delete to authenticated
-  using (operator_id = auth.uid() or public.is_admin());
+  using (
+    operator_id = auth.uid()
+    or public.is_admin()
+    or (
+      public.is_diretoria()
+      and (
+        diretoria_id = auth.uid()
+        or operator_id in (
+          select id from public.profiles where diretoria_id = auth.uid()
+        )
+      )
+    )
+  );
 
 drop policy if exists importacoes_select on public.importacoes;
 create policy importacoes_select on public.importacoes
