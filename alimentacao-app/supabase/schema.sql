@@ -35,10 +35,13 @@ create table if not exists public.cadastros (
   postagens integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint cadastros_cpf_unique unique (cpf),
   constraint cadastros_cpf_digits check (cpf is null or cpf ~ '^[0-9]{11}$'),
   constraint cadastros_cep_digits check (cep is null or cep ~ '^[0-9]{8}$')
 );
+
+create unique index if not exists cadastros_cpf_unique_filled
+  on public.cadastros (cpf)
+  where cpf is not null and btrim(cpf) <> '';
 
 create index if not exists cadastros_operator_id_idx on public.cadastros(operator_id);
 create index if not exists cadastros_zona_idx on public.cadastros(zona);
