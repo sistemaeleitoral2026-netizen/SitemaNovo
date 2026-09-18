@@ -95,9 +95,11 @@ export function validateImportRow(data: CadastroFormData): FieldErrors {
 }
 
 export function isDuplicateCpfError(message: string): boolean {
-  return message.includes('cadastros_cpf_unique') || message.toLowerCase().includes('duplicate')
+  const m = message.toLowerCase()
+  return m.includes('cadastros_cpf_unique') || m.includes('cadastros_cpf_unique_filled')
 }
 
 export function isDuplicateTituloError(message: string): boolean {
-  return message.includes('cadastros_titulo_unique') || message.toLowerCase().includes('titulo')
+  const m = message.toLowerCase()
+  return m.includes('cadastros_titulo_unique') || m.includes('cadastros_titulo_unique_filled')
 }
