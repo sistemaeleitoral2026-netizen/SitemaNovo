@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Car, Home, Megaphone, CircleDashed, Search, ExternalLink } from 'lucide-react'
+import { Car, Home, Megaphone, CircleDashed, Search, ExternalLink, Save, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -68,7 +68,9 @@ export function MobilizacaoPage() {
   const [search, setSearch] = useState('')
   const [tipoFilter, setTipoFilter] = useState<TipoPessoa>('todos')
   const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [savingAll, setSavingAll] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(25)
   const [drafts, setDrafts] = useState<Record<string, Partial<Record<QtyField, string>>>>({})
@@ -210,51 +212,85 @@ export function MobilizacaoPage() {
     }))
   }
 
-  async function commitQty(row: PessoaRow, field: QtyField) {
-    const raw = drafts[row.key]?.[field]
-    const next = raw === undefined ? row[field] : toQty(raw)
-    setDrafts((prev) => {
-      const copy = { ...prev }
-      if (copy[row.key]) {
-        const fields = { ...copy[row.key] }
-        delete fields[field]
-        if (Object.keys(fields).length === 0) delete copy[row.key]
-        else copy[row.key] = fields
-      }
-      return copy
+  const dirtyRows = useMemo(
+    () => pessoas.filter((row) => {
+      const draft = drafts[row.key]
+      return draft && (Object.keys(draft) as QtyField[]).some((field) => toQty(draft[field]) !== row[field])
+    }),
+    [drafts, pessoas],
+  )
+
+  async function saveRow(row: PessoaRow, showFeedback = true) {
+    const draft = drafts[row.key]
+    if (!draft) return true
+
+    const changes: Partial<Record<QtyField, number>> = {}
+    ;(Object.keys(draft) as QtyField[]).forEach((field) => {
+      const next = toQty(draft[field])
+      if (next !== row[field]) changes[field] = next
     })
 
-    if (next === row[field]) return
+    if (Object.keys(changes).length === 0) {
+      setDrafts((prev) => {
+        const copy = { ...prev }
+        delete copy[row.key]
+        return copy
+      })
+      return true
+    }
 
-    setSavingKey(`${row.key}-${field}`)
+    setSavingKey(row.key)
     setError(null)
+    setSuccess(null)
 
     let err: string | null = null
     if (row.tipo === 'eleitor') {
-      ;({ error: err } = await updateMobilizacaoFlags(row.id, { [field]: next }))
+      ;({ error: err } = await updateMobilizacaoFlags(row.id, changes))
     } else if (row.tipo === 'coordenador') {
-      ;({ error: err } = await updateEquipeMobilizacaoFlags('coordenadores', row.id, { [field]: next }))
+      ;({ error: err } = await updateEquipeMobilizacaoFlags('coordenadores', row.id, changes))
     } else {
-      ;({ error: err } = await updateEquipeMobilizacaoFlags('lideres', row.id, { [field]: next }))
+      ;({ error: err } = await updateEquipeMobilizacaoFlags('lideres', row.id, changes))
     }
 
     setSavingKey(null)
     if (err) {
       setError(err)
-      return
+      return false
     }
 
     if (row.tipo === 'eleitor') {
-      setCadastros((prev) => prev.map((c) => (c.id === row.id ? { ...c, [field]: next } : c)))
+      setCadastros((prev) => prev.map((c) => (c.id === row.id ? { ...c, ...changes } : c)))
     } else if (row.tipo === 'coordenador') {
-      setCoordenadores((prev) => prev.map((c) => (c.id === row.id ? { ...c, [field]: next } : c)))
+      setCoordenadores((prev) => prev.map((c) => (c.id === row.id ? { ...c, ...changes } : c)))
     } else {
-      setLideres((prev) => prev.map((l) => (l.id === row.id ? { ...l, [field]: next } : l)))
+      setLideres((prev) => prev.map((l) => (l.id === row.id ? { ...l, ...changes } : l)))
     }
+
+    setDrafts((prev) => {
+      const copy = { ...prev }
+      delete copy[row.key]
+      return copy
+    })
+    if (showFeedback) setSuccess(`Alterações de ${row.nome} salvas.`)
+    return true
+  }
+
+  async function saveAll() {
+    if (!dirtyRows.length) return
+    setSavingAll(true)
+    setError(null)
+    setSuccess(null)
+    let saved = 0
+    for (const row of dirtyRows) {
+      if (await saveRow(row, false)) saved += 1
+      else break
+    }
+    setSavingAll(false)
+    if (saved > 0) setSuccess(`${saved} ${saved === 1 ? 'registro salvo' : 'registros salvos'} com sucesso.`)
   }
 
   function qtyInput(row: PessoaRow, field: QtyField, label: string) {
-    const busy = savingKey === `${row.key}-${field}`
+    const busy = savingKey === row.key || savingAll
     return (
       <input
         type="text"
@@ -265,10 +301,9 @@ export function MobilizacaoPage() {
         placeholder="0"
         aria-label={`${label} — ${row.nome}`}
         onChange={(e) => setDraft(row.key, field, e.target.value)}
-        onBlur={() => commitQty(row, field)}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
-            e.currentTarget.blur()
+            saveRow(row)
           }
         }}
       />
@@ -291,6 +326,17 @@ export function MobilizacaoPage() {
           <p className="page-subtitle">
             Informe as quantidades de carros adesivados, adesivos para casa e postagens.
           </p>
+        </div>
+        <div className="page-header-actions">
+          <Button
+            type="button"
+            onClick={saveAll}
+            loading={savingAll}
+            disabled={!dirtyRows.length}
+          >
+            <Save size={17} />
+            {dirtyRows.length ? `Salvar alterações (${dirtyRows.length})` : 'Tudo salvo'}
+          </Button>
         </div>
       </div>
 
@@ -362,6 +408,11 @@ export function MobilizacaoPage() {
         </div>
 
         {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
+        {success && (
+          <div className="alert alert-success mobilizacao-feedback" role="status">
+            <CheckCircle2 size={16} /> {success}
+          </div>
+        )}
 
         {!filtered.length ? (
           <EmptyState
@@ -370,7 +421,7 @@ export function MobilizacaoPage() {
           />
         ) : (
           <>
-            <div className="table-wrapper">
+            <div className="table-wrapper mobilizacao-table-desktop">
               <table className="data-table">
                 <thead>
                   <tr>
@@ -401,20 +452,50 @@ export function MobilizacaoPage() {
                       <td>{qtyInput(p, 'adesivos_casa', 'Adesivos para casa')}</td>
                       <td>{qtyInput(p, 'postagens', 'Postagens')}</td>
                       <td>
-                        {p.href ? (
-                          <Link to={p.href}>
-                            <Button variant="ghost" size="sm" aria-label="Abrir ficha">
-                              <ExternalLink size={16} />
+                        <div className="mobilizacao-actions">
+                          {drafts[p.key] && (
+                            <Button size="sm" onClick={() => saveRow(p)} loading={savingKey === p.key}>
+                              <Save size={15} /> Salvar
                             </Button>
-                          </Link>
-                        ) : (
-                          <span className="mobilizacao-name-cell">—</span>
-                        )}
+                          )}
+                          {p.href && (
+                            <Link to={p.href}>
+                              <Button variant="ghost" size="sm" aria-label={`Abrir ficha de ${p.nome}`} title="Abrir ficha">
+                                <ExternalLink size={16} />
+                              </Button>
+                            </Link>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            <div className="mobilizacao-mobile-list">
+              {pageItems.map((p) => (
+                <article className={`mobilizacao-mobile-card${drafts[p.key] ? ' is-dirty' : ''}`} key={p.key}>
+                  <div className="mobilizacao-mobile-head">
+                    <div>
+                      <strong>{p.nome}</strong>
+                      <span>{p.detalhe}</span>
+                    </div>
+                    <span className={`mobilizacao-tipo mobilizacao-tipo-${p.tipo}`}>{p.tipoLabel}</span>
+                  </div>
+                  <div className="mobilizacao-mobile-fields">
+                    <label><span>Carros</span>{qtyInput(p, 'carros_adesivados', 'Carros adesivados')}</label>
+                    <label><span>Adesivos casa</span>{qtyInput(p, 'adesivos_casa', 'Adesivos para casa')}</label>
+                    <label><span>Postagens</span>{qtyInput(p, 'postagens', 'Postagens')}</label>
+                  </div>
+                  <div className="mobilizacao-mobile-actions">
+                    {p.href && <Link to={p.href} className="mobilizacao-open-link"><ExternalLink size={15} /> Abrir ficha</Link>}
+                    <Button size="sm" onClick={() => saveRow(p)} loading={savingKey === p.key} disabled={!drafts[p.key]}>
+                      <Save size={15} /> {drafts[p.key] ? 'Salvar alterações' : 'Salvo'}
+                    </Button>
+                  </div>
+                </article>
+              ))}
             </div>
 
             <Pagination

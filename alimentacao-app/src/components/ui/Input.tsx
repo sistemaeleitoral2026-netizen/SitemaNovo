@@ -9,24 +9,18 @@ export function Input({ label, error, id, style, ...props }: InputProps) {
   const inputId = id ?? label?.toLowerCase().replace(/\s+/g, '-')
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+    <div className="ui-field">
       {label && (
-        <label htmlFor={inputId} style={{ fontSize: '0.875rem', fontWeight: 500 }}>
+        <label htmlFor={inputId} className="ui-field-label">
           {label}
         </label>
       )}
       <input
         id={inputId}
         {...props}
-        style={{
-          width: '100%',
-          padding: '0.625rem 0.75rem',
-          border: `1px solid ${error ? 'var(--color-danger)' : 'var(--color-border)'}`,
-          borderRadius: 'var(--radius)',
-          background: '#fff',
-          outline: 'none',
-          ...style,
-        }}
+        aria-invalid={error ? true : undefined}
+        className={`ui-input${error ? ' ui-input-error' : ''}`}
+        style={style}
       />
       {error && <span className="field-error">{error}</span>}
     </div>
