@@ -1,5 +1,4 @@
-import { X } from 'lucide-react'
-import { Button } from './Button'
+import { Link } from 'react-router-dom'
 import { metaProgress } from '../../lib/meta'
 
 interface MetaGoalPopupProps {
@@ -13,68 +12,35 @@ export function MetaGoalPopup({ open, atual, meta, onClose }: MetaGoalPopupProps
   if (!open) return null
 
   const { restante, pct, batida } = metaProgress(atual, meta)
+  const barW = `${Math.max(pct, 0.6)}%`
 
   return (
-    <>
-      <div className="meta-popup-overlay" onClick={onClose} aria-hidden />
-      <div className="meta-popup" role="dialog" aria-modal aria-labelledby="meta-popup-title">
-        <button type="button" className="meta-popup-close" onClick={onClose} aria-label="Fechar">
-          <X size={18} />
-        </button>
-
-        <p className="meta-popup-kicker">Acompanhamento diário</p>
+    <div className="nv-meta-overlay" onClick={onClose} role="presentation">
+      <div
+        className="nv-meta-modal"
+        role="dialog"
+        aria-modal
+        aria-labelledby="meta-popup-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="nv-meta-kicker">Meta do sistema</div>
         <h2 id="meta-popup-title">
-          {batida ? 'Meta de fichas atingida' : 'Progresso da meta de fichas'}
-        </h2>
-        <p className="meta-popup-lead">
           {batida
-            ? `O sistema já registrou ${atual.toLocaleString('pt-BR')} fichas — acima da meta de ${meta.toLocaleString('pt-BR')}.`
-            : `Hoje o sistema está com ${atual.toLocaleString('pt-BR')} fichas. Ainda faltam ${restante.toLocaleString('pt-BR')} para chegar a ${meta.toLocaleString('pt-BR')}.`}
+            ? 'Meta de fichas alcançada'
+            : `Faltam ${restante.toLocaleString('pt-BR')} fichas para a meta`}
+        </h2>
+        <p>
+          Hoje o sistema tem{' '}
+          <strong>{atual.toLocaleString('pt-BR')}</strong> de{' '}
+          <strong>{meta.toLocaleString('pt-BR')}</strong> fichas ({pct.toFixed(1).replace('.', ',')}%).
+          Esse aviso aparece uma vez por dia.
         </p>
-
-        <div className={`meta-popup-hero${batida ? ' done' : ''}`}>
-          <span className="meta-popup-hero-label">{batida ? 'Total confirmado' : 'Faltam'}</span>
-          <strong className="tabular-nums">
-            {batida ? atual.toLocaleString('pt-BR') : restante.toLocaleString('pt-BR')}
-          </strong>
-          <span className="meta-popup-hero-sub">
-            {batida ? `Meta: ${meta.toLocaleString('pt-BR')}` : `Meta: ${meta.toLocaleString('pt-BR')} fichas`}
-          </span>
+        <div className="nv-meta-bar"><i style={{ width: barW }} /></div>
+        <div className="nv-meta-actions">
+          <button type="button" className="nv-meta-primary" onClick={onClose}>Entendi</button>
+          <Link to="/configuracoes" className="nv-meta-secondary" onClick={onClose}>Ajustar meta</Link>
         </div>
-
-        <div className="meta-popup-bar-wrap">
-          <div className="meta-popup-bar-top">
-            <span>{atual.toLocaleString('pt-BR')} / {meta.toLocaleString('pt-BR')}</span>
-            <span>{pct}%</span>
-          </div>
-          <div className="meta-popup-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-            <i style={{ width: `${Math.max(pct, batida ? 100 : 2)}%` }} />
-          </div>
-        </div>
-
-        <div className="meta-popup-stats">
-          <div>
-            <span>Atual</span>
-            <strong className="tabular-nums">{atual.toLocaleString('pt-BR')}</strong>
-          </div>
-          <div>
-            <span>Meta</span>
-            <strong className="tabular-nums">{meta.toLocaleString('pt-BR')}</strong>
-          </div>
-          <div>
-            <span>{batida ? 'Acima' : 'Restante'}</span>
-            <strong className="tabular-nums">
-              {batida
-                ? `+${(atual - meta).toLocaleString('pt-BR')}`
-                : restante.toLocaleString('pt-BR')}
-            </strong>
-          </div>
-        </div>
-
-        <Button className="meta-popup-cta" onClick={onClose}>
-          Continuar
-        </Button>
       </div>
-    </>
+    </div>
   )
 }

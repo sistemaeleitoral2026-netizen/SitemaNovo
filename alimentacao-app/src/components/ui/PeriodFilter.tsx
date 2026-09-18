@@ -10,10 +10,10 @@ interface PeriodFilterProps {
 }
 
 const options: { value: PeriodPreset; label: string }[] = [
+  { value: '7d', label: 'Últimos 7 dias' },
+  { value: '30d', label: 'Últimos 30 dias' },
+  { value: '90d', label: 'Últimos 90 dias' },
   { value: 'all', label: 'Todo o período' },
-  { value: '90d', label: '90 dias' },
-  { value: '30d', label: '30 dias' },
-  { value: '7d', label: '7 dias' },
 ]
 
 export function PeriodFilterSelect({ value, onChange, showRange = true }: PeriodFilterProps) {

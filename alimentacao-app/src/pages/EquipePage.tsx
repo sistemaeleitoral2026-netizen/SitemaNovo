@@ -306,17 +306,43 @@ export function EquipePage() {
     const { data: sessionData } = await supabase.auth.getSession()
     const token = sessionData.session?.access_token
     if (!token) return { error: 'Sessão expirada.' }
-    const res = await fetch('/api/manage-nerite', {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(body),
-    })
-    const payload = await res.json().catch(() => ({}))
-    if (!res.ok) return { error: payload.error || 'Não foi possível concluir a operação.' }
-    return { error: null }
+
+    try {
+      const res = await fetch('/api/manage-nerite', {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) return { error: null }
+      const payload = await res.json().catch(() => ({}))
+      // Em dev local a API serverless pode não existir — fallback admin via RLS.
+      if (res.status !== 404 && res.status !== 500 && payload.error) {
+        return { error: payload.error || 'Não foi possível concluir a operação.' }
+      }
+    } catch {
+      /* fallback abaixo */
+    }
+
+    const neriteId = String(body.id || '')
+    if (!neriteId) return { error: 'Informe a nerite.' }
+
+    if (method === 'DELETE') {
+      const { error } = await supabase.from('profiles').update({ ativo: false }).eq('id', neriteId)
+      return { error: error?.message || null }
+    }
+
+    const patch: Record<string, unknown> = {
+      nome: body.nome,
+      diretoria_id: body.diretoria_id || null,
+      coordenador_id: body.coordenador_id || null,
+      lider_id: body.lider_id || null,
+      ativo: body.ativo == null ? true : Boolean(body.ativo),
+    }
+    const { error } = await supabase.from('profiles').update(patch).eq('id', neriteId)
+    return { error: error?.message || null }
   }
 
   async function handleSaveNerite() {

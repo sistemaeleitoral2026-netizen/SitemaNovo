@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  ClipboardList,
   MapPin,
   Users,
   UserCog,
@@ -9,8 +8,21 @@ import {
   UserPlus,
   CalendarDays,
   Car,
+  House,
+  Megaphone,
+  CircleDashed,
+  FileText,
+  Sun,
+  Network,
+  TrendingUp,
+  Flag,
+  Map as MapIcon,
+  BarChart3,
+  Award,
+  Clock,
+  Mountain,
 } from 'lucide-react'
-import { format, parseISO, startOfDay } from 'date-fns'
+import { format, parseISO, startOfDay, subDays } from 'date-fns'
 import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
 import { PeriodFilterSelect } from '../components/ui/PeriodFilter'
@@ -31,6 +43,78 @@ import { supabase } from '../lib/supabase'
 import type { Cadastro, Coordenador, Lider, Profile } from '../types'
 
 type DirFilter = 'all' | string
+
+type MobilizacaoSource = Pick<Cadastro,
+  'operator_id' | 'diretoria_id' | 'carros_adesivados' | 'adesivos_casa' | 'postagens'
+>
+
+interface MobilizacaoTotals {
+  carros: number
+  casa: number
+  postagens: number
+  pendentes: number
+  fichas: number
+  equipe: number
+}
+
+function sumMobilizacao(
+  cadastros: MobilizacaoSource[],
+  coordenadores: Coordenador[],
+  lideres: Lider[],
+): MobilizacaoTotals {
+  const rows = [...cadastros, ...coordenadores, ...lideres]
+  const totals = rows.reduce<MobilizacaoTotals>((acc, row) => {
+    const carros = Number(row.carros_adesivados) || 0
+    const casa = Number(row.adesivos_casa) || 0
+    const postagens = Number(row.postagens) || 0
+    acc.carros += carros
+    acc.casa += casa
+    acc.postagens += postagens
+    if (carros === 0 && casa === 0 && postagens === 0) acc.pendentes += 1
+    return acc
+  }, { carros: 0, casa: 0, postagens: 0, pendentes: 0, fichas: cadastros.length, equipe: coordenadores.length + lideres.length })
+  return totals
+}
+
+function MobilizacaoSummary({ totals }: { totals: MobilizacaoTotals }) {
+  const items = [
+    { label: 'Carros adesivados', value: totals.carros, status: 'carros', icon: Car, tone: 'blue' },
+    { label: 'Adesivos para casa', value: totals.casa, status: 'casa', icon: House, tone: 'emerald' },
+    { label: 'Postagens', value: totals.postagens, status: 'postagens', icon: Megaphone, tone: 'violet' },
+    { label: 'Sem lançamento', value: totals.pendentes, status: 'pendente', icon: CircleDashed, tone: 'amber' },
+  ] as const
+
+  return (
+    <section className="dashboard-mobilizacao" aria-labelledby="mobilizacao-title">
+      <div className="section-label-row">
+        <div>
+          <h2 className="section-label" id="mobilizacao-title">Mobilização</h2>
+          <p className="section-description">
+            Controle separado: {totals.fichas.toLocaleString('pt-BR')} fichas individuais +{' '}
+            {totals.equipe.toLocaleString('pt-BR')} pessoas da equipe
+          </p>
+        </div>
+        <Link to="/mobilizacao" className="card-action-link">Gerenciar mobilização →</Link>
+      </div>
+      <div className="mobilizacao-summary-grid">
+        {items.map(({ label, value, status, icon: Icon, tone }) => (
+          <Link
+            to={`/mobilizacao?status=${status}`}
+            className="mobilizacao-summary-card"
+            key={status}
+          >
+            <span className={`mobilizacao-summary-icon tone-${tone}`}><Icon size={19} /></span>
+            <span className="mobilizacao-summary-copy">
+              <span>{label}</span>
+              <strong className="tabular-nums">{value.toLocaleString('pt-BR')}</strong>
+            </span>
+            <span className="mobilizacao-summary-arrow" aria-hidden>→</span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  )
+}
 
 interface DiretoriaStats {
   id: string
@@ -53,8 +137,8 @@ function AdminDashboard() {
   const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('30d')
   const [dirFilter, setDirFilter] = useState<DirFilter>('all')
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
+  const [mobilizacaoCadastros, setMobilizacaoCadastros] = useState<MobilizacaoSource[]>([])
   const [totalFichas, setTotalFichas] = useState(0)
-  const [carrosAdesivados, setCarrosAdesivados] = useState(0)
   const [diretorias, setDiretorias] = useState<Profile[]>([])
   const [nerites, setNerites] = useState<Profile[]>([])
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
@@ -73,26 +157,18 @@ function AdminDashboard() {
     async function load() {
       setLoading(true)
       try {
-        const [cData, totalRes, cadMob, coordMob, liderMob, dirs, ops, coords, lids] = await Promise.all([
+        const [cData, totalRes, mobCadastros, dirs, ops, coords, lids] = await Promise.all([
           fetchCadastros({ period }),
           supabase.from('cadastros').select('*', { count: 'exact', head: true }),
-          supabase.from('cadastros').select('carros_adesivados'),
-          supabase.from('coordenadores').select('carros_adesivados'),
-          supabase.from('lideres').select('carros_adesivados'),
+          fetchCadastros(),
           supabase.from('profiles').select('*').eq('role', 'diretoria').order('nome'),
           supabase.from('profiles').select('*').eq('role', 'operador').order('nome'),
           supabase.from('coordenadores').select('*'),
           supabase.from('lideres').select('*'),
         ])
         setCadastros(cData)
+        setMobilizacaoCadastros(mobCadastros)
         setTotalFichas(totalRes.count ?? 0)
-        const sumCarros = (rows: { carros_adesivados?: number | null }[] | null) =>
-          (rows ?? []).reduce((acc, r) => acc + (Number(r.carros_adesivados) || 0), 0)
-        setCarrosAdesivados(
-          sumCarros(cadMob.data as { carros_adesivados?: number }[] | null)
-          + sumCarros(coordMob.data as { carros_adesivados?: number }[] | null)
-          + sumCarros(liderMob.data as { carros_adesivados?: number }[] | null),
-        )
         setDiretorias((dirs.data ?? []) as Profile[])
         setNerites((ops.data ?? []) as Profile[])
         setCoordenadores((coords.data ?? []) as Coordenador[])
@@ -165,6 +241,21 @@ function AdminDashboard() {
     return nerites.filter((n) => n.diretoria_id === dirFilter)
   }, [nerites, dirFilter])
 
+  const mobilizacaoTotals = useMemo(() => {
+    if (dirFilter === 'all') return sumMobilizacao(mobilizacaoCadastros, coordenadores, lideres)
+    const teamIds = new Set(nerites.filter((n) => n.diretoria_id === dirFilter).map((n) => n.id))
+    return sumMobilizacao(
+      mobilizacaoCadastros.filter((c) => c.diretoria_id === dirFilter || teamIds.has(c.operator_id)),
+      coordenadores.filter((c) => c.diretoria_id === dirFilter),
+      lideres.filter((l) => l.diretoria_id === dirFilter),
+    )
+  }, [mobilizacaoCadastros, coordenadores, lideres, nerites, dirFilter])
+
+  const fichasSemDiretoria = useMemo(() => {
+    const teamIds = new Set(nerites.map((n) => n.id))
+    return cadastros.filter((c) => !c.diretoria_id && !teamIds.has(c.operator_id)).length
+  }, [cadastros, nerites])
+
   const todayCount = useMemo(() => {
     const start = startOfDay(new Date()).toISOString()
     return scopedCadastros.filter((c) => c.created_at >= start).length
@@ -225,7 +316,7 @@ function AdminDashboard() {
           nerite: neriteById.get(c.operator_id)?.nome ?? '—',
           zona: c.zona || '—',
           secao: c.secao || '—',
-          coordenador: c.coordenador || '—',
+          lider: c.lider?.trim() || '—',
           data: formatShortDateTime(c.created_at),
           dir: diretorias.find((d) => d.id === (c.diretoria_id || neriteById.get(c.operator_id)?.diretoria_id))?.nome,
         })),
@@ -237,6 +328,107 @@ function AdminDashboard() {
   const mapMarkers = useMemo(() => buildMapMarkers(scopedCadastros), [scopedCadastros])
   const maxRank = ranking[0]?.total || 1
 
+  const periodLabel = useMemo(() => {
+    const map: Record<PeriodPreset, string> = {
+      '7d': 'últimos 7 dias',
+      '30d': 'últimos 30 dias',
+      '90d': 'últimos 90 dias',
+      all: 'todo o período',
+    }
+    return map[periodPreset]
+  }, [periodPreset])
+
+  const escopoNome = useMemo(() => {
+    if (dirFilter === 'all') return 'Geral'
+    return dirStats.find((d) => d.id === dirFilter)?.nome ?? 'Diretoria'
+  }, [dirFilter, dirStats])
+
+  const escopoCurto = dirFilter === 'all' ? 'todas as diretorias' : escopoNome
+
+  const atualizadoEm = useMemo(() => {
+    const latest = [...scopedCadastros].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+    if (!latest) return 'sem lançamentos'
+    try {
+      return `atualizado ${format(parseISO(latest.created_at), "dd/MM 'às' HH:mm")}`
+    } catch {
+      return '—'
+    }
+  }, [scopedCadastros])
+
+  const ultimoLancamento = useMemo(() => {
+    const latest = [...scopedCadastros].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+    if (!latest) return 'sem lançamentos'
+    try {
+      return `último lançamento ${format(parseISO(latest.created_at), "dd/MM, HH:mm")}`
+    } catch {
+      return '—'
+    }
+  }, [scopedCadastros])
+
+  const topSecoes = useMemo(() => {
+    const map = new Map<string, number>()
+    scopedCadastros.forEach((c) => {
+      const s = c.secao?.trim()
+      if (!s) return
+      map.set(s, (map.get(s) ?? 0) + 1)
+    })
+    return Array.from(map.entries())
+      .map(([n, v]) => ({ n, v }))
+      .sort((a, b) => b.v - a.v)
+      .slice(0, 5)
+  }, [scopedCadastros])
+
+  const diasAtivos = useMemo(() => {
+    const days = new Set(evolution.filter((e) => e.total > 0).map((e) => e.date))
+    const totalDays = periodPreset === '7d' ? 7 : periodPreset === '30d' ? 30 : periodPreset === '90d' ? 90 : Math.max(days.size, 1)
+    return `${days.size}/${periodPreset === 'all' ? Math.max(days.size, 1) : totalDays}`
+  }, [evolution, periodPreset])
+
+  const melhorDia = useMemo(() => {
+    if (!evolution.length) return '—'
+    const best = [...evolution].sort((a, b) => b.total - a.total)[0]
+    if (!best || best.total <= 0) return '—'
+    try {
+      return format(parseISO(best.date), 'dd/MM')
+    } catch {
+      return best.date
+    }
+  }, [evolution])
+
+  const evoVisual = useMemo(() => {
+    const dayCount = periodPreset === '7d' ? 7 : 14
+    const byDay = new Map(evolution.map((e) => [e.date, e.total]))
+    const bars = Array.from({ length: dayCount }, (_, i) => {
+      const date = format(subDays(new Date(), dayCount - 1 - i), 'dd/MM')
+      return { date, total: byDay.get(date) ?? 0 }
+    })
+    const maxVal = Math.max(...bars.map((b) => b.total), 1)
+    const yMax = Math.max(10, Math.ceil(maxVal / 10) * 10)
+    const eixoY = [yMax, Math.round(yMax * 0.75), Math.round(yMax * 0.5), Math.round(yMax * 0.25), 0]
+    const peak = bars.reduce((m, b) => (b.total > m.total ? b : m), { date: '', total: -1 })
+    return {
+      eixoY,
+      bars: bars.map((b) => ({
+        label: b.date.slice(0, 2),
+        valor: b.total,
+        h: `${Math.max(3, Math.round((b.total / yMax) * 100))}%`,
+        active: b.total > 0 && b.date === peak.date,
+      })),
+      nota: bars.some((b) => b.total > 0)
+        ? `Coleta no período: pico de ${peak.total.toLocaleString('pt-BR')} em ${peak.date}.`
+        : 'Nenhuma ficha lançada neste período.',
+    }
+  }, [evolution, periodPreset])
+
+  const mobBase = mobilizacaoTotals.fichas + mobilizacaoTotals.equipe
+  const mobComLancamento = Math.max(0, mobBase - mobilizacaoTotals.pendentes)
+  const coberturaPct = mobBase > 0 ? Math.round((mobComLancamento / mobBase) * 100) : 0
+  const filtroAtivo = dirFilter !== 'all'
+  const dirQuery = filtroAtivo ? `?diretoria=${dirFilter}` : ''
+  const dirQueryAmp = filtroAtivo ? `&diretoria=${dirFilter}` : ''
+  const totalSistemaFichas = Math.max(totalFichas, 1)
+  const pctLabel = `${goal.pct.toFixed(1).replace('.', ',')}%`
+
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
@@ -246,7 +438,7 @@ function AdminDashboard() {
   }
 
   return (
-    <div className="dashboard-page">
+    <div className="nv-dash">
       <MetaGoalPopup
         open={metaPopupOpen}
         atual={totalFichas}
@@ -254,16 +446,19 @@ function AdminDashboard() {
         onClose={closeMetaPopup}
       />
 
-      <div className="dashboard-heading">
+      <div className="nv-heading">
         <div>
-          <h1>Dashboard</h1>
-          <p>Visão geral das fichas, diretorias e desempenho da equipe.</p>
+          <p className="nv-eyebrow">Painel administrativo</p>
+          <h1>Visão geral</h1>
+          <p className="nv-sub">
+            Exibindo <strong>{escopoNome}</strong> · {periodLabel} · {atualizadoEm}
+          </p>
         </div>
-        <div className="dashboard-heading-actions">
-          <div className="dir-filter-group" role="group" aria-label="Filtro de diretoria">
+        <div className="nv-heading-actions">
+          <div className="nv-tabs" role="group" aria-label="Filtro de diretoria">
             <button
               type="button"
-              className={`dir-filter-btn${dirFilter === 'all' ? ' active' : ''}`}
+              className={`nv-tab${dirFilter === 'all' ? ' active' : ''}`}
               onClick={() => setDirFilter('all')}
             >
               Geral
@@ -272,282 +467,459 @@ function AdminDashboard() {
               <button
                 key={d.id}
                 type="button"
-                className={`dir-filter-btn${dirFilter === d.id ? ' active' : ''}`}
+                className={`nv-tab${dirFilter === d.id ? ' active' : ''}`}
                 onClick={() => setDirFilter(d.id)}
               >
                 {d.nome.replace(/^Diretora\s+/i, '')}
               </button>
             ))}
           </div>
-          <PeriodFilterSelect value={periodPreset} onChange={setPeriodPreset} />
+          <PeriodFilterSelect value={periodPreset} onChange={setPeriodPreset} showRange={false} />
         </div>
       </div>
 
-      <div className="admin-top-grid">
-        <div className={`meta-goal-card${goal.batida ? ' done' : ''}`}>
-          <div className="meta-goal-card-head">
-            <span>Meta do sistema</span>
-            <Link to="/configuracoes">Ajustar</Link>
-          </div>
-          <div className="meta-goal-card-body">
-            <div>
-              <strong className="tabular-nums">
-                {goal.batida
-                  ? goal.atual.toLocaleString('pt-BR')
-                  : goal.restante.toLocaleString('pt-BR')}
-              </strong>
-              <span>{goal.batida ? 'fichas confirmadas' : 'faltam para a meta'}</span>
-            </div>
-            <em className="tabular-nums">{goal.pct}%</em>
-          </div>
-          <div className="meta-goal-card-bar" role="progressbar" aria-valuenow={goal.pct} aria-valuemin={0} aria-valuemax={100}>
-            <i style={{ width: `${Math.max(goal.pct, goal.batida ? 100 : 2)}%` }} />
-          </div>
-          <p className="meta-goal-card-foot">
-            {goal.atual.toLocaleString('pt-BR')} de {goal.meta.toLocaleString('pt-BR')} fichas
-          </p>
+      {filtroAtivo && (
+        <div className="nv-filter-banner">
+          <span>
+            Painel filtrado pela <strong>{escopoNome}</strong> — fichas, mobilização, mapa e rankings
+            consideram só essa equipe. A meta segue global.
+          </span>
+          <button type="button" onClick={() => setDirFilter('all')}>Limpar filtro</button>
         </div>
+      )}
 
-        <div className="dash-kpi-card">
-          <div className="dash-kpi-top">
-            <span className="dash-kpi-icon tone-blue"><ClipboardList size={18} /></span>
-            <span className="dash-kpi-label" style={{ flex: 1 }}>Fichas no período</span>
+      <section className="nv-summary" aria-label="Resumo geral">
+        <div className="nv-summary-meta">
+          <div className="nv-summary-meta-head">
+            <span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="12" cy="12" r="8" />
+                <circle cx="12" cy="12" r="3.2" />
+              </svg>
+              Meta de fichas · global
+            </span>
+            <Link to="/configuracoes">Configurar</Link>
           </div>
+          <div className="nv-summary-meta-value">
+            <strong className="tabular-nums">{goal.atual.toLocaleString('pt-BR')}</strong>
+            <span>de {goal.meta.toLocaleString('pt-BR')}</span>
+            <em>{pctLabel}</em>
+          </div>
+          <div className="nv-bar" role="progressbar" aria-valuenow={goal.pct} aria-valuemin={0} aria-valuemax={100}>
+            <i style={{ width: `${Math.max(goal.pct, goal.batida ? 100 : 0.6)}%` }} />
+          </div>
+          <div className="nv-summary-meta-foot">
+            <span>
+              {goal.batida ? 'Meta alcançada' : `${goal.restante.toLocaleString('pt-BR')} fichas restantes`}
+            </span>
+            <span>total de fichas no sistema</span>
+          </div>
+        </div>
+        <div className="nv-summary-metric">
+          <span><FileText size={14} strokeWidth={1.6} aria-hidden />Fichas no período</span>
           <strong className="tabular-nums">{scopedCadastros.length.toLocaleString('pt-BR')}</strong>
-          <p className="dash-kpi-hint">Conforme o filtro ativo</p>
+          <em>{escopoCurto} · {periodLabel}</em>
         </div>
-        <div className="dash-kpi-card">
-          <div className="dash-kpi-top">
-            <span className="dash-kpi-icon tone-emerald"><CalendarDays size={18} /></span>
-            <span className="dash-kpi-label" style={{ flex: 1 }}>Hoje</span>
-          </div>
+        <div className="nv-summary-metric">
+          <span><Sun size={14} strokeWidth={1.6} aria-hidden />Cadastradas hoje</span>
           <strong className="tabular-nums">{todayCount.toLocaleString('pt-BR')}</strong>
-          <p className="dash-kpi-hint success">Cadastros do dia</p>
+          <em>{ultimoLancamento}</em>
         </div>
-        <div className="dash-kpi-card">
-          <div className="dash-kpi-top">
-            <span className="dash-kpi-icon tone-amber"><MapPin size={18} /></span>
-            <span className="dash-kpi-label" style={{ flex: 1 }}>Zonas</span>
-          </div>
+        <div className="nv-summary-metric">
+          <span><MapPin size={14} strokeWidth={1.6} aria-hidden />Zonas alcançadas</span>
           <strong className="tabular-nums">{zonas}</strong>
-          <p className="dash-kpi-hint">Com registro no período</p>
+          <em>
+            {zonas
+              ? `${zonas} ${zonas === 1 ? 'zona' : 'zonas'} no filtro`
+              : 'nenhuma zona no filtro'}
+          </em>
         </div>
-        <Link to="/mobilizacao?status=carros" className="dash-kpi-card dash-kpi-link">
-          <div className="dash-kpi-top">
-            <span className="dash-kpi-icon tone-blue"><Car size={18} /></span>
-            <span className="dash-kpi-label" style={{ flex: 1 }}>Carros adesivados</span>
+      </section>
+
+      <section>
+        <div className="nv-section-head">
+          <div>
+            <h2 className="nv-section-title">
+              <Network size={16} strokeWidth={1.6} aria-hidden />
+              Diretorias
+            </h2>
+            <p>Clique no card para filtrar o painel inteiro · clique de novo para voltar a Geral</p>
           </div>
-          <strong className="tabular-nums">{carrosAdesivados.toLocaleString('pt-BR')}</strong>
-          <p className="dash-kpi-hint">Ver mobilização →</p>
-        </Link>
-      </div>
-
-      <div className="section-label-row">
-        <h2 className="section-label">Diretorias</h2>
-        <span className="section-label-hint">Clique no card para filtrar o painel</span>
-      </div>
-
-      <div className="diretoria-cards-grid">
-        {dirStats.map((d) => {
-          const active = dirFilter === 'all' || dirFilter === d.id
-          const dimmed = dirFilter !== 'all' && dirFilter !== d.id
-          return (
-            <button
-              key={d.id}
-              type="button"
-              className={`diretoria-card tone-${d.tone}${active && dirFilter !== 'all' ? ' selected' : ''}${dimmed ? ' dimmed' : ''}`}
-              onClick={() => setDirFilter(dirFilter === d.id ? 'all' : d.id)}
-            >
-              <div className="diretoria-card-head">
-                <div>
-                  <div className="diretoria-card-title-row">
-                    <span className={`dir-avatar tone-${d.tone}`}>{initials(d.nome)}</span>
-                    <h2>{d.nome}</h2>
-                    <span className={`role-pill tone-${d.tone}`}>Diretora</span>
+          {fichasSemDiretoria > 0 && (
+            <span className="nv-section-hint">
+              {fichasSemDiretoria} {fichasSemDiretoria === 1 ? 'ficha' : 'fichas'} sem diretoria
+            </span>
+          )}
+        </div>
+        <div className="nv-dir-grid">
+          {dirStats.map((d) => {
+            const ativo = dirFilter === d.id
+            const share = Math.round((d.fichadas / totalSistemaFichas) * 100)
+            return (
+              <div
+                key={d.id}
+                role="button"
+                tabIndex={0}
+                className={`nv-dir-card${ativo ? ' active' : ''}`}
+                onClick={() => setDirFilter(ativo ? 'all' : d.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setDirFilter(ativo ? 'all' : d.id)
+                  }
+                }}
+              >
+                <div className="nv-dir-card-top">
+                  <span className={`nv-dir-avatar tone-${d.tone}${ativo ? ' on' : ''}`}>
+                    {initials(d.nome)}
+                  </span>
+                  <div className="nv-dir-card-copy">
+                    <div className="nv-dir-card-name">
+                      <span>{d.nome}</span>
+                      {ativo && <em>filtrando</em>}
+                    </div>
+                    <p>
+                      {d.fichadas > 0
+                        ? `${share}% das fichas do sistema`
+                        : 'sem fichas lançadas'}
+                    </p>
+                  </div>
+                  <div className="nv-dir-card-count">
+                    <strong className={`tabular-nums${d.fichadas === 0 ? ' is-zero' : ''}`}>
+                      {d.fichadas.toLocaleString('pt-BR')}
+                    </strong>
+                    <span>fichas</span>
                   </div>
                 </div>
-                <div className="diretoria-card-count">
-                  <span>Fichas</span>
-                  <strong className={`tabular-nums tone-text-${d.tone}`}>{d.fichadas.toLocaleString('pt-BR')}</strong>
+                <div className="nv-bar thin">
+                  <i style={{ width: `${Math.min(100, share)}%` }} />
                 </div>
-              </div>
-
-              <div className="diretoria-card-body">
-                <div className="diretoria-mini-grid">
-                  <Link
-                    to={`/equipe?tab=coordenadores&diretoria=${d.id}`}
-                    className="diretoria-mini-link"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <span>Coordenadores</span>
+                <div className="nv-dir-minis">
+                  <Link to={`/equipe?tab=coordenadores&diretoria=${d.id}`} onClick={(e) => e.stopPropagation()}>
+                    <span>Coord.</span>
                     <strong className="tabular-nums">{d.coordenadores}</strong>
                   </Link>
-                  <Link
-                    to={`/equipe?tab=lideres&diretoria=${d.id}`}
-                    className="diretoria-mini-link"
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                  <Link to={`/equipe?tab=lideres&diretoria=${d.id}`} onClick={(e) => e.stopPropagation()}>
                     <span>Lideranças</span>
                     <strong className="tabular-nums">{d.lideres}</strong>
                   </Link>
-                  <Link
-                    to={`/equipe?tab=nerites&diretoria=${d.id}`}
-                    className="diretoria-mini-link"
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                  <Link to={`/equipe?tab=nerites&diretoria=${d.id}`} onClick={(e) => e.stopPropagation()}>
                     <span>Nerites</span>
                     <strong className="tabular-nums">{d.nerites}</strong>
                   </Link>
                 </div>
+                <div className="nv-dir-foot">
+                  <span>{ativo ? 'filtro ativo — clique para remover' : 'clique para filtrar o painel'}</span>
+                  <Link to={`/cadastros?diretoria=${d.id}`} onClick={(e) => e.stopPropagation()}>
+                    Abrir fichas →
+                  </Link>
+                </div>
               </div>
+            )
+          })}
+          {!dirStats.length && (
+            <div className="nv-empty">Nenhuma diretoria cadastrada.</div>
+          )}
+        </div>
+      </section>
 
-              <div className="diretoria-card-foot">
-                <span>{dirFilter === d.id ? 'Filtro ativo neste painel' : 'Usar como filtro do painel'}</span>
-                <Link
-                  to={`/cadastros?diretoria=${d.id}`}
-                  className="diretoria-open-link"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  Abrir fichas
-                </Link>
+      <section className="nv-split">
+        <div className="nv-panel">
+          <div className="nv-panel-head">
+            <div>
+              <h2><TrendingUp size={16} strokeWidth={1.6} aria-hidden />Evolução de cadastros</h2>
+              <p>{escopoCurto} · {periodLabel}</p>
+            </div>
+            <div className="nv-panel-stats">
+              <div>
+                <span>Total</span>
+                <strong className="tabular-nums">{scopedCadastros.length.toLocaleString('pt-BR')}</strong>
               </div>
-            </button>
-          )
-        })}
-        {!dirStats.length && (
-          <Card>
-            <div className="empty-card">
-              <strong>Nenhuma diretoria cadastrada</strong>
-              <span>As contas de Carol e Nicole ainda não aparecem no banco.</span>
+              <div>
+                <span>Dias ativos</span>
+                <strong className="tabular-nums">{diasAtivos}</strong>
+              </div>
+              <div>
+                <span>Melhor dia</span>
+                <strong className="tabular-nums">{melhorDia}</strong>
+              </div>
             </div>
-          </Card>
-        )}
-      </div>
-
-      <div className="section-label-row" style={{ marginTop: '1.25rem' }}>
-        <h2 className="section-label">Mapa e evolução</h2>
-        <span className="section-label-hint">Cobertura territorial e ritmo de cadastro</span>
-      </div>
-
-      <Card
-        title="Mapa por zona eleitoral"
-        subtitle="Intensidade pelos cadastros do filtro"
-        className="chart-card map-preview-card"
-        style={{ marginBottom: '1rem' }}
-        action={<Link to="/mapa" className="diretoria-open-link">Mapa completo →</Link>}
-      >
-        <CadastrosMap markers={mapMarkers} height={360} />
-      </Card>
-
-      <div className="dashboard-main-grid">
-        <Card title="Evolução" subtitle="Cadastros no período" className="chart-card chart-card-wide">
-          {evolution.length ? (
-            <EvolutionChart data={evolution} />
-          ) : (
-            <div className="empty-card">
-              <strong>Sem dados no período</strong>
-              <span>A curva aparece quando houver cadastros.</span>
-            </div>
-          )}
-        </Card>
-        <Card title="Por zona" subtitle="Distribuição" className="chart-card">
-          {zonaData.length ? (
-            <ZonaDonutChart data={zonaData} />
-          ) : (
-            <div className="empty-card">
-              <strong>Nenhuma zona com registros</strong>
-              <span>A distribuição sai dos cadastros filtrados.</span>
-            </div>
-          )}
-        </Card>
-      </div>
-
-      <div className="section-label-row" style={{ marginTop: '1.15rem' }}>
-        <h2 className="section-label">Desempenho</h2>
-        <span className="section-label-hint">Ranking e atividade recente</span>
-      </div>
-
-      <div className="dashboard-analysis-grid">
-        <Card title="Top nerites" subtitle="Com fichas no período" className="analysis-card">
-          {ranking.length ? (
-            <div className="ranking-list">
-              {ranking.map((nerite, index) => (
-                <Link to={`/nerites/${nerite.id}`} className="ranking-row" key={nerite.id}>
-                  <span className="ranking-position">{index + 1}</span>
-                  <span className="ranking-person">
-                    <strong>{nerite.nome}</strong>
-                    <span className="ranking-progress">
-                      <i style={{ width: `${Math.max((nerite.total / maxRank) * 100, 4)}%` }} />
-                    </span>
-                  </span>
-                  <strong className="ranking-count">{nerite.total}</strong>
-                  <span className="ranking-pct">{nerite.share}%</span>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-card">
-              <strong>Sem ranking ainda</strong>
-              <span>Aparece quando houver fichas no período.</span>
-            </div>
-          )}
-        </Card>
-
-        <Card title="Atividade recente" subtitle="Últimas fichas" className="analysis-card">
-          {ultimos.length ? (
-            <div className="recent-list">
-              {ultimos.map((item) => (
-                <Link to={`/cadastros/${item.id}/editar`} className="recent-row" key={item.id}>
-                  <div>
-                    <strong>{item.nome}</strong>
-                    <span>
-                      Zona {item.zona} · Seção {item.secao}
-                      {item.coordenador !== '—' ? ` · ${item.coordenador}` : ''}
-                      {' · '}
-                      {item.nerite}
-                    </span>
+          </div>
+          <div className="nv-panel-body" style={{ padding: 0 }}>
+            {evoVisual.bars.length ? (
+              <>
+                <div className="nv-evo">
+                  <div className="nv-evo-y">
+                    {evoVisual.eixoY.map((t) => (
+                      <span key={t}>{t}</span>
+                    ))}
                   </div>
-                  <time>{item.data}</time>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-card">
-              <strong>Nenhum cadastro</strong>
-              <span>Os últimos registros aparecem aqui.</span>
-            </div>
-          )}
-        </Card>
+                  <div className="nv-evo-chart">
+                    <div className="nv-evo-bars">
+                      {evoVisual.bars.map((b, i) => (
+                        <div className="nv-evo-col" key={`${b.label}-${i}`}>
+                          <div
+                            className={`nv-evo-bar${b.active ? ' active' : ''}`}
+                            style={{ height: b.active || b.valor > 0 ? b.h : '3px' }}
+                          >
+                            {b.active && <div className="nv-evo-tip">{b.valor}</div>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="nv-evo-labels">
+                      {evoVisual.bars.map((b, i) => (
+                        <span key={`${b.label}-l-${i}`} className={b.active ? 'on' : undefined}>
+                          {b.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="nv-evo-note">{evoVisual.nota}</div>
+              </>
+            ) : (
+              <div className="nv-empty">Nenhuma ficha lançada neste período.</div>
+            )}
+          </div>
+        </div>
 
-        <Card title="Top lideranças" subtitle="Só com fichas" className="analysis-card">
-          {topLideres.length ? (
-            <div className="ranking-list">
-              {topLideres.map((lider, index) => (
-                <Link
-                  to={`/cadastros?lider=${encodeURIComponent(lider.nome)}`}
-                  className="ranking-row"
-                  key={lider.nome}
-                >
-                  <span className="ranking-position">{index + 1}</span>
-                  <span className="ranking-person">
-                    <strong>{lider.nome}</strong>
-                    <span className="ranking-progress">
-                      <i style={{ width: `${Math.max((lider.total / maxLider) * 100, 4)}%` }} />
-                    </span>
-                  </span>
-                  <strong className="ranking-count">{lider.total}</strong>
-                  <span className="ranking-pct">{lider.share}%</span>
-                </Link>
-              ))}
+        <div className="nv-panel">
+          <div className="nv-panel-head">
+            <div>
+              <h2><Flag size={16} strokeWidth={1.6} aria-hidden />Mobilização</h2>
+              <p>
+                {(mobilizacaoTotals.fichas + mobilizacaoTotals.equipe).toLocaleString('pt-BR')} pessoas no escopo · sem corte de período
+              </p>
+            </div>
+            <Link to={`/mobilizacao${dirQuery}`}>Gerenciar →</Link>
+          </div>
+          <div className="nv-mob-list">
+            {([
+              ['Carros adesivados', mobilizacaoTotals.carros, 'carros', false],
+              ['Adesivos para casa', mobilizacaoTotals.casa, 'casa', false],
+              ['Postagens', mobilizacaoTotals.postagens, 'postagens', false],
+              ['Sem lançamento', mobilizacaoTotals.pendentes, 'pendente', true],
+            ] as const).map(([label, value, status, pendente]) => (
+              <Link
+                key={status}
+                to={`/mobilizacao?status=${status}${dirQueryAmp}`}
+                className="nv-mob-row"
+              >
+                <span>{label}</span>
+                <span className="nv-mob-row-right">
+                  {pendente && <em className="nv-pill-warn">pendente</em>}
+                  <strong className="tabular-nums">{value.toLocaleString('pt-BR')}</strong>
+                </span>
+              </Link>
+            ))}
+          </div>
+          <div className="nv-cover">
+            <div className="nv-cover-labels">
+              <span>Cobertura de mobilização</span>
+              <span>
+                {mobComLancamento.toLocaleString('pt-BR')} de {mobBase.toLocaleString('pt-BR')}
+              </span>
+            </div>
+            <div className="nv-bar amber">
+              <i style={{ width: `${Math.max(coberturaPct, mobComLancamento > 0 ? 2 : 0)}%` }} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="nv-split">
+        <div className="nv-panel">
+          <div className="nv-panel-head">
+            <div>
+              <h2><MapIcon size={16} strokeWidth={1.6} aria-hidden />Mapa por zona eleitoral</h2>
+              <p>Intensidade pelas fichas do filtro atual</p>
+            </div>
+            <Link to={`/mapa${dirQuery}`}>Mapa completo →</Link>
+          </div>
+          <div className="nv-map-wrap">
+            <CadastrosMap markers={mapMarkers} height={320} showLegend={false} />
+            <div className="nv-map-legend" aria-hidden>
+              <div className="nv-map-legend-title">Intensidade</div>
+              <div className="nv-map-legend-row">
+                <span className="nv-map-legend-swatch" style={{ background: '#7fd8c4' }} /> Baixa
+              </div>
+              <div className="nv-map-legend-row">
+                <span className="nv-map-legend-swatch" style={{ background: '#f2d264' }} /> Média
+              </div>
+              <div className="nv-map-legend-row">
+                <span className="nv-map-legend-swatch" style={{ background: '#f0a355' }} /> Alta
+              </div>
+              <div className="nv-map-legend-row">
+                <span className="nv-map-legend-swatch" style={{ background: '#e2614f' }} /> Muito alta
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="nv-panel">
+          <div className="nv-panel-head">
+            <div>
+              <h2><BarChart3 size={16} strokeWidth={1.6} aria-hidden />Distribuição por zona</h2>
+              <p>
+                {scopedCadastros.length
+                  ? `${scopedCadastros.length.toLocaleString('pt-BR')} fichas em ${zonas} ${zonas === 1 ? 'zona' : 'zonas'}`
+                  : 'nenhuma ficha no filtro'}
+              </p>
+            </div>
+          </div>
+          {zonaData.length ? (
+            <div className="nv-panel-body nv-zona-list">
+              {zonaData.slice(0, 4).map((z) => {
+                const pct = scopedCadastros.length
+                  ? Math.round((z.value / scopedCadastros.length) * 100)
+                  : 0
+                const zonaLabel = z.name.replace(/^Zona eleitoral\s+/i, '')
+                return (
+                  <div key={z.name} className="nv-zona-row">
+                    <div className="nv-zona-row-top">
+                      <span>Zona eleitoral {zonaLabel}</span>
+                      <span className="tabular-nums">{z.value} · {pct}%</span>
+                    </div>
+                    <div className="nv-bar thin"><i style={{ width: `${pct}%` }} /></div>
+                  </div>
+                )
+              })}
+              {topSecoes.length > 0 && (
+                <div className="nv-secoes">
+                  <div className="nv-secoes-label">Seções mais ativas</div>
+                  {topSecoes.map((s) => (
+                    <Link
+                      key={s.n}
+                      to={`/cadastros?secao=${encodeURIComponent(s.n)}${dirQueryAmp}`}
+                      className="nv-secao-row"
+                    >
+                      <span>Seção {s.n}</span>
+                      <span className="tabular-nums">{s.v}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
-            <div className="empty-card">
-              <strong>Sem lideranças com fichas</strong>
-              <span>Só entram nomes que já têm cadastro.</span>
-            </div>
+            <div className="nv-empty">Nenhuma ficha neste filtro — sem zonas para exibir.</div>
           )}
-        </Card>
-      </div>
+        </div>
+      </section>
+
+      <section>
+        <div className="nv-section-head">
+          <div>
+            <h2 className="nv-section-title">Desempenho</h2>
+            <p>Ranking de nerites e lideranças · últimas fichas do filtro</p>
+          </div>
+        </div>
+        <div className="nv-desempenho-grid">
+          <div className="nv-panel">
+            <div className="nv-panel-head">
+              <div>
+                <h3><Award size={16} strokeWidth={1.6} aria-hidden />Top nerites</h3>
+                <p>Com fichas no filtro atual</p>
+              </div>
+              <Link to="/nerites">Ver tudo →</Link>
+            </div>
+            {ranking.length ? (
+              <div className="nv-rank-list">
+                {ranking.map((nerite, index) => (
+                  <Link to={`/nerites/${nerite.id}`} className="nv-rank-row" key={nerite.id}>
+                    <span className={`nv-rank-pos${index === 0 ? ' top' : ''}`}>{index + 1}</span>
+                    <div className="nv-rank-body">
+                      <div className="nv-rank-meta">
+                        <span>{nerite.nome}</span>
+                        <strong className="tabular-nums">{nerite.total}</strong>
+                      </div>
+                      <div className="nv-bar thin">
+                        <i style={{ width: `${Math.max((nerite.total / maxRank) * 100, 4)}%` }} />
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+                <div className="nv-panel-note">
+                  {ranking.length} {ranking.length === 1 ? 'nerite' : 'nerites'} no ranking ·{' '}
+                  {scopedCadastros.length.toLocaleString('pt-BR')} fichas no filtro
+                </div>
+              </div>
+            ) : (
+              <div className="nv-empty">Nenhuma nerite com lançamentos neste filtro.</div>
+            )}
+          </div>
+
+          <div className="nv-panel">
+            <div className="nv-panel-head">
+              <div>
+                <h3><Clock size={16} strokeWidth={1.6} aria-hidden />Atividade recente</h3>
+                <p>Últimas 6 fichas do filtro</p>
+              </div>
+            </div>
+            {ultimos.length ? (
+              <div className="nv-activity-list">
+                {ultimos.map((item) => (
+                  <div className="nv-activity-row" key={item.id}>
+                    <div>
+                      <strong>{item.nome}</strong>
+                      <span>
+                        Zona {item.zona} · Seção {item.secao}
+                        {item.lider !== '—' ? ` · ${item.lider}` : ''}
+                      </span>
+                    </div>
+                    <time className="nv-activity-time">{item.data}</time>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="nv-empty">Sem fichas registradas neste filtro.</div>
+            )}
+          </div>
+
+          <div className="nv-panel">
+            <div className="nv-panel-head">
+              <div>
+                <h3><Mountain size={16} strokeWidth={1.6} aria-hidden />Top lideranças</h3>
+                <p>
+                  {scopedCadastros.length
+                    ? `Top 5 nas ${scopedCadastros.length.toLocaleString('pt-BR')} fichas`
+                    : 'sem fichas no filtro'}
+                </p>
+              </div>
+              <Link to="/lideranca">Ver tudo →</Link>
+            </div>
+            {topLideres.length ? (
+              <div className="nv-rank-list">
+                {topLideres.map((lider, index) => (
+                  <Link
+                    to={`/cadastros?lider=${encodeURIComponent(lider.nome)}${dirQueryAmp}`}
+                    className="nv-rank-row"
+                    key={lider.nome}
+                  >
+                    <span className={`nv-rank-pos${index === 0 ? ' top' : ''}`}>{index + 1}</span>
+                    <div className="nv-rank-body">
+                      <div className="nv-rank-meta">
+                        <span>{lider.nome}</span>
+                        <strong className="tabular-nums">
+                          {lider.total} <em>{lider.share}%</em>
+                        </strong>
+                      </div>
+                      <div className="nv-bar thin">
+                        <i style={{ width: `${Math.max((lider.total / maxLider) * 100, 4)}%` }} />
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+                <div className="nv-panel-note">
+                  Concentração nas {topLideres.length} maiores lideranças do filtro
+                </div>
+              </div>
+            ) : (
+              <div className="nv-empty">Sem lideranças com fichas neste filtro.</div>
+            )}
+          </div>
+        </div>
+      </section>
     </div>
   )
 }
@@ -556,6 +928,7 @@ function DiretoriaDashboard() {
   const { profile } = useAuth()
   const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('30d')
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
+  const [mobilizacaoCadastros, setMobilizacaoCadastros] = useState<MobilizacaoSource[]>([])
   const [nerites, setNerites] = useState<Profile[]>([])
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
   const [lideres, setLideres] = useState<Lider[]>([])
@@ -568,8 +941,9 @@ function DiretoriaDashboard() {
     async function load() {
       setLoading(true)
       try {
-        const [cData, ops, coords, lids] = await Promise.all([
+        const [cData, allCadastros, ops, coords, lids] = await Promise.all([
           fetchCadastros({ period }),
+          fetchCadastros(),
           supabase.from('profiles').select('*').eq('role', 'operador').eq('diretoria_id', dirId).order('nome'),
           supabase.from('coordenadores').select('*').eq('diretoria_id', dirId),
           supabase.from('lideres').select('*').eq('diretoria_id', dirId),
@@ -577,6 +951,11 @@ function DiretoriaDashboard() {
         const teamIds = new Set((ops.data ?? []).map((n: Profile) => n.id))
         setCadastros(
           cData.filter((c) => c.diretoria_id === dirId || teamIds.has(c.operator_id)),
+        )
+        setMobilizacaoCadastros(
+          allCadastros.filter(
+            (c) => c.diretoria_id === dirId || teamIds.has(c.operator_id),
+          ),
         )
         setNerites((ops.data ?? []) as Profile[])
         setCoordenadores((coords.data ?? []) as Coordenador[])
@@ -597,6 +976,10 @@ function DiretoriaDashboard() {
   const evolution = useMemo(() => buildEvolutionData(cadastros), [cadastros])
   const zonaData = useMemo(() => buildZonaData(cadastros), [cadastros])
   const mapMarkers = useMemo(() => buildMapMarkers(cadastros), [cadastros])
+  const mobilizacaoTotals = useMemo(
+    () => sumMobilizacao(mobilizacaoCadastros, coordenadores, lideres),
+    [mobilizacaoCadastros, coordenadores, lideres],
+  )
 
   const ranking = useMemo(() => {
     const counts = new Map<string, number>()
@@ -744,6 +1127,8 @@ function DiretoriaDashboard() {
           <p className="dash-kpi-hint">Na sua diretoria</p>
         </div>
       </div>
+
+      <MobilizacaoSummary totals={mobilizacaoTotals} />
 
       <Card
         title="Mapa por zona eleitoral"

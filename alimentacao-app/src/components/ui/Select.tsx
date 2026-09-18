@@ -16,24 +16,18 @@ export function Select({ label, error, options, placeholder, id, style, ...props
   const selectId = id ?? label?.toLowerCase().replace(/\s+/g, '-')
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+    <div className="ui-field">
       {label && (
-        <label htmlFor={selectId} style={{ fontSize: '0.875rem', fontWeight: 500 }}>
+        <label htmlFor={selectId} className="ui-field-label">
           {label}
         </label>
       )}
       <select
         id={selectId}
         {...props}
-        style={{
-          width: '100%',
-          padding: '0.625rem 0.75rem',
-          border: `1px solid ${error ? 'var(--color-danger)' : 'var(--color-border)'}`,
-          borderRadius: 'var(--radius)',
-          background: '#fff',
-          outline: 'none',
-          ...style,
-        }}
+        aria-invalid={error ? true : undefined}
+        className={`ui-select${error ? ' ui-input-error' : ''}`}
+        style={style}
       >
         {placeholder && <option value="">{placeholder}</option>}
         {options.map((opt) => (

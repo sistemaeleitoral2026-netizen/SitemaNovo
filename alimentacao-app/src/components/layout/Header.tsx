@@ -1,4 +1,4 @@
-import { Menu, LogOut, ShieldCheck } from 'lucide-react'
+import { LogOut, Menu } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { Button } from '../ui/Button'
 
@@ -10,6 +10,25 @@ interface HeaderProps {
 export function Header({ onMenuClick, title }: HeaderProps) {
   const { profile, signOut } = useAuth()
 
+  const roleLabel =
+    profile?.role === 'admin'
+      ? 'Acesso total'
+      : profile?.role === 'diretoria'
+        ? 'Diretoria'
+        : 'Nerite'
+
+  const displayName =
+    profile?.role === 'admin'
+      ? 'Administrador'
+      : (profile?.nome ?? 'Usuário')
+
+  const initials = (profile?.nome ?? 'A')
+    .split(' ')
+    .slice(0, 2)
+    .map((p) => p[0])
+    .join('')
+    .toUpperCase()
+
   return (
     <header className="app-header">
       <div className="app-header-left">
@@ -19,39 +38,25 @@ export function Header({ onMenuClick, title }: HeaderProps) {
           aria-label="Abrir menu"
           className="menu-btn header-icon-btn"
         >
-          <Menu size={22} />
+          <Menu size={20} />
         </button>
-        {title && <span style={{ fontWeight: 600, fontSize: '0.9375rem' }}>{title}</span>}
+        {title && <span className="header-page-title">{title}</span>}
         <div className="header-security-status">
-          <ShieldCheck size={16} />
-          <span>Ambiente seguro</span>
+          <span className="header-live-dot" aria-hidden />
+          <span>Sessão autenticada</span>
         </div>
       </div>
 
       <div className="app-header-user">
-        <div aria-hidden className="header-avatar">
-          {(profile?.nome ?? 'U')
-            .split(' ')
-            .slice(0, 2)
-            .map((p) => p[0])
-            .join('')
-            .toUpperCase()}
-        </div>
         <div className="header-user-copy">
-          <div>{profile?.nome}</div>
-          <span>
-            {profile?.role === 'admin'
-              ? 'Administrador'
-              : profile?.role === 'diretoria'
-                ? 'Diretoria'
-                : 'Nerite'}
-          </span>
+          <div>{displayName}</div>
+          <span>{roleLabel}</span>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => signOut()} aria-label="Sair">
-          <LogOut size={18} />
+        <div aria-hidden className="header-avatar">{initials}</div>
+        <Button variant="ghost" size="sm" onClick={() => signOut()} aria-label="Encerrar sessão" title="Encerrar sessão">
+          <LogOut size={16} />
         </Button>
       </div>
-
     </header>
   )
 }
