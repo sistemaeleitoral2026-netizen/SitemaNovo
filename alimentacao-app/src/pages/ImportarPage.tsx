@@ -5,11 +5,11 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { parseSpreadsheet, analyzeImport, SPREADSHEET_ACCEPT } from '../lib/import'
-import { fetchExistingTitulos } from '../lib/cadastros'
+import { fetchExistingImportKeys } from '../lib/cadastros'
 import { geocodeFromZona } from '../lib/geocode'
 import { logAudit } from '../lib/audit'
 import { supabase } from '../lib/supabase'
-import type { ImportPreview } from '../types'
+import type { Coordenador, ImportPreview, ImportTeamContext, Lider } from '../types'
 
 export function ImportarPage() {
   const { profile } = useAuth()
@@ -28,8 +28,31 @@ export function ImportarPage() {
     setFile(f)
     try {
       const rows = await parseSpreadsheet(f)
-      const existingTitulos = await fetchExistingTitulos()
-      const result = await analyzeImport(rows, existingTitulos)
+      if (!profile) throw new Error('Sessão não encontrada. Entre novamente no sistema.')
+
+      const diretoriaId = profile.role === 'diretoria' ? profile.id : profile.diretoria_id
+      let coordenadoresQuery = supabase.from('coordenadores').select('*').eq('ativo', true)
+      let lideresQuery = supabase.from('lideres').select('*').eq('ativo', true)
+      if (diretoriaId) {
+        coordenadoresQuery = coordenadoresQuery.eq('diretoria_id', diretoriaId)
+        lideresQuery = lideresQuery.eq('diretoria_id', diretoriaId)
+      }
+
+      const [existingKeys, coordenadoresResult, lideresResult] = await Promise.all([
+        fetchExistingImportKeys(),
+        coordenadoresQuery,
+        lideresQuery,
+      ])
+      if (coordenadoresResult.error) throw coordenadoresResult.error
+      if (lideresResult.error) throw lideresResult.error
+
+      const team: ImportTeamContext = {
+        coordenadores: (coordenadoresResult.data ?? []) as Coordenador[],
+        lideres: (lideresResult.data ?? []) as Lider[],
+        coordenador_id: profile.coordenador_id,
+        lider_id: profile.lider_id,
+      }
+      const result = await analyzeImport(rows, existingKeys, team)
       setPreview(result)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao processar arquivo.')
@@ -37,7 +60,7 @@ export function ImportarPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [profile])
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
@@ -87,6 +110,7 @@ export function ImportarPage() {
     }
 
     let inserted = 0
+    const insertionErrors: typeof errorLines = []
     for (const row of validRows) {
       const coords = row.zona ? await geocodeFromZona(row.zona) : null
       const { error: insertError } = await supabase.from('cadastros').insert({
@@ -106,12 +130,25 @@ export function ImportarPage() {
         lng: coords?.lng ?? null,
         diretoria_id: profile.diretoria_id ?? null,
       })
-      if (!insertError) inserted += 1
+      if (!insertError) {
+        inserted += 1
+      } else {
+        insertionErrors.push({
+          linha: row.linha,
+          mensagem: insertError.message,
+          dados: { titulo: row.titulo, nome: row.nome_completo },
+        })
+      }
     }
 
     await supabase
       .from('importacoes')
-      .update({ validos: inserted, confirmada: true })
+      .update({
+        validos: inserted,
+        erros: preview.erros + insertionErrors.length,
+        confirmada: true,
+        detalhes: { linhas: [...errorLines, ...insertionErrors] },
+      })
       .eq('id', importRow.id)
 
     await logAudit('importar', 'importacoes', importRow.id, {
@@ -121,7 +158,11 @@ export function ImportarPage() {
     })
 
     setConfirming(false)
-    setSuccess(`${inserted} cadastro(s) importado(s) com sucesso.`)
+    if (insertionErrors.length) {
+      setError(`${inserted} cadastro(s) importado(s). ${insertionErrors.length} falharam e não foram incluídos.`)
+    } else {
+      setSuccess(`${inserted} cadastro(s) importado(s) com sucesso.`)
+    }
     setPreview(null)
     setFile(null)
   }
@@ -169,17 +210,20 @@ export function ImportarPage() {
           <Info size={18} color="#6c788d" />
           <div>
             <strong>Cabeçalhos obrigatórios (1ª linha):</strong>
-            <span>NOME COMPLETO | TELEFONE | TITULO | ZONA | SESSAO | NOME COMPLETO DA MÃE</span>
+            <span>NOME COMPLETO | TELEFONE | TÍTULO | ZONA | SESSÃO | NOME DA MÃE COMPLETO</span>
             <span style={{ color: '#6c788d', fontWeight: 500, marginTop: '.35rem' }}>
-              Opcional: COORDENADOR | DATA DE NASCIMENTO
+              Opcional: LIDERANÇA | COORDENADOR | CPF | DATA DE NASCIMENTO. Os nomes da equipe são conferidos com os cadastros existentes.
             </span>
           </div>
         </div>
 
         {file && (
-          <p style={{ marginTop: '1rem', fontSize: '0.875rem' }}>
-            Arquivo: <strong>{file.name}</strong>
-          </p>
+          <div style={{ marginTop: '1rem', fontSize: '0.875rem' }}>
+            <p style={{ margin: 0 }}>Arquivo: <strong>{file.name}</strong></p>
+            <p style={{ margin: '.35rem 0 0' }}>
+              Nerite responsável: <strong>{profile?.nome ?? 'não identificada'}</strong>
+            </p>
+          </div>
         )}
 
         {error && <div className="alert alert-error" style={{ marginTop: '1rem' }}>{error}</div>}
@@ -194,6 +238,12 @@ export function ImportarPage() {
 
       {preview && !loading && (
         <Card title="Análise da importação">
+          {preview.linhas.length > 0 && (
+            <p style={{ margin: '0 0 1rem', color: 'var(--color-text-muted)', fontSize: '.875rem' }}>
+              Equipe aplicada às fichas: coordenador <strong>{preview.linhas[0].coordenador || 'não identificado'}</strong>
+              {' '}e liderança <strong>{preview.linhas[0].lider || 'não identificada'}</strong>.
+            </p>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
             <div><span className="badge badge-neutral">Total: {preview.total}</span></div>
             <div><span className="badge badge-success">Válidos: {preview.validos}</span></div>
