@@ -2,15 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   MapPin,
-  Users,
-  UserCog,
-  Crown,
-  UserPlus,
-  CalendarDays,
-  Car,
-  House,
-  Megaphone,
-  CircleDashed,
   FileText,
   Sun,
   Network,
@@ -24,12 +15,10 @@ import {
 } from 'lucide-react'
 import { format, parseISO, startOfDay, subDays } from 'date-fns'
 import { useAuth } from '../contexts/AuthContext'
-import { Card } from '../components/ui/Card'
 import { PeriodFilterSelect } from '../components/ui/PeriodFilter'
 import { Spinner } from '../components/ui/Spinner'
 import { MetaGoalPopup } from '../components/ui/MetaGoalPopup'
 import { EvolutionChart } from '../components/charts/EvolutionChart'
-import { ZonaDonutChart } from '../components/charts/ZonaDonutChart'
 import { CadastrosMap } from '../components/map/CadastrosMap'
 import { getPeriodFromPreset, type PeriodPreset } from '../lib/period'
 import { buildEvolutionData, buildMapMarkers, buildZonaData, fetchCadastros } from '../lib/cadastros'
@@ -74,46 +63,6 @@ function sumMobilizacao(
     return acc
   }, { carros: 0, casa: 0, postagens: 0, pendentes: 0, fichas: cadastros.length, equipe: coordenadores.length + lideres.length })
   return totals
-}
-
-function MobilizacaoSummary({ totals }: { totals: MobilizacaoTotals }) {
-  const items = [
-    { label: 'Carros adesivados', value: totals.carros, status: 'carros', icon: Car, tone: 'blue' },
-    { label: 'Adesivos para casa', value: totals.casa, status: 'casa', icon: House, tone: 'emerald' },
-    { label: 'Postagens', value: totals.postagens, status: 'postagens', icon: Megaphone, tone: 'violet' },
-    { label: 'Sem lançamento', value: totals.pendentes, status: 'pendente', icon: CircleDashed, tone: 'amber' },
-  ] as const
-
-  return (
-    <section className="dashboard-mobilizacao" aria-labelledby="mobilizacao-title">
-      <div className="section-label-row">
-        <div>
-          <h2 className="section-label" id="mobilizacao-title">Mobilização</h2>
-          <p className="section-description">
-            Controle separado: {totals.fichas.toLocaleString('pt-BR')} fichas individuais +{' '}
-            {totals.equipe.toLocaleString('pt-BR')} pessoas da equipe
-          </p>
-        </div>
-        <Link to="/mobilizacao" className="card-action-link">Gerenciar mobilização →</Link>
-      </div>
-      <div className="mobilizacao-summary-grid">
-        {items.map(({ label, value, status, icon: Icon, tone }) => (
-          <Link
-            to={`/mobilizacao?status=${status}`}
-            className="mobilizacao-summary-card"
-            key={status}
-          >
-            <span className={`mobilizacao-summary-icon tone-${tone}`}><Icon size={19} /></span>
-            <span className="mobilizacao-summary-copy">
-              <span>{label}</span>
-              <strong className="tabular-nums">{value.toLocaleString('pt-BR')}</strong>
-            </span>
-            <span className="mobilizacao-summary-arrow" aria-hidden>→</span>
-          </Link>
-        ))}
-      </div>
-    </section>
-  )
 }
 
 interface DiretoriaStats {
@@ -1001,181 +950,275 @@ function DiretoriaDashboard() {
     )
   }
 
+  const periodLabel =
+    periodPreset === '7d' ? 'últimos 7 dias'
+      : periodPreset === '30d' ? 'últimos 30 dias'
+        : periodPreset === '90d' ? 'últimos 90 dias'
+          : 'todo o período'
+
+  const mobBase = mobilizacaoTotals.fichas + mobilizacaoTotals.equipe
+  const mobComLancamento = Math.max(0, mobBase - mobilizacaoTotals.pendentes)
+  const coberturaPct = mobBase > 0 ? Math.round((mobComLancamento / mobBase) * 100) : 0
+  const dirNome = profile?.nome?.replace(/^Diretora\s+/i, '') ?? 'Diretoria'
+  const setupMissing = !coordenadores.length || !lideres.length
+
   return (
-    <div className="dashboard-page">
-      <div className="dashboard-heading">
+    <div className="nv-dash">
+      <div className="nv-heading">
         <div>
-          <h1>Dashboard · {profile?.nome}</h1>
-          <p>Acompanhe apenas os resultados da sua diretoria.</p>
+          <p className="nv-eyebrow">Painel da diretoria</p>
+          <h1>{dirNome}</h1>
+          <p className="nv-sub">
+            Resultados da sua equipe · <strong>{periodLabel}</strong>
+          </p>
         </div>
-        <div className="dashboard-heading-actions">
-          <PeriodFilterSelect value={periodPreset} onChange={setPeriodPreset} />
+        <div className="nv-heading-actions">
+          <PeriodFilterSelect value={periodPreset} onChange={setPeriodPreset} showRange={false} />
         </div>
       </div>
 
-      <div className="section-label-row">
-        <h2 className="section-label">Cadastro para a ficha</h2>
-        <span className="section-label-hint">Nomes que as nerites vão selecionar no cadastro</span>
-      </div>
-
-      <div className="dir-action-grid">
-        <Link to="/equipe?tab=coordenadores" className="dir-action-card">
-          <div className="dir-action-icon"><UserCog size={20} /></div>
-          <strong>Coordenadores</strong>
-          <span>{coordenadores.length} cadastrado(s)</span>
-          <em>Cadastrar coordenador →</em>
-        </Link>
-        <Link to="/equipe?tab=lideres" className="dir-action-card">
-          <div className="dir-action-icon"><Crown size={20} /></div>
-          <strong>Lideranças</strong>
-          <span>{lideres.length} cadastrada(s)</span>
-          <em>Cadastrar liderança →</em>
-        </Link>
-        <Link to="/equipe?tab=nerites" className="dir-action-card">
-          <div className="dir-action-icon"><UserPlus size={20} /></div>
-          <strong>Nerites</strong>
-          <span>{nerites.length} vinculada(s)</span>
-          <em>Cadastrar nerite →</em>
-        </Link>
-      </div>
-
-      {(!coordenadores.length || !lideres.length) && (
-        <div className="ficha-setup-banner" style={{ marginBottom: '1rem' }}>
-          <strong>Atenção</strong>
+      {setupMissing && (
+        <div className="nv-filter-banner">
           <span>
+            <strong>Atenção</strong> —{' '}
             {!coordenadores.length && !lideres.length
-              ? 'Cadastre coordenadores e lideranças para as nerites poderem preencher a ficha.'
+              ? 'cadastre coordenadores e lideranças para as nerites preencherem a ficha.'
               : !coordenadores.length
-                ? 'Ainda falta cadastrar coordenadores.'
-                : 'Ainda falta cadastrar lideranças.'}
+                ? 'ainda falta cadastrar coordenadores.'
+                : 'ainda falta cadastrar lideranças.'}
           </span>
         </div>
       )}
 
-      <div className="diretoria-cards-grid single">
-        <div className="diretoria-card tone-blue selected">
-          <div className="diretoria-card-head">
-            <div>
-              <div className="diretoria-card-title-row">
-                <span className="dir-avatar tone-blue">
-                  {initials(
-                    /^diretora/i.test(profile?.nome ?? '')
-                      ? (profile?.nome ?? 'D')
-                      : `Diretora ${profile?.nome ?? 'D'}`,
-                  )}
-                </span>
-                <h2>{profile?.nome}</h2>
-                <span className="role-pill tone-blue">Diretora</span>
-                <span className="status-pill tone-blue">Sua diretoria</span>
-              </div>
-              <p>Painel da sua equipe</p>
-            </div>
-            <div className="diretoria-card-count">
-              <span>Fichadas Confirmadas</span>
-              <strong className="tabular-nums tone-text-blue">{cadastros.length.toLocaleString('pt-BR')}</strong>
-            </div>
+      <section className="nv-summary" aria-label="Resumo da diretoria">
+        <div className="nv-summary-meta">
+          <div className="nv-summary-meta-head">
+            <span>Fichas no período</span>
+            <Link to="/cadastros">Ver fichas</Link>
           </div>
-          <div className="diretoria-card-body">
-            <div className="diretoria-mini-grid">
-              <Link to="/equipe?tab=coordenadores" className="diretoria-mini-link">
-                <span>Coordenadores</span>
+          <div className="nv-summary-meta-value">
+            <strong className="tabular-nums">{cadastros.length.toLocaleString('pt-BR')}</strong>
+            <span>confirmadas</span>
+          </div>
+          <div className="nv-summary-meta-foot">
+            <span>{todayCount.toLocaleString('pt-BR')} hoje</span>
+            <span>{periodLabel}</span>
+          </div>
+        </div>
+        <div className="nv-summary-metric">
+          <span>Cadastros hoje</span>
+          <strong className="tabular-nums">{todayCount.toLocaleString('pt-BR')}</strong>
+          <em>lançamentos do dia</em>
+        </div>
+        <div className="nv-summary-metric">
+          <span>Zonas</span>
+          <strong className="tabular-nums">{zonas}</strong>
+          <em>com fichas no período</em>
+        </div>
+        <div className="nv-summary-metric">
+          <span>Nerites ativas</span>
+          <strong className="tabular-nums">{nerites.filter((n) => n.ativo).length}</strong>
+          <em>{nerites.length} na diretoria</em>
+        </div>
+      </section>
+
+      <section>
+        <div className="nv-section-head">
+          <div>
+            <h2 className="nv-section-title">
+              <Network size={16} strokeWidth={1.6} aria-hidden />
+              Sua equipe
+            </h2>
+            <p>Nomes que as nerites selecionam na ficha · gerencie em Equipe</p>
+          </div>
+          <Link to="/equipe" className="nv-section-hint" style={{ color: '#1f4fd8', fontWeight: 600 }}>
+            Gerenciar equipe →
+          </Link>
+        </div>
+        <div className="nv-dir-grid">
+          <div className="nv-dir-card active" style={{ cursor: 'default' }}>
+            <div className="nv-dir-card-top">
+              <span className="nv-dir-avatar on">
+                {initials(
+                  /^diretora/i.test(profile?.nome ?? '')
+                    ? (profile?.nome ?? 'D')
+                    : `Diretora ${profile?.nome ?? 'D'}`,
+                )}
+              </span>
+              <div className="nv-dir-card-copy">
+                <div className="nv-dir-card-name">
+                  <span>{profile?.nome}</span>
+                  <em>sua diretoria</em>
+                </div>
+                <p>Painel da equipe</p>
+              </div>
+              <div className="nv-dir-card-count">
+                <strong className="tabular-nums">{cadastros.length.toLocaleString('pt-BR')}</strong>
+                <span>fichas</span>
+              </div>
+            </div>
+            <div className="nv-dir-minis">
+              <Link to="/equipe?tab=coordenadores">
+                <span>Coord.</span>
                 <strong className="tabular-nums">{coordenadores.length}</strong>
               </Link>
-              <Link to="/equipe?tab=lideres" className="diretoria-mini-link">
-                <span className="tone-text-blue">Líderes</span>
-                <strong className="tabular-nums tone-text-blue">{lideres.length}</strong>
+              <Link to="/equipe?tab=lideres">
+                <span>Lideranças</span>
+                <strong className="tabular-nums">{lideres.length}</strong>
               </Link>
-              <Link to="/equipe?tab=nerites" className="diretoria-mini-link">
+              <Link to="/equipe?tab=nerites">
                 <span>Nerites</span>
                 <strong className="tabular-nums">{nerites.length}</strong>
               </Link>
             </div>
-          </div>
-          <div className="diretoria-card-foot">
-            <Link to="/equipe" className="tone-text-blue">Gerenciar equipe →</Link>
-            <Link to="/cadastros" className="diretoria-open-link">Abrir cadastros</Link>
+            <div className="nv-dir-foot">
+              <span>Clique nos números para cadastrar ou editar</span>
+              <Link to="/cadastros">Abrir fichas →</Link>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="kpi-grid kpi-grid-3">
-        <div className="dash-kpi-card">
-          <div className="dash-kpi-top">
-            <span className="dash-kpi-icon tone-emerald"><CalendarDays size={18} /></span>
-            <span className="dash-kpi-label" style={{ flex: 1 }}>Cadastros hoje</span>
-            <i className="dot dot-emerald" />
+      <section className="nv-split">
+        <div className="nv-panel">
+          <div className="nv-panel-head">
+            <div>
+              <h2><TrendingUp size={16} strokeWidth={1.6} aria-hidden />Evolução de cadastros</h2>
+              <p>Sua diretoria · {periodLabel}</p>
+            </div>
+            <div className="nv-panel-stats">
+              <div>
+                <span>Total</span>
+                <strong className="tabular-nums">{cadastros.length.toLocaleString('pt-BR')}</strong>
+              </div>
+            </div>
           </div>
-          <strong className="tabular-nums">{todayCount}</strong>
-          <p className="dash-kpi-hint success">Registros de hoje</p>
-        </div>
-        <div className="dash-kpi-card">
-          <div className="dash-kpi-top">
-            <span className="dash-kpi-icon tone-amber"><MapPin size={18} /></span>
-            <span className="dash-kpi-label" style={{ flex: 1 }}>Zonas</span>
-            <i className="dot dot-amber" />
+          <div className="nv-panel-body">
+            {evolution.length ? (
+              <EvolutionChart data={evolution} />
+            ) : (
+              <div className="nv-empty">Nenhuma ficha lançada neste período.</div>
+            )}
           </div>
-          <strong className="tabular-nums">{zonas}</strong>
-          <p className="dash-kpi-hint">Com fichadas no período</p>
         </div>
-        <div className="dash-kpi-card">
-          <div className="dash-kpi-top">
-            <span className="dash-kpi-icon tone-blue"><Users size={18} /></span>
-            <span className="dash-kpi-label" style={{ flex: 1 }}>Nerites ativas</span>
-            <i className="dot dot-blue" />
+
+        <div className="nv-panel">
+          <div className="nv-panel-head">
+            <div>
+              <h2><Flag size={16} strokeWidth={1.6} aria-hidden />Mobilização</h2>
+              <p>
+                {mobBase.toLocaleString('pt-BR')} pessoas no escopo · sem corte de período
+              </p>
+            </div>
+            <Link to="/mobilizacao">Gerenciar →</Link>
           </div>
-          <strong className="tabular-nums">{nerites.filter((n) => n.ativo).length}</strong>
-          <p className="dash-kpi-hint">Na sua diretoria</p>
-        </div>
-      </div>
-
-      <MobilizacaoSummary totals={mobilizacaoTotals} />
-
-      <Card
-        title="Mapa por zona eleitoral"
-        subtitle="Manchas coloridas por intensidade de cadastros"
-        className="chart-card map-preview-card"
-        style={{ marginBottom: '1.25rem' }}
-        action={<Link to="/mapa" className="diretoria-open-link">Abrir mapa completo →</Link>}
-      >
-        <CadastrosMap markers={mapMarkers} height={360} />
-      </Card>
-
-      <div className="dashboard-main-grid">
-        <Card title="Evolução" subtitle="Cadastros da sua diretoria" className="chart-card chart-card-wide">
-          {evolution.length ? <EvolutionChart data={evolution} /> : (
-            <div className="empty-card"><strong>Sem dados</strong><span>Cadastros da equipe aparecem aqui.</span></div>
-          )}
-        </Card>
-        <Card title="Zonas" className="chart-card">
-          {zonaData.length ? <ZonaDonutChart data={zonaData} /> : (
-            <div className="empty-card"><strong>Sem zonas</strong><span>Aguardando registros.</span></div>
-          )}
-        </Card>
-      </div>
-
-      <Card title="Top nerites da diretoria">
-        {ranking.length ? (
-          <div className="ranking-list">
-            {ranking.map((n, i) => (
-              <Link to={`/nerites/${n.id}`} className="ranking-row" key={n.id}>
-                <span className="ranking-position">{i + 1}</span>
-                <span className="ranking-person">
-                  <strong>{n.nome}</strong>
-                  <span className="ranking-progress">
-                    <i style={{ width: `${Math.max((n.total / maxRank) * 100, 4)}%` }} />
-                  </span>
+          <div className="nv-mob-list">
+            {([
+              ['Carros adesivados', mobilizacaoTotals.carros, 'carros', false],
+              ['Adesivos para casa', mobilizacaoTotals.casa, 'casa', false],
+              ['Postagens', mobilizacaoTotals.postagens, 'postagens', false],
+              ['Sem lançamento', mobilizacaoTotals.pendentes, 'pendente', true],
+            ] as const).map(([label, value, status, pendente]) => (
+              <Link key={status} to={`/mobilizacao?status=${status}`} className="nv-mob-row">
+                <span>{label}</span>
+                <span className="nv-mob-row-right">
+                  {pendente && <em className="nv-pill-warn">pendente</em>}
+                  <strong className="tabular-nums">{value.toLocaleString('pt-BR')}</strong>
                 </span>
-                <strong className="ranking-count">{n.total}</strong>
               </Link>
             ))}
           </div>
-        ) : (
-          <div className="empty-card">
-            <strong>Nenhuma nerite com cadastros</strong>
-            <span>Crie nerites em Equipe para começar.</span>
+          <div className="nv-cover">
+            <div className="nv-cover-labels">
+              <span>Cobertura de mobilização</span>
+              <span>
+                {mobComLancamento.toLocaleString('pt-BR')} de {mobBase.toLocaleString('pt-BR')}
+              </span>
+            </div>
+            <div className="nv-bar amber">
+              <i style={{ width: `${Math.max(coberturaPct, mobComLancamento > 0 ? 2 : 0)}%` }} />
+            </div>
           </div>
-        )}
-      </Card>
+        </div>
+      </section>
+
+      <section className="nv-split">
+        <div className="nv-panel">
+          <div className="nv-panel-head">
+            <div>
+              <h2><MapIcon size={16} strokeWidth={1.6} aria-hidden />Mapa por zona eleitoral</h2>
+              <p>Intensidade pelas fichas do período</p>
+            </div>
+            <Link to="/mapa">Mapa completo →</Link>
+          </div>
+          <div className="nv-map-wrap">
+            <CadastrosMap markers={mapMarkers} height={320} showLegend={false} />
+            <div className="nv-map-legend" aria-hidden>
+              <div className="nv-map-legend-title">Intensidade</div>
+              <div className="nv-map-legend-row">
+                <span className="nv-map-legend-swatch" style={{ background: '#7fd8c4' }} /> Baixa
+              </div>
+              <div className="nv-map-legend-row">
+                <span className="nv-map-legend-swatch" style={{ background: '#f2d264' }} /> Média
+              </div>
+              <div className="nv-map-legend-row">
+                <span className="nv-map-legend-swatch" style={{ background: '#f0a355' }} /> Alta
+              </div>
+              <div className="nv-map-legend-row">
+                <span className="nv-map-legend-swatch" style={{ background: '#e2614f' }} /> Muito alta
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="nv-panel">
+          <div className="nv-panel-head">
+            <div>
+              <h2><Award size={16} strokeWidth={1.6} aria-hidden />Top nerites</h2>
+              <p>Com fichas no período</p>
+            </div>
+            <Link to="/equipe?tab=nerites">Ver tudo →</Link>
+          </div>
+          {ranking.length ? (
+            <div className="nv-rank-list">
+              {ranking.map((n, i) => (
+                <Link to={`/nerites/${n.id}`} className="nv-rank-row" key={n.id}>
+                  <span className={`nv-rank-pos${i === 0 ? ' top' : ''}`}>{i + 1}</span>
+                  <div className="nv-rank-body">
+                    <div className="nv-rank-meta">
+                      <span>{n.nome}</span>
+                      <strong className="tabular-nums">{n.total}</strong>
+                    </div>
+                    <div className="nv-bar thin">
+                      <i style={{ width: `${Math.max((n.total / maxRank) * 100, 4)}%` }} />
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="nv-empty">Nenhuma nerite com lançamentos neste período.</div>
+          )}
+          {zonaData.length > 0 && (
+            <div className="nv-panel-body nv-zona-list" style={{ borderTop: '1px solid #eef0f3' }}>
+              <div className="nv-secoes-label">Distribuição por zona</div>
+              {zonaData.slice(0, 4).map((z) => {
+                const pct = cadastros.length ? Math.round((z.value / cadastros.length) * 100) : 0
+                const zonaLabel = z.name.replace(/^Zona eleitoral\s+/i, '')
+                return (
+                  <div key={z.name} className="nv-zona-row">
+                    <div className="nv-zona-row-top">
+                      <span>Zona eleitoral {zonaLabel}</span>
+                      <span className="tabular-nums">{z.value} · {pct}%</span>
+                    </div>
+                    <div className="nv-bar thin"><i style={{ width: `${pct}%` }} /></div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   )
 }
