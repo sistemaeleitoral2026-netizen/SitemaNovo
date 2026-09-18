@@ -52,7 +52,11 @@ export function RelatoriosPage() {
 
   const porZona = useMemo(() => {
     const map = new Map<string, number>()
-    cadastros.forEach((c) => map.set(c.zona, (map.get(c.zona) ?? 0) + 1))
+    cadastros.forEach((c) => {
+      const zona = (c.zona ?? '').trim()
+      if (!zona) return
+      map.set(zona, (map.get(zona) ?? 0) + 1)
+    })
     return Array.from(map.entries())
       .map(([zona, total]) => ({ zona, total }))
       .sort((a, b) => b.total - a.total)
@@ -61,10 +65,13 @@ export function RelatoriosPage() {
   const porSecao = useMemo(() => {
     const map = new Map<string, { secao: string; zona: string; total: number }>()
     cadastros.forEach((c) => {
-      const key = `${c.zona}::${c.secao}`
+      const zona = c.zona ?? ''
+      const secao = c.secao ?? ''
+      if (!zona && !secao) return
+      const key = `${zona}::${secao}`
       const existing = map.get(key)
       if (existing) existing.total += 1
-      else map.set(key, { secao: c.secao, zona: c.zona, total: 1 })
+      else map.set(key, { secao, zona, total: 1 })
     })
     return Array.from(map.values())
       .sort((a, b) => b.total - a.total)

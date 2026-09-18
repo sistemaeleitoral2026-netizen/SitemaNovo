@@ -91,12 +91,17 @@ export function CadastrosPage() {
   )
 
   const zonas = useMemo(
-    () => [...new Set(cadastros.map((c) => c.zona).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })),
+    () => [...new Set(cadastros.map((c) => c.zona).filter((z): z is string => Boolean(z)))]
+      .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })),
     [cadastros],
   )
   const secoes = useMemo(
-    () => [...new Set(cadastros.filter((c) => !zonaFilter || c.zona === zonaFilter).map((c) => c.secao).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })),
+    () => [...new Set(
+      cadastros
+        .filter((c) => !zonaFilter || c.zona === zonaFilter)
+        .map((c) => c.secao)
+        .filter((s): s is string => Boolean(s)),
+    )].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })),
     [cadastros, zonaFilter],
   )
   const coordenadoresOpts = useMemo(

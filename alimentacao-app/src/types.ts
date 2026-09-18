@@ -39,15 +39,15 @@ export interface Cadastro {
   id: string
   operator_id: string
   diretoria_id?: string | null
-  nome_completo: string | null
+  nome_completo: string
   cpf: string | null
-  telefone: string | null
-  titulo: string | null
-  zona: string | null
-  secao: string | null
-  nome_mae: string | null
-  coordenador: string | null
-  lider: string | null
+  telefone: string
+  titulo: string
+  zona: string
+  secao: string
+  nome_mae: string
+  coordenador: string
+  lider: string
   data_nascimento: string | null
   cep: string | null
   lat: number | null
