@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { FolderOpen, Info, Upload } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
@@ -9,7 +9,14 @@ import { fetchExistingImportKeys } from '../lib/cadastros'
 import { geocodeFromZona } from '../lib/geocode'
 import { logAudit } from '../lib/audit'
 import { supabase } from '../lib/supabase'
-import type { Coordenador, ImportPreview, ImportTeamContext, Lider } from '../types'
+import type {
+  Coordenador,
+  ImportExistingKeys,
+  ImportPreview,
+  ImportPreviewRow,
+  ImportTeamContext,
+  Lider,
+} from '../types'
 
 export function ImportarPage() {
   const { profile } = useAuth()
@@ -20,6 +27,14 @@ export function ImportarPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
+  const [parsedRows, setParsedRows] = useState<Record<string, string>[]>([])
+  const [existingKeys, setExistingKeys] = useState<ImportExistingKeys | null>(null)
+  const [team, setTeam] = useState<ImportTeamContext | null>(null)
+  const [importedRows, setImportedRows] = useState<ImportPreviewRow[]>([])
+  const [importProgress, setImportProgress] = useState<{ atual: number; total: number } | null>(null)
+
+  const coordenadores = useMemo(() => team?.coordenadores ?? [], [team])
+  const lideres = useMemo(() => team?.lideres ?? [], [team])
 
   const processFile = useCallback(async (f: File) => {
     setError(null)
@@ -53,6 +68,10 @@ export function ImportarPage() {
         lider_id: profile.lider_id,
       }
       const result = await analyzeImport(rows, existingKeys, team)
+      setParsedRows(rows)
+      setExistingKeys(existingKeys)
+      setTeam(team)
+      setImportedRows([])
       setPreview(result)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao processar arquivo.')
@@ -61,6 +80,28 @@ export function ImportarPage() {
       setLoading(false)
     }
   }, [profile])
+
+  async function updateTeamMember(
+    rowIndex: number,
+    field: 'coordenador' | 'lider',
+    value: string,
+  ) {
+    if (!existingKeys || !team) return
+    const nextRows = parsedRows.map((row, index) => (
+      index === rowIndex ? { ...row, [field]: value } : row
+    ))
+
+    if (field === 'lider') {
+      const selectedLeader = team.lideres.find((leader) => leader.nome === value)
+      const selectedCoordinator = selectedLeader?.coordenador_id
+        ? team.coordenadores.find((coordinator) => coordinator.id === selectedLeader.coordenador_id)
+        : null
+      if (selectedCoordinator) nextRows[rowIndex].coordenador = selectedCoordinator.nome
+    }
+
+    setParsedRows(nextRows)
+    setPreview(await analyzeImport(nextRows, existingKeys, team))
+  }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
@@ -110,8 +151,11 @@ export function ImportarPage() {
     }
 
     let inserted = 0
+    const insertedRows: ImportPreviewRow[] = []
     const insertionErrors: typeof errorLines = []
-    for (const row of validRows) {
+    setImportProgress({ atual: 0, total: validRows.length })
+    for (const [index, row] of validRows.entries()) {
+      setImportProgress({ atual: index + 1, total: validRows.length })
       const coords = row.zona ? await geocodeFromZona(row.zona) : null
       const { error: insertError } = await supabase.from('cadastros').insert({
         operator_id: profile.id,
@@ -132,6 +176,7 @@ export function ImportarPage() {
       })
       if (!insertError) {
         inserted += 1
+        insertedRows.push(row)
       } else {
         insertionErrors.push({
           linha: row.linha,
@@ -158,13 +203,14 @@ export function ImportarPage() {
     })
 
     setConfirming(false)
+    setImportProgress(null)
+    setImportedRows(insertedRows)
     if (insertionErrors.length) {
       setError(`${inserted} cadastro(s) importado(s). ${insertionErrors.length} falharam e não foram incluídos.`)
     } else {
       setSuccess(`${inserted} cadastro(s) importado(s) com sucesso.`)
     }
     setPreview(null)
-    setFile(null)
   }
 
   return (
@@ -251,7 +297,11 @@ export function ImportarPage() {
             <div><span className="badge badge-danger">Erros: {preview.erros}</span></div>
           </div>
 
-          {preview.linhas.some((l) => l.status !== 'valido') && (
+          <p style={{ margin: '0 0 1rem', fontWeight: 700 }}>
+            {preview.validos} de {preview.total} ficha(s) serão importadas.
+          </p>
+
+          {preview.linhas.length > 0 && (
             <div className="table-wrapper" style={{ marginBottom: '1.5rem' }}>
               <table className="data-table">
                 <thead>
@@ -260,13 +310,13 @@ export function ImportarPage() {
                     <th>Status</th>
                     <th>Nome</th>
                     <th>Título</th>
+                    <th>Coordenador</th>
+                    <th>Liderança</th>
                     <th>Mensagem</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {preview.linhas
-                    .filter((l) => l.status !== 'valido')
-                    .map((l) => (
+                  {preview.linhas.map((l, rowIndex) => (
                       <tr key={l.linha}>
                         <td>{l.linha}</td>
                         <td>
@@ -276,7 +326,38 @@ export function ImportarPage() {
                         </td>
                         <td>{l.nome_completo}</td>
                         <td>{l.titulo}</td>
-                        <td>{l.mensagem}</td>
+                        <td>
+                          <select
+                            value={l.coordenador}
+                            onChange={(event) => updateTeamMember(rowIndex, 'coordenador', event.target.value)}
+                            style={{ minWidth: 160 }}
+                            aria-label={`Coordenador da linha ${l.linha}`}
+                          >
+                            <option value="">Selecione</option>
+                            {coordenadores.map((coordinator) => (
+                              <option key={coordinator.id} value={coordinator.nome}>{coordinator.nome}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <select
+                            value={l.lider}
+                            onChange={(event) => updateTeamMember(rowIndex, 'lider', event.target.value)}
+                            style={{ minWidth: 170 }}
+                            aria-label={`Liderança da linha ${l.linha}`}
+                          >
+                            <option value="">Selecione</option>
+                            {lideres
+                              .filter((leader) => {
+                                const coordinator = coordenadores.find((item) => item.nome === l.coordenador)
+                                return !coordinator || !leader.coordenador_id || leader.coordenador_id === coordinator.id
+                              })
+                              .map((leader) => (
+                                <option key={leader.id} value={leader.nome}>{leader.nome}</option>
+                              ))}
+                          </select>
+                        </td>
+                        <td>{l.mensagem ?? 'Pronta para importar'}</td>
                       </tr>
                     ))}
                 </tbody>
@@ -286,9 +367,40 @@ export function ImportarPage() {
 
           {preview.validos > 0 && (
             <Button onClick={handleConfirm} loading={confirming}>
-              Confirmar Importação
+              {importProgress
+                ? `Importando ${importProgress.atual} de ${importProgress.total}`
+                : `Importar ${preview.validos} ficha(s)`}
             </Button>
           )}
+        </Card>
+      )}
+
+      {importedRows.length > 0 && (
+        <Card title={`Fichas importadas (${importedRows.length})`}>
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>Título</th>
+                  <th>Zona/Seção</th>
+                  <th>Coordenador</th>
+                  <th>Liderança</th>
+                </tr>
+              </thead>
+              <tbody>
+                {importedRows.map((row) => (
+                  <tr key={`${row.linha}-${row.titulo}`}>
+                    <td>{row.nome_completo}</td>
+                    <td>{row.titulo}</td>
+                    <td>{row.zona}/{row.secao}</td>
+                    <td>{row.coordenador}</td>
+                    <td>{row.lider}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Card>
       )}
     </div>
