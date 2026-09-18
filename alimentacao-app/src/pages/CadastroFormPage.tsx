@@ -7,6 +7,7 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/Spinner'
+import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import { normalizeCadastroFields, formatCpf, formatPhone, formatCep } from '../lib/normalize'
 import { validateCadastroForm, isDuplicateCpfError, isDuplicateTituloError } from '../lib/validation'
 import { geocodeFromZona } from '../lib/geocode'
@@ -329,14 +330,34 @@ export function CadastroFormPage() {
               placeholder={coordenadores.length ? 'Selecione o coordenador' : 'Nenhum cadastrado ainda'}
               options={coordenadores.map((c) => ({ value: c.id, label: c.nome }))}
             />
-            <Select
-              label="Liderança"
-              value={liderId}
-              onChange={(e) => handleLiderChange(e.target.value)}
-              error={errors.lider}
-              placeholder={lideresFiltrados.length ? 'Selecione a liderança' : 'Nenhuma cadastrada ainda'}
-              options={lideresFiltrados.map((l) => ({ value: l.id, label: l.nome }))}
-            />
+            <div className="ui-field">
+              <label htmlFor="lideranca" className="ui-field-label">
+                Liderança
+              </label>
+              <div className="phone-with-whatsapp">
+                <select
+                  id="lideranca"
+                  value={liderId}
+                  onChange={(e) => handleLiderChange(e.target.value)}
+                  aria-invalid={errors.lider ? true : undefined}
+                  className={`ui-select${errors.lider ? ' ui-input-error' : ''}`}
+                >
+                  <option value="">
+                    {lideresFiltrados.length ? 'Selecione a liderança' : 'Nenhuma cadastrada ainda'}
+                  </option>
+                  {lideresFiltrados.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.nome}
+                    </option>
+                  ))}
+                </select>
+                <WhatsAppLink
+                  phone={lideres.find((l) => l.id === liderId)?.telefone}
+                  label="WhatsApp da liderança"
+                />
+              </div>
+              {errors.lider && <span className="field-error">{errors.lider}</span>}
+            </div>
             <Input
               label="Data de nascimento"
               type="date"
@@ -344,13 +365,23 @@ export function CadastroFormPage() {
               onChange={(e) => updateField('data_nascimento', e.target.value)}
               error={errors.data_nascimento}
             />
-            <Input
-              label="Telefone"
-              value={form.telefone}
-              onChange={(e) => updateField('telefone', formatPhone(e.target.value))}
-              error={errors.telefone}
-              placeholder="(98) 99123-4567"
-            />
+            <div className="ui-field">
+              <label htmlFor="telefone" className="ui-field-label">
+                Telefone
+              </label>
+              <div className="phone-with-whatsapp">
+                <input
+                  id="telefone"
+                  value={form.telefone}
+                  onChange={(e) => updateField('telefone', formatPhone(e.target.value))}
+                  placeholder="(98) 99123-4567"
+                  aria-invalid={errors.telefone ? true : undefined}
+                  className={`ui-input${errors.telefone ? ' ui-input-error' : ''}`}
+                />
+                <WhatsAppLink phone={form.telefone} />
+              </div>
+              {errors.telefone && <span className="field-error">{errors.telefone}</span>}
+            </div>
             <Input
               label="Título de eleitor"
               value={form.titulo}
