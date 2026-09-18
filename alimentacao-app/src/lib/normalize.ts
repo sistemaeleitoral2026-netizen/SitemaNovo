@@ -30,7 +30,8 @@ export function normalizePhone(value: string): string {
   return digitsOnly(value).slice(0, 11)
 }
 
-export function formatPhone(value: string): string {
+export function formatPhone(value: string | null | undefined): string {
+  if (!value) return ''
   const d = normalizePhone(value)
   if (d.length === 11) {
     return d.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')

@@ -35,10 +35,10 @@ export async function fetchCadastros(options?: {
     results = results.filter((c) => {
       const cpfDigits = (c.cpf ?? '').replace(/\D/g, '')
       return (
-        c.nome_completo.toLowerCase().includes(textTerm)
+        (c.nome_completo ?? '').toLowerCase().includes(textTerm)
         || (cpfDigits && cpfDigits.includes(term))
-        || c.telefone.includes(term)
-        || c.titulo.toLowerCase().includes(textTerm)
+        || (c.telefone ?? '').includes(term)
+        || (c.titulo ?? '').toLowerCase().includes(textTerm)
       )
     })
   }
@@ -61,7 +61,7 @@ export async function fetchExistingTitulos(): Promise<Set<string>> {
   if (error) throw error
   return new Set(
     (data ?? [])
-      .map((r: { titulo: string }) => r.titulo.trim().toLowerCase())
+      .map((r: { titulo: string | null }) => (r.titulo ?? '').trim().toLowerCase())
       .filter(Boolean),
   )
 }
