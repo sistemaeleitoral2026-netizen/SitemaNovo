@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { ArrowLeft, KeyRound } from 'lucide-react'
 
 export function ForgotPasswordPage() {
   const { resetPassword } = useAuth()
@@ -29,13 +30,15 @@ export function ForgotPasswordPage() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
-          <h1>Nerites</h1>
-          <p>Recuperar senha</p>
+          <div className="login-card-icon"><KeyRound size={22} /></div>
+          <span className="login-kicker">Recuperação de acesso</span>
+          <h1>Redefinir senha</h1>
+          <p>Informe o e-mail vinculado à sua conta.</p>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <Input
-            label="Usuário"
+            label="E-mail"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -49,11 +52,8 @@ export function ForgotPasswordPage() {
             Enviar
           </Button>
 
-          <Link
-            to="/login"
-            style={{ textAlign: 'center', fontSize: '0.875rem', color: 'var(--color-primary)' }}
-          >
-            Voltar ao login
+          <Link to="/login" className="login-help-link">
+            <ArrowLeft size={15} /> Voltar ao login
           </Link>
         </form>
       </div>

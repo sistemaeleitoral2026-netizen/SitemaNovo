@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Spinner } from '../components/ui/Spinner'
+import { CheckCircle2, LockKeyhole } from 'lucide-react'
 
 export function LoginPage() {
   const { session, profile, loading, signIn } = useAuth()
@@ -44,15 +45,29 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
+      <section className="login-intro" aria-label="Apresentação do sistema">
+        <div className="login-intro-content">
+          <div className="login-wordmark"><span>N</span>Nerites</div>
+          <h1>Gestão de cadastros<br />com visão territorial.</h1>
+          <p>Centralize a operação, acompanhe a equipe e visualize os dados coletados em um único ambiente.</p>
+          <ul>
+            <li><CheckCircle2 size={17} /> Gestão organizada da equipe</li>
+            <li><CheckCircle2 size={17} /> Indicadores e relatórios consolidados</li>
+            <li><CheckCircle2 size={17} /> Leitura geográfica dos cadastros</li>
+          </ul>
+        </div>
+      </section>
       <div className="login-card">
         <div className="login-brand">
-          <h1>Nerites</h1>
-          <p>Cadastro e geolocalização</p>
+          <div className="login-card-icon"><LockKeyhole size={22} /></div>
+          <span className="login-kicker">Acesso ao sistema</span>
+          <h1>Bem-vindo</h1>
+          <p>Entre com suas credenciais para continuar.</p>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <Input
-            label="Usuário"
+            label="E-mail"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -68,7 +83,7 @@ export function LoginPage() {
             autoComplete="current-password"
           />
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+          <label className="login-remember">
             <input
               type="checkbox"
               checked={remember}
@@ -83,10 +98,7 @@ export function LoginPage() {
             Entrar
           </Button>
 
-          <Link
-            to="/esqueci-senha"
-            style={{ textAlign: 'center', fontSize: '0.875rem', color: 'var(--color-primary)' }}
-          >
+          <Link to="/esqueci-senha" className="login-help-link">
             Esqueceu sua senha?
           </Link>
         </form>
