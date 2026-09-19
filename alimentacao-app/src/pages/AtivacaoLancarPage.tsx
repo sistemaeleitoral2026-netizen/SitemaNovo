@@ -73,7 +73,7 @@ export function AtivacaoLancarPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState<string | null>(null)
-  const [kpis, setKpis] = useState({ carros: 0, casas: 0, postagens: 0, pendentes: 0 })
+  const [kpis, setKpis] = useState({ carros: 0, casas: 0, postagens: 0, whatsapp: 0, pendentes: 0 })
 
   const isFormActive = selected !== null
   const waUrl = buildWhatsAppUrl(selected?.telefone)
@@ -232,6 +232,14 @@ export function AtivacaoLancarPage() {
               Icon: Share2,
               tone: 'violet',
               to: '/ativacao/painel?equipe=todos&status=com_links',
+            },
+            {
+              key: 'whatsapp',
+              label: 'WhatsApp',
+              value: kpis.whatsapp,
+              Icon: MessageCircle,
+              tone: 'wa',
+              to: '/ativacao/painel?equipe=todos&status=contato_sim',
             },
             {
               key: 'pendentes',
