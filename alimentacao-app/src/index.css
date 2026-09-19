@@ -1061,7 +1061,7 @@ a.ranking-row:hover .ranking-person strong { color: #2459c4; }
   margin-bottom: 1rem;
 }
 
-/* Todos os Cadastros — estrutura do layout de referência */
+/* Todos os Cadastros â estrutura do layout de referÃªncia */
 .cadastros-page .page-header { margin-bottom: 1rem; }
 .cadastros-page .page-subtitle { margin-top: .16rem; font-size: .75rem; }
 .cadastros-page .page-header-actions { gap: .625rem; }
@@ -2280,7 +2280,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .admin-top-grid { grid-template-columns: 1fr; }
 }
 
-/* —— Meta de fichas —— */
+/* ââ Meta de fichas ââ */
 .meta-config-hint {
   display: inline-flex;
   align-items: center;
@@ -2864,7 +2864,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   }
 }
 
-/* —— Liderança (meta por pessoa) —— */
+/* ââ LideranÃ§a (meta por pessoa) ââ */
 .lideranca-kpi-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2988,7 +2988,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   }
 }
 
-/* —— Design system foundations —— */
+/* ââ Design system foundations ââ */
 :root {
   --app-bg: #f4f5f7;
   --surface-muted: #f8fafc;
@@ -3145,7 +3145,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .page-subtitle { max-width: 720px; line-height: 1.5; }
 .badge { padding: .22rem .55rem; border-radius: 6px; }
 
-/* —— Authentication —— */
+/* ââ Authentication ââ */
 .login-page {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(440px, .9fr);
@@ -3219,7 +3219,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 
-/* —— Mobilização: edição explícita e layout responsivo —— */
+/* ââ MobilizaÃ§Ã£o: ediÃ§Ã£o explÃ­cita e layout responsivo ââ */
 .mobilizacao-feedback {
   display: flex;
   align-items: center;
@@ -3278,7 +3278,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .mobilizacao-open-link { justify-content: center; width: 100%; margin-right: 0; padding: .35rem; }
 }
 
-/* —— Dashboard: visão de mobilização —— */
+/* ââ Dashboard: visÃ£o de mobilizaÃ§Ã£o ââ */
 .dashboard-overview-grid {
   grid-template-columns: minmax(235px, 1.25fr) repeat(3, minmax(0, 1fr));
 }
@@ -3333,7 +3333,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .mobilizacao-summary-grid { grid-template-columns: 1fr; }
 }
 
-/* —— Dashboard editorial: menos caixas, mais hierarquia —— */
+/* ââ Dashboard editorial: menos caixas, mais hierarquia ââ */
 .dashboard-eyebrow {
   margin-bottom: .28rem !important;
   color: #7a8698 !important;
@@ -3448,7 +3448,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
 
 /* ============================================================
    Nerites dashboard redesign (standalone parity)
-   Appended overrides — keep at end of file
+   Appended overrides â keep at end of file
    ============================================================ */
 
 /* Remove shell padding when dashboard owns its own inset */
@@ -4144,7 +4144,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   color: #6b7280;
 }
 
-/* Mobilização rows */
+/* MobilizaÃ§Ã£o rows */
 .nv-mob-row {
   display: flex;
   align-items: center;
@@ -4763,7 +4763,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
 }
 
 
-/* ===== Lan�ar Formigas (fiel a painel_nerites.tsx) ===== */
+/* ===== Lanï¿½ar Formigas (fiel a painel_nerites.tsx) ===== */
 .fl-page { max-width: 72rem; margin: 0 auto; width: 100%; }
 .fl-page-head {
   display: flex;
@@ -5298,7 +5298,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .fl-btn-wa { justify-content: center; }
 }
 
-/* —— Demandas —— */
+/* ââ Demandas ââ */
 .dm-page { max-width: 960px; animation: dmFade .15s ease-out; }
 @keyframes dmFade {
   from { opacity: 0; transform: translateY(2px); }
@@ -5644,7 +5644,84 @@ button.fichas-count.equipe-drill-count.zero:hover {
   padding: 0;
 }
 .dm-foto-chip button:hover { color: #e11d48; }
-.dm-actions { display: flex; justify-content: flex-end; margin-top: 1.15rem; padding-top: .85rem; }
+.dm-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: .65rem;
+  margin-top: 1.15rem;
+  padding-top: .85rem;
+}
+.dm-btn-ghost {
+  height: 40px;
+  padding: 0 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  color: #475569;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 550;
+  cursor: pointer;
+}
+.dm-btn-ghost:hover { background: #f8fafc; }
+.dm-edit-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  margin: -0.25rem 0 1rem;
+  padding: .65rem .85rem;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: .78rem;
+  font-weight: 600;
+}
+.dm-edit-banner button {
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font: inherit;
+  font-size: .75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dm-edit-banner button:hover { text-decoration: underline; }
+.dm-hist { margin-top: .15rem; }
+.dm-hist-foot { justify-content: flex-end; }
+.dm-hist-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+.dm-btn-edit,
+.dm-btn-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  height: 34px;
+  padding: 0 .8rem;
+  border-radius: 8px;
+  font: inherit;
+  font-size: .75rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.dm-btn-edit {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+.dm-btn-edit:hover { background: #dbeafe; }
+.dm-btn-delete {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #be123c;
+}
+.dm-btn-delete:hover { background: #ffe4e6; }
 .dm-submit {
   display: inline-flex;
   align-items: center;
