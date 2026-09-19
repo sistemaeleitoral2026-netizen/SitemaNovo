@@ -18,10 +18,12 @@ import { Modal } from '../components/ui/Modal'
 import {
   canManageDemanda,
   createDemanda,
+  DEMANDA_MAX_FOTOS,
   deleteDemanda,
   fetchDemandas,
   labelUrgencia,
   protocoloDemanda,
+  resolveDemandaFotoPaths,
   searchCadastrosDemanda,
   updateDemanda,
   type DemandaCadastroHit,
@@ -77,10 +79,8 @@ export function DemandasLancarPage() {
   const [telefoneExtra, setTelefoneExtra] = useState('')
   const [urgencia, setUrgencia] = useState<DemandaUrgencia>('normal')
   const [descricao, setDescricao] = useState('')
-  const [foto, setFoto] = useState<File | null>(null)
-  const [fotoPreview, setFotoPreview] = useState<string | null>(null)
-  const [existingFotoUrl, setExistingFotoUrl] = useState<string | null>(null)
-  const [removeFoto, setRemoveFoto] = useState(false)
+  const [newFotos, setNewFotos] = useState<{ file: File; preview: string }[]>([])
+  const [keptFotos, setKeptFotos] = useState<{ path: string; url: string }[]>([])
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [historico, setHistorico] = useState<DemandaComAutor[]>([])
@@ -146,9 +146,19 @@ export function DemandasLancarPage() {
 
   useEffect(() => {
     return () => {
-      if (fotoPreview) URL.revokeObjectURL(fotoPreview)
+      newFotos.forEach((f) => URL.revokeObjectURL(f.preview))
     }
-  }, [fotoPreview])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const totalFotos = keptFotos.length + newFotos.length
+
+  function clearNewFotos() {
+    setNewFotos((prev) => {
+      prev.forEach((f) => URL.revokeObjectURL(f.preview))
+      return []
+    })
+  }
 
   function resetFormFields() {
     setSelected(null)
@@ -160,11 +170,8 @@ export function DemandasLancarPage() {
     setTelefoneExtra('')
     setUrgencia('normal')
     setDescricao('')
-    setFoto(null)
-    if (fotoPreview) URL.revokeObjectURL(fotoPreview)
-    setFotoPreview(null)
-    setExistingFotoUrl(null)
-    setRemoveFoto(false)
+    clearNewFotos()
+    setKeptFotos([])
     setEditingId(null)
     setError(null)
     setOk(null)
@@ -194,11 +201,33 @@ export function DemandasLancarPage() {
     setTelefone('')
   }
 
-  function onFoto(file: File | null) {
-    if (fotoPreview) URL.revokeObjectURL(fotoPreview)
-    setFoto(file)
-    setFotoPreview(file ? URL.createObjectURL(file) : null)
-    if (file) setRemoveFoto(false)
+  function addFotos(files: FileList | null) {
+    if (!files?.length) return
+    const remaining = DEMANDA_MAX_FOTOS - keptFotos.length - newFotos.length
+    if (remaining <= 0) {
+      setError(`Máximo de ${DEMANDA_MAX_FOTOS} fotos por demanda.`)
+      return
+    }
+    const accepted = Array.from(files)
+      .filter((f) => f.type.startsWith('image/'))
+      .slice(0, remaining)
+      .map((file) => ({ file, preview: URL.createObjectURL(file) }))
+    if (!accepted.length) return
+    setNewFotos((prev) => [...prev, ...accepted])
+    setError(null)
+  }
+
+  function removeNewFoto(index: number) {
+    setNewFotos((prev) => {
+      const next = [...prev]
+      const [removed] = next.splice(index, 1)
+      if (removed) URL.revokeObjectURL(removed.preview)
+      return next
+    })
+  }
+
+  function removeKeptFoto(path: string) {
+    setKeptFotos((prev) => prev.filter((f) => f.path !== path))
   }
 
   function startEdit(d: DemandaComAutor) {
@@ -211,11 +240,15 @@ export function DemandasLancarPage() {
     setTelefoneExtra(d.telefone_extra ?? '')
     setUrgencia(d.urgencia ?? 'normal')
     setDescricao(d.descricao)
-    setFoto(null)
-    if (fotoPreview) URL.revokeObjectURL(fotoPreview)
-    setFotoPreview(null)
-    setExistingFotoUrl(d.foto_url ?? null)
-    setRemoveFoto(false)
+    clearNewFotos()
+    const paths = resolveDemandaFotoPaths(d)
+    const urls = d.foto_urls ?? (d.foto_url ? [d.foto_url] : [])
+    setKeptFotos(
+      paths.map((path, i) => ({
+        path,
+        url: urls[i] ?? '',
+      })).filter((f) => f.url),
+    )
     setSelected(null)
     setError(null)
     setOk(null)
@@ -248,8 +281,8 @@ export function DemandasLancarPage() {
         telefone_extra: telefoneExtra,
         urgencia,
         descricao,
-        foto,
-        removeFoto,
+        keepPaths: keptFotos.map((f) => f.path),
+        fotos: newFotos.map((f) => f.file),
       })
       setSaving(false)
       if (err) {
@@ -272,7 +305,7 @@ export function DemandasLancarPage() {
       telefone_extra: telefoneExtra,
       urgencia,
       descricao,
-      foto,
+      fotos: newFotos.map((f) => f.file),
     })
     setSaving(false)
 
@@ -285,7 +318,7 @@ export function DemandasLancarPage() {
     setDescricao('')
     setTelefoneExtra('')
     setUrgencia('normal')
-    onFoto(null)
+    clearNewFotos()
     if (mode === 'avulso') {
       setNome('')
       setDocumento('')
@@ -504,45 +537,50 @@ export function DemandasLancarPage() {
 
           <section className="dm-section">
             <label className="dm-label">
-              <Camera size={13} /> Foto (opcional)
+              <Camera size={13} /> Fotos (opcional)
+              <em className="dm-label-note">até {DEMANDA_MAX_FOTOS} imagens</em>
             </label>
             <div className="dm-foto-row">
-              <button type="button" className="dm-foto-btn" onClick={() => fileRef.current?.click()}>
-                <Plus size={14} /> {editingId ? 'Trocar imagem' : 'Anexar imagem'}
+              <button
+                type="button"
+                className="dm-foto-btn"
+                onClick={() => fileRef.current?.click()}
+                disabled={totalFotos >= DEMANDA_MAX_FOTOS}
+              >
+                <Plus size={14} /> Adicionar fotos
               </button>
-              {foto && (
-                <div className="dm-foto-chip">
-                  {fotoPreview && <img src={fotoPreview} alt="" />}
-                  <span>{foto.name}</span>
-                  <button type="button" onClick={() => onFoto(null)} aria-label="Remover foto">
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
-              {!foto && existingFotoUrl && !removeFoto && (
-                <div className="dm-foto-chip">
-                  <img src={existingFotoUrl} alt="" />
-                  <span>Foto atual</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRemoveFoto(true)
-                      setExistingFotoUrl(null)
-                    }}
-                    aria-label="Remover foto"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
               <input
                 ref={fileRef}
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/gif"
+                multiple
                 hidden
-                onChange={(e) => onFoto(e.target.files?.[0] ?? null)}
+                onChange={(e) => {
+                  addFotos(e.target.files)
+                  e.target.value = ''
+                }}
               />
             </div>
+            {(keptFotos.length > 0 || newFotos.length > 0) && (
+              <div className="dm-fotos-grid">
+                {keptFotos.map((f) => (
+                  <div key={f.path} className="dm-foto-tile">
+                    <img src={f.url} alt="" />
+                    <button type="button" onClick={() => removeKeptFoto(f.path)} aria-label="Remover foto">
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+                {newFotos.map((f, i) => (
+                  <div key={`${f.file.name}-${i}`} className="dm-foto-tile">
+                    <img src={f.preview} alt="" />
+                    <button type="button" onClick={() => removeNewFoto(i)} aria-label="Remover foto">
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           {error && <div className="alert alert-error">{error}</div>}

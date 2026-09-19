@@ -293,19 +293,27 @@ export function DemandasPainelPage() {
 
                     <div className="dm-desc-box">{d.descricao}</div>
 
-                    {(d.foto_url || d.autor_nome) && (
+                    {(Boolean(d.foto_urls?.length) || d.autor_nome) && (
                       <div className="dm-item-meta">
-                        {d.foto_url && (
-                          <button
-                            type="button"
-                            className="dm-thumb"
-                            onClick={() => setPreview({ url: d.foto_url!, label: `${proto} · ${d.nome}` })}
-                          >
-                            <img src={d.foto_url} alt="" />
-                            <span>
-                              <ImageIcon size={13} /> Ver foto
-                            </span>
-                          </button>
+                        {Boolean(d.foto_urls?.length) && (
+                          <div className="dm-thumbs">
+                            {d.foto_urls!.map((url, i) => (
+                              <button
+                                key={`${d.id}-foto-${i}`}
+                                type="button"
+                                className="dm-thumb"
+                                onClick={() => setPreview({ url, label: `${proto} · ${d.nome}` })}
+                              >
+                                <img src={url} alt="" />
+                                {i === 0 && (
+                                  <span>
+                                    <ImageIcon size={13} />
+                                    {d.foto_urls!.length > 1 ? `${d.foto_urls!.length} fotos` : 'Ver foto'}
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
                         )}
                         <span className="dm-autor">Lançada por {d.autor_nome}</span>
                       </div>
