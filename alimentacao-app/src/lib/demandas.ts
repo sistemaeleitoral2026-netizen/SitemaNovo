@@ -1,6 +1,8 @@
 import { supabase } from './supabase'
 import type { Cadastro, Demanda, DemandaStatus, DemandaUrgencia } from '../types'
 
+export const DEMANDA_MAX_FOTOS = 6
+
 export type DemandaCadastroHit = {
   id: string
   nome: string
@@ -19,7 +21,7 @@ export type DemandaCreateInput = {
   telefone_extra?: string
   descricao: string
   urgencia?: DemandaUrgencia
-  foto?: File | null
+  fotos?: File[]
 }
 
 const URGENCIA_LABEL: Record<DemandaUrgencia, string> = {
@@ -39,6 +41,14 @@ export function protocoloDemanda(id: string) {
 
 export function labelUrgencia(urgencia: DemandaUrgencia | null | undefined) {
   return URGENCIA_LABEL[urgencia ?? 'normal']
+}
+
+export function resolveDemandaFotoPaths(
+  row: Pick<Demanda, 'foto_path' | 'foto_paths'> | { foto_path?: string | null; foto_paths?: string[] | null },
+): string[] {
+  const fromArr = (row.foto_paths ?? []).filter((p): p is string => Boolean(p))
+  if (fromArr.length) return fromArr
+  return row.foto_path ? [row.foto_path] : []
 }
 
 export async function searchCadastrosDemanda(term: string, limit = 12): Promise<DemandaCadastroHit[]> {
@@ -92,18 +102,28 @@ export async function getDemandaFotoUrl(path: string | null | undefined): Promis
   return data.signedUrl
 }
 
+async function getDemandaFotoUrls(paths: string[]): Promise<string[]> {
+  const urls = await Promise.all(paths.map((p) => getDemandaFotoUrl(p)))
+  return urls.filter((u): u is string => Boolean(u))
+}
+
 export async function createDemanda(userId: string, input: DemandaCreateInput): Promise<{ error: string | null; id?: string }> {
   const nome = input.nome.trim()
   const descricao = input.descricao.trim()
   if (!nome) return { error: 'Informe o nome.' }
   if (descricao.length < 5) return { error: 'Descreva a demanda com mais detalhes.' }
 
-  let foto_path: string | null = null
-  if (input.foto) {
+  const files = (input.fotos ?? []).slice(0, DEMANDA_MAX_FOTOS)
+  let foto_paths: string[] = []
+  if (files.length) {
     try {
-      foto_path = await uploadFoto(userId, input.foto)
+      foto_paths = []
+      for (const file of files) {
+        foto_paths.push(await uploadFoto(userId, file))
+      }
     } catch (err) {
-      return { error: err instanceof Error ? err.message : 'Falha ao enviar a foto.' }
+      if (foto_paths.length) void supabase.storage.from('demandas-fotos').remove(foto_paths)
+      return { error: err instanceof Error ? err.message : 'Falha ao enviar as fotos.' }
     }
   }
 
@@ -117,16 +137,24 @@ export async function createDemanda(userId: string, input: DemandaCreateInput): 
     telefone_extra: digits(input.telefone_extra ?? '') || null,
     descricao,
     urgencia: input.urgencia ?? 'normal',
-    foto_path,
+    foto_path: foto_paths[0] ?? null,
+    foto_paths,
     status: 'aberta' as const,
   }
 
   let { data, error } = await supabase.from('demandas').insert(payload).select('id').maybeSingle()
-  if (error && /urgencia/i.test(error.message)) {
-    const { urgencia: _u, ...withoutUrgencia } = payload
-    ;({ data, error } = await supabase.from('demandas').insert(withoutUrgencia).select('id').maybeSingle())
+  if (error && /foto_paths/i.test(error.message)) {
+    const { foto_paths: _fp, ...withoutPaths } = payload
+    ;({ data, error } = await supabase.from('demandas').insert(withoutPaths).select('id').maybeSingle())
   }
-  if (error) return { error: error.message }
+  if (error && /urgencia/i.test(error.message)) {
+    const { urgencia: _u, foto_paths: _fp, ...rest } = payload
+    ;({ data, error } = await supabase.from('demandas').insert(rest).select('id').maybeSingle())
+  }
+  if (error) {
+    if (foto_paths.length) void supabase.storage.from('demandas-fotos').remove(foto_paths)
+    return { error: error.message }
+  }
   return { error: null, id: data?.id }
 }
 
@@ -141,6 +169,7 @@ export type DemandaComAutor = Demanda & {
   autor_nome?: string
   resolvedor_nome?: string
   foto_url?: string | null
+  foto_urls?: string[]
 }
 
 export async function fetchDemandas(filters: DemandaListFilters = {}): Promise<{ items: DemandaComAutor[]; total: number }> {
@@ -177,13 +206,19 @@ export async function fetchDemandas(filters: DemandaListFilters = {}): Promise<{
   }
 
   const items: DemandaComAutor[] = await Promise.all(
-    rows.map(async (r) => ({
-      ...r,
-      urgencia: r.urgencia ?? 'normal',
-      autor_nome: nomes.get(r.created_by) ?? '—',
-      resolvedor_nome: r.resolved_by ? (nomes.get(r.resolved_by) ?? '—') : undefined,
-      foto_url: await getDemandaFotoUrl(r.foto_path),
-    })),
+    rows.map(async (r) => {
+      const paths = resolveDemandaFotoPaths(r)
+      const foto_urls = await getDemandaFotoUrls(paths)
+      return {
+        ...r,
+        urgencia: r.urgencia ?? 'normal',
+        foto_paths: paths,
+        autor_nome: nomes.get(r.created_by) ?? '—',
+        resolvedor_nome: r.resolved_by ? (nomes.get(r.resolved_by) ?? '—') : undefined,
+        foto_urls,
+        foto_url: foto_urls[0] ?? null,
+      }
+    }),
   )
 
   return { items, total: count ?? items.length }
@@ -222,8 +257,8 @@ export type DemandaUpdateInput = {
   telefone_extra?: string
   descricao: string
   urgencia?: DemandaUrgencia
-  foto?: File | null
-  removeFoto?: boolean
+  keepPaths?: string[]
+  fotos?: File[]
 }
 
 export async function updateDemanda(
@@ -238,28 +273,32 @@ export async function updateDemanda(
 
   const { data: current, error: fetchErr } = await supabase
     .from('demandas')
-    .select('foto_path, status')
+    .select('foto_path, foto_paths, status')
     .eq('id', id)
     .maybeSingle()
   if (fetchErr) return { error: fetchErr.message }
   if (!current) return { error: 'Demanda não encontrada.' }
 
-  let foto_path: string | null | undefined = undefined
-  if (input.foto) {
+  const previous = resolveDemandaFotoPaths(current as Demanda)
+  const keep = (input.keepPaths ?? previous).filter((p) => previous.includes(p))
+  const slots = Math.max(0, DEMANDA_MAX_FOTOS - keep.length)
+  const files = (input.fotos ?? []).slice(0, slots)
+
+  let uploaded: string[] = []
+  if (files.length) {
     try {
-      foto_path = await uploadFoto(userId, input.foto)
-      if (current.foto_path) {
-        void supabase.storage.from('demandas-fotos').remove([current.foto_path])
+      for (const file of files) {
+        uploaded.push(await uploadFoto(userId, file))
       }
     } catch (err) {
-      return { error: err instanceof Error ? err.message : 'Falha ao enviar a foto.' }
-    }
-  } else if (input.removeFoto) {
-    foto_path = null
-    if (current.foto_path) {
-      void supabase.storage.from('demandas-fotos').remove([current.foto_path])
+      if (uploaded.length) void supabase.storage.from('demandas-fotos').remove(uploaded)
+      return { error: err instanceof Error ? err.message : 'Falha ao enviar as fotos.' }
     }
   }
+
+  const nextPaths = [...keep, ...uploaded]
+  const removed = previous.filter((p) => !nextPaths.includes(p))
+  if (removed.length) void supabase.storage.from('demandas-fotos').remove(removed)
 
   const payload: Record<string, unknown> = {
     nome,
@@ -268,30 +307,38 @@ export async function updateDemanda(
     telefone_extra: digits(input.telefone_extra ?? '') || null,
     descricao,
     urgencia: input.urgencia ?? 'normal',
+    foto_path: nextPaths[0] ?? null,
+    foto_paths: nextPaths,
   }
-  if (foto_path !== undefined) payload.foto_path = foto_path
 
   let { error } = await supabase.from('demandas').update(payload).eq('id', id)
-  if (error && /urgencia/i.test(error.message)) {
-    const { urgencia: _u, ...rest } = payload
+  if (error && /foto_paths/i.test(error.message)) {
+    const { foto_paths: _fp, ...rest } = payload
     ;({ error } = await supabase.from('demandas').update(rest).eq('id', id))
   }
-  return { error: error?.message ?? null }
+  if (error && /urgencia/i.test(error.message)) {
+    const { urgencia: _u, foto_paths: _fp, ...rest } = payload
+    ;({ error } = await supabase.from('demandas').update(rest).eq('id', id))
+  }
+  if (error) {
+    if (uploaded.length) void supabase.storage.from('demandas-fotos').remove(uploaded)
+    return { error: error.message }
+  }
+  return { error: null }
 }
 
 export async function deleteDemanda(id: string): Promise<{ error: string | null }> {
   const { data: current } = await supabase
     .from('demandas')
-    .select('foto_path')
+    .select('foto_path, foto_paths')
     .eq('id', id)
     .maybeSingle()
 
   const { error } = await supabase.from('demandas').delete().eq('id', id)
   if (error) return { error: error.message }
 
-  if (current?.foto_path) {
-    void supabase.storage.from('demandas-fotos').remove([current.foto_path])
-  }
+  const paths = resolveDemandaFotoPaths((current ?? {}) as Demanda)
+  if (paths.length) void supabase.storage.from('demandas-fotos').remove(paths)
   return { error: null }
 }
 

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -18,6 +19,7 @@ import {
   ClipboardPen,
 } from 'lucide-react'
 import type { UserRole } from '../../types'
+import { fetchDemandaCounts } from '../../lib/demandas'
 
 interface SidebarProps {
   role: UserRole
@@ -31,6 +33,7 @@ interface NavItem {
   icon: typeof LayoutDashboard
   roles: UserRole[]
   end?: boolean
+  badgeKey?: 'demandas-abertas'
 }
 
 interface NavGroup {
@@ -54,7 +57,7 @@ const navGroups: NavGroup[] = [
     roles: ['administrativo'],
     items: [
       { to: '/demandas/lancar', label: 'Lançar', icon: ClipboardPen, roles: ['administrativo'] },
-      { to: '/demandas/painel', label: 'Visualizar', icon: Inbox, roles: ['administrativo'] },
+      { to: '/demandas/painel', label: 'Visualizar', icon: Inbox, roles: ['administrativo'], badgeKey: 'demandas-abertas' },
     ],
   },
   {
@@ -87,7 +90,7 @@ const navGroups: NavGroup[] = [
     roles: ['admin', 'diretoria'],
     items: [
       { to: '/demandas/lancar', label: 'Lançar', icon: ClipboardPen, roles: ['admin', 'diretoria'] },
-      { to: '/demandas/painel', label: 'Visualizar', icon: Inbox, roles: ['admin', 'diretoria'] },
+      { to: '/demandas/painel', label: 'Visualizar', icon: Inbox, roles: ['admin', 'diretoria'], badgeKey: 'demandas-abertas' },
     ],
   },
   {
@@ -113,18 +116,43 @@ function linkActive(to: string, pathname: string, search: string) {
 
   if (pathname === to) return true
 
-  // /cadastros/novo e /cadastros/:id/editar não devem marcar "Todos os cadastros"
-  // (só a edição mantém o item pai ativo).
   if (to === '/cadastros') {
     return /^\/cadastros\/[^/]+\/editar\/?$/.test(pathname)
   }
 
-  // Sub-rotas de detalhe (ex.: /nerites/:id) mantêm o item pai ativo.
   return pathname.startsWith(`${to}/`)
 }
 
 export function Sidebar({ role, open, onClose }: SidebarProps) {
   const location = useLocation()
+  const [abertas, setAbertas] = useState(0)
+
+  const canSeeDemandas = role === 'admin' || role === 'diretoria' || role === 'administrativo'
+
+  useEffect(() => {
+    if (!canSeeDemandas) return
+    let cancelled = false
+
+    async function load() {
+      try {
+        const counts = await fetchDemandaCounts()
+        if (!cancelled) setAbertas(counts.abertas)
+      } catch {
+        /* silencioso: badge só é informativo */
+      }
+    }
+
+    void load()
+    const timer = window.setInterval(() => {
+      void load()
+    }, 30_000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [canSeeDemandas, location.pathname])
+
   const groups = navGroups
     .map((group) => ({
       ...group,
@@ -153,18 +181,24 @@ export function Sidebar({ role, open, onClose }: SidebarProps) {
           {groups.map((group, groupIndex) => (
             <div key={group.label} className={`app-sidebar-group${groupIndex > 0 ? ' spaced' : ''}`}>
               <div className="app-sidebar-section-label">{group.label}</div>
-              {group.items.map(({ to, label, icon: Icon }) => {
+              {group.items.map(({ to, label, icon: Icon, badgeKey }) => {
                 const active = linkActive(to, location.pathname, location.search)
+                const badge = badgeKey === 'demandas-abertas' && abertas > 0 ? abertas : 0
                 return (
                   <Link
                     key={to}
                     to={to}
                     onClick={onClose}
                     aria-current={active ? 'page' : undefined}
-                    className={`app-sidebar-link${active ? ' is-active' : ''}`}
+                    className={`app-sidebar-link${active ? ' is-active' : ''}${badge ? ' has-badge' : ''}`}
                   >
                     <Icon size={16} strokeWidth={1.6} aria-hidden />
-                    <span>{label}</span>
+                    <span className="app-sidebar-link-label">{label}</span>
+                    {badge > 0 && (
+                      <em className="app-sidebar-badge" title={`${badge} demanda${badge === 1 ? '' : 's'} em aberto`}>
+                        {badge > 99 ? '99+' : badge}
+                      </em>
+                    )}
                   </Link>
                 )
               })}
