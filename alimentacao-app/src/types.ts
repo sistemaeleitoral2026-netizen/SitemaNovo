@@ -38,7 +38,7 @@ export interface Lider {
 
 export interface Cadastro {
   id: string
-  operator_id: string
+  operator_id: string | null
   diretoria_id?: string | null
   nome_completo: string
   cpf: string | null
@@ -62,7 +62,7 @@ export interface Cadastro {
 
 export interface Importacao {
   id: string
-  operator_id: string
+  operator_id: string | null
   nome_arquivo: string
   total: number
   validos: number

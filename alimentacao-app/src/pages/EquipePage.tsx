@@ -342,8 +342,26 @@ export function EquipePage() {
     if (!neriteId) return { error: 'Informe a nerite.' }
 
     if (method === 'DELETE') {
-      const { error } = await supabase.from('profiles').update({ ativo: false }).eq('id', neriteId)
-      return { error: error?.message || null }
+      // Fallback local: sem API serverless não dá para apagar auth.users com segurança.
+      // Diretoria só desativa; admin com fichas desvincula e remove o profile se RLS permitir.
+      const { count } = await supabase
+        .from('cadastros')
+        .select('id', { count: 'exact', head: true })
+        .eq('operator_id', neriteId)
+      const fichasCount = count ?? 0
+      if (fichasCount > 0 && profile?.role !== 'admin') {
+        return { error: 'Só o administrador pode excluir nerite que já tem fichas. As fichas não são apagadas.' }
+      }
+      if (fichasCount > 0) {
+        await supabase.from('cadastros').update({ operator_id: null }).eq('operator_id', neriteId)
+      }
+      const { error } = await supabase.from('profiles').delete().eq('id', neriteId)
+      if (error) {
+        // Se não puder hard-delete localmente, pelo menos desativa
+        const soft = await supabase.from('profiles').update({ ativo: false }).eq('id', neriteId)
+        return { error: soft.error?.message || error.message }
+      }
+      return { error: null }
     }
 
     const patch: Record<string, unknown> = {
@@ -520,6 +538,7 @@ export function EquipePage() {
   const dirName = (id: string | null | undefined) => diretorias.find((d) => d.id === id)?.nome ?? '—'
   const meta = TAB_META[tab]
   const deleteNeriteName = nerites.find((n) => n.id === deleteNeriteId)?.nome
+  const deleteNeriteFichas = deleteNeriteId ? (fichasByNerite[deleteNeriteId] ?? 0) : 0
   const deleteCoordName = coordenadores.find((c) => c.id === deleteCoordId)?.nome
   const deleteLiderName = lideres.find((l) => l.id === deleteLiderId)?.nome
 
@@ -674,8 +693,20 @@ export function EquipePage() {
                               variant="ghost"
                               size="sm"
                               aria-label="Excluir"
-                              onClick={() => { setError(null); setDeleteNeriteId(n.id) }}
-                              disabled={!n.ativo}
+                              title={
+                                fichas > 0 && !isAdmin
+                                  ? 'Só o administrador pode excluir nerite com fichas'
+                                  : 'Excluir nerite (fichas permanecem)'
+                              }
+                              onClick={() => {
+                                if (fichas > 0 && !isAdmin) {
+                                  setError('Só o administrador pode excluir nerite que já tem fichas. As fichas não são apagadas.')
+                                  return
+                                }
+                                setError(null)
+                                setDeleteNeriteId(n.id)
+                              }}
+                              disabled={fichas > 0 && !isAdmin}
                             >
                               <Trash2 size={16} color="var(--color-danger)" />
                             </Button>
@@ -993,7 +1024,11 @@ export function EquipePage() {
       <Modal
         open={Boolean(deleteNeriteId)}
         title="Excluir nerite?"
-        description={`Remover o acesso de "${deleteNeriteName ?? 'esta nerite'}". Os cadastros feitos por ela permanecem no sistema.`}
+        description={
+          deleteNeriteFichas > 0
+            ? `Remover "${deleteNeriteName ?? 'esta nerite'}" do sistema. As ${deleteNeriteFichas} ficha(s) dela permanecem cadastradas.`
+            : `Remover o acesso de "${deleteNeriteName ?? 'esta nerite'}". Não há fichas vinculadas.`
+        }
         onClose={() => !saving && setDeleteNeriteId(null)}
         onConfirm={handleDeleteNerite}
         confirmLabel="Excluir"
