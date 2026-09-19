@@ -300,7 +300,11 @@ export async function fetchAtivacaoTeamOptions(scopeDiretoriaId?: string | null)
 
 function matchesStatus(p: AtivacaoPessoa, status: AtivacaoListFilters['status']) {
   if (!status || status === 'todos') return true
-  const hasAny = p.carros_adesivados > 0 || p.adesivos_casa > 0 || p.postagem_links.length > 0
+  const hasAny =
+    p.carros_adesivados > 0
+    || p.adesivos_casa > 0
+    || p.postagem_links.length > 0
+    || p.contato_whatsapp
   if (status === 'com_ativacao') return hasAny
   if (status === 'sem_ativacao') return !hasAny
   if (status === 'com_carro') return p.carros_adesivados > 0
@@ -472,18 +476,28 @@ export async function fetchAtivacaoKpis(filters: AtivacaoListFilters = {}) {
   let carros = 0
   let casas = 0
   let postagens = 0
+  let whatsapp = 0
   let comAtivacao = 0
   for (const p of items) {
     if (p.carros_adesivados > 0) carros += 1
     if (p.adesivos_casa > 0) casas += 1
     if (p.postagem_links.length > 0 || p.postagens > 0) postagens += 1
-    if (p.carros_adesivados > 0 || p.adesivos_casa > 0 || p.postagem_links.length > 0) comAtivacao += 1
+    if (p.contato_whatsapp) whatsapp += 1
+    if (
+      p.carros_adesivados > 0
+      || p.adesivos_casa > 0
+      || p.postagem_links.length > 0
+      || p.contato_whatsapp
+    ) {
+      comAtivacao += 1
+    }
   }
   return {
     totalPessoas: items.length,
     carros,
     casas,
     postagens,
+    whatsapp,
     comAtivacao,
     pendentes: Math.max(0, items.length - comAtivacao),
   }

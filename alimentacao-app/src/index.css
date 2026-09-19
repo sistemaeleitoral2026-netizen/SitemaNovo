@@ -1084,7 +1084,7 @@ a.ranking-row:hover .ranking-person strong { color: #2459c4; }
   margin-bottom: 1rem;
 }
 
-/* Todos os Cadastros Ã¢ÂÂ estrutura do layout de referÃÂªncia */
+/* Todos os Cadastros ÃÂ¢ÃÂÃÂ estrutura do layout de referÃÂÃÂªncia */
 .cadastros-page .page-header { margin-bottom: 1rem; }
 .cadastros-page .page-subtitle { margin-top: .16rem; font-size: .75rem; }
 .cadastros-page .page-header-actions { gap: .625rem; }
@@ -2303,7 +2303,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .admin-top-grid { grid-template-columns: 1fr; }
 }
 
-/* Ã¢ÂÂÃ¢ÂÂ Meta de fichas Ã¢ÂÂÃ¢ÂÂ */
+/* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Meta de fichas ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */
 .meta-config-hint {
   display: inline-flex;
   align-items: center;
@@ -2887,7 +2887,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   }
 }
 
-/* Ã¢ÂÂÃ¢ÂÂ LideranÃÂ§a (meta por pessoa) Ã¢ÂÂÃ¢ÂÂ */
+/* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ LideranÃÂÃÂ§a (meta por pessoa) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */
 .lideranca-kpi-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3011,7 +3011,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   }
 }
 
-/* Ã¢ÂÂÃ¢ÂÂ Design system foundations Ã¢ÂÂÃ¢ÂÂ */
+/* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Design system foundations ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */
 :root {
   --app-bg: #f4f5f7;
   --surface-muted: #f8fafc;
@@ -3168,7 +3168,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .page-subtitle { max-width: 720px; line-height: 1.5; }
 .badge { padding: .22rem .55rem; border-radius: 6px; }
 
-/* Ã¢ÂÂÃ¢ÂÂ Authentication Ã¢ÂÂÃ¢ÂÂ */
+/* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Authentication ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */
 .login-page {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(440px, .9fr);
@@ -3242,7 +3242,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 
-/* Ã¢ÂÂÃ¢ÂÂ MobilizaÃÂ§ÃÂ£o: ediÃÂ§ÃÂ£o explÃÂ­cita e layout responsivo Ã¢ÂÂÃ¢ÂÂ */
+/* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ MobilizaÃÂÃÂ§ÃÂÃÂ£o: ediÃÂÃÂ§ÃÂÃÂ£o explÃÂÃÂ­cita e layout responsivo ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */
 .mobilizacao-feedback {
   display: flex;
   align-items: center;
@@ -3301,7 +3301,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .mobilizacao-open-link { justify-content: center; width: 100%; margin-right: 0; padding: .35rem; }
 }
 
-/* Ã¢ÂÂÃ¢ÂÂ Dashboard: visÃÂ£o de mobilizaÃÂ§ÃÂ£o Ã¢ÂÂÃ¢ÂÂ */
+/* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Dashboard: visÃÂÃÂ£o de mobilizaÃÂÃÂ§ÃÂÃÂ£o ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */
 .dashboard-overview-grid {
   grid-template-columns: minmax(235px, 1.25fr) repeat(3, minmax(0, 1fr));
 }
@@ -3356,7 +3356,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .mobilizacao-summary-grid { grid-template-columns: 1fr; }
 }
 
-/* Ã¢ÂÂÃ¢ÂÂ Dashboard editorial: menos caixas, mais hierarquia Ã¢ÂÂÃ¢ÂÂ */
+/* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Dashboard editorial: menos caixas, mais hierarquia ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */
 .dashboard-eyebrow {
   margin-bottom: .28rem !important;
   color: #7a8698 !important;
@@ -3471,7 +3471,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
 
 /* ============================================================
    Nerites dashboard redesign (standalone parity)
-   Appended overrides Ã¢ÂÂ keep at end of file
+   Appended overrides ÃÂ¢ÃÂÃÂ keep at end of file
    ============================================================ */
 
 /* Remove shell padding when dashboard owns its own inset */
@@ -4167,7 +4167,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   color: #6b7280;
 }
 
-/* MobilizaÃÂ§ÃÂ£o rows */
+/* MobilizaÃÂÃÂ§ÃÂÃÂ£o rows */
 .nv-mob-row {
   display: flex;
   align-items: center;
@@ -4786,7 +4786,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
 }
 
 
-/* ===== LanÃ¯Â¿Â½ar Formigas (fiel a painel_nerites.tsx) ===== */
+/* ===== LanÃÂ¯ÃÂ¿ÃÂ½ar Formigas (fiel a painel_nerites.tsx) ===== */
 .fl-page { max-width: 72rem; margin: 0 auto; width: 100%; }
 .fl-page-head {
   display: flex;
@@ -4805,7 +4805,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .fl-subtitle { margin: 0; color: #64748b; font-size: .95rem; }
 .fl-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 2rem;
 }
@@ -4854,7 +4854,9 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .fl-stat-card.tone-blue .fl-stat-icon { background: #eff6ff; color: #2563eb; }
 .fl-stat-card.tone-teal .fl-stat-icon { background: #f0fdfa; color: #0d9488; }
 .fl-stat-card.tone-violet .fl-stat-icon { background: #f5f3ff; color: #7c3aed; }
+.fl-stat-card.tone-wa .fl-stat-icon { background: #dcfce7; color: #16a34a; }
 .fl-stat-card.tone-amber .fl-stat-icon { background: #fffbeb; color: #d97706; }
+.fl-stat-card.tone-wa:hover .fl-stat-cta { color: #16a34a; }
 .fl-stat span {
   display: block;
   color: #64748b;
@@ -5309,6 +5311,9 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .fl-btn-secondary:hover:not(:disabled) { background: #f1f5f9; }
 .fl-btn-secondary:disabled { opacity: .5; cursor: not-allowed; }
 
+@media (max-width: 1100px) {
+  .fl-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 @media (max-width: 900px) {
   .fl-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fl-grid-2 { grid-template-columns: 1fr; gap: 1.25rem; }
@@ -5321,7 +5326,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .fl-btn-wa { justify-content: center; }
 }
 
-/* Ã¢ÂÂÃ¢ÂÂ Demandas Ã¢ÂÂÃ¢ÂÂ */
+/* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Demandas ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */
 .dm-page { max-width: 960px; animation: dmFade .15s ease-out; }
 @keyframes dmFade {
   from { opacity: 0; transform: translateY(2px); }
