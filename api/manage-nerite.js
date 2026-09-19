@@ -64,8 +64,43 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'DELETE') {
-      // Soft-delete: remove acesso sem apagar histórico de fichas
-      await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${neriteId}`, {
+      // Conta fichas desta nerite
+      const countRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/cadastros?operator_id=eq.${neriteId}&select=id`,
+        {
+          headers: {
+            Authorization: `Bearer ${SERVICE_ROLE}`,
+            apikey: SERVICE_ROLE,
+            Prefer: 'count=exact',
+            Range: '0-0',
+          },
+        },
+      )
+      const contentRange = countRes.headers.get('content-range') || ''
+      const totalMatch = contentRange.match(/\/(\d+|\*)/)
+      const fichasCount = totalMatch && totalMatch[1] !== '*' ? Number(totalMatch[1]) : 0
+
+      if (fichasCount > 0 && caller.role !== 'admin') {
+        return json(res, 403, {
+          error: 'Só o administrador pode excluir nerite que já tem fichas. As fichas não são apagadas.',
+        })
+      }
+
+      // Desvincula fichas/importações/auditoria e remove a conta (fichas permanecem)
+      if (fichasCount > 0) {
+        await fetch(`${SUPABASE_URL}/rest/v1/cadastros?operator_id=eq.${neriteId}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${SERVICE_ROLE}`,
+            apikey: SERVICE_ROLE,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal',
+          },
+          body: JSON.stringify({ operator_id: null }),
+        })
+      }
+
+      await fetch(`${SUPABASE_URL}/rest/v1/importacoes?operator_id=eq.${neriteId}`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${SERVICE_ROLE}`,
@@ -73,17 +108,32 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json',
           Prefer: 'return=minimal',
         },
-        body: JSON.stringify({ ativo: false }),
+        body: JSON.stringify({ operator_id: null }),
       })
-      await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${neriteId}`, {
-        method: 'PUT',
+
+      await fetch(`${SUPABASE_URL}/rest/v1/auditoria?actor_id=eq.${neriteId}`, {
+        method: 'PATCH',
         headers: {
           Authorization: `Bearer ${SERVICE_ROLE}`,
           apikey: SERVICE_ROLE,
           'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
         },
-        body: JSON.stringify({ ban_duration: '876000h' }),
+        body: JSON.stringify({ actor_id: null }),
       })
+
+      const delAuth = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${neriteId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${SERVICE_ROLE}`,
+          apikey: SERVICE_ROLE,
+        },
+      })
+      if (!delAuth.ok) {
+        const errText = await delAuth.text()
+        return json(res, 500, { error: errText || 'Não foi possível excluir a nerite.' })
+      }
+
       return json(res, 200, { ok: true })
     }
 

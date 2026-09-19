@@ -161,7 +161,7 @@ function AdminDashboard() {
         nerites.filter((n) => n.diretoria_id === dir.id).map((n) => n.id),
       )
       const fichadas = cadastros.filter(
-        (c) => c.diretoria_id === dir.id || teamIds.has(c.operator_id),
+        (c) => c.diretoria_id === dir.id || Boolean(c.operator_id && teamIds.has(c.operator_id)),
       ).length
       return {
         id: dir.id,
@@ -181,7 +181,7 @@ function AdminDashboard() {
       nerites.filter((n) => n.diretoria_id === dirFilter).map((n) => n.id),
     )
     return cadastros.filter(
-      (c) => c.diretoria_id === dirFilter || teamIds.has(c.operator_id),
+      (c) => c.diretoria_id === dirFilter || Boolean(c.operator_id && teamIds.has(c.operator_id)),
     )
   }, [cadastros, dirFilter, nerites])
 
@@ -194,7 +194,7 @@ function AdminDashboard() {
     if (dirFilter === 'all') return sumMobilizacao(mobilizacaoCadastros, coordenadores, lideres)
     const teamIds = new Set(nerites.filter((n) => n.diretoria_id === dirFilter).map((n) => n.id))
     return sumMobilizacao(
-      mobilizacaoCadastros.filter((c) => c.diretoria_id === dirFilter || teamIds.has(c.operator_id)),
+      mobilizacaoCadastros.filter((c) => c.diretoria_id === dirFilter || Boolean(c.operator_id && teamIds.has(c.operator_id))),
       coordenadores.filter((c) => c.diretoria_id === dirFilter),
       lideres.filter((l) => l.diretoria_id === dirFilter),
     )
@@ -202,7 +202,7 @@ function AdminDashboard() {
 
   const fichasSemDiretoria = useMemo(() => {
     const teamIds = new Set(nerites.map((n) => n.id))
-    return cadastros.filter((c) => !c.diretoria_id && !teamIds.has(c.operator_id)).length
+    return cadastros.filter((c) => !c.diretoria_id && !Boolean(c.operator_id && teamIds.has(c.operator_id))).length
   }, [cadastros, nerites])
 
   const todayCount = useMemo(() => {
@@ -217,7 +217,10 @@ function AdminDashboard() {
 
   const ranking = useMemo(() => {
     const counts = new Map<string, number>()
-    scopedCadastros.forEach((c) => counts.set(c.operator_id, (counts.get(c.operator_id) ?? 0) + 1))
+    scopedCadastros.forEach((c) => {
+      if (!c.operator_id) return
+      counts.set(c.operator_id, (counts.get(c.operator_id) ?? 0) + 1)
+    })
     return scopedNerites
       .map((op) => ({ id: op.id, nome: op.nome, total: counts.get(op.id) ?? 0 }))
       .filter((o) => o.total > 0)
@@ -262,12 +265,12 @@ function AdminDashboard() {
         .map((c) => ({
           id: c.id,
           nome: c.nome_completo,
-          nerite: neriteById.get(c.operator_id)?.nome ?? '—',
+          nerite: (c.operator_id && neriteById.get(c.operator_id)?.nome) || '—',
           zona: c.zona || '—',
           secao: c.secao || '—',
           lider: (c.lider ?? '').trim() || '—',
           data: formatShortDateTime(c.created_at),
-          dir: diretorias.find((d) => d.id === (c.diretoria_id || neriteById.get(c.operator_id)?.diretoria_id))?.nome,
+          dir: diretorias.find((d) => d.id === (c.diretoria_id || (c.operator_id ? neriteById.get(c.operator_id)?.diretoria_id : undefined)))?.nome,
         })),
     [scopedCadastros, neriteById, diretorias],
   )
@@ -899,11 +902,11 @@ function DiretoriaDashboard() {
         ])
         const teamIds = new Set((ops.data ?? []).map((n: Profile) => n.id))
         setCadastros(
-          cData.filter((c) => c.diretoria_id === dirId || teamIds.has(c.operator_id)),
+          cData.filter((c) => c.diretoria_id === dirId || Boolean(c.operator_id && teamIds.has(c.operator_id))),
         )
         setMobilizacaoCadastros(
           allCadastros.filter(
-            (c) => c.diretoria_id === dirId || teamIds.has(c.operator_id),
+            (c) => c.diretoria_id === dirId || Boolean(c.operator_id && teamIds.has(c.operator_id)),
           ),
         )
         setNerites((ops.data ?? []) as Profile[])
@@ -932,7 +935,10 @@ function DiretoriaDashboard() {
 
   const ranking = useMemo(() => {
     const counts = new Map<string, number>()
-    cadastros.forEach((c) => counts.set(c.operator_id, (counts.get(c.operator_id) ?? 0) + 1))
+    cadastros.forEach((c) => {
+      if (!c.operator_id) return
+      counts.set(c.operator_id, (counts.get(c.operator_id) ?? 0) + 1)
+    })
     return nerites
       .map((op) => ({ id: op.id, nome: op.nome, total: counts.get(op.id) ?? 0 }))
       .filter((o) => o.total > 0)
@@ -1100,7 +1106,7 @@ function DiretoriaDashboard() {
               <div className="nv-empty">Nenhuma ficha lançada neste período.</div>
             )}
           </div>
-        </div>
+      </div>
 
         <div className="nv-panel">
           <div className="nv-panel-head">
@@ -1169,7 +1175,7 @@ function DiretoriaDashboard() {
               </div>
             </div>
           </div>
-        </div>
+      </div>
 
         <div className="nv-panel">
           <div className="nv-panel-head">
