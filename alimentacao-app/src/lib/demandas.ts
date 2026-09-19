@@ -214,3 +214,93 @@ export async function marcarDemandaFeita(
     .eq('status', 'aberta')
   return { error: error?.message ?? null }
 }
+
+export type DemandaUpdateInput = {
+  nome: string
+  documento?: string
+  telefone?: string
+  telefone_extra?: string
+  descricao: string
+  urgencia?: DemandaUrgencia
+  foto?: File | null
+  removeFoto?: boolean
+}
+
+export async function updateDemanda(
+  id: string,
+  userId: string,
+  input: DemandaUpdateInput,
+): Promise<{ error: string | null }> {
+  const nome = input.nome.trim()
+  const descricao = input.descricao.trim()
+  if (!nome) return { error: 'Informe o nome.' }
+  if (descricao.length < 5) return { error: 'Descreva a demanda com mais detalhes.' }
+
+  const { data: current, error: fetchErr } = await supabase
+    .from('demandas')
+    .select('foto_path, status')
+    .eq('id', id)
+    .maybeSingle()
+  if (fetchErr) return { error: fetchErr.message }
+  if (!current) return { error: 'Demanda não encontrada.' }
+
+  let foto_path: string | null | undefined = undefined
+  if (input.foto) {
+    try {
+      foto_path = await uploadFoto(userId, input.foto)
+      if (current.foto_path) {
+        void supabase.storage.from('demandas-fotos').remove([current.foto_path])
+      }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Falha ao enviar a foto.' }
+    }
+  } else if (input.removeFoto) {
+    foto_path = null
+    if (current.foto_path) {
+      void supabase.storage.from('demandas-fotos').remove([current.foto_path])
+    }
+  }
+
+  const payload: Record<string, unknown> = {
+    nome,
+    documento: (input.documento ?? '').trim() || null,
+    telefone: digits(input.telefone ?? '') || null,
+    telefone_extra: digits(input.telefone_extra ?? '') || null,
+    descricao,
+    urgencia: input.urgencia ?? 'normal',
+  }
+  if (foto_path !== undefined) payload.foto_path = foto_path
+
+  let { error } = await supabase.from('demandas').update(payload).eq('id', id)
+  if (error && /urgencia/i.test(error.message)) {
+    const { urgencia: _u, ...rest } = payload
+    ;({ error } = await supabase.from('demandas').update(rest).eq('id', id))
+  }
+  return { error: error?.message ?? null }
+}
+
+export async function deleteDemanda(id: string): Promise<{ error: string | null }> {
+  const { data: current } = await supabase
+    .from('demandas')
+    .select('foto_path')
+    .eq('id', id)
+    .maybeSingle()
+
+  const { error } = await supabase.from('demandas').delete().eq('id', id)
+  if (error) return { error: error.message }
+
+  if (current?.foto_path) {
+    void supabase.storage.from('demandas-fotos').remove([current.foto_path])
+  }
+  return { error: null }
+}
+
+export function canManageDemanda(
+  demanda: Pick<Demanda, 'created_by' | 'status'>,
+  userId: string | undefined,
+  role: string | undefined,
+): boolean {
+  if (!userId) return false
+  if (role === 'admin') return true
+  return demanda.created_by === userId && demanda.status === 'aberta'
+}
