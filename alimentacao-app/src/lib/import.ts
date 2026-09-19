@@ -137,6 +137,12 @@ function mapRow(raw: Record<string, unknown>): Record<string, string> {
     lider: '',
     data_nascimento: '',
     cep: '',
+    endereco: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    uf: '',
   }
 
   for (const [key, value] of Object.entries(raw)) {
@@ -224,6 +230,12 @@ export async function analyzeImport(
       lider: raw.lider ?? '',
       data_nascimento: raw.data_nascimento ?? '',
       cep: raw.cep ?? '',
+      endereco: '',
+      numero: '',
+      complemento: '',
+      bairro: '',
+      cidade: '',
+      uf: '',
     })
 
     const teamResult = canonicalizeTeam(normalized.coordenador, normalized.lider, team)
