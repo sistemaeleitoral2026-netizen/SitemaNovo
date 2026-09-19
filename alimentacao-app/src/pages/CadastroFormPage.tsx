@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Save, User, Users } from 'lucide-react'
+import { Save, User, Users, MapPin } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/Spinner'
+import { Modal } from '../components/ui/Modal'
 import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import { normalizeCadastroFields, formatCpf, formatPhone, formatCep } from '../lib/normalize'
 import { validateCadastroForm, isDuplicateCpfError, isDuplicateTituloError } from '../lib/validation'
-import { coordsFromZona } from '../lib/geocode'
+import { coordsFromZona, lookupViaCep } from '../lib/geocode'
+import { findDuplicateCadastro, type DuplicateCadastroInfo } from '../lib/cadastros'
 import { logAudit } from '../lib/audit'
 import { supabase } from '../lib/supabase'
 import type { CadastroFormData, Coordenador, Lider } from '../types'
@@ -27,6 +29,12 @@ const emptyForm: CadastroFormData = {
   lider: '',
   data_nascimento: '',
   cep: '',
+  endereco: '',
+  numero: '',
+  complemento: '',
+  bairro: '',
+  cidade: '',
+  uf: '',
 }
 
 export function CadastroFormPage() {
@@ -41,6 +49,8 @@ export function CadastroFormPage() {
   const [saving, setSaving] = useState(false)
   const [globalError, setGlobalError] = useState<string | null>(null)
   const [saveOk, setSaveOk] = useState<string | null>(null)
+  const [cepLoading, setCepLoading] = useState(false)
+  const [duplicateInfo, setDuplicateInfo] = useState<DuplicateCadastroInfo | null>(null)
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
   const [lideres, setLideres] = useState<Lider[]>([])
   const [coordenadorId, setCoordenadorId] = useState('')
@@ -91,6 +101,12 @@ export function CadastroFormPage() {
           lider: data.lider ?? '',
           data_nascimento: data.data_nascimento ? String(data.data_nascimento).slice(0, 10) : '',
           cep: formatCep(data.cep ?? ''),
+          endereco: data.endereco ?? '',
+          numero: data.numero ?? '',
+          complemento: data.complemento ?? '',
+          bairro: data.bairro ?? '',
+          cidade: data.cidade ?? '',
+          uf: data.uf ?? '',
         })
         setCarrosAdesivados(Number(data.carros_adesivados) || 0)
         setAdesivosCasa(Number(data.adesivos_casa) || 0)
@@ -163,6 +179,66 @@ export function CadastroFormPage() {
     setSaveOk(null)
   }
 
+  async function handleCepBlur() {
+    const digits = form.cep.replace(/\D/g, '')
+    if (digits.length !== 8) return
+    setCepLoading(true)
+    try {
+      const addr = await lookupViaCep(digits)
+      if (!addr) return
+      setForm((prev) => ({
+        ...prev,
+        endereco: addr.logradouro || prev.endereco,
+        bairro: addr.bairro || prev.bairro,
+        cidade: addr.localidade || prev.cidade,
+        uf: addr.uf || prev.uf,
+      }))
+    } finally {
+      setCepLoading(false)
+    }
+  }
+
+  async function checkDuplicate(field?: 'cpf' | 'titulo' | 'pessoa') {
+    if (isEdit) return
+    const cpf = form.cpf.replace(/\D/g, '')
+    const titulo = form.titulo.trim()
+    const phone = form.telefone.replace(/\D/g, '')
+    const nome = form.nome_completo.trim()
+
+    if (field === 'cpf' && cpf.length !== 11) return
+    if (field === 'titulo' && !titulo) return
+    if (field === 'pessoa' && (!nome || phone.length < 10)) return
+
+    const found = await findDuplicateCadastro({
+      cpf: !field || field === 'cpf' ? cpf : undefined,
+      titulo: !field || field === 'titulo' ? titulo : undefined,
+      nome: !field || field === 'pessoa' ? nome : undefined,
+      telefone: !field || field === 'pessoa' ? form.telefone : undefined,
+      excludeId: id,
+    })
+    if (found) setDuplicateInfo(found)
+  }
+
+  async function showDuplicateFromSave(kind: 'cpf' | 'titulo') {
+    const found = await findDuplicateCadastro({
+      cpf: kind === 'cpf' ? form.cpf : undefined,
+      titulo: kind === 'titulo' ? form.titulo : undefined,
+      excludeId: id,
+    })
+    if (found) {
+      setDuplicateInfo(found)
+      return
+    }
+    setDuplicateInfo({
+      id: '',
+      nome_completo: form.nome_completo || '—',
+      coordenador: '—',
+      lider: '—',
+      nerite: '—',
+      motivo: kind === 'cpf' ? 'CPF' : 'título de eleitor',
+    })
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setGlobalError(null)
@@ -191,6 +267,12 @@ export function CadastroFormPage() {
       lider: normalized.lider || '',
       data_nascimento: normalized.data_nascimento || null,
       cep: normalized.cep || null,
+      endereco: (normalized.endereco || '').trim() || null,
+      numero: (normalized.numero || '').trim() || null,
+      complemento: (normalized.complemento || '').trim() || null,
+      bairro: (normalized.bairro || '').trim() || null,
+      cidade: (normalized.cidade || '').trim() || null,
+      uf: (normalized.uf || '').trim() || null,
       lat: coords?.lat ?? null,
       lng: coords?.lng ?? null,
     }
@@ -218,8 +300,10 @@ export function CadastroFormPage() {
       if (error) {
         if (isDuplicateCpfError(error.message)) {
           setErrors({ cpf: 'Este CPF já está cadastrado.' })
+          void showDuplicateFromSave('cpf')
         } else if (isDuplicateTituloError(error.message)) {
           setErrors({ titulo: 'Este título de eleitor já está cadastrado.' })
+          void showDuplicateFromSave('titulo')
         } else if (/jwt|session|auth|token|not authenticated|expir/i.test(error.message)) {
           setGlobalError('Sessão expirada. Saia e entre novamente para salvar o cadastro.')
         } else {
@@ -235,8 +319,10 @@ export function CadastroFormPage() {
       if (error) {
         if (isDuplicateCpfError(error.message)) {
           setErrors({ cpf: 'Este CPF já está cadastrado.' })
+          void showDuplicateFromSave('cpf')
         } else if (isDuplicateTituloError(error.message)) {
           setErrors({ titulo: 'Este título de eleitor já está cadastrado.' })
+          void showDuplicateFromSave('titulo')
         } else if (/jwt|session|auth|token|not authenticated|expir/i.test(error.message)) {
           setGlobalError('Sessão expirada. Saia e entre novamente para salvar o cadastro.')
         } else {
@@ -336,6 +422,7 @@ export function CadastroFormPage() {
               label="Nome completo"
               value={form.nome_completo}
               onChange={(e) => updateField('nome_completo', e.target.value)}
+              onBlur={() => void checkDuplicate('pessoa')}
               error={errors.nome_completo}
               placeholder="Nome completo"
             />
@@ -391,6 +478,7 @@ export function CadastroFormPage() {
                   id="telefone"
                   value={form.telefone}
                   onChange={(e) => updateField('telefone', formatPhone(e.target.value))}
+                  onBlur={() => void checkDuplicate('pessoa')}
                   placeholder="(98) 99123-4567"
                   aria-invalid={errors.telefone ? true : undefined}
                   className={`ui-input${errors.telefone ? ' ui-input-error' : ''}`}
@@ -403,6 +491,7 @@ export function CadastroFormPage() {
               label="Título de eleitor"
               value={form.titulo}
               onChange={(e) => updateField('titulo', e.target.value)}
+              onBlur={() => void checkDuplicate('titulo')}
               error={errors.titulo}
               placeholder="Somente números"
             />
@@ -424,6 +513,7 @@ export function CadastroFormPage() {
               label="CPF"
               value={form.cpf}
               onChange={(e) => updateField('cpf', formatCpf(e.target.value))}
+              onBlur={() => void checkDuplicate('cpf')}
               error={errors.cpf}
               placeholder="000.000.000-00"
             />
@@ -441,12 +531,91 @@ export function CadastroFormPage() {
               error={errors.nome_mae}
               placeholder="Nome completo da mãe"
             />
+          </div>
+
+          <div className="form-section-title form-section-gap">
+            <MapPin size={18} color="#2459c4" />
+            <strong>Endereço</strong>
+          </div>
+          <p className="form-section-hint">
+            Opcional. Ao digitar o CEP, o sistema busca rua, bairro, cidade e UF automaticamente
+            {cepLoading ? '…' : '.'}
+          </p>
+          <div className="form-grid form-grid-endereco">
             <Input
               label="CEP"
               value={form.cep}
-              onChange={(e) => updateField('cep', formatCep(e.target.value))}
+              onChange={(e) => {
+                const next = formatCep(e.target.value)
+                updateField('cep', next)
+                if (next.replace(/\D/g, '').length === 8) {
+                  // dispara busca ao completar 8 dígitos
+                  window.setTimeout(() => {
+                    void (async () => {
+                      const digits = next.replace(/\D/g, '')
+                      if (digits.length !== 8) return
+                      setCepLoading(true)
+                      try {
+                        const addr = await lookupViaCep(digits)
+                        if (!addr) return
+                        setForm((prev) => ({
+                          ...prev,
+                          cep: formatCep(digits),
+                          endereco: addr.logradouro || prev.endereco,
+                          bairro: addr.bairro || prev.bairro,
+                          cidade: addr.localidade || prev.cidade,
+                          uf: addr.uf || prev.uf,
+                        }))
+                      } finally {
+                        setCepLoading(false)
+                      }
+                    })()
+                  }, 0)
+                }
+              }}
+              onBlur={handleCepBlur}
               error={errors.cep}
               placeholder="00000-000"
+              inputMode="numeric"
+            />
+            <Input
+              label="Nº"
+              value={form.numero}
+              onChange={(e) => updateField('numero', e.target.value)}
+              placeholder="Nº"
+            />
+            <Input
+              label="Complemento"
+              value={form.complemento}
+              onChange={(e) => updateField('complemento', e.target.value)}
+              placeholder="Apto, bloco…"
+            />
+            <div className="form-grid-span-2">
+              <Input
+                label="Endereço (rua / avenida)"
+                value={form.endereco}
+                onChange={(e) => updateField('endereco', e.target.value)}
+                placeholder="Rua, avenida…"
+              />
+            </div>
+            <Input
+              label="Bairro"
+              value={form.bairro}
+              onChange={(e) => updateField('bairro', e.target.value)}
+              placeholder="Bairro"
+            />
+            <Input
+              label="Cidade"
+              value={form.cidade}
+              onChange={(e) => updateField('cidade', e.target.value)}
+              placeholder="Cidade"
+            />
+            <Input
+              label="UF"
+              value={form.uf}
+              onChange={(e) => updateField('uf', e.target.value.toUpperCase().slice(0, 2))}
+              placeholder="UF"
+              maxLength={2}
             />
           </div>
 
@@ -472,6 +641,37 @@ export function CadastroFormPage() {
           </div>
         </form>
       </Card>
+
+      <Modal
+        open={Boolean(duplicateInfo)}
+        title="Pessoa já cadastrada"
+        description={`Esta pessoa já consta em uma ficha (${duplicateInfo?.motivo ?? 'duplicidade'}). Confira os dados abaixo antes de continuar.`}
+        onClose={() => setDuplicateInfo(null)}
+        onConfirm={() => setDuplicateInfo(null)}
+        confirmLabel="Entendi"
+        cancelLabel="Fechar"
+      >
+        {duplicateInfo && (
+          <div className="duplicate-ficha-box">
+            <div>
+              <span>Eleitor(a)</span>
+              <strong>{duplicateInfo.nome_completo}</strong>
+            </div>
+            <div>
+              <span>Nerite que cadastrou</span>
+              <strong>{duplicateInfo.nerite}</strong>
+            </div>
+            <div>
+              <span>Coordenação</span>
+              <strong>{duplicateInfo.coordenador}</strong>
+            </div>
+            <div>
+              <span>Liderança</span>
+              <strong>{duplicateInfo.lider}</strong>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

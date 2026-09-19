@@ -19,7 +19,7 @@ import { supabase } from '../lib/supabase'
 import type { Cadastro, Profile } from '../types'
 
 type ViewMode = 'todos' | 'mapped' | 'unmapped' | 'week7'
-type ColumnKey = 'nome' | 'nerite' | 'coordenador' | 'lider' | 'nascimento' | 'nome_mae' | 'cpf' | 'telefone' | 'titulo' | 'zona' | 'secao' | 'cep' | 'localizacao' | 'data' | 'acoes'
+type ColumnKey = 'nome' | 'nerite' | 'coordenador' | 'lider' | 'nascimento' | 'nome_mae' | 'cpf' | 'telefone' | 'titulo' | 'zona' | 'secao' | 'cep' | 'endereco' | 'localizacao' | 'data' | 'acoes'
 type CadastroOperator = Pick<Profile, 'id' | 'nome' | 'diretoria_id'>
 
 const columnOptions: { key: ColumnKey; label: string; defaultVisible: boolean }[] = [
@@ -35,6 +35,7 @@ const columnOptions: { key: ColumnKey; label: string; defaultVisible: boolean }[
   { key: 'zona', label: 'Zona', defaultVisible: false },
   { key: 'secao', label: 'Seção', defaultVisible: false },
   { key: 'cep', label: 'CEP', defaultVisible: false },
+  { key: 'endereco', label: 'Endereço', defaultVisible: false },
   { key: 'localizacao', label: 'Localização', defaultVisible: false },
   { key: 'data', label: 'Data', defaultVisible: false },
   { key: 'acoes', label: 'Ações', defaultVisible: true },
@@ -548,6 +549,7 @@ export function CadastrosPage() {
                     {showColumn('zona') && <th>Zona</th>}
                     {showColumn('secao') && <th>Seção</th>}
                     {showColumn('cep') && <th>CEP</th>}
+                    {showColumn('endereco') && <th>Endereço</th>}
                     {showColumn('localizacao') && <th>Localização</th>}
                     {showColumn('data') && <th>Data</th>}
                     {showColumn('acoes') && <th className="sticky-actions-head">Ações</th>}
@@ -575,6 +577,13 @@ export function CadastrosPage() {
                         {showColumn('zona') && <td>{c.zona}</td>}
                         {showColumn('secao') && <td>{c.secao}</td>}
                         {showColumn('cep') && <td>{formatCep(c.cep) || '—'}</td>}
+                        {showColumn('endereco') && (
+                          <td>
+                            <span style={{ color: '#6c788d', fontSize: '.78rem' }}>
+                              {[c.endereco, c.numero && `nº ${c.numero}`, c.bairro].filter(Boolean).join(', ') || '—'}
+                            </span>
+                          </td>
+                        )}
                         {showColumn('localizacao') && <td>
                           <span className={`badge ${hasGeo ? 'badge-success' : 'badge-warning'}`}>
                             {hasGeo ? 'Com localização' : 'Sem localização'}

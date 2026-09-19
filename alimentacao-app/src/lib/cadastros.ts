@@ -18,6 +18,12 @@ function sanitizeCadastro(row: Cadastro): Cadastro {
     lider: row.lider ?? '',
     cpf: row.cpf || null,
     cep: row.cep || null,
+    endereco: row.endereco ?? '',
+    numero: row.numero ?? '',
+    complemento: row.complemento ?? '',
+    bairro: row.bairro ?? '',
+    cidade: row.cidade ?? '',
+    uf: row.uf ?? '',
     data_nascimento: row.data_nascimento || null,
   }
 }
@@ -112,6 +118,106 @@ export async function fetchExistingImportKeys(): Promise<ImportExistingKeys> {
         .map((r) => duplicatePersonKey(r.nome_completo ?? null, r.telefone ?? null))
         .filter(Boolean),
     ),
+  }
+}
+
+export interface DuplicateCadastroInfo {
+  id: string
+  nome_completo: string
+  coordenador: string
+  lider: string
+  nerite: string
+  motivo: string
+}
+
+/** Localiza ficha já existente (CPF, título ou nome+telefone). */
+export async function findDuplicateCadastro(options: {
+  cpf?: string
+  titulo?: string
+  nome?: string
+  telefone?: string
+  excludeId?: string
+}): Promise<DuplicateCadastroInfo | null> {
+  const cpf = digitsOnly(options.cpf ?? '')
+  const titulo = String(options.titulo ?? '').trim()
+  const pessoaKey = duplicatePersonKey(options.nome ?? null, options.telefone ?? null)
+
+  let row:
+    | {
+        id: string
+        nome_completo: string | null
+        coordenador: string | null
+        lider: string | null
+        operator_id: string | null
+        cpf: string | null
+        titulo: string | null
+        telefone: string | null
+      }
+    | null = null
+  let motivo = ''
+
+  if (cpf.length === 11) {
+    let q = supabase
+      .from('cadastros')
+      .select('id, nome_completo, coordenador, lider, operator_id, cpf, titulo, telefone')
+      .eq('cpf', cpf)
+      .limit(1)
+    if (options.excludeId) q = q.neq('id', options.excludeId)
+    const { data } = await q.maybeSingle()
+    if (data) {
+      row = data
+      motivo = 'CPF'
+    }
+  }
+
+  if (!row && titulo) {
+    let q = supabase
+      .from('cadastros')
+      .select('id, nome_completo, coordenador, lider, operator_id, cpf, titulo, telefone')
+      .eq('titulo', titulo)
+      .limit(1)
+    if (options.excludeId) q = q.neq('id', options.excludeId)
+    const { data } = await q.maybeSingle()
+    if (data) {
+      row = data
+      motivo = 'título de eleitor'
+    }
+  }
+
+  if (!row && pessoaKey) {
+    const phone = digitsOnly(options.telefone ?? '')
+    let q = supabase
+      .from('cadastros')
+      .select('id, nome_completo, coordenador, lider, operator_id, cpf, titulo, telefone')
+      .eq('telefone', phone)
+      .limit(20)
+    if (options.excludeId) q = q.neq('id', options.excludeId)
+    const { data } = await q
+    const match = (data ?? []).find(
+      (r) => duplicatePersonKey(r.nome_completo, r.telefone) === pessoaKey,
+    )
+    if (match) {
+      row = match
+      motivo = 'mesmo nome e telefone'
+    }
+  }
+
+  if (!row) return null
+
+  let nerite = '—'
+  if (row.operator_id) {
+    const { data: ops } = await supabase.rpc('list_cadastro_operadores')
+    const list = (ops ?? []) as Array<{ id: string; nome: string }>
+    nerite = list.find((o) => o.id === row.operator_id)?.nome?.trim() || '—'
+  }
+
+  return {
+    id: row.id,
+    nome_completo: row.nome_completo ?? '—',
+    coordenador: (row.coordenador ?? '').trim() || '—',
+    lider: (row.lider ?? '').trim() || '—',
+    nerite,
+    motivo,
   }
 }
 
