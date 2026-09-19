@@ -63,14 +63,14 @@ export default async function handler(req, res) {
     }
 
     if (profile.role === 'diretoria') {
-      role = 'operador'
-    } else if (!['operador', 'diretoria'].includes(role)) {
+      role = body.role === 'mobilizador' ? 'mobilizador' : 'operador'
+    } else if (!['operador', 'diretoria', 'mobilizador'].includes(role)) {
       role = 'operador'
     }
 
     const diretoriaId = profile.role === 'diretoria' ? profile.id : (body.diretoria_id || null)
 
-    if (role === 'operador' && profile.role === 'diretoria' && !diretoriaId) {
+    if ((role === 'operador' || role === 'mobilizador') && profile.role === 'diretoria' && !diretoriaId) {
       return json(res, 400, { error: 'Diretoria inválida.' })
     }
 
@@ -111,7 +111,7 @@ export default async function handler(req, res) {
           email,
           role,
           ativo: true,
-          diretoria_id: role === 'operador' ? diretoriaId : null,
+          diretoria_id: role === 'operador' || role === 'mobilizador' ? diretoriaId : null,
           coordenador_id: role === 'operador' ? coordenadorId : null,
           lider_id: role === 'operador' ? liderId : null,
         }),

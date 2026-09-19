@@ -639,12 +639,12 @@ function AdminDashboard() {
         <div className="nv-panel">
           <div className="nv-panel-head">
             <div>
-              <h2><Share2 size={16} strokeWidth={1.6} aria-hidden />Mobilização</h2>
+              <h2><Share2 size={16} strokeWidth={1.6} aria-hidden />Formigas</h2>
               <p>
                 {(mobilizacaoTotals.fichas + mobilizacaoTotals.equipe).toLocaleString('pt-BR')} pessoas no escopo · sem corte de período
               </p>
             </div>
-            <Link to={`/mobilizacao${dirQuery}`}>Gerenciar →</Link>
+            <Link to={`/ativacao/painel${dirQuery}`}>Gerenciar →</Link>
           </div>
           <div className="nv-mob-list">
             {([
@@ -655,7 +655,7 @@ function AdminDashboard() {
             ] as const).map(([label, value, status, pendente]) => (
               <Link
                 key={status}
-                to={`/mobilizacao?status=${status}${dirQueryAmp}`}
+                to={`/ativacao/painel?status=${status}${dirQueryAmp}`}
                 className="nv-mob-row"
               >
                 <span>{label}</span>
@@ -1111,12 +1111,12 @@ function DiretoriaDashboard() {
         <div className="nv-panel">
           <div className="nv-panel-head">
             <div>
-              <h2><Share2 size={16} strokeWidth={1.6} aria-hidden />Mobilização</h2>
+              <h2><Share2 size={16} strokeWidth={1.6} aria-hidden />Formigas</h2>
               <p>
                 {mobBase.toLocaleString('pt-BR')} pessoas no escopo · sem corte de período
               </p>
             </div>
-            <Link to="/mobilizacao">Gerenciar →</Link>
+            <Link to="/ativacao/painel">Gerenciar →</Link>
           </div>
           <div className="nv-mob-list">
             {([
@@ -1125,7 +1125,7 @@ function DiretoriaDashboard() {
               ['Postagens', mobilizacaoTotals.postagens, 'postagens', false],
               ['Sem lançamento', mobilizacaoTotals.pendentes, 'pendente', true],
             ] as const).map(([label, value, status, pendente]) => (
-              <Link key={status} to={`/mobilizacao?status=${status}`} className="nv-mob-row">
+              <Link key={status} to={`/ativacao/painel?status=${status}`} className="nv-mob-row">
                 <span>{label}</span>
                 <span className="nv-mob-row-right">
                   {pendente && <em className="nv-pill-warn">pendente</em>}

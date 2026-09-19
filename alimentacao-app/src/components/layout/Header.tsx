@@ -15,7 +15,9 @@ export function Header({ onMenuClick, title }: HeaderProps) {
       ? 'Acesso total'
       : profile?.role === 'diretoria'
         ? 'Diretoria'
-        : 'Nerite'
+        : profile?.role === 'mobilizador'
+          ? 'Formiga'
+          : 'Nerite'
 
   const displayName =
     profile?.role === 'admin'

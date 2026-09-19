@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'diretoria' | 'operador'
+export type UserRole = 'admin' | 'diretoria' | 'operador' | 'mobilizador'
 
 export interface Profile {
   id: string
@@ -20,6 +20,9 @@ export interface Coordenador {
   carros_adesivados?: number
   adesivos_casa?: number
   postagens?: number
+  postagem_links?: string[] | null
+  ativacao_notas?: string | null
+  ativacao_em?: string | null
   created_at: string
 }
 
@@ -33,6 +36,9 @@ export interface Lider {
   carros_adesivados?: number
   adesivos_casa?: number
   postagens?: number
+  postagem_links?: string[] | null
+  ativacao_notas?: string | null
+  ativacao_em?: string | null
   created_at: string
 }
 
@@ -62,6 +68,9 @@ export interface Cadastro {
   carros_adesivados?: number
   adesivos_casa?: number
   postagens?: number
+  postagem_links?: string[] | null
+  ativacao_notas?: string | null
+  ativacao_em?: string | null
   created_at: string
   updated_at: string
 }

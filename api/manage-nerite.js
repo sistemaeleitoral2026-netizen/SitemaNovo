@@ -43,7 +43,7 @@ export default async function handler(req, res) {
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
     const neriteId = String(body.id || '').trim()
-    if (!neriteId) return json(res, 400, { error: 'Informe a nerite.' })
+    if (!neriteId) return json(res, 400, { error: 'Informe o usuário.' })
 
     const targetRes = await fetch(
       `${SUPABASE_URL}/rest/v1/profiles?id=eq.${neriteId}&select=id,role,diretoria_id,email`,
@@ -56,48 +56,50 @@ export default async function handler(req, res) {
     )
     const targets = await targetRes.json()
     const target = Array.isArray(targets) ? targets[0] : null
-    if (!target || target.role !== 'operador') {
-      return json(res, 404, { error: 'Nerite não encontrada.' })
+    if (!target || !['operador', 'mobilizador'].includes(target.role)) {
+      return json(res, 404, { error: 'Usuário não encontrado.' })
     }
     if (caller.role === 'diretoria' && target.diretoria_id !== caller.id) {
-      return json(res, 403, { error: 'Sem permissão para esta nerite.' })
+      return json(res, 403, { error: 'Sem permissão para este usuário.' })
     }
 
     if (req.method === 'DELETE') {
-      // Conta fichas desta nerite
-      const countRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/cadastros?operator_id=eq.${neriteId}&select=id`,
-        {
-          headers: {
-            Authorization: `Bearer ${SERVICE_ROLE}`,
-            apikey: SERVICE_ROLE,
-            Prefer: 'count=exact',
-            Range: '0-0',
+      // Conta fichas desta nerite (mobilizador não gera fichas)
+      let fichasCount = 0
+      if (target.role === 'operador') {
+        const countRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/cadastros?operator_id=eq.${neriteId}&select=id`,
+          {
+            headers: {
+              Authorization: `Bearer ${SERVICE_ROLE}`,
+              apikey: SERVICE_ROLE,
+              Prefer: 'count=exact',
+              Range: '0-0',
+            },
           },
-        },
-      )
-      const contentRange = countRes.headers.get('content-range') || ''
-      const totalMatch = contentRange.match(/\/(\d+|\*)/)
-      const fichasCount = totalMatch && totalMatch[1] !== '*' ? Number(totalMatch[1]) : 0
+        )
+        const contentRange = countRes.headers.get('content-range') || ''
+        const totalMatch = contentRange.match(/\/(\d+|\*)/)
+        fichasCount = totalMatch && totalMatch[1] !== '*' ? Number(totalMatch[1]) : 0
 
-      if (fichasCount > 0 && caller.role !== 'admin') {
-        return json(res, 403, {
-          error: 'Só o administrador pode excluir nerite que já tem fichas. As fichas não são apagadas.',
-        })
-      }
+        if (fichasCount > 0 && caller.role !== 'admin') {
+          return json(res, 403, {
+            error: 'Só o administrador pode excluir nerite que já tem fichas. As fichas não são apagadas.',
+          })
+        }
 
-      // Desvincula fichas/importações/auditoria e remove a conta (fichas permanecem)
-      if (fichasCount > 0) {
-        await fetch(`${SUPABASE_URL}/rest/v1/cadastros?operator_id=eq.${neriteId}`, {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${SERVICE_ROLE}`,
-            apikey: SERVICE_ROLE,
-            'Content-Type': 'application/json',
-            Prefer: 'return=minimal',
-          },
-          body: JSON.stringify({ operator_id: null }),
-        })
+        if (fichasCount > 0) {
+          await fetch(`${SUPABASE_URL}/rest/v1/cadastros?operator_id=eq.${neriteId}`, {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${SERVICE_ROLE}`,
+              apikey: SERVICE_ROLE,
+              'Content-Type': 'application/json',
+              Prefer: 'return=minimal',
+            },
+            body: JSON.stringify({ operator_id: null }),
+          })
+        }
       }
 
       await fetch(`${SUPABASE_URL}/rest/v1/importacoes?operator_id=eq.${neriteId}`, {
@@ -162,8 +164,8 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         nome,
         diretoria_id: diretoriaId,
-        coordenador_id: coordenadorId,
-        lider_id: liderId,
+        coordenador_id: target.role === 'operador' ? coordenadorId : null,
+        lider_id: target.role === 'operador' ? liderId : null,
         ativo,
       }),
     })
