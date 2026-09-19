@@ -10,7 +10,7 @@ import { Spinner } from '../components/ui/Spinner'
 import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import { normalizeCadastroFields, formatCpf, formatPhone, formatCep } from '../lib/normalize'
 import { validateCadastroForm, isDuplicateCpfError, isDuplicateTituloError } from '../lib/validation'
-import { geocodeFromZona } from '../lib/geocode'
+import { coordsFromZona } from '../lib/geocode'
 import { logAudit } from '../lib/audit'
 import { supabase } from '../lib/supabase'
 import type { CadastroFormData, Coordenador, Lider } from '../types'
@@ -40,6 +40,7 @@ export function CadastroFormPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [globalError, setGlobalError] = useState<string | null>(null)
+  const [saveOk, setSaveOk] = useState<string | null>(null)
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
   const [lideres, setLideres] = useState<Lider[]>([])
   const [coordenadorId, setCoordenadorId] = useState('')
@@ -159,11 +160,13 @@ export function CadastroFormPage() {
     setLiderId('')
     setErrors({})
     setGlobalError(null)
+    setSaveOk(null)
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setGlobalError(null)
+    setSaveOk(null)
 
     const normalized = normalizeCadastroFields(form)
     const fieldErrors = validateCadastroForm(normalized)
@@ -174,9 +177,7 @@ export function CadastroFormPage() {
 
     setSaving(true)
 
-    const coords = normalized.zona
-      ? await geocodeFromZona(normalized.zona)
-      : null
+    const coords = normalized.zona ? coordsFromZona(normalized.zona) : null
 
     const payload: Record<string, unknown> = {
       nome_completo: normalized.nome_completo || '',
@@ -226,7 +227,7 @@ export function CadastroFormPage() {
         }
         return
       }
-      await logAudit('atualizar', 'cadastros', id, { cpf: normalized.cpf })
+      logAudit('atualizar', 'cadastros', id, { cpf: normalized.cpf })
       navigate(profile?.role === 'operador' ? '/meus-cadastros' : '/cadastros')
     } else {
       const { data, error } = await supabase.from('cadastros').insert(payload).select('id').single()
@@ -243,8 +244,24 @@ export function CadastroFormPage() {
         }
         return
       }
-      await logAudit('criar', 'cadastros', data.id, { cpf: normalized.cpf })
-      navigate(profile?.role === 'operador' ? '/meus-cadastros' : '/cadastros')
+      logAudit('criar', 'cadastros', data.id, { cpf: normalized.cpf })
+
+      // Nerite: fica na ficha limpa para cadastrar a próxima (evita reload da lista)
+      if (profile?.role === 'operador') {
+        const keepCoord = form.coordenador
+        const keepLider = form.lider
+        const keepCoordId = coordenadorId
+        const keepLiderId = liderId
+        setForm({ ...emptyForm, coordenador: keepCoord, lider: keepLider })
+        setCoordenadorId(keepCoordId)
+        setLiderId(keepLiderId)
+        setErrors({})
+        setSaveOk('Ficha salva! Pode cadastrar a próxima.')
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        return
+      }
+
+      navigate('/cadastros')
     }
   }
 
@@ -432,6 +449,12 @@ export function CadastroFormPage() {
               placeholder="00000-000"
             />
           </div>
+
+          {saveOk && (
+            <div className="alert alert-success" style={{ marginTop: '1rem' }}>
+              {saveOk}
+            </div>
+          )}
 
           {globalError && (
             <div className="alert alert-error" style={{ marginTop: '1rem' }}>
