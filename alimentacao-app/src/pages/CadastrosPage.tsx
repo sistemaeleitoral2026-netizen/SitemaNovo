@@ -184,7 +184,7 @@ export function CadastrosPage() {
         c.telefone ?? '',
         c.titulo ?? '',
         c.cep ?? '',
-        neriteNames.get(c.operator_id) ?? '',
+        neriteNames.get(c.operator_id ?? '') ?? '',
       ].some((value) => {
         const normalized = value.toLowerCase()
         return normalized.includes(textTerm) || (!!digitTerm && value.replace(/\D/g, '').includes(digitTerm))
@@ -195,7 +195,7 @@ export function CadastrosPage() {
       if (coordTerm && (c.coordenador ?? '').trim().toLowerCase() !== coordTerm) return false
       if (liderTerm && (c.lider ?? '').trim().toLowerCase() !== liderTerm) return false
       if (diretoriaFilter) {
-        const nerite = neriteById.get(c.operator_id)
+        const nerite = neriteById.get(c.operator_id ?? '')
         const dirId = c.diretoria_id || nerite?.diretoria_id
         if (dirId !== diretoriaFilter) return false
       }
@@ -277,7 +277,7 @@ export function CadastrosPage() {
     if (profile?.role === 'admin') return true
     if (c.operator_id === profile?.id) return true
     if (profile?.role !== 'diretoria') return false
-    const cadastroDiretoriaId = c.diretoria_id || neriteById.get(c.operator_id)?.diretoria_id
+    const cadastroDiretoriaId = c.diretoria_id || (c.operator_id ? neriteById.get(c.operator_id)?.diretoria_id : undefined)
     return cadastroDiretoriaId === profile.id
   }
 
@@ -556,7 +556,7 @@ export function CadastrosPage() {
                     return (
                       <tr key={c.id}>
                         {showColumn('nome') && <td><strong style={{ fontWeight: 600, fontSize: '.8rem' }}>{c.nome_completo}</strong></td>}
-                        {showColumn('nerite') && <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{neriteNames.get(c.operator_id) ?? '—'}</span></td>}
+                        {showColumn('nerite') && <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{(c.operator_id && neriteNames.get(c.operator_id)) || '—'}</span></td>}
                         {showColumn('coordenador') && <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{c.coordenador || '—'}</span></td>}
                         {showColumn('lider') && <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{c.lider || '—'}</span></td>}
                         {showColumn('nascimento') && <td>{c.data_nascimento ? formatDate(c.data_nascimento) : '—'}</td>}
