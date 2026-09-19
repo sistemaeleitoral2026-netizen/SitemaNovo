@@ -19,19 +19,23 @@ import { AtivacaoPainelPage } from './pages/AtivacaoPainelPage'
 import { DemandasLancarPage } from './pages/DemandasLancarPage'
 import { DemandasPainelPage } from './pages/DemandasPainelPage'
 import { LiderancaPage } from './pages/LiderancaPage'
+import { hasRole } from './lib/roles'
+import type { Profile } from './types'
 
-function homeForRole(role: string | undefined) {
-  if (role === 'operador') return '/meus-cadastros'
-  if (role === 'mobilizador') return '/ativacao/lancar'
-  if (role === 'administrativo') return '/demandas/lancar'
+function homeForProfile(profile: Profile | null | undefined) {
+  if (!profile) return '/login'
+  if (hasRole(profile, 'admin') || hasRole(profile, 'diretoria')) return '/'
+  if (hasRole(profile, 'operador')) return '/meus-cadastros'
+  if (hasRole(profile, 'mobilizador')) return '/ativacao/lancar'
+  if (hasRole(profile, 'administrativo')) return '/demandas/lancar'
   return '/'
 }
 
 function StaffRoute({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
   if (loading) return <Spinner />
-  if (profile?.role !== 'admin' && profile?.role !== 'diretoria') {
-    return <Navigate to={homeForRole(profile?.role)} replace />
+  if (!hasRole(profile, ['admin', 'diretoria'])) {
+    return <Navigate to={homeForProfile(profile)} replace />
   }
   return children
 }
@@ -39,8 +43,8 @@ function StaffRoute({ children }: { children: React.ReactNode }) {
 function AtivacaoRoute({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
   if (loading) return <Spinner />
-  if (!profile || !['admin', 'diretoria', 'mobilizador'].includes(profile.role)) {
-    return <Navigate to={homeForRole(profile?.role)} replace />
+  if (!hasRole(profile, ['admin', 'diretoria', 'mobilizador'])) {
+    return <Navigate to={homeForProfile(profile)} replace />
   }
   return children
 }
@@ -48,8 +52,8 @@ function AtivacaoRoute({ children }: { children: React.ReactNode }) {
 function DemandasRoute({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
   if (loading) return <Spinner />
-  if (!profile || !['admin', 'diretoria', 'administrativo'].includes(profile.role)) {
-    return <Navigate to={homeForRole(profile?.role)} replace />
+  if (!hasRole(profile, ['admin', 'diretoria', 'administrativo'])) {
+    return <Navigate to={homeForProfile(profile)} replace />
   }
   return children
 }
@@ -57,22 +61,23 @@ function DemandasRoute({ children }: { children: React.ReactNode }) {
 function BlockFieldOnly({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
   if (loading) return <Spinner />
-  if (profile?.role === 'mobilizador') return <Navigate to="/ativacao/lancar" replace />
-  if (profile?.role === 'administrativo') return <Navigate to="/demandas/lancar" replace />
+  if (hasRole(profile, 'operador') || hasRole(profile, ['admin', 'diretoria'])) return children
+  if (hasRole(profile, 'mobilizador')) return <Navigate to="/ativacao/lancar" replace />
+  if (hasRole(profile, 'administrativo')) return <Navigate to="/demandas/lancar" replace />
   return children
 }
 
 function AdminOnlyRoute({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
   if (loading) return <Spinner />
-  if (profile?.role !== 'admin') return <Navigate to="/" replace />
+  if (!hasRole(profile, 'admin')) return <Navigate to="/" replace />
   return children
 }
 
 function NeriteRoute({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
   if (loading) return <Spinner />
-  if (profile?.role !== 'operador') return <Navigate to="/" replace />
+  if (!hasRole(profile, 'operador')) return <Navigate to={homeForProfile(profile)} replace />
   return children
 }
 
@@ -84,10 +89,8 @@ function OperadoresIdRedirect() {
 function HomeRedirect() {
   const { profile, loading } = useAuth()
   if (loading) return <Spinner />
-  if (profile?.role === 'operador') return <Navigate to="/meus-cadastros" replace />
-  if (profile?.role === 'mobilizador') return <Navigate to="/ativacao/lancar" replace />
-  if (profile?.role === 'administrativo') return <Navigate to="/demandas/lancar" replace />
-  return <DashboardPage />
+  if (hasRole(profile, ['admin', 'diretoria'])) return <DashboardPage />
+  return <Navigate to={homeForProfile(profile)} replace />
 }
 
 function PublicOnly({ children }: { children: React.ReactNode }) {
@@ -100,7 +103,7 @@ function PublicOnly({ children }: { children: React.ReactNode }) {
     )
   }
   if (session && profile) {
-    return <Navigate to={homeForRole(profile.role)} replace />
+    return <Navigate to={homeForProfile(profile)} replace />
   }
   return children
 }
@@ -142,10 +145,10 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
+    <AuthProvider>
+      <BrowserRouter>
         <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
+      </BrowserRouter>
+    </AuthProvider>
   )
 }
