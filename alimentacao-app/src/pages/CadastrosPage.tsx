@@ -291,7 +291,7 @@ export function CadastrosPage() {
     setDeleting(true)
     const { error } = await supabase.from('cadastros').delete().eq('id', deleteId)
     if (!error) {
-      await logAudit('excluir', 'cadastros', deleteId)
+      logAudit('excluir', 'cadastros', deleteId)
       setCadastros((prev) => prev.filter((c) => c.id !== deleteId))
     }
     setDeleting(false)
