@@ -19,7 +19,7 @@ import { supabase } from '../lib/supabase'
 import type { Cadastro, Profile } from '../types'
 
 type ViewMode = 'todos' | 'mapped' | 'unmapped' | 'week7'
-type ColumnKey = 'nome' | 'nerite' | 'coordenador' | 'lider' | 'nascimento' | 'cpf' | 'telefone' | 'titulo' | 'zona' | 'secao' | 'cep' | 'localizacao' | 'data' | 'acoes'
+type ColumnKey = 'nome' | 'nerite' | 'coordenador' | 'lider' | 'nascimento' | 'nome_mae' | 'cpf' | 'telefone' | 'titulo' | 'zona' | 'secao' | 'cep' | 'localizacao' | 'data' | 'acoes'
 type CadastroOperator = Pick<Profile, 'id' | 'nome' | 'diretoria_id'>
 
 const columnOptions: { key: ColumnKey; label: string; defaultVisible: boolean }[] = [
@@ -27,7 +27,8 @@ const columnOptions: { key: ColumnKey; label: string; defaultVisible: boolean }[
   { key: 'nerite', label: 'Nerite', defaultVisible: true },
   { key: 'coordenador', label: 'Coordenador', defaultVisible: true },
   { key: 'lider', label: 'Líder', defaultVisible: true },
-  { key: 'nascimento', label: 'Nascimento', defaultVisible: false },
+  { key: 'nascimento', label: 'Nascimento', defaultVisible: true },
+  { key: 'nome_mae', label: 'Nome da mãe', defaultVisible: true },
   { key: 'cpf', label: 'CPF', defaultVisible: false },
   { key: 'telefone', label: 'Telefone', defaultVisible: true },
   { key: 'titulo', label: 'Título', defaultVisible: true },
@@ -299,12 +300,13 @@ export function CadastrosPage() {
   }
 
   function exportCsv() {
-    const header = ['Nome', 'Coordenador', 'Lideranca', 'Data nascimento', 'Telefone', 'Titulo', 'Zona', 'Secao', 'CEP', 'Data']
+    const header = ['Nome', 'Coordenador', 'Lideranca', 'Data nascimento', 'Nome da mae', 'Telefone', 'Titulo', 'Zona', 'Secao', 'CEP', 'Data']
     const rows = filteredCadastros.map((c) => [
       c.nome_completo,
       c.coordenador || '',
       c.lider || '',
       c.data_nascimento ? formatDate(c.data_nascimento) : '',
+      c.nome_mae || '',
       c.telefone,
       c.titulo,
       c.zona,
@@ -539,6 +541,7 @@ export function CadastrosPage() {
                     {showColumn('coordenador') && <th>Coordenador</th>}
                     {showColumn('lider') && <th>Líder</th>}
                     {showColumn('nascimento') && <th>Nascimento</th>}
+                    {showColumn('nome_mae') && <th>Nome da mãe</th>}
                     {showColumn('cpf') && <th>CPF</th>}
                     {showColumn('telefone') && <th>Telefone</th>}
                     {showColumn('titulo') && <th>Título</th>}
@@ -560,6 +563,7 @@ export function CadastrosPage() {
                         {showColumn('coordenador') && <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{c.coordenador || '—'}</span></td>}
                         {showColumn('lider') && <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{c.lider || '—'}</span></td>}
                         {showColumn('nascimento') && <td>{c.data_nascimento ? formatDate(c.data_nascimento) : '—'}</td>}
+                        {showColumn('nome_mae') && <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{c.nome_mae || '—'}</span></td>}
                         {showColumn('cpf') && <td>{formatCpf(c.cpf) || '—'}</td>}
                         {showColumn('telefone') && <td>
                           <span className="phone-cell">
@@ -635,6 +639,7 @@ export function CadastrosPage() {
                       <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>Coordenador</span><strong style={{ fontSize: '.76rem' }}>{c.coordenador || '—'}</strong></div>
                       <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>Líder</span><strong style={{ fontSize: '.76rem' }}>{c.lider || '—'}</strong></div>
                       <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>Nascimento</span><strong style={{ fontSize: '.76rem' }}>{c.data_nascimento ? formatDate(c.data_nascimento) : '—'}</strong></div>
+                      <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>Nome da mãe</span><strong style={{ fontSize: '.76rem' }}>{c.nome_mae || '—'}</strong></div>
                       <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>CPF</span><strong style={{ fontSize: '.76rem' }}>{formatCpf(c.cpf) || '—'}</strong></div>
                       <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>Título</span><strong style={{ fontSize: '.76rem' }}>{c.titulo}</strong></div>
                       <div><span style={{ display: 'block', color: '#8a95a7', fontSize: '.63rem' }}>Zona / Seção</span><strong style={{ fontSize: '.76rem' }}>{c.zona} / {c.secao}</strong></div>
