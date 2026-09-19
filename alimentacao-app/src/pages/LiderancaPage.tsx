@@ -9,6 +9,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Pagination } from '../components/ui/Pagination'
 import { META_LIDERANCA_FICHAS } from '../lib/meta'
 import { formatPhone } from '../lib/normalize'
+import { fetchCadastroFichaStats } from '../lib/cadastros'
 import { supabase } from '../lib/supabase'
 import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import type { Coordenador, Lider } from '../types'
@@ -53,22 +54,20 @@ export function LiderancaPage() {
       try {
         let coordsQuery = supabase.from('coordenadores').select('*').eq('ativo', true).order('nome')
         let lideresQuery = supabase.from('lideres').select('*').eq('ativo', true).order('nome')
-        let fichasQuery = supabase.from('cadastros').select('lider, diretoria_id, operator_id')
 
         if (diretoriaScope) {
           coordsQuery = coordsQuery.eq('diretoria_id', diretoriaScope)
           lideresQuery = lideresQuery.eq('diretoria_id', diretoriaScope)
         }
 
-        const [coordsRes, lideresRes, fichasRes] = await Promise.all([
+        const [coordsRes, lideresRes, fRows] = await Promise.all([
           coordsQuery,
           lideresQuery,
-          fichasQuery,
+          fetchCadastroFichaStats(),
         ])
 
         if (coordsRes.error) throw new Error(coordsRes.error.message)
         if (lideresRes.error) throw new Error(lideresRes.error.message)
-        if (fichasRes.error) throw new Error(fichasRes.error.message)
 
         const liderRows = (lideresRes.data ?? []) as Lider[]
         const coordRows = (coordsRes.data ?? []) as Coordenador[]
@@ -78,18 +77,17 @@ export function LiderancaPage() {
         const byLider: Record<string, number> = {}
         const scopeLiderKeys = new Set(liderRows.map((l) => nameKey(l.nome)))
 
-        ;((fichasRes.data ?? []) as { lider: string | null; diretoria_id: string | null }[])
-          .forEach((row) => {
-            const key = nameKey(row.lider)
-            if (!key) return
-            if (diretoriaScope) {
-              if (row.diretoria_id === diretoriaScope || scopeLiderKeys.has(key)) {
-                byLider[key] = (byLider[key] ?? 0) + 1
-              }
-              return
+        fRows.forEach((row) => {
+          const key = nameKey(row.lider)
+          if (!key) return
+          if (diretoriaScope) {
+            if (row.diretoria_id === diretoriaScope || scopeLiderKeys.has(key)) {
+              byLider[key] = (byLider[key] ?? 0) + 1
             }
-            byLider[key] = (byLider[key] ?? 0) + 1
-          })
+            return
+          }
+          byLider[key] = (byLider[key] ?? 0) + 1
+        })
 
         setFichasByLider(byLider)
       } catch (e) {

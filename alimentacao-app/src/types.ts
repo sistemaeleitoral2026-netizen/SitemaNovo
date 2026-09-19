@@ -1,4 +1,27 @@
-export type UserRole = 'admin' | 'diretoria' | 'operador' | 'mobilizador'
+export type UserRole = 'admin' | 'diretoria' | 'operador' | 'mobilizador' | 'administrativo'
+
+export type DemandaStatus = 'aberta' | 'feita'
+export type DemandaOrigem = 'cadastro' | 'avulso'
+export type DemandaUrgencia = 'baixa' | 'normal' | 'alta' | 'urgente'
+
+export interface Demanda {
+  id: string
+  created_by: string
+  cadastro_id: string | null
+  origem: DemandaOrigem
+  nome: string
+  documento: string | null
+  telefone: string | null
+  telefone_extra: string | null
+  descricao: string
+  foto_path: string | null
+  urgencia?: DemandaUrgencia
+  status: DemandaStatus
+  created_at: string
+  resolved_at: string | null
+  resolved_by: string | null
+  resolved_note: string | null
+}
 
 export interface Profile {
   id: string
@@ -23,6 +46,7 @@ export interface Coordenador {
   postagem_links?: string[] | null
   ativacao_notas?: string | null
   ativacao_em?: string | null
+  contato_whatsapp?: boolean | null
   created_at: string
 }
 
@@ -39,6 +63,7 @@ export interface Lider {
   postagem_links?: string[] | null
   ativacao_notas?: string | null
   ativacao_em?: string | null
+  contato_whatsapp?: boolean | null
   created_at: string
 }
 
@@ -71,6 +96,7 @@ export interface Cadastro {
   postagem_links?: string[] | null
   ativacao_notas?: string | null
   ativacao_em?: string | null
+  contato_whatsapp?: boolean | null
   created_at: string
   updated_at: string
 }

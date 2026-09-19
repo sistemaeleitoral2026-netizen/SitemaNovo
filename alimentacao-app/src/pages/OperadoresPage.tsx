@@ -10,9 +10,10 @@ import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Pagination } from '../components/ui/Pagination'
 import { formatDateTime } from '../lib/format'
+import { fetchOperatorCadastroStats } from '../lib/cadastros'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import type { Cadastro, OperadorStats, Profile } from '../types'
+import type { OperadorStats, Profile } from '../types'
 
 const AVATARS = ['avatar-blue', 'avatar-green', 'avatar-purple', 'avatar-orange', 'avatar-teal']
 const PAGE_SIZE = 10
@@ -32,7 +33,8 @@ export function OperadoresPage() {
   const isAdmin = profile?.role === 'admin'
   const diretoriaId = profile?.role === 'diretoria' ? profile.id : null
   const [operadores, setOperadores] = useState<Profile[]>([])
-  const [cadastros, setCadastros] = useState<Cadastro[]>([])
+  const [fichasByOperator, setFichasByOperator] = useState<Record<string, number>>({})
+  const [ultimaByOperator, setUltimaByOperator] = useState<Record<string, string>>({})
   const [diretorias, setDiretorias] = useState<Profile[]>([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -50,21 +52,25 @@ export function OperadoresPage() {
     let opsQuery = supabase.from('profiles').select('*').eq('role', 'operador').order('nome')
     if (diretoriaId) opsQuery = opsQuery.eq('diretoria_id', diretoriaId)
 
-    const [ops, cads, dirs] = await Promise.all([
+    const [ops, dirs] = await Promise.all([
       opsQuery,
-      supabase.from('cadastros').select('*'),
       isAdmin
         ? supabase.from('profiles').select('*').eq('role', 'diretoria').order('nome')
-        : Promise.resolve({ data: [] }),
+        : Promise.resolve({ data: [] as Profile[] }),
     ])
-    setOperadores((ops.data ?? []) as Profile[])
-    setCadastros((cads.data ?? []) as Cadastro[])
+
+    const operadoresRows = (ops.data ?? []) as Profile[]
+    const statsMap = await fetchOperatorCadastroStats(operadoresRows.map((o) => o.id))
+
+    setOperadores(operadoresRows)
+    setFichasByOperator(statsMap.counts)
+    setUltimaByOperator(statsMap.ultima)
     setDiretorias((dirs.data ?? []) as Profile[])
     setLoading(false)
   }
 
   useEffect(() => {
-    load()
+    void load()
   }, [diretoriaId, isAdmin])
 
   const stats = useMemo((): OperadorStats[] => {
@@ -73,18 +79,16 @@ export function OperadoresPage() {
 
     const result = operadores
       .map((op) => {
-        const all = cadastros.filter((c) => c.operator_id === op.id)
-        const ultima = all.length
-          ? all.reduce((latest, c) => (c.created_at > latest ? c.created_at : latest), all[0].created_at)
-          : null
+        const total = fichasByOperator[op.id] ?? 0
+        const ultima = ultimaByOperator[op.id] ?? null
 
         return {
           id: op.id,
           nome: op.nome,
           email: op.email,
           ativo: op.ativo,
-          total: all.length,
-          periodo: all.length,
+          total,
+          periodo: total,
           ultima_atividade: ultima,
         }
       })
@@ -111,7 +115,7 @@ export function OperadoresPage() {
       if (sortBy === 'status') return Number(b.ativo) - Number(a.ativo) || a.nome.localeCompare(b.nome, 'pt-BR')
       return a.nome.localeCompare(b.nome, 'pt-BR')
     })
-  }, [operadores, cadastros, search, statusFilter, activityFilter, sortBy])
+  }, [operadores, fichasByOperator, ultimaByOperator, search, statusFilter, activityFilter, sortBy])
 
   useEffect(() => setPage(0), [search, statusFilter, activityFilter, sortBy])
 

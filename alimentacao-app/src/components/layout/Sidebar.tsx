@@ -14,7 +14,8 @@ import {
   Crown,
   ListChecks,
   Megaphone,
-  PlusCircle,
+  Inbox,
+  ClipboardPen,
 } from 'lucide-react'
 import type { UserRole } from '../../types'
 
@@ -44,8 +45,16 @@ const navGroups: NavGroup[] = [
     label: 'Operação de Campo',
     roles: ['mobilizador'],
     items: [
-      { to: '/ativacao/lancar', label: 'Lançar', icon: PlusCircle, roles: ['mobilizador'] },
-      { to: '/ativacao/painel', label: 'Painel', icon: BarChart3, roles: ['mobilizador'] },
+      { to: '/ativacao/lancar', label: 'Lançar', icon: Megaphone, roles: ['mobilizador'] },
+      { to: '/ativacao/painel', label: 'Painel', icon: ClipboardList, roles: ['mobilizador'] },
+    ],
+  },
+  {
+    label: 'Demandas',
+    roles: ['administrativo'],
+    items: [
+      { to: '/demandas/lancar', label: 'Lançar', icon: ClipboardPen, roles: ['administrativo'] },
+      { to: '/demandas/painel', label: 'Visualizar', icon: Inbox, roles: ['administrativo'] },
     ],
   },
   {
@@ -69,8 +78,16 @@ const navGroups: NavGroup[] = [
     label: 'Formigas',
     roles: ['admin', 'diretoria'],
     items: [
-      { to: '/ativacao/lancar', label: 'Lançar', icon: PlusCircle, roles: ['admin', 'diretoria'] },
-      { to: '/ativacao/painel', label: 'Painel', icon: BarChart3, roles: ['admin', 'diretoria'] },
+      { to: '/ativacao/lancar', label: 'Lançar', icon: Megaphone, roles: ['admin', 'diretoria'] },
+      { to: '/ativacao/painel', label: 'Painel', icon: ClipboardList, roles: ['admin', 'diretoria'] },
+    ],
+  },
+  {
+    label: 'Demandas',
+    roles: ['admin', 'diretoria'],
+    items: [
+      { to: '/demandas/lancar', label: 'Lançar', icon: ClipboardPen, roles: ['admin', 'diretoria'] },
+      { to: '/demandas/painel', label: 'Visualizar', icon: Inbox, roles: ['admin', 'diretoria'] },
     ],
   },
   {
@@ -162,7 +179,9 @@ export function Sidebar({ role, open, onClose }: SidebarProps) {
               <span>
                 {role === 'diretoria'
                   ? 'Cadastre coordenadores e lideranças'
-                  : 'Painel administrativo'}
+                  : role === 'administrativo'
+                    ? 'Registro e acompanhamento de demandas'
+                    : 'Painel administrativo'}
               </span>
             </div>
           </div>
