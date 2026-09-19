@@ -78,6 +78,13 @@ function linkActive(to: string, pathname: string, search: string) {
   }
 
   if (pathname === to) return true
+
+  // /cadastros/novo e /cadastros/:id/editar não devem marcar "Todos os cadastros"
+  // (só a edição mantém o item pai ativo).
+  if (to === '/cadastros') {
+    return /^\/cadastros\/[^/]+\/editar\/?$/.test(pathname)
+  }
+
   // Sub-rotas de detalhe (ex.: /nerites/:id) mantêm o item pai ativo.
   return pathname.startsWith(`${to}/`)
 }
