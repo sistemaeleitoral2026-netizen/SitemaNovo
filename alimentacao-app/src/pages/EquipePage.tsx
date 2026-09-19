@@ -10,10 +10,12 @@ import { Modal } from '../components/ui/Modal'
 import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { WhatsAppLink } from '../components/ui/WhatsAppLink'
+import { EquipeMemberModal } from '../components/equipe/EquipeMemberModal'
 import { formatPhone } from '../lib/normalize'
 import { fetchCadastroFichaStats, fetchOperatorCadastroStats } from '../lib/cadastros'
 import { supabase } from '../lib/supabase'
-import type { Coordenador, Lider, Profile } from '../types'
+import type { Coordenador, Lider, Profile, UserRole } from '../types'
+import { labelRole, normalizeExtraRoles } from '../lib/roles'
 
 type Tab = 'nerites' | 'coordenadores' | 'lideres' | 'mobilizadores' | 'administrativos'
 
@@ -38,6 +40,18 @@ const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
     title: 'Administrativos',
     subtitle: 'Equipe que lança e acompanha Demandas (sem liberar conclusão).',
   },
+}
+
+function ExtraRolesBadges({ roles }: { roles?: UserRole[] | null }) {
+  const extras = (roles ?? []).filter(Boolean)
+  if (!extras.length) return null
+  return (
+    <span className="eq-extra-roles">
+      {extras.map((r) => (
+        <em key={r} className="eq-extra-pill">{labelRole(r)}</em>
+      ))}
+    </span>
+  )
 }
 
 export function EquipePage() {
@@ -131,6 +145,7 @@ export function EquipePage() {
     coordenador_id: '',
     lider_id: '',
     ativo: true,
+    extra_roles: [] as UserRole[],
   })
   const [mobForm, setMobForm] = useState({
     nome: '',
@@ -139,13 +154,16 @@ export function EquipePage() {
     confirm: '',
     diretoria_id: '',
     ativo: true,
+    extra_roles: [] as UserRole[],
   })
   const [admForm, setAdmForm] = useState({
     nome: '',
     email: '',
     password: '',
     confirm: '',
+    diretoria_id: '',
     ativo: true,
+    extra_roles: [] as UserRole[],
   })
   const [coordForm, setCoordForm] = useState({ nome: '', diretoria_id: '' })
   const [liderForm, setLiderForm] = useState({ nome: '', telefone: '', diretoria_id: '', coordenador_id: '' })
@@ -358,6 +376,7 @@ export function EquipePage() {
       coordenador_id: coordenadorFromUrl || '',
       lider_id: liderFromUrl || '',
       ativo: true,
+      extra_roles: [],
     })
     setNeriteOpen(true)
   }
@@ -374,6 +393,7 @@ export function EquipePage() {
       coordenador_id: n.coordenador_id ?? '',
       lider_id: n.lider_id ?? '',
       ativo: n.ativo,
+      extra_roles: normalizeExtraRoles('operador', n.extra_roles ?? []),
     })
     setNeriteOpen(true)
   }
@@ -388,6 +408,7 @@ export function EquipePage() {
       confirm: '',
       diretoria_id: diretoriaId ?? filterDiretoria ?? '',
       ativo: true,
+      extra_roles: [],
     })
     setMobOpen(true)
   }
@@ -402,6 +423,7 @@ export function EquipePage() {
       confirm: '',
       diretoria_id: m.diretoria_id ?? '',
       ativo: m.ativo,
+      extra_roles: normalizeExtraRoles('mobilizador', m.extra_roles ?? []),
     })
     setMobOpen(true)
   }
@@ -409,7 +431,7 @@ export function EquipePage() {
   function openNewAdm() {
     setError(null)
     setEditingAdmId(null)
-    setAdmForm({ nome: '', email: '', password: '', confirm: '', ativo: true })
+    setAdmForm({ nome: '', email: '', password: '', confirm: '', diretoria_id: '', ativo: true, extra_roles: [] })
     setAdmOpen(true)
   }
 
@@ -421,7 +443,9 @@ export function EquipePage() {
       email: m.email,
       password: '',
       confirm: '',
+      diretoria_id: '',
       ativo: m.ativo,
+      extra_roles: normalizeExtraRoles('administrativo', m.extra_roles ?? []),
     })
     setAdmOpen(true)
   }
@@ -494,6 +518,7 @@ export function EquipePage() {
     // Só aplica coordenador/lider quando enviados (nerites); mobilizador edita sem esses campos.
     if ('coordenador_id' in body) patch.coordenador_id = body.coordenador_id || null
     if ('lider_id' in body) patch.lider_id = body.lider_id || null
+    if ('extra_roles' in body) patch.extra_roles = body.extra_roles ?? []
     const { error } = await supabase.from('profiles').update(patch).eq('id', neriteId)
     return { error: error?.message || null }
   }
@@ -526,6 +551,7 @@ export function EquipePage() {
         lider_id: neriteForm.lider_id || null,
         ativo: neriteForm.ativo,
         password: neriteForm.password || undefined,
+        extra_roles: normalizeExtraRoles('operador', neriteForm.extra_roles),
       })
       setSaving(false)
       if (err) {
@@ -543,6 +569,7 @@ export function EquipePage() {
         email: neriteForm.email,
         password: neriteForm.password,
         role: 'operador',
+        extra_roles: normalizeExtraRoles('operador', neriteForm.extra_roles),
         diretoria_id: targetDir,
         coordenador_id: neriteForm.coordenador_id || null,
         lider_id: neriteForm.lider_id || null,
@@ -557,7 +584,7 @@ export function EquipePage() {
     setNeriteOpen(false)
     setEditingNeriteId(null)
     setNeriteForm({
-      nome: '', email: '', password: '', confirm: '', diretoria_id: '', coordenador_id: '', lider_id: '', ativo: true,
+      nome: '', email: '', password: '', confirm: '', diretoria_id: '', coordenador_id: '', lider_id: '', ativo: true, extra_roles: [],
     })
     await load()
   }
@@ -602,6 +629,7 @@ export function EquipePage() {
         diretoria_id: targetDir,
         ativo: mobForm.ativo,
         password: mobForm.password || undefined,
+        extra_roles: normalizeExtraRoles('mobilizador', mobForm.extra_roles),
       })
       setSaving(false)
       if (err) {
@@ -619,6 +647,7 @@ export function EquipePage() {
         email: mobForm.email,
         password: mobForm.password,
         role: 'mobilizador',
+        extra_roles: normalizeExtraRoles('mobilizador', mobForm.extra_roles),
         diretoria_id: isAdmin ? mobForm.diretoria_id : diretoriaId,
       })
       setSaving(false)
@@ -630,7 +659,7 @@ export function EquipePage() {
 
     setMobOpen(false)
     setEditingMobId(null)
-    setMobForm({ nome: '', email: '', password: '', confirm: '', diretoria_id: '', ativo: true })
+    setMobForm({ nome: '', email: '', password: '', confirm: '', diretoria_id: '', ativo: true, extra_roles: [] })
     await load()
   }
 
@@ -672,6 +701,7 @@ export function EquipePage() {
         nome: admForm.nome.trim(),
         ativo: admForm.ativo,
         password: admForm.password || undefined,
+        extra_roles: normalizeExtraRoles('administrativo', admForm.extra_roles),
       })
       setSaving(false)
       if (err) {
@@ -689,6 +719,7 @@ export function EquipePage() {
         email: admForm.email,
         password: admForm.password,
         role: 'administrativo',
+        extra_roles: normalizeExtraRoles('administrativo', admForm.extra_roles),
       })
       setSaving(false)
       if (err) {
@@ -699,7 +730,73 @@ export function EquipePage() {
 
     setAdmOpen(false)
     setEditingAdmId(null)
-    setAdmForm({ nome: '', email: '', password: '', confirm: '', ativo: true })
+    setAdmForm({ nome: '', email: '', password: '', confirm: '', diretoria_id: '', ativo: true, extra_roles: [] })
+    await load()
+  }
+
+  async function handleDeactivateNerite() {
+    if (!editingNeriteId || !neriteForm.ativo) return
+    setError(null)
+    setSaving(true)
+    const targetDir = isAdmin ? neriteForm.diretoria_id : diretoriaId
+    const { error: err } = await manageNeriteRequest('POST', {
+      id: editingNeriteId,
+      nome: neriteForm.nome.trim(),
+      diretoria_id: targetDir,
+      coordenador_id: neriteForm.coordenador_id || null,
+      lider_id: neriteForm.lider_id || null,
+      ativo: false,
+      extra_roles: normalizeExtraRoles('operador', neriteForm.extra_roles),
+    })
+    setSaving(false)
+    if (err) {
+      setError(err)
+      return
+    }
+    setNeriteOpen(false)
+    setEditingNeriteId(null)
+    await load()
+  }
+
+  async function handleDeactivateMob() {
+    if (!editingMobId || !mobForm.ativo) return
+    setError(null)
+    setSaving(true)
+    const targetDir = isAdmin ? mobForm.diretoria_id : diretoriaId
+    const { error: err } = await manageNeriteRequest('POST', {
+      id: editingMobId,
+      nome: mobForm.nome.trim(),
+      diretoria_id: targetDir,
+      ativo: false,
+      extra_roles: normalizeExtraRoles('mobilizador', mobForm.extra_roles),
+    })
+    setSaving(false)
+    if (err) {
+      setError(err)
+      return
+    }
+    setMobOpen(false)
+    setEditingMobId(null)
+    await load()
+  }
+
+  async function handleDeactivateAdm() {
+    if (!editingAdmId || !admForm.ativo) return
+    setError(null)
+    setSaving(true)
+    const { error: err } = await manageNeriteRequest('POST', {
+      id: editingAdmId,
+      nome: admForm.nome.trim(),
+      ativo: false,
+      extra_roles: normalizeExtraRoles('administrativo', admForm.extra_roles),
+    })
+    setSaving(false)
+    if (err) {
+      setError(err)
+      return
+    }
+    setAdmOpen(false)
+    setEditingAdmId(null)
     await load()
   }
 
@@ -943,6 +1040,7 @@ export function EquipePage() {
                         <Link to={`/nerites/${n.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
                           <strong>{n.nome}</strong>
                         </Link>
+                        <ExtraRolesBadges roles={n.extra_roles} />
                       </td>
                       <td>{n.email}</td>
                       <td>
@@ -1184,7 +1282,10 @@ export function EquipePage() {
                 <tbody>
                   {filteredMobilizadores.map((m) => (
                     <tr key={m.id}>
-                      <td><strong>{m.nome}</strong></td>
+                      <td>
+                        <strong>{m.nome}</strong>
+                        <ExtraRolesBadges roles={m.extra_roles} />
+                      </td>
                       <td>{m.email}</td>
                       <td>
                         <span className={`badge ${m.ativo ? 'badge-success' : 'badge-danger'}`}>
@@ -1237,7 +1338,10 @@ export function EquipePage() {
                 <tbody>
                   {filteredAdministrativos.map((m) => (
                     <tr key={m.id}>
-                      <td><strong>{m.nome}</strong></td>
+                      <td>
+                        <strong>{m.nome}</strong>
+                        <ExtraRolesBadges roles={m.extra_roles} />
+                      </td>
                       <td>{m.email}</td>
                       <td>
                         <span className={`badge ${m.ativo ? 'badge-success' : 'badge-danger'}`}>
@@ -1268,172 +1372,57 @@ export function EquipePage() {
         )}
       </Card>
 
-      <Modal
+      <EquipeMemberModal
         open={neriteOpen}
-        title={editingNeriteId ? 'Editar nerite' : 'Nova nerite'}
+        mode={editingNeriteId ? 'edit' : 'create'}
+        kind="operador"
+        form={neriteForm}
+        showDiretoria
+        diretoriaLocked={!isAdmin}
+        diretorias={diretorias.map((d) => ({ value: d.id, label: d.nome }))}
+        coordOptions={coordOptionsForForm.map((c) => ({ value: c.id, label: c.nome }))}
+        liderOptions={liderOptionsForForm.map((l) => ({ value: l.id, label: l.nome }))}
+        allowAdminRole={isAdmin}
+        error={error}
+        saving={saving}
         onClose={() => !saving && setNeriteOpen(false)}
-        onConfirm={handleSaveNerite}
-        confirmLabel="Salvar"
-        loading={saving}
-      >
-        <div style={{ display: 'grid', gap: '.75rem' }}>
-          {isAdmin && (
-            <Select
-              label="Diretoria"
-              value={neriteForm.diretoria_id}
-              onChange={(e) => setNeriteForm((f) => ({ ...f, diretoria_id: e.target.value, coordenador_id: '', lider_id: '' }))}
-              options={diretorias.map((d) => ({ value: d.id, label: d.nome }))}
-              placeholder="Selecione"
-            />
-          )}
-          <Input label="Nome" value={neriteForm.nome} onChange={(e) => setNeriteForm((f) => ({ ...f, nome: e.target.value }))} />
-          <Input
-            label="E-mail"
-            type="email"
-            value={neriteForm.email}
-            onChange={(e) => setNeriteForm((f) => ({ ...f, email: e.target.value }))}
-            disabled={Boolean(editingNeriteId)}
-          />
-          <Select
-            label="Coordenador"
-            value={neriteForm.coordenador_id}
-            onChange={(e) => setNeriteForm((f) => ({ ...f, coordenador_id: e.target.value, lider_id: '' }))}
-            options={coordOptionsForForm.map((c) => ({ value: c.id, label: c.nome }))}
-            placeholder="Opcional"
-          />
-          <Select
-            label="Liderança"
-            value={neriteForm.lider_id}
-            onChange={(e) => setNeriteForm((f) => ({ ...f, lider_id: e.target.value }))}
-            options={liderOptionsForForm.map((l) => ({ value: l.id, label: l.nome }))}
-            placeholder="Opcional"
-          />
-          {editingNeriteId && (
-            <Select
-              label="Status"
-              value={neriteForm.ativo ? '1' : '0'}
-              onChange={(e) => setNeriteForm((f) => ({ ...f, ativo: e.target.value === '1' }))}
-              options={[
-                { value: '1', label: 'Ativa' },
-                { value: '0', label: 'Inativa' },
-              ]}
-            />
-          )}
-          <Input
-            label={editingNeriteId ? 'Nova senha (opcional)' : 'Senha'}
-            type="password"
-            value={neriteForm.password}
-            onChange={(e) => setNeriteForm((f) => ({ ...f, password: e.target.value }))}
-            placeholder={editingNeriteId ? 'Deixe em branco para manter' : undefined}
-          />
-          <Input
-            label={editingNeriteId ? 'Confirmar nova senha' : 'Confirmar senha'}
-            type="password"
-            value={neriteForm.confirm}
-            onChange={(e) => setNeriteForm((f) => ({ ...f, confirm: e.target.value }))}
-          />
-          {error && <div className="alert alert-error">{error}</div>}
-        </div>
-      </Modal>
+        onSave={() => void handleSaveNerite()}
+        onChange={(patch) => setNeriteForm((f) => ({ ...f, ...patch }))}
+        onDeactivate={() => void handleDeactivateNerite()}
+      />
 
-      <Modal
+      <EquipeMemberModal
         open={mobOpen}
-        title={editingMobId ? 'Editar formiga' : 'Nova formiga'}
+        mode={editingMobId ? 'edit' : 'create'}
+        kind="mobilizador"
+        form={mobForm}
+        showDiretoria
+        diretoriaLocked={!isAdmin}
+        diretorias={diretorias.map((d) => ({ value: d.id, label: d.nome }))}
+        allowAdminRole={isAdmin}
+        error={error}
+        saving={saving}
         onClose={() => !saving && setMobOpen(false)}
-        onConfirm={handleSaveMob}
-        confirmLabel="Salvar"
-        loading={saving}
-      >
-        <div style={{ display: 'grid', gap: '.75rem' }}>
-          {isAdmin && (
-            <Select
-              label="Diretoria"
-              value={mobForm.diretoria_id}
-              onChange={(e) => setMobForm((f) => ({ ...f, diretoria_id: e.target.value }))}
-              options={diretorias.map((d) => ({ value: d.id, label: d.nome }))}
-              placeholder="Selecione"
-            />
-          )}
-          <Input label="Nome" value={mobForm.nome} onChange={(e) => setMobForm((f) => ({ ...f, nome: e.target.value }))} />
-          <Input
-            label="E-mail"
-            type="email"
-            value={mobForm.email}
-            onChange={(e) => setMobForm((f) => ({ ...f, email: e.target.value }))}
-            disabled={Boolean(editingMobId)}
-          />
-          {editingMobId && (
-            <Select
-              label="Status"
-              value={mobForm.ativo ? '1' : '0'}
-              onChange={(e) => setMobForm((f) => ({ ...f, ativo: e.target.value === '1' }))}
-              options={[
-                { value: '1', label: 'Ativo' },
-                { value: '0', label: 'Inativo' },
-              ]}
-            />
-          )}
-          <Input
-            label={editingMobId ? 'Nova senha (opcional)' : 'Senha'}
-            type="password"
-            value={mobForm.password}
-            onChange={(e) => setMobForm((f) => ({ ...f, password: e.target.value }))}
-            placeholder={editingMobId ? 'Deixe em branco para manter' : undefined}
-          />
-          <Input
-            label={editingMobId ? 'Confirmar nova senha' : 'Confirmar senha'}
-            type="password"
-            value={mobForm.confirm}
-            onChange={(e) => setMobForm((f) => ({ ...f, confirm: e.target.value }))}
-          />
-          {error && <div className="alert alert-error">{error}</div>}
-        </div>
-      </Modal>
+        onSave={() => void handleSaveMob()}
+        onChange={(patch) => setMobForm((f) => ({ ...f, ...patch }))}
+        onDeactivate={() => void handleDeactivateMob()}
+      />
 
-      <Modal
+      <EquipeMemberModal
         open={admOpen}
-        title={editingAdmId ? 'Editar administrativo' : 'Novo administrativo'}
+        mode={editingAdmId ? 'edit' : 'create'}
+        kind="administrativo"
+        form={admForm}
+        showDiretoria={false}
+        diretorias={[]}
+        allowAdminRole={isAdmin}
+        error={error}
+        saving={saving}
         onClose={() => !saving && setAdmOpen(false)}
-        onConfirm={handleSaveAdm}
-        confirmLabel="Salvar"
-        loading={saving}
-      >
-        <div style={{ display: 'grid', gap: '.75rem' }}>
-          <Input label="Nome" value={admForm.nome} onChange={(e) => setAdmForm((f) => ({ ...f, nome: e.target.value }))} />
-          <Input
-            label="E-mail"
-            type="email"
-            value={admForm.email}
-            onChange={(e) => setAdmForm((f) => ({ ...f, email: e.target.value }))}
-            disabled={Boolean(editingAdmId)}
-          />
-          {editingAdmId && (
-            <Select
-              label="Status"
-              value={admForm.ativo ? '1' : '0'}
-              onChange={(e) => setAdmForm((f) => ({ ...f, ativo: e.target.value === '1' }))}
-              options={[
-                { value: '1', label: 'Ativo' },
-                { value: '0', label: 'Inativo' },
-              ]}
-            />
-          )}
-          <Input
-            label={editingAdmId ? 'Nova senha (opcional)' : 'Senha'}
-            type="password"
-            value={admForm.password}
-            onChange={(e) => setAdmForm((f) => ({ ...f, password: e.target.value }))}
-            placeholder={editingAdmId ? 'Deixe em branco para manter' : undefined}
-          />
-          <Input
-            label={editingAdmId ? 'Confirmar nova senha' : 'Confirmar senha'}
-            type="password"
-            value={admForm.confirm}
-            onChange={(e) => setAdmForm((f) => ({ ...f, confirm: e.target.value }))}
-          />
-          {error && <div className="alert alert-error">{error}</div>}
-        </div>
-      </Modal>
+        onSave={() => void handleSaveAdm()}
+        onChange={(patch) => setAdmForm((f) => ({ ...f, ...patch }))}
+        onDeactivate={() => void handleDeactivateAdm()}
+      />
 
       <Modal
         open={coordOpen}

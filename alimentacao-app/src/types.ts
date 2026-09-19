@@ -29,6 +29,8 @@ export interface Profile {
   nome: string
   email: string
   role: UserRole
+  /** Cargos extras além do role principal (ex.: nerite + formiga). */
+  extra_roles?: UserRole[] | null
   ativo: boolean
   diretoria_id?: string | null
   coordenador_id?: string | null

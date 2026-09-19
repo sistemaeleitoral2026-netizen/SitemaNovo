@@ -57,6 +57,7 @@ export default async function handler(req, res) {
     let role = String(body.role || 'operador').trim()
     const coordenadorId = body.coordenador_id || null
     const liderId = body.lider_id || null
+    const allowedExtra = new Set(['operador', 'mobilizador', 'administrativo'])
 
     if (!nome || !email || password.length < 8) {
       return json(res, 400, { error: 'Nome, e-mail e senha (mín. 8) são obrigatórios.' })
@@ -66,6 +67,14 @@ export default async function handler(req, res) {
       role = body.role === 'mobilizador' ? 'mobilizador' : 'operador'
     } else if (!['operador', 'diretoria', 'mobilizador', 'administrativo'].includes(role)) {
       role = 'operador'
+    }
+
+    const rawExtras = Array.isArray(body.extra_roles)
+      ? body.extra_roles.map(String)
+      : []
+    let finalExtras = [...new Set(rawExtras.filter((r) => allowedExtra.has(r) && r !== role))]
+    if (profile.role === 'diretoria') {
+      finalExtras = finalExtras.filter((r) => r !== 'administrativo')
     }
 
     const diretoriaId = profile.role === 'diretoria' ? profile.id : (body.diretoria_id || null)
@@ -102,6 +111,7 @@ export default async function handler(req, res) {
 
     const userId = created.id
     if (userId) {
+      const needsDir = role === 'operador' || role === 'mobilizador' || finalExtras.includes('operador') || finalExtras.includes('mobilizador')
       await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}`, {
         method: 'PATCH',
         headers: {
@@ -114,15 +124,18 @@ export default async function handler(req, res) {
           nome,
           email,
           role,
+          extra_roles: finalExtras,
           ativo: true,
-          diretoria_id: role === 'operador' || role === 'mobilizador' ? diretoriaId : null,
-          coordenador_id: role === 'operador' ? coordenadorId : null,
-          lider_id: role === 'operador' ? liderId : null,
+          diretoria_id: role === 'administrativo' && !finalExtras.includes('operador') && !finalExtras.includes('mobilizador')
+            ? null
+            : (needsDir ? diretoriaId : null),
+          coordenador_id: role === 'operador' || finalExtras.includes('operador') ? coordenadorId : null,
+          lider_id: role === 'operador' || finalExtras.includes('operador') ? liderId : null,
         }),
       })
     }
 
-    return json(res, 200, { ok: true, id: userId, email, role })
+    return json(res, 200, { ok: true, id: userId, email, role, extra_roles: finalExtras })
   } catch (err) {
     return json(res, 500, { error: err instanceof Error ? err.message : 'Erro interno.' })
   }

@@ -22,7 +22,7 @@ import type { UserRole } from '../../types'
 import { fetchDemandaCounts } from '../../lib/demandas'
 
 interface SidebarProps {
-  role: UserRole
+  roles: UserRole[]
   open: boolean
   onClose: () => void
 }
@@ -42,7 +42,6 @@ interface NavGroup {
   items: NavItem[]
 }
 
-/** Menu fiel ao standalone + todos os itens do sistema. */
 const navGroups: NavGroup[] = [
   {
     label: 'Operação de Campo',
@@ -123,11 +122,17 @@ function linkActive(to: string, pathname: string, search: string) {
   return pathname.startsWith(`${to}/`)
 }
 
-export function Sidebar({ role, open, onClose }: SidebarProps) {
+function intersects(a: UserRole[] | undefined, b: UserRole[] | undefined) {
+  if (!a?.length || !b?.length) return false
+  return a.some((r) => b.includes(r))
+}
+
+export function Sidebar({ roles = [], open, onClose }: SidebarProps) {
   const location = useLocation()
   const [abertas, setAbertas] = useState(0)
+  const safeRoles = roles ?? []
 
-  const canSeeDemandas = role === 'admin' || role === 'diretoria' || role === 'administrativo'
+  const canSeeDemandas = intersects(safeRoles, ['admin', 'diretoria', 'administrativo'])
 
   useEffect(() => {
     if (!canSeeDemandas) return
@@ -138,7 +143,7 @@ export function Sidebar({ role, open, onClose }: SidebarProps) {
         const counts = await fetchDemandaCounts()
         if (!cancelled) setAbertas(counts.abertas)
       } catch {
-        /* silencioso: badge só é informativo */
+        /* badge informativo */
       }
     }
 
@@ -156,9 +161,15 @@ export function Sidebar({ role, open, onClose }: SidebarProps) {
   const groups = navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => item.roles.includes(role)),
+      items: group.items.filter((item) => intersects(item.roles, safeRoles)),
     }))
-    .filter((group) => group.roles.includes(role) && group.items.length > 0)
+    .filter((group) => intersects(group.roles, safeRoles) && group.items.length > 0)
+
+  const primaryHint = safeRoles.includes('administrativo') && !safeRoles.includes('admin') && !safeRoles.includes('diretoria')
+    ? 'Registro e acompanhamento de demandas'
+    : safeRoles.includes('diretoria')
+      ? 'Cadastre coordenadores e lideranças'
+      : 'Painel administrativo'
 
   return (
     <>
@@ -179,14 +190,14 @@ export function Sidebar({ role, open, onClose }: SidebarProps) {
 
         <nav className="app-sidebar-nav" aria-label="Navegação principal">
           {groups.map((group, groupIndex) => (
-            <div key={group.label} className={`app-sidebar-group${groupIndex > 0 ? ' spaced' : ''}`}>
+            <div key={`${group.label}-${groupIndex}`} className={`app-sidebar-group${groupIndex > 0 ? ' spaced' : ''}`}>
               <div className="app-sidebar-section-label">{group.label}</div>
               {group.items.map(({ to, label, icon: Icon, badgeKey }) => {
                 const active = linkActive(to, location.pathname, location.search)
                 const badge = badgeKey === 'demandas-abertas' && abertas > 0 ? abertas : 0
                 return (
                   <Link
-                    key={to}
+                    key={`${group.label}-${to}`}
                     to={to}
                     onClick={onClose}
                     aria-current={active ? 'page' : undefined}
@@ -210,13 +221,7 @@ export function Sidebar({ role, open, onClose }: SidebarProps) {
           <div className="app-sidebar-footer">
             <div>
               <strong>Sistema de gestão</strong>
-              <span>
-                {role === 'diretoria'
-                  ? 'Cadastre coordenadores e lideranças'
-                  : role === 'administrativo'
-                    ? 'Registro e acompanhamento de demandas'
-                    : 'Painel administrativo'}
-              </span>
+              <span>{primaryHint}</span>
             </div>
           </div>
           <div className="app-sidebar-version">v 1.0.0</div>
