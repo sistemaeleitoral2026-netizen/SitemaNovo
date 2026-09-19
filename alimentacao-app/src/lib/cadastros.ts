@@ -28,31 +28,49 @@ function sanitizeCadastro(row: Cadastro): Cadastro {
   }
 }
 
+/** Supabase/PostgREST limita ~1000 linhas por request — pagina até esgotar. */
+async function fetchAllPaged<T>(
+  run: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+  pageSize = 1000,
+): Promise<T[]> {
+  const all: T[] = []
+  let from = 0
+  for (;;) {
+    const { data, error } = await run(from, from + pageSize - 1)
+    if (error) throw new Error(error.message)
+    const chunk = (data ?? []) as T[]
+    all.push(...chunk)
+    if (chunk.length < pageSize) break
+    from += pageSize
+  }
+  return all
+}
+
 export async function fetchCadastros(options?: {
   operatorId?: string
   period?: PeriodFilter
   search?: string
 }): Promise<Cadastro[]> {
-  let query = supabase
-    .from('cadastros')
-    .select('*')
-    .order('created_at', { ascending: false })
+  const rows = await fetchAllPaged<Cadastro>((from, to) => {
+    let query = supabase
+      .from('cadastros')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
 
-  if (options?.operatorId) {
-    query = query.eq('operator_id', options.operatorId)
-  }
+    if (options?.operatorId) {
+      query = query.eq('operator_id', options.operatorId)
+    }
+    if (options?.period?.start) {
+      query = query.gte('created_at', options.period.start.toISOString())
+    }
+    if (options?.period?.end) {
+      query = query.lte('created_at', options.period.end.toISOString())
+    }
+    return query.range(from, to)
+  })
 
-  if (options?.period?.start) {
-    query = query.gte('created_at', options.period.start.toISOString())
-  }
-  if (options?.period?.end) {
-    query = query.lte('created_at', options.period.end.toISOString())
-  }
-
-  const { data, error } = await query
-  if (error) throw error
-
-  let results = ((data ?? []) as Cadastro[]).map(sanitizeCadastro)
+  let results = rows.map(sanitizeCadastro)
 
   if (options?.search) {
     const term = options.search.toLowerCase().replace(/\D/g, '')
@@ -71,22 +89,130 @@ export async function fetchCadastros(options?: {
   return results
 }
 
+/**
+ * Totais de fichas por nerite via COUNT exact do Postgres (não depende do limite de 1000 linhas).
+ * Esta é a fonte da verdade para a lista de Nerites / Equipe.
+ */
+export async function fetchOperatorCadastroStats(operatorIds?: string[]): Promise<{
+  counts: Record<string, number>
+  ultima: Record<string, string>
+}> {
+  let ids = operatorIds
+  if (!ids?.length) {
+    const { data, error } = await supabase.from('profiles').select('id').eq('role', 'operador')
+    if (error) throw new Error(error.message)
+    ids = ((data ?? []) as { id: string }[]).map((r) => r.id)
+  }
+
+  const counts: Record<string, number> = {}
+  const ultima: Record<string, string> = {}
+  const chunkSize = 25
+
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize)
+    await Promise.all(
+      chunk.map(async (id) => {
+        const [countRes, lastRes] = await Promise.all([
+          supabase
+            .from('cadastros')
+            .select('id', { count: 'exact', head: true })
+            .eq('operator_id', id),
+          supabase
+            .from('cadastros')
+            .select('created_at')
+            .eq('operator_id', id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ])
+        if (countRes.error) throw new Error(countRes.error.message)
+        counts[id] = countRes.count ?? 0
+        const createdAt = (lastRes.data as { created_at?: string } | null)?.created_at
+        if (createdAt) ultima[id] = createdAt
+      }),
+    )
+  }
+
+  return { counts, ultima }
+}
+
+/** Contagem total de fichas por nerite (COUNT exact). */
+export async function countCadastrosByOperator(operatorIds?: string[]): Promise<Record<string, number>> {
+  const { counts } = await fetchOperatorCadastroStats(operatorIds)
+  return counts
+}
+
+/**
+ * Confere se a contagem paginada bate com o COUNT exact (diagnóstico).
+ * Retorna divergências; lista vazia = tudo ok.
+ */
+export async function verifyNeriteFichaCounts(operatorIds: string[]): Promise<
+  { id: string; exact: number; paged: number }[]
+> {
+  const [exactMap, pagedRows] = await Promise.all([
+    countCadastrosByOperator(operatorIds),
+    fetchAllPaged<{ operator_id: string | null }>((from, to) =>
+      supabase
+        .from('cadastros')
+        .select('operator_id')
+        .not('operator_id', 'is', null)
+        .range(from, to),
+    ),
+  ])
+  const paged: Record<string, number> = {}
+  for (const row of pagedRows) {
+    if (!row.operator_id) continue
+    paged[row.operator_id] = (paged[row.operator_id] ?? 0) + 1
+  }
+  const mismatches: { id: string; exact: number; paged: number }[] = []
+  for (const id of operatorIds) {
+    const exact = exactMap[id] ?? 0
+    const p = paged[id] ?? 0
+    if (exact !== p) mismatches.push({ id, exact, paged: p })
+  }
+  return mismatches
+}
+
+/** Metadados leves para totais da Equipe (paginado). */
+export async function fetchCadastroFichaStats(): Promise<
+  { operator_id: string | null; coordenador: string | null; lider: string | null; diretoria_id: string | null }[]
+> {
+  return fetchAllPaged((from, to) =>
+    supabase
+      .from('cadastros')
+      .select('operator_id, coordenador, lider, diretoria_id')
+      .order('id', { ascending: true })
+      .range(from, to),
+  )
+}
+
+export async function countCadastrosForOperator(operatorId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('cadastros')
+    .select('id', { count: 'exact', head: true })
+    .eq('operator_id', operatorId)
+  if (error) throw new Error(error.message)
+  return count ?? 0
+}
+
 export async function fetchExistingCpfs(): Promise<Set<string>> {
-  const { data, error } = await supabase.from('cadastros').select('cpf')
-  if (error) throw error
+  const rows = await fetchAllPaged<{ cpf: string | null }>((from, to) =>
+    supabase.from('cadastros').select('cpf').order('id').range(from, to),
+  )
   return new Set(
-    (data ?? [])
-      .map((r: { cpf: string | null }) => r.cpf)
+    rows
+      .map((r) => r.cpf)
       .filter((cpf): cpf is string => Boolean(cpf)),
   )
 }
 
 export async function fetchExistingTitulos(): Promise<Set<string>> {
-  const { data, error } = await supabase.from('cadastros').select('titulo')
-  if (error) throw error
+  const rows = await fetchAllPaged<{ titulo: string | null }>((from, to) =>
+    supabase.from('cadastros').select('titulo').order('id').range(from, to),
+  )
   return new Set(
-    (data ?? [])
-      .map((r: { titulo: string | null }) => (r.titulo ?? '').trim().toLowerCase())
+    rows
+      .map((r) => (r.titulo ?? '').trim().toLowerCase())
       .filter(Boolean),
   )
 }
@@ -104,12 +230,19 @@ function duplicatePersonKey(nome: string | null, telefone: string | null): strin
 
 /** Chaves usadas pela prévia para impedir duplicidade antes do insert. */
 export async function fetchExistingImportKeys(): Promise<ImportExistingKeys> {
-  const { data, error } = await supabase
-    .from('cadastros')
-    .select('titulo,cpf,nome_completo,telefone')
-  if (error) throw error
+  const rows = await fetchAllPaged<{
+    titulo: string | null
+    cpf: string | null
+    nome_completo: string | null
+    telefone: string | null
+  }>((from, to) =>
+    supabase
+      .from('cadastros')
+      .select('titulo,cpf,nome_completo,telefone')
+      .order('id')
+      .range(from, to),
+  )
 
-  const rows = data ?? []
   return {
     titulos: new Set(rows.map((r) => String(r.titulo ?? '').trim().toLowerCase()).filter(Boolean)),
     cpfs: new Set(rows.map((r) => digitsOnly(r.cpf ?? '')).filter(Boolean)),

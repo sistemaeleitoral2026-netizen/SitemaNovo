@@ -1,8 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Car, Home, Link2, Plus, Save, Search, X } from 'lucide-react'
-import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
+import {
+  Car,
+  CheckCircle2,
+  ExternalLink,
+  Home,
+  Link2,
+  Minus,
+  Plus,
+  Search,
+  Share2,
+  X,
+  MessageCircle,
+  Clock3,
+} from 'lucide-react'
+import { buildWhatsAppUrl } from '../lib/whatsapp'
+import { useAuth } from '../contexts/AuthContext'
 import {
   fetchAtivacaoKpis,
   fetchAtivacaoPessoa,
@@ -11,11 +24,41 @@ import {
   type AtivacaoPessoa,
 } from '../lib/ativacao'
 
+function SegmentedControl({
+  options,
+  value,
+  onChange,
+  disabled,
+}: {
+  options: { label: string; value: string }[]
+  value: string
+  onChange: (v: string) => void
+  disabled?: boolean
+}) {
+  return (
+    <div className={`fl-segment${disabled ? ' is-disabled' : ''}`}>
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(opt.value)}
+          className={value === opt.value ? 'is-active' : undefined}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function AtivacaoLancarPage() {
   const navigate = useNavigate()
+  const { profile } = useAuth()
   const [searchParams] = useSearchParams()
   const preTipo = searchParams.get('tipo') as AtivacaoPessoa['tipo'] | null
   const preId = searchParams.get('id')
+  const scopeDiretoriaId = profile?.role === 'diretoria' ? profile.id : undefined
 
   const [query, setQuery] = useState('')
   const [suggestions, setSuggestions] = useState<AtivacaoPessoa[]>([])
@@ -26,14 +69,21 @@ export function AtivacaoLancarPage() {
   const [links, setLinks] = useState<string[]>([])
   const [linkDraft, setLinkDraft] = useState('')
   const [notas, setNotas] = useState('')
+  const [contatoWhatsapp, setContatoWhatsapp] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState<string | null>(null)
   const [kpis, setKpis] = useState({ carros: 0, casas: 0, postagens: 0, pendentes: 0 })
 
+  const isFormActive = selected !== null
+  const waUrl = buildWhatsAppUrl(selected?.telefone)
+
   useEffect(() => {
-    void fetchAtivacaoKpis().then(setKpis).catch(() => undefined)
-  }, [])
+    void fetchAtivacaoKpis({
+      tipo: 'todos',
+      diretoria_id: scopeDiretoriaId,
+    }).then(setKpis).catch(() => undefined)
+  }, [scopeDiretoriaId])
 
   useEffect(() => {
     if (!preId || !preTipo) return
@@ -73,6 +123,7 @@ export function AtivacaoLancarPage() {
     setCasa(p.adesivos_casa > 0)
     setLinks(p.postagem_links.length ? [...p.postagem_links] : [])
     setNotas(p.ativacao_notas || '')
+    setContatoWhatsapp(Boolean(p.contato_whatsapp))
     setError(null)
     setOk(null)
   }
@@ -84,12 +135,15 @@ export function AtivacaoLancarPage() {
     setCasa(false)
     setLinks([])
     setNotas('')
+    setContatoWhatsapp(false)
     setLinkDraft('')
+    setError(null)
+    setOk(null)
   }
 
   function addLink() {
     const url = linkDraft.trim()
-    if (!url) return
+    if (!url || !isFormActive) return
     if (links.includes(url)) {
       setLinkDraft('')
       return
@@ -112,6 +166,7 @@ export function AtivacaoLancarPage() {
       casa,
       links,
       notas,
+      contato_whatsapp: contatoWhatsapp,
     })
     setSaving(false)
     if (err) {
@@ -121,7 +176,10 @@ export function AtivacaoLancarPage() {
     setOk('Lançamento salvo com sucesso.')
     const refreshed = await fetchAtivacaoPessoa(selected.tipo, selected.id)
     if (refreshed) selectPerson(refreshed)
-    void fetchAtivacaoKpis().then(setKpis).catch(() => undefined)
+    void fetchAtivacaoKpis({
+      tipo: 'todos',
+      diretoria_id: scopeDiretoriaId,
+    }).then(setKpis).catch(() => undefined)
   }
 
   const initials = useMemo(() => {
@@ -135,179 +193,328 @@ export function AtivacaoLancarPage() {
   }, [selected])
 
   return (
-    <div className="ativacao-page nv-dash">
-      <div className="page-header">
+    <div className="fl-page">
+      <div className="fl-page-head">
         <div>
-          <h1 className="page-title">Lançar Formigas</h1>
-          <p className="page-subtitle">
+          <h1 className="fl-title">Lançar Formigas</h1>
+          <p className="fl-subtitle">
             Localize a pessoa e registre carros, casa adesivada e links de postagem.
           </p>
         </div>
-        <div className="page-header-actions">
-          <Button variant="secondary" onClick={() => navigate('/ativacao/painel')}>
-            Ver Painel
-          </Button>
-        </div>
+        <button type="button" className="fl-btn-secondary" onClick={() => navigate('/ativacao/painel')}>
+          Ver Painel
+        </button>
       </div>
 
-      <div className="ativacao-kpi-grid">
-        <div className="ativacao-kpi"><span>Carros</span><strong>{kpis.carros}</strong></div>
-        <div className="ativacao-kpi"><span>Casas</span><strong>{kpis.casas}</strong></div>
-        <div className="ativacao-kpi"><span>Postagens</span><strong>{kpis.postagens}</strong></div>
-        <div className="ativacao-kpi"><span>Pendentes</span><strong>{kpis.pendentes}</strong></div>
+      <div className="fl-stats">
+        {(
+          [
+            {
+              key: 'carros',
+              label: 'Carros',
+              value: kpis.carros,
+              Icon: Car,
+              tone: 'blue',
+              to: '/ativacao/painel?equipe=todos&status=com_carro',
+            },
+            {
+              key: 'casas',
+              label: 'Casas',
+              value: kpis.casas,
+              Icon: Home,
+              tone: 'teal',
+              to: '/ativacao/painel?equipe=todos&status=casa_sim',
+            },
+            {
+              key: 'postagens',
+              label: 'Postagens',
+              value: kpis.postagens,
+              Icon: Share2,
+              tone: 'violet',
+              to: '/ativacao/painel?equipe=todos&status=com_links',
+            },
+            {
+              key: 'pendentes',
+              label: 'Pendentes',
+              value: kpis.pendentes,
+              Icon: Clock3,
+              tone: 'amber',
+              to: '/ativacao/painel?equipe=todos&status=sem_ativacao',
+            },
+          ] as const
+        ).map(({ key, label, value, Icon, tone, to }) => (
+          <button
+            key={key}
+            type="button"
+            className={`fl-stat fl-stat-card tone-${tone}`}
+            onClick={() => navigate(to)}
+          >
+            <div className="fl-stat-top">
+              <span>{label}</span>
+              <div className="fl-stat-icon" aria-hidden>
+                <Icon size={18} strokeWidth={2.25} />
+              </div>
+            </div>
+            <strong>{value.toLocaleString('pt-BR')}</strong>
+            <em className="fl-stat-cta">Ver no painel →</em>
+          </button>
+        ))}
       </div>
 
-      <form className="ativacao-card" onSubmit={handleSave}>
-        <div className="ativacao-card-head">
-          <div>
-            <h2>Registro — Formigas</h2>
-            <p>Busque por nome completo ou título de eleitor.</p>
-          </div>
-          <Link to="/ativacao/painel" className="ativacao-ghost-link">Consultar Painel</Link>
+      <form className="fl-card" onSubmit={handleSave}>
+        <div className="fl-card-head">
+          <h2>Registro — Formigas</h2>
+          <Link to="/ativacao/painel" className="fl-link">Consultar Painel</Link>
         </div>
 
-        <div className="ui-field ativacao-search-wrap">
-          <label className="ui-field-label" htmlFor="ativacao-busca">
-            Eleitor, liderança ou coordenador
-          </label>
-          <div className="ativacao-search">
-            <Search size={16} aria-hidden />
-            <input
-              id="ativacao-busca"
-              className="ui-input"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value)
-                if (selected) setSelected(null)
-              }}
-              placeholder="Digite o nome ou o título…"
-              autoComplete="off"
-            />
+        <div className="fl-card-body">
+          <div className="fl-field">
+            <label htmlFor="fl-busca">Eleitor, liderança ou coordenador</label>
+            <div className="fl-search">
+              <Search className="fl-search-icon" size={20} />
+              <input
+                id="fl-busca"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value)
+                  if (selected) setSelected(null)
+                }}
+                placeholder="Digite o nome ou o título…"
+                autoComplete="off"
+              />
+              {selected && (
+                <button type="button" className="fl-search-clear" onClick={clearPerson} aria-label="Limpar">
+                  <X size={20} />
+                </button>
+              )}
+            </div>
+
+            {!selected && suggestions.length > 0 && (
+              <div className="fl-suggest">
+                {suggestions.map((s) => (
+                  <button key={s.key} type="button" onClick={() => selectPerson(s)}>
+                    <strong>{s.nome}</strong>
+                    <span>
+                      {s.tipoLabel}
+                      {s.titulo ? ` · Título ${s.titulo}` : ''}
+                      {s.zona ? ` · Zona ${s.zona}` : ''}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {searching && <p className="fl-hint">Buscando…</p>}
+
             {selected && (
-              <button type="button" className="ativacao-clear" onClick={clearPerson} aria-label="Limpar">
-                <X size={16} />
-              </button>
+              <div className="fl-person">
+                <div className="fl-person-avatar">{initials}</div>
+                <div>
+                  <div className="fl-person-name">
+                    <h3>{selected.nome}</h3>
+                    <span>{selected.tipoLabel}</span>
+                  </div>
+                  <div className="fl-person-meta">
+                    {selected.titulo ? <p><em>Título:</em> <b>{selected.titulo}</b></p> : null}
+                    {selected.zona ? <p><em>Zona:</em> <b>{selected.zona}</b></p> : null}
+                    <p><em>Bairro:</em> <b>{selected.bairro || '—'}</b></p>
+                    {selected.telefone ? <p><em>Tel:</em> <b>{selected.telefone}</b></p> : null}
+                  </div>
+                </div>
+              </div>
             )}
           </div>
-          {!selected && suggestions.length > 0 && (
-            <div className="ativacao-suggest">
-              {suggestions.map((s) => (
-                <button key={s.key} type="button" onClick={() => selectPerson(s)}>
-                  <strong>{s.nome}</strong>
-                  <span>{s.tipoLabel}{s.titulo ? ` · Título ${s.titulo}` : ''}{s.zona ? ` · Zona ${s.zona}` : ''}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          {searching && <span className="ativacao-hint">Buscando…</span>}
-        </div>
 
-        {selected && (
-          <div className="ativacao-person-card">
-            <div className="ativacao-avatar">{initials}</div>
-            <div>
-              <div className="ativacao-person-name">
-                <strong>{selected.nome}</strong>
-                <span>{selected.tipoLabel}</span>
+          <div className={`fl-block${isFormActive ? ' is-wa' : ''}`}>
+            <div className="fl-block-top">
+              <div className="fl-block-title">
+                <div className={`fl-icon${isFormActive ? ' tone-wa' : ''}`}>
+                  <MessageCircle size={20} />
+                </div>
+                <h3>WhatsApp</h3>
               </div>
-              <p>
-                {selected.titulo ? <>Título: <b>{selected.titulo}</b> · </> : null}
-                {selected.zona ? <>Zona: <b>{selected.zona}</b> · </> : null}
-                Bairro: <b>{selected.bairro || '—'}</b>
+              <span className={`fl-pill${contatoWhatsapp ? ' ok' : ''}`}>
+                {contatoWhatsapp ? 'Acionada' : 'Ainda não'}
+              </span>
+            </div>
+
+            {!isFormActive ? (
+              <p className="fl-hint italic">
+                Selecione uma pessoa na busca acima para liberar as opções do WhatsApp.
               </p>
-            </div>
+            ) : (
+              <div className="fl-wa-body">
+                <p className="fl-hint">
+                  Abra a conversa e marque se essa pessoa já foi acionada pelo WhatsApp.
+                </p>
+                <div className="fl-wa-row">
+                  <div className="fl-wa-segment">
+                    <SegmentedControl
+                      options={[
+                        { label: 'Não acionada', value: 'nao' },
+                        { label: 'Já acionada', value: 'sim' },
+                      ]}
+                      value={contatoWhatsapp ? 'sim' : 'nao'}
+                      onChange={(v) => setContatoWhatsapp(v === 'sim')}
+                    />
+                  </div>
+                  {waUrl ? (
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="fl-btn-wa"
+                      onClick={() => setContatoWhatsapp(true)}
+                    >
+                      <ExternalLink size={16} />
+                      Abrir WhatsApp Web
+                    </a>
+                  ) : (
+                    <button type="button" className="fl-btn-wa is-disabled" disabled>
+                      <ExternalLink size={16} />
+                      Sem telefone
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-        )}
 
-        <div className="ativacao-action-grid">
-          <div className="ativacao-action-card">
-            <div className="ativacao-action-top">
-              <div className="ativacao-action-icon tone-blue"><Car size={18} /></div>
-              <strong>Veículos adesivados</strong>
-              <span className="ativacao-badge">{carros} veículo{carros === 1 ? '' : 's'}</span>
+          <div className="fl-grid-2">
+            <div className={`fl-block${isFormActive ? ' is-active' : ''}`}>
+              <div className="fl-block-top">
+                <div className="fl-block-title">
+                  <div className="fl-icon tone-blue"><Car size={20} /></div>
+                  <h3>Veículos adesivados</h3>
+                </div>
+                <span className="fl-pill">{carros} veículo{carros === 1 ? '' : 's'}</span>
+              </div>
+              <label className="fl-label-sm">Quantidade</label>
+              <div className="fl-stepper">
+                <button
+                  type="button"
+                  disabled={!isFormActive}
+                  onClick={() => setCarros((n) => Math.max(0, n - 1))}
+                  aria-label="Diminuir"
+                >
+                  <Minus size={16} />
+                </button>
+                <input
+                  inputMode="numeric"
+                  disabled={!isFormActive}
+                  value={String(carros)}
+                  onChange={(e) => setCarros(Math.max(0, Number(e.target.value.replace(/\D/g, '') || 0)))}
+                />
+                <button
+                  type="button"
+                  disabled={!isFormActive}
+                  onClick={() => setCarros((n) => n + 1)}
+                  aria-label="Aumentar"
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
             </div>
-            <label className="ui-field-label">Quantidade</label>
-            <div className="ativacao-stepper">
-              <button type="button" onClick={() => setCarros((n) => Math.max(0, n - 1))}>-</button>
-              <input
-                className="ui-input"
-                inputMode="numeric"
-                value={carros ? String(carros) : '0'}
-                onChange={(e) => setCarros(Math.max(0, Number(e.target.value.replace(/\D/g, '') || 0)))}
+
+            <div className={`fl-block${isFormActive ? ' is-active' : ''}`}>
+              <div className="fl-block-top">
+                <div className="fl-block-title">
+                  <div className="fl-icon tone-teal"><Home size={20} /></div>
+                  <h3>Adesivo residencial</h3>
+                </div>
+                <span className={`fl-pill${casa ? ' teal' : ''}`}>
+                  {casa ? 'Com adesivo' : 'Sem adesivo'}
+                </span>
+              </div>
+              <label className="fl-label-sm">Confirmação de campo</label>
+              <SegmentedControl
+                disabled={!isFormActive}
+                options={[
+                  { label: 'Não possui', value: 'nao' },
+                  { label: 'Possui adesivo', value: 'sim' },
+                ]}
+                value={casa ? 'sim' : 'nao'}
+                onChange={(v) => setCasa(v === 'sim')}
               />
-              <button type="button" onClick={() => setCarros((n) => n + 1)}>+</button>
             </div>
           </div>
 
-          <div className="ativacao-action-card">
-            <div className="ativacao-action-top">
-              <div className="ativacao-action-icon tone-green"><Home size={18} /></div>
-              <strong>Adesivo residencial</strong>
-              <span className="ativacao-badge">{casa ? 'Com adesivo' : 'Sem adesivo'}</span>
+          <div className={`fl-block${isFormActive ? ' is-active' : ''}`}>
+            <div className="fl-block-top">
+              <div className="fl-block-title">
+                <div className="fl-icon tone-violet"><Link2 size={20} /></div>
+                <h3>Links de postagem</h3>
+              </div>
+              <span className="fl-pill">{links.length} postagem{links.length === 1 ? '' : 's'}</span>
             </div>
-            <label className="ui-field-label">Confirmação de campo</label>
-            <div className="ativacao-simnao">
-              <button type="button" className={!casa ? 'is-active' : ''} onClick={() => setCasa(false)}>
-                Não possui
-              </button>
-              <button type="button" className={casa ? 'is-active yes' : ''} onClick={() => setCasa(true)}>
-                Possui adesivo
+            <p className="fl-hint">Cada link válido conta como 1 postagem.</p>
+            <div className="fl-link-row">
+              <input
+                type="url"
+                placeholder="https://instagram.com/…"
+                value={linkDraft}
+                disabled={!isFormActive}
+                onChange={(e) => setLinkDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addLink()
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="fl-btn-dark"
+                disabled={!isFormActive || !linkDraft.trim()}
+                onClick={addLink}
+              >
+                <Plus size={16} /> Adicionar
               </button>
             </div>
+            {links.length > 0 && (
+              <ul className="fl-links">
+                {links.map((url) => (
+                  <li key={url}>
+                    <a href={url} target="_blank" rel="noopener noreferrer">{url}</a>
+                    <button
+                      type="button"
+                      onClick={() => setLinks((prev) => prev.filter((l) => l !== url))}
+                    >
+                      Remover
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-        </div>
 
-        <div className="ativacao-action-card">
-          <div className="ativacao-action-top">
-            <div className="ativacao-action-icon tone-violet"><Link2 size={18} /></div>
-            <strong>Links de postagem</strong>
-            <span className="ativacao-badge">{links.length} postagem{links.length === 1 ? '' : 's'}</span>
-          </div>
-          <p className="ativacao-hint">Cada link válido conta como 1 postagem.</p>
-          <div className="ativacao-link-row">
-            <Input
-              value={linkDraft}
-              onChange={(e) => setLinkDraft(e.target.value)}
-              placeholder="https://instagram.com/…"
+          <div className="fl-field">
+            <h3 className="fl-obs-title">Observações</h3>
+            <textarea
+              disabled={!isFormActive}
+              value={notas}
+              onChange={(e) => setNotas(e.target.value)}
+              placeholder="Anotações de campo (opcional)"
+              rows={5}
             />
-            <Button type="button" variant="secondary" onClick={addLink}>
-              <Plus size={16} /> Adicionar
-            </Button>
           </div>
-          {links.length > 0 && (
-            <ul className="ativacao-links">
-              {links.map((url) => (
-                <li key={url}>
-                  <a href={url} target="_blank" rel="noopener noreferrer">{url}</a>
-                  <button type="button" onClick={() => setLinks((prev) => prev.filter((l) => l !== url))} aria-label="Remover">
-                    <X size={14} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+
+          {error && <div className="alert alert-error">{error}</div>}
+          {ok && <div className="alert alert-success">{ok}</div>}
         </div>
 
-        <div className="ui-field">
-          <label className="ui-field-label" htmlFor="ativacao-notas">Observações</label>
-          <textarea
-            id="ativacao-notas"
-            className="ui-input ativacao-notes"
-            rows={3}
-            value={notas}
-            onChange={(e) => setNotas(e.target.value)}
-            placeholder="Anotações de campo (opcional)"
-          />
-        </div>
-
-        {error && <div className="alert alert-error">{error}</div>}
-        {ok && <div className="alert alert-success">{ok}</div>}
-
-        <div className="ativacao-form-actions">
-          <Button type="submit" loading={saving} disabled={!selected}>
-            <Save size={16} /> Salvar lançamento
-          </Button>
-          <Button type="button" variant="secondary" onClick={clearPerson}>Limpar</Button>
+        <div className="fl-card-foot">
+          <button type="submit" className="fl-btn-primary" disabled={!isFormActive || saving}>
+            <CheckCircle2 size={20} />
+            {saving ? 'Salvando…' : 'Salvar lançamento'}
+          </button>
+          <button
+            type="button"
+            className="fl-btn-secondary"
+            disabled={!isFormActive}
+            onClick={clearPerson}
+          >
+            Limpar
+          </button>
         </div>
       </form>
     </div>

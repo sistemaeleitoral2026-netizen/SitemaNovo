@@ -5,6 +5,8 @@ interface WhatsAppLinkProps {
   message?: string
   label?: string
   className?: string
+  showLabel?: boolean
+  onOpen?: () => void
 }
 
 /** Ícone oficial do WhatsApp (SVG) — abre app/web com mensagem pronta. */
@@ -13,8 +15,16 @@ export function WhatsAppLink({
   message = WHATSAPP_FICHA_MESSAGE,
   label = 'Abrir WhatsApp',
   className = '',
+  showLabel = false,
+  onOpen,
 }: WhatsAppLinkProps) {
   const href = buildWhatsAppUrl(phone, message)
+  const content = (
+    <>
+      <WhatsAppIcon />
+      {showLabel ? <span>{label}</span> : <span className="sr-only">{label}</span>}
+    </>
+  )
 
   if (!href) {
     return (
@@ -23,8 +33,7 @@ export function WhatsAppLink({
         title="Informe um telefone válido com DDD"
         aria-disabled="true"
       >
-        <WhatsAppIcon />
-        <span className="sr-only">{label}</span>
+        {content}
       </span>
     )
   }
@@ -37,8 +46,9 @@ export function WhatsAppLink({
       className={`whatsapp-link ${className}`.trim()}
       title={label}
       aria-label={label}
+      onClick={() => onOpen?.()}
     >
-      <WhatsAppIcon />
+      {content}
     </a>
   )
 }

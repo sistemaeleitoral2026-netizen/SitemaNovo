@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { Cadastro, Coordenador, Lider } from '../types'
+import type { Cadastro, Coordenador, Lider, Profile } from '../types'
 
 export type AtivacaoTipo = 'eleitor' | 'lideranca' | 'coordenador'
 
@@ -12,12 +12,19 @@ export type AtivacaoPessoa = {
   titulo: string
   zona: string
   bairro: string
+  telefone: string
   carros_adesivados: number
   adesivos_casa: number
   postagens: number
   postagem_links: string[]
   ativacao_notas: string
   ativacao_em: string | null
+  contato_whatsapp: boolean
+  diretoria_id: string | null
+  coordenador: string
+  lider: string
+  operator_id: string | null
+  coordenador_id: string | null
 }
 
 function toQty(value: unknown) {
@@ -42,11 +49,35 @@ function toLinks(value: unknown): string[] {
   return []
 }
 
+/** Só vale como Formigas se houve lançamento (ativacao_em). Evita lixo da antiga mobilização. */
+function fromAtivacaoFields(row: {
+  carros_adesivados?: unknown
+  adesivos_casa?: unknown
+  postagens?: unknown
+  postagem_links?: unknown
+  ativacao_notas?: unknown
+  ativacao_em?: unknown
+  contato_whatsapp?: unknown
+}) {
+  const ativacao_em = (row.ativacao_em as string | null | undefined) ?? null
+  const launched = Boolean(ativacao_em)
+  return {
+    carros_adesivados: launched ? toQty(row.carros_adesivados) : 0,
+    adesivos_casa: launched ? toQty(row.adesivos_casa) : 0,
+    postagens: launched ? toQty(row.postagens) : 0,
+    postagem_links: launched ? toLinks(row.postagem_links) : [],
+    ativacao_notas: launched ? String(row.ativacao_notas ?? '') : '',
+    ativacao_em,
+    contato_whatsapp: launched ? Boolean(row.contato_whatsapp) : false,
+  }
+}
+
 export function casaSim(value: unknown) {
   return toQty(value) > 0
 }
 
 function fromCadastro(c: Cadastro): AtivacaoPessoa {
+  const ativ = fromAtivacaoFields(c)
   return {
     key: `eleitor:${c.id}`,
     id: c.id,
@@ -56,16 +87,18 @@ function fromCadastro(c: Cadastro): AtivacaoPessoa {
     titulo: c.titulo ?? '',
     zona: c.zona ?? '',
     bairro: c.bairro ?? '',
-    carros_adesivados: toQty(c.carros_adesivados),
-    adesivos_casa: toQty(c.adesivos_casa),
-    postagens: toQty(c.postagens),
-    postagem_links: toLinks(c.postagem_links),
-    ativacao_notas: c.ativacao_notas ?? '',
-    ativacao_em: c.ativacao_em ?? null,
+    telefone: c.telefone ?? '',
+    ...ativ,
+    diretoria_id: c.diretoria_id ?? null,
+    coordenador: (c.coordenador ?? '').trim(),
+    lider: (c.lider ?? '').trim(),
+    operator_id: c.operator_id ?? null,
+    coordenador_id: null,
   }
 }
 
 function fromLider(l: Lider): AtivacaoPessoa {
+  const ativ = fromAtivacaoFields(l)
   return {
     key: `lideranca:${l.id}`,
     id: l.id,
@@ -75,16 +108,18 @@ function fromLider(l: Lider): AtivacaoPessoa {
     titulo: '',
     zona: '',
     bairro: '',
-    carros_adesivados: toQty(l.carros_adesivados),
-    adesivos_casa: toQty(l.adesivos_casa),
-    postagens: toQty(l.postagens),
-    postagem_links: toLinks(l.postagem_links),
-    ativacao_notas: l.ativacao_notas ?? '',
-    ativacao_em: l.ativacao_em ?? null,
+    telefone: l.telefone ?? '',
+    ...ativ,
+    diretoria_id: l.diretoria_id ?? null,
+    coordenador: '',
+    lider: l.nome ?? '',
+    operator_id: null,
+    coordenador_id: l.coordenador_id ?? null,
   }
 }
 
 function fromCoord(c: Coordenador): AtivacaoPessoa {
+  const ativ = fromAtivacaoFields(c)
   return {
     key: `coordenador:${c.id}`,
     id: c.id,
@@ -94,17 +129,24 @@ function fromCoord(c: Coordenador): AtivacaoPessoa {
     titulo: '',
     zona: '',
     bairro: '',
-    carros_adesivados: toQty(c.carros_adesivados),
-    adesivos_casa: toQty(c.adesivos_casa),
-    postagens: toQty(c.postagens),
-    postagem_links: toLinks(c.postagem_links),
-    ativacao_notas: c.ativacao_notas ?? '',
-    ativacao_em: c.ativacao_em ?? null,
+    telefone: '',
+    ...ativ,
+    diretoria_id: c.diretoria_id ?? null,
+    coordenador: c.nome ?? '',
+    lider: '',
+    operator_id: null,
+    coordenador_id: null,
   }
 }
 
 const CADASTRO_SELECT =
-  'id, nome_completo, titulo, zona, bairro, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em'
+  'id, nome_completo, titulo, zona, bairro, telefone, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, diretoria_id, coordenador, lider, operator_id'
+
+const LIDER_SELECT =
+  'id, nome, telefone, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, diretoria_id, coordenador_id'
+
+const COORD_SELECT =
+  'id, nome, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, diretoria_id'
 
 export async function searchAtivacaoPessoas(term: string, limit = 12): Promise<AtivacaoPessoa[]> {
   const q = term.trim()
@@ -124,14 +166,14 @@ export async function searchAtivacaoPessoas(term: string, limit = 12): Promise<A
       .limit(limit),
     supabase
       .from('lideres')
-      .select('id, nome, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em')
+      .select(LIDER_SELECT)
       .eq('ativo', true)
       .ilike('nome', `%${q}%`)
       .order('nome')
       .limit(8),
     supabase
       .from('coordenadores')
-      .select('id, nome, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em')
+      .select(COORD_SELECT)
       .eq('ativo', true)
       .ilike('nome', `%${q}%`)
       .order('nome')
@@ -155,18 +197,10 @@ export async function fetchAtivacaoPessoa(
     return data ? fromCadastro(data as Cadastro) : null
   }
   if (tipo === 'lideranca') {
-    const { data } = await supabase
-      .from('lideres')
-      .select('id, nome, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em')
-      .eq('id', id)
-      .maybeSingle()
+    const { data } = await supabase.from('lideres').select(LIDER_SELECT).eq('id', id).maybeSingle()
     return data ? fromLider(data as Lider) : null
   }
-  const { data } = await supabase
-    .from('coordenadores')
-    .select('id, nome, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em')
-    .eq('id', id)
-    .maybeSingle()
+  const { data } = await supabase.from('coordenadores').select(COORD_SELECT).eq('id', id).maybeSingle()
   return data ? fromCoord(data as Coordenador) : null
 }
 
@@ -175,6 +209,7 @@ export type AtivacaoSaveInput = {
   casa: boolean
   links: string[]
   notas: string
+  contato_whatsapp: boolean
 }
 
 export async function saveAtivacao(
@@ -183,13 +218,19 @@ export async function saveAtivacao(
   input: AtivacaoSaveInput,
 ): Promise<{ error: string | null }> {
   const links = input.links.map((l) => l.trim()).filter(Boolean)
+  const carros = Math.max(0, Math.floor(Number(input.carros_adesivados) || 0))
+  const casa = input.casa ? 1 : 0
+  const notas = input.notas.trim() || null
+  const contato = Boolean(input.contato_whatsapp)
+  const hasLaunch = carros > 0 || casa > 0 || links.length > 0 || Boolean(notas) || contato
   const payload = {
-    carros_adesivados: Math.max(0, Math.floor(Number(input.carros_adesivados) || 0)),
-    adesivos_casa: input.casa ? 1 : 0,
+    carros_adesivados: carros,
+    adesivos_casa: casa,
     postagem_links: links,
     postagens: links.length,
-    ativacao_notas: input.notas.trim() || null,
-    ativacao_em: new Date().toISOString(),
+    ativacao_notas: notas,
+    ativacao_em: hasLaunch ? new Date().toISOString() : null,
+    contato_whatsapp: contato,
   }
 
   const table = tipo === 'eleitor' ? 'cadastros' : tipo === 'lideranca' ? 'lideres' : 'coordenadores'
@@ -200,14 +241,61 @@ export async function saveAtivacao(
 export type AtivacaoListFilters = {
   search?: string
   tipo?: 'todos' | AtivacaoTipo
-  status?: 'todos' | 'com_ativacao' | 'sem_ativacao' | 'com_carro' | 'casa_sim' | 'com_links'
+  status?:
+    | 'todos'
+    | 'com_ativacao'
+    | 'sem_ativacao'
+    | 'com_carro'
+    | 'casa_sim'
+    | 'com_links'
+    | 'contato_sim'
+    | 'contato_nao'
   page?: number
   pageSize?: number
+  diretoria_id?: string
+  coordenador?: string
+  coordenador_id?: string
+  lider?: string
+  lider_id?: string
+  operator_id?: string
 }
 
 export type AtivacaoListResult = {
   items: AtivacaoPessoa[]
   total: number
+}
+
+export type AtivacaoTeamOptions = {
+  diretorias: Profile[]
+  coordenadores: Coordenador[]
+  lideres: Lider[]
+  nerites: Profile[]
+}
+
+export async function fetchAtivacaoTeamOptions(scopeDiretoriaId?: string | null): Promise<AtivacaoTeamOptions> {
+  const [diretorias, coordenadores, lideres, nerites] = await Promise.all([
+    fetchAllPaged<Profile>((from, to) => {
+      let q = supabase.from('profiles').select('*').eq('role', 'diretoria').eq('ativo', true).order('nome')
+      return q.range(from, to)
+    }),
+    fetchAllPaged<Coordenador>((from, to) => {
+      let q = supabase.from('coordenadores').select('*').eq('ativo', true).order('nome')
+      if (scopeDiretoriaId) q = q.eq('diretoria_id', scopeDiretoriaId)
+      return q.range(from, to)
+    }),
+    fetchAllPaged<Lider>((from, to) => {
+      let q = supabase.from('lideres').select('*').eq('ativo', true).order('nome')
+      if (scopeDiretoriaId) q = q.eq('diretoria_id', scopeDiretoriaId)
+      return q.range(from, to)
+    }),
+    fetchAllPaged<Profile>((from, to) => {
+      let q = supabase.from('profiles').select('*').eq('role', 'operador').eq('ativo', true).order('nome')
+      if (scopeDiretoriaId) q = q.eq('diretoria_id', scopeDiretoriaId)
+      return q.range(from, to)
+    }),
+  ])
+
+  return { diretorias, coordenadores, lideres, nerites }
 }
 
 function matchesStatus(p: AtivacaoPessoa, status: AtivacaoListFilters['status']) {
@@ -218,10 +306,75 @@ function matchesStatus(p: AtivacaoPessoa, status: AtivacaoListFilters['status'])
   if (status === 'com_carro') return p.carros_adesivados > 0
   if (status === 'casa_sim') return p.adesivos_casa > 0
   if (status === 'com_links') return p.postagem_links.length > 0
+  if (status === 'contato_sim') return p.contato_whatsapp
+  if (status === 'contato_nao') return !p.contato_whatsapp
   return true
 }
 
-/** Lista unificada para o Painel (eleitores + equipe). Filtra em memória após fetch enxuto. */
+function matchesTeam(
+  p: AtivacaoPessoa,
+  filters: AtivacaoListFilters,
+  coordById: Map<string, Coordenador>,
+) {
+  if (filters.diretoria_id && p.diretoria_id !== filters.diretoria_id) return false
+
+  if (filters.coordenador_id || filters.coordenador) {
+    const nome = (filters.coordenador ?? '').trim().toLowerCase()
+    const id = filters.coordenador_id
+    if (p.tipo === 'coordenador') {
+      if (id && p.id !== id) return false
+      if (!id && nome && p.nome.toLowerCase() !== nome) return false
+    } else {
+      const coordNome = p.coordenador.toLowerCase()
+      const fromId = p.coordenador_id ? (coordById.get(p.coordenador_id)?.nome ?? '').toLowerCase() : ''
+      const ok =
+        (id && (p.coordenador_id === id || coordNome === nome || fromId === nome))
+        || (!id && nome && (coordNome === nome || fromId === nome))
+      if (!ok) return false
+    }
+  }
+
+  if (filters.lider_id || filters.lider) {
+    const nome = (filters.lider ?? '').trim().toLowerCase()
+    const id = filters.lider_id
+    if (p.tipo === 'lideranca') {
+      if (id && p.id !== id) return false
+      if (!id && nome && p.nome.toLowerCase() !== nome) return false
+    } else if (p.tipo === 'coordenador') {
+      return false
+    } else {
+      // Cadastros só guardam o nome da liderança — precisa do nome resolvido.
+      if (!nome) return true
+      if (p.lider.toLowerCase() !== nome) return false
+    }
+  }
+
+  if (filters.operator_id) {
+    if (p.tipo !== 'eleitor' || p.operator_id !== filters.operator_id) return false
+  }
+
+  return true
+}
+
+/** Supabase/PostgREST limita ~1000 linhas por request — pagina até esgotar. */
+async function fetchAllPaged<T>(
+  run: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+  pageSize = 1000,
+): Promise<T[]> {
+  const all: T[] = []
+  let from = 0
+  for (;;) {
+    const { data, error } = await run(from, from + pageSize - 1)
+    if (error) throw new Error(error.message)
+    const chunk = (data ?? []) as T[]
+    all.push(...chunk)
+    if (chunk.length < pageSize) break
+    from += pageSize
+  }
+  return all
+}
+
+/** Lista unificada para o Painel (eleitores + equipe). Filtra em memória após fetch completo (paginado). */
 export async function fetchAtivacaoPainel(filters: AtivacaoListFilters = {}): Promise<AtivacaoListResult> {
   const page = filters.page ?? 0
   const pageSize = filters.pageSize ?? 25
@@ -234,38 +387,56 @@ export async function fetchAtivacaoPainel(filters: AtivacaoListFilters = {}): Pr
   if (tipo === 'todos' || tipo === 'eleitor') {
     loads.push(
       (async () => {
-        const { data } = await supabase.from('cadastros').select(CADASTRO_SELECT).order('nome_completo')
-        return ((data ?? []) as Cadastro[]).map(fromCadastro)
+        const rows = await fetchAllPaged<Cadastro>((from, to) => {
+          let query = supabase.from('cadastros').select(CADASTRO_SELECT).order('nome_completo')
+          if (filters.diretoria_id) query = query.eq('diretoria_id', filters.diretoria_id)
+          if (filters.operator_id) query = query.eq('operator_id', filters.operator_id)
+          return query.range(from, to)
+        })
+        return rows.map(fromCadastro)
       })(),
     )
   }
   if (tipo === 'todos' || tipo === 'lideranca') {
     loads.push(
       (async () => {
-        const { data } = await supabase
-          .from('lideres')
-          .select('id, nome, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em')
-          .eq('ativo', true)
-          .order('nome')
-        return ((data ?? []) as Lider[]).map(fromLider)
+        const rows = await fetchAllPaged<Lider>((from, to) => {
+          let query = supabase.from('lideres').select(LIDER_SELECT).eq('ativo', true).order('nome')
+          if (filters.diretoria_id) query = query.eq('diretoria_id', filters.diretoria_id)
+          return query.range(from, to)
+        })
+        return rows.map(fromLider)
       })(),
     )
   }
   if (tipo === 'todos' || tipo === 'coordenador') {
     loads.push(
       (async () => {
-        const { data } = await supabase
-          .from('coordenadores')
-          .select('id, nome, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em')
-          .eq('ativo', true)
-          .order('nome')
-        return ((data ?? []) as Coordenador[]).map(fromCoord)
+        const rows = await fetchAllPaged<Coordenador>((from, to) => {
+          let query = supabase.from('coordenadores').select(COORD_SELECT).eq('ativo', true).order('nome')
+          if (filters.diretoria_id) query = query.eq('diretoria_id', filters.diretoria_id)
+          return query.range(from, to)
+        })
+        return rows.map(fromCoord)
       })(),
     )
   }
 
-  const chunks = await Promise.all(loads)
+  const [chunks, coordsAll] = await Promise.all([
+    Promise.all(loads),
+    fetchAllPaged<Coordenador>((from, to) =>
+      supabase.from('coordenadores').select('id, nome, diretoria_id, ativo').range(from, to),
+    ),
+  ])
   let items = chunks.flat()
+  const coordById = new Map(coordsAll.map((c) => [c.id, c]))
+
+  items = items.map((p) => {
+    if (p.tipo !== 'lideranca' || !p.coordenador_id) return p
+    const coord = coordById.get(p.coordenador_id)
+    if (!coord) return p
+    return { ...p, coordenador: coord.nome }
+  })
 
   if (q) {
     items = items.filter((p) => {
@@ -282,6 +453,7 @@ export async function fetchAtivacaoPainel(filters: AtivacaoListFilters = {}): Pr
   }
 
   items = items.filter((p) => matchesStatus(p, filters.status))
+  items = items.filter((p) => matchesTeam(p, filters, coordById))
   items.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 
   const total = items.length
@@ -289,16 +461,22 @@ export async function fetchAtivacaoPainel(filters: AtivacaoListFilters = {}): Pr
   return { items: items.slice(start, start + pageSize), total }
 }
 
-export async function fetchAtivacaoKpis() {
-  const { items } = await fetchAtivacaoPainel({ page: 0, pageSize: 100000 })
+export async function fetchAtivacaoKpis(filters: AtivacaoListFilters = {}) {
+  // Conta pessoas (não soma quantidades) para bater com os filtros do Painel.
+  const { items } = await fetchAtivacaoPainel({
+    ...filters,
+    status: 'todos',
+    page: 0,
+    pageSize: 1_000_000,
+  })
   let carros = 0
   let casas = 0
   let postagens = 0
   let comAtivacao = 0
   for (const p of items) {
-    carros += p.carros_adesivados
+    if (p.carros_adesivados > 0) carros += 1
     if (p.adesivos_casa > 0) casas += 1
-    postagens += p.postagem_links.length || p.postagens
+    if (p.postagem_links.length > 0 || p.postagens > 0) postagens += 1
     if (p.carros_adesivados > 0 || p.adesivos_casa > 0 || p.postagem_links.length > 0) comAtivacao += 1
   }
   return {

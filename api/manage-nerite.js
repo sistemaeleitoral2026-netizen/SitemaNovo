@@ -56,8 +56,11 @@ export default async function handler(req, res) {
     )
     const targets = await targetRes.json()
     const target = Array.isArray(targets) ? targets[0] : null
-    if (!target || !['operador', 'mobilizador'].includes(target.role)) {
+    if (!target || !['operador', 'mobilizador', 'administrativo'].includes(target.role)) {
       return json(res, 404, { error: 'Usuário não encontrado.' })
+    }
+    if (target.role === 'administrativo' && caller.role !== 'admin') {
+      return json(res, 403, { error: 'Somente o admin gerencia usuários administrativos.' })
     }
     if (caller.role === 'diretoria' && target.diretoria_id !== caller.id) {
       return json(res, 403, { error: 'Sem permissão para este usuário.' })
@@ -163,7 +166,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         nome,
-        diretoria_id: diretoriaId,
+        diretoria_id: target.role === 'administrativo' ? null : diretoriaId,
         coordenador_id: target.role === 'operador' ? coordenadorId : null,
         lider_id: target.role === 'operador' ? liderId : null,
         ativo,
