@@ -98,6 +98,12 @@ export function normalizeCadastroFields<T extends {
   lider: string
   data_nascimento: string
   cep: string
+  endereco?: string
+  numero?: string
+  complemento?: string
+  bairro?: string
+  cidade?: string
+  uf?: string
 }>(data: T): T {
   return {
     ...data,
@@ -112,5 +118,11 @@ export function normalizeCadastroFields<T extends {
     lider: normalizeName(data.lider),
     data_nascimento: normalizeBirthDate(data.data_nascimento),
     cep: normalizeCep(data.cep),
+    ...(data.endereco !== undefined ? { endereco: String(data.endereco ?? '').trim() } : {}),
+    ...(data.numero !== undefined ? { numero: String(data.numero ?? '').trim() } : {}),
+    ...(data.complemento !== undefined ? { complemento: String(data.complemento ?? '').trim() } : {}),
+    ...(data.bairro !== undefined ? { bairro: String(data.bairro ?? '').trim() } : {}),
+    ...(data.cidade !== undefined ? { cidade: String(data.cidade ?? '').trim() } : {}),
+    ...(data.uf !== undefined ? { uf: String(data.uf ?? '').trim().toUpperCase().slice(0, 2) } : {}),
   }
 }
