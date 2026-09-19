@@ -196,7 +196,7 @@ export function ImportarPage() {
       })
       .eq('id', importRow.id)
 
-    await logAudit('importar', 'importacoes', importRow.id, {
+    logAudit('importar', 'importacoes', importRow.id, {
       arquivo: file.name,
       validos: inserted,
       total: preview.total,
