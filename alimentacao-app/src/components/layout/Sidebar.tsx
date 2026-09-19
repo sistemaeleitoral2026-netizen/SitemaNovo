@@ -12,8 +12,9 @@ import {
   Network,
   UserCog,
   Crown,
-  Share2,
   ListChecks,
+  Megaphone,
+  PlusCircle,
 } from 'lucide-react'
 import type { UserRole } from '../../types'
 
@@ -40,6 +41,14 @@ interface NavGroup {
 /** Menu fiel ao standalone + todos os itens do sistema. */
 const navGroups: NavGroup[] = [
   {
+    label: 'Operação de Campo',
+    roles: ['mobilizador'],
+    items: [
+      { to: '/ativacao/lancar', label: 'Lançar', icon: PlusCircle, roles: ['mobilizador'] },
+      { to: '/ativacao/painel', label: 'Painel', icon: BarChart3, roles: ['mobilizador'] },
+    ],
+  },
+  {
     label: 'Menu',
     roles: ['admin', 'diretoria', 'operador'],
     items: [
@@ -48,6 +57,7 @@ const navGroups: NavGroup[] = [
       { to: '/equipe?tab=nerites', label: 'Minhas Nerites', icon: Users, roles: ['diretoria'] },
       { to: '/equipe?tab=coordenadores', label: 'Coordenadores', icon: UserCog, roles: ['diretoria'] },
       { to: '/equipe?tab=lideres', label: 'Lideranças', icon: Crown, roles: ['diretoria'] },
+      { to: '/equipe?tab=mobilizadores', label: 'Formigas', icon: Megaphone, roles: ['diretoria'] },
       { to: '/nerites', label: 'Nerites', icon: Users, roles: ['admin'] },
       { to: '/cadastros', label: 'Todos os cadastros', icon: ClipboardList, roles: ['admin', 'diretoria', 'operador'] },
       { to: '/meus-cadastros', label: 'Meus Cadastros', icon: ClipboardList, roles: ['operador'] },
@@ -56,10 +66,17 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    label: 'Formigas',
+    roles: ['admin', 'diretoria'],
+    items: [
+      { to: '/ativacao/lancar', label: 'Lançar', icon: PlusCircle, roles: ['admin', 'diretoria'] },
+      { to: '/ativacao/painel', label: 'Painel', icon: BarChart3, roles: ['admin', 'diretoria'] },
+    ],
+  },
+  {
     label: 'Gestão',
     roles: ['admin', 'diretoria'],
     items: [
-      { to: '/mobilizacao', label: 'Mobilização', icon: Share2, roles: ['admin', 'diretoria'] },
       { to: '/lideranca', label: 'Liderança', icon: ListChecks, roles: ['admin', 'diretoria'] },
       { to: '/mapa', label: 'Mapa por zona', icon: Map, roles: ['admin', 'diretoria'] },
       { to: '/relatorios', label: 'Relatórios', icon: BarChart3, roles: ['admin', 'diretoria'] },
