@@ -411,7 +411,6 @@ export function MobilizacaoPage() {
                   <tr>
                     <th>Nome</th>
                     <th>Tipo</th>
-                    <th>Detalhe</th>
                     <th>Carros</th>
                     <th>Adesivos casa</th>
                     <th>Postagens</th>
@@ -426,9 +425,6 @@ export function MobilizacaoPage() {
                       </td>
                       <td>
                         <span className="mob-tipo">{p.tipoLabel}</span>
-                      </td>
-                      <td>
-                        <span className="mobilizacao-name-cell">{p.detalhe}</span>
                       </td>
                       <td>{qtyInput(p, 'carros_adesivados', 'Carros adesivados')}</td>
                       <td>{qtyInput(p, 'adesivos_casa', 'Adesivos para casa')}</td>
