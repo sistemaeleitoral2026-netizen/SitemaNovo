@@ -15,6 +15,7 @@ export interface Demanda {
   telefone_extra: string | null
   descricao: string
   foto_path: string | null
+  foto_paths?: string[] | null
   urgencia?: DemandaUrgencia
   status: DemandaStatus
   created_at: string
