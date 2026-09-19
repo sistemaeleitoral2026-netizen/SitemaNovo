@@ -64,7 +64,7 @@ export default async function handler(req, res) {
 
     if (profile.role === 'diretoria') {
       role = body.role === 'mobilizador' ? 'mobilizador' : 'operador'
-    } else if (!['operador', 'diretoria', 'mobilizador'].includes(role)) {
+    } else if (!['operador', 'diretoria', 'mobilizador', 'administrativo'].includes(role)) {
       role = 'operador'
     }
 
@@ -72,6 +72,10 @@ export default async function handler(req, res) {
 
     if ((role === 'operador' || role === 'mobilizador') && profile.role === 'diretoria' && !diretoriaId) {
       return json(res, 400, { error: 'Diretoria inválida.' })
+    }
+
+    if (role === 'administrativo' && profile.role !== 'admin') {
+      return json(res, 403, { error: 'Somente o admin pode criar usuário administrativo.' })
     }
 
     const createRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {

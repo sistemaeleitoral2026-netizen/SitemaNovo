@@ -10,7 +10,7 @@ import { EvolutionChart } from '../components/charts/EvolutionChart'
 import { ZonaDonutChart } from '../components/charts/ZonaDonutChart'
 import { CadastrosMap } from '../components/map/CadastrosMap'
 import { formatCpf, formatDate, formatDateTime } from '../lib/format'
-import { buildEvolutionData, buildMapMarkers, buildZonaData, fetchCadastros } from '../lib/cadastros'
+import { buildEvolutionData, buildMapMarkers, buildZonaData, countCadastrosForOperator, fetchCadastros } from '../lib/cadastros'
 import { getPeriodFromPreset, type PeriodPreset } from '../lib/period'
 import { supabase } from '../lib/supabase'
 import type { Cadastro, Importacao, Profile } from '../types'
@@ -20,8 +20,9 @@ export function OperadorDetailPage() {
   const [operador, setOperador] = useState<Profile | null>(null)
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
   const [importacoes, setImportacoes] = useState<Importacao[]>([])
-  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('30d')
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
   const [loading, setLoading] = useState(true)
+  const [totalGeral, setTotalGeral] = useState(0)
 
   const period = useMemo(() => getPeriodFromPreset(periodPreset), [periodPreset])
 
@@ -29,17 +30,19 @@ export function OperadorDetailPage() {
     if (!id) return
     async function load() {
       setLoading(true)
-      const [profileRes, cads, imports] = await Promise.all([
+      const [profileRes, cads, imports, total] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', id).maybeSingle(),
         fetchCadastros({ operatorId: id, period }),
         supabase.from('importacoes').select('*').eq('operator_id', id).order('created_at', { ascending: false }).limit(5),
+        countCadastrosForOperator(id!),
       ])
       setOperador(profileRes.data as Profile | null)
       setCadastros(cads)
       setImportacoes((imports.data ?? []) as Importacao[])
+      setTotalGeral(total)
       setLoading(false)
     }
-    load()
+    void load()
   }, [id, period])
 
   const evolution = useMemo(() => buildEvolutionData(cadastros), [cadastros])
@@ -75,7 +78,15 @@ export function OperadorDetailPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-        <KpiCard label="Total no período" value={cadastros.length} icon={ClipboardList} accent="blue" />
+        <KpiCard
+          label={periodPreset === 'all' ? 'Total de cadastros' : 'Total no período'}
+          value={cadastros.length}
+          icon={ClipboardList}
+          accent="blue"
+        />
+        {periodPreset !== 'all' && (
+          <KpiCard label="Total geral" value={totalGeral} icon={ClipboardList} accent="green" />
+        )}
         <KpiCard label="Zonas eleitorais" value={zonaData.length} icon={ClipboardList} accent="purple" />
         <KpiCard label="Seções eleitorais" value={secoes} icon={ClipboardList} accent="orange" />
       </div>

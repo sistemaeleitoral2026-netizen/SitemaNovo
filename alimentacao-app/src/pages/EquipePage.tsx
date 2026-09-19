@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Pencil, Plus, Search, Trash2, UserPlus, Users, UserCog, Crown, ClipboardList, Megaphone } from 'lucide-react'
+import { Pencil, Plus, Search, Trash2, UserPlus, Users, UserCog, Crown, ClipboardList, Megaphone, Briefcase } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
@@ -11,10 +11,11 @@ import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import { formatPhone } from '../lib/normalize'
+import { fetchCadastroFichaStats, fetchOperatorCadastroStats } from '../lib/cadastros'
 import { supabase } from '../lib/supabase'
 import type { Coordenador, Lider, Profile } from '../types'
 
-type Tab = 'nerites' | 'coordenadores' | 'lideres' | 'mobilizadores'
+type Tab = 'nerites' | 'coordenadores' | 'lideres' | 'mobilizadores' | 'administrativos'
 
 const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
   nerites: {
@@ -33,6 +34,10 @@ const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
     title: 'Formigas',
     subtitle: 'Cadastre quem lança Formigas na sua diretoria.',
   },
+  administrativos: {
+    title: 'Administrativos',
+    subtitle: 'Equipe que lança e acompanha Demandas (sem liberar conclusão).',
+  },
 }
 
 export function EquipePage() {
@@ -44,8 +49,12 @@ export function EquipePage() {
 
   const tabParam = searchParams.get('tab')
   const tab: Tab =
-    tabParam === 'coordenadores' || tabParam === 'lideres' || tabParam === 'nerites' || tabParam === 'mobilizadores'
-      ? tabParam
+    tabParam === 'coordenadores'
+    || tabParam === 'lideres'
+    || tabParam === 'nerites'
+    || tabParam === 'mobilizadores'
+    || (tabParam === 'administrativos' && isAdmin)
+      ? (tabParam as Tab)
       : isAdmin
         ? 'nerites'
         : 'coordenadores'
@@ -77,6 +86,7 @@ export function EquipePage() {
   const [diretorias, setDiretorias] = useState<Profile[]>([])
   const [nerites, setNerites] = useState<Profile[]>([])
   const [mobilizadores, setMobilizadores] = useState<Profile[]>([])
+  const [administrativos, setAdministrativos] = useState<Profile[]>([])
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
   const [lideres, setLideres] = useState<Lider[]>([])
   const [fichasByCoord, setFichasByCoord] = useState<Record<string, number>>({})
@@ -96,14 +106,17 @@ export function EquipePage() {
 
   const [neriteOpen, setNeriteOpen] = useState(false)
   const [mobOpen, setMobOpen] = useState(false)
+  const [admOpen, setAdmOpen] = useState(false)
   const [coordOpen, setCoordOpen] = useState(false)
   const [liderOpen, setLiderOpen] = useState(false)
   const [editingNeriteId, setEditingNeriteId] = useState<string | null>(null)
   const [editingMobId, setEditingMobId] = useState<string | null>(null)
+  const [editingAdmId, setEditingAdmId] = useState<string | null>(null)
   const [editingCoordId, setEditingCoordId] = useState<string | null>(null)
   const [editingLiderId, setEditingLiderId] = useState<string | null>(null)
   const [deleteNeriteId, setDeleteNeriteId] = useState<string | null>(null)
   const [deleteMobId, setDeleteMobId] = useState<string | null>(null)
+  const [deleteAdmId, setDeleteAdmId] = useState<string | null>(null)
   const [deleteCoordId, setDeleteCoordId] = useState<string | null>(null)
   const [deleteLiderId, setDeleteLiderId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -127,6 +140,13 @@ export function EquipePage() {
     diretoria_id: '',
     ativo: true,
   })
+  const [admForm, setAdmForm] = useState({
+    nome: '',
+    email: '',
+    password: '',
+    confirm: '',
+    ativo: true,
+  })
   const [coordForm, setCoordForm] = useState({ nome: '', diretoria_id: '' })
   const [liderForm, setLiderForm] = useState({ nome: '', telefone: '', diretoria_id: '', coordenador_id: '' })
 
@@ -137,9 +157,9 @@ export function EquipePage() {
 
     let neritesQuery = supabase.from('profiles').select('*').eq('role', 'operador').order('nome')
     let mobsQuery = supabase.from('profiles').select('*').eq('role', 'mobilizador').order('nome')
+    const admsQuery = supabase.from('profiles').select('*').eq('role', 'administrativo').order('nome')
     let coordsQuery = supabase.from('coordenadores').select('*').order('nome')
     let lideresQuery = supabase.from('lideres').select('*').order('nome')
-    let fichasQuery = supabase.from('cadastros').select('operator_id, coordenador, lider, diretoria_id')
 
     const scope = isAdmin ? filterDiretoria : diretoriaId
     if (scope) {
@@ -149,38 +169,46 @@ export function EquipePage() {
       lideresQuery = lideresQuery.eq('diretoria_id', scope)
     }
 
-    const [n, m, c, l, f] = await Promise.all([neritesQuery, mobsQuery, coordsQuery, lideresQuery, fichasQuery])
+    const [n, m, a, c, l, fRows] = await Promise.all([
+      neritesQuery,
+      mobsQuery,
+      admsQuery,
+      coordsQuery,
+      lideresQuery,
+      fetchCadastroFichaStats(),
+    ])
     const neriteRows = (n.data ?? []) as Profile[]
     const mobRows = (m.data ?? []) as Profile[]
+    const admRows = (a.data ?? []) as Profile[]
     const coordRows = (c.data ?? []) as Coordenador[]
     const liderRows = (l.data ?? []) as Lider[]
     setNerites(neriteRows)
     setMobilizadores(mobRows)
+    setAdministrativos(admRows)
     setCoordenadores(coordRows)
     setLideres(liderRows)
+
+    const { counts: byNeriteExact } = await fetchOperatorCadastroStats(neriteRows.map((r) => r.id))
 
     const neriteIds = new Set(neriteRows.map((row) => row.id))
     const byCoord: Record<string, number> = {}
     const byLider: Record<string, number> = {}
-    const byNerite: Record<string, number> = {}
 
-    ;((f.data ?? []) as { operator_id: string; coordenador: string | null; lider: string | null; diretoria_id: string | null }[])
-      .forEach((row) => {
-        if (scope) {
-          const inScope =
-            row.diretoria_id === scope || neriteIds.has(row.operator_id)
-          if (!inScope) return
-        }
-        const coord = (row.coordenador ?? '').trim()
-        const lider = (row.lider ?? '').trim()
-        if (coord) byCoord[coord] = (byCoord[coord] ?? 0) + 1
-        if (lider) byLider[lider] = (byLider[lider] ?? 0) + 1
-        if (row.operator_id) byNerite[row.operator_id] = (byNerite[row.operator_id] ?? 0) + 1
-      })
+    fRows.forEach((row) => {
+      if (scope) {
+        const inScope =
+          row.diretoria_id === scope || (row.operator_id != null && neriteIds.has(row.operator_id))
+        if (!inScope) return
+      }
+      const coord = (row.coordenador ?? '').trim()
+      const lider = (row.lider ?? '').trim()
+      if (coord) byCoord[coord] = (byCoord[coord] ?? 0) + 1
+      if (lider) byLider[lider] = (byLider[lider] ?? 0) + 1
+    })
 
     setFichasByCoord(byCoord)
     setFichasByLider(byLider)
-    setFichasByNerite(byNerite)
+    setFichasByNerite(byNeriteExact)
     setLoading(false)
   }
 
@@ -229,6 +257,14 @@ export function EquipePage() {
         return m.nome.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
       }),
     [mobilizadores, q],
+  )
+  const filteredAdministrativos = useMemo(
+    () =>
+      administrativos.filter((m) => {
+        if (!q) return true
+        return m.nome.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
+      }),
+    [administrativos, q],
   )
 
   const lideresCount = useMemo(
@@ -368,6 +404,26 @@ export function EquipePage() {
       ativo: m.ativo,
     })
     setMobOpen(true)
+  }
+
+  function openNewAdm() {
+    setError(null)
+    setEditingAdmId(null)
+    setAdmForm({ nome: '', email: '', password: '', confirm: '', ativo: true })
+    setAdmOpen(true)
+  }
+
+  function openEditAdm(m: Profile) {
+    setError(null)
+    setEditingAdmId(m.id)
+    setAdmForm({
+      nome: m.nome,
+      email: m.email,
+      password: '',
+      confirm: '',
+      ativo: m.ativo,
+    })
+    setAdmOpen(true)
   }
 
   async function manageNeriteRequest(method: 'POST' | 'DELETE', body: Record<string, unknown>) {
@@ -592,6 +648,75 @@ export function EquipePage() {
     await load()
   }
 
+  async function handleSaveAdm() {
+    setError(null)
+    if (!admForm.nome.trim()) {
+      setError('Informe o nome.')
+      return
+    }
+
+    if (editingAdmId) {
+      if (admForm.password || admForm.confirm) {
+        if (admForm.password !== admForm.confirm) {
+          setError('As senhas não coincidem.')
+          return
+        }
+        if (admForm.password.length < 8) {
+          setError('A nova senha precisa ter no mínimo 8 caracteres.')
+          return
+        }
+      }
+      setSaving(true)
+      const { error: err } = await manageNeriteRequest('POST', {
+        id: editingAdmId,
+        nome: admForm.nome.trim(),
+        ativo: admForm.ativo,
+        password: admForm.password || undefined,
+      })
+      setSaving(false)
+      if (err) {
+        setError(err)
+        return
+      }
+    } else {
+      if (admForm.password !== admForm.confirm) {
+        setError('As senhas não coincidem.')
+        return
+      }
+      setSaving(true)
+      const { error: err } = await createNerite({
+        nome: admForm.nome,
+        email: admForm.email,
+        password: admForm.password,
+        role: 'administrativo',
+      })
+      setSaving(false)
+      if (err) {
+        setError(err)
+        return
+      }
+    }
+
+    setAdmOpen(false)
+    setEditingAdmId(null)
+    setAdmForm({ nome: '', email: '', password: '', confirm: '', ativo: true })
+    await load()
+  }
+
+  async function handleDeleteAdm() {
+    if (!deleteAdmId) return
+    setSaving(true)
+    const { error: err } = await manageNeriteRequest('DELETE', { id: deleteAdmId })
+    setSaving(false)
+    if (err) {
+      setError(err)
+      setDeleteAdmId(null)
+      return
+    }
+    setDeleteAdmId(null)
+    await load()
+  }
+
   async function handleSaveCoord() {
     setError(null)
     const targetDir = isAdmin ? coordForm.diretoria_id : diretoriaId
@@ -679,6 +804,7 @@ export function EquipePage() {
   const deleteNeriteName = nerites.find((n) => n.id === deleteNeriteId)?.nome
   const deleteNeriteFichas = deleteNeriteId ? (fichasByNerite[deleteNeriteId] ?? 0) : 0
   const deleteMobName = mobilizadores.find((m) => m.id === deleteMobId)?.nome
+  const deleteAdmName = administrativos.find((m) => m.id === deleteAdmId)?.nome
   const deleteCoordName = coordenadores.find((c) => c.id === deleteCoordId)?.nome
   const deleteLiderName = lideres.find((l) => l.id === deleteLiderId)?.nome
 
@@ -708,6 +834,9 @@ export function EquipePage() {
           {tab === 'mobilizadores' && canManageTeam && (
             <Button onClick={openNewMob}><UserPlus size={16} /> Nova formiga</Button>
           )}
+          {tab === 'administrativos' && isAdmin && (
+            <Button onClick={openNewAdm}><UserPlus size={16} /> Novo administrativo</Button>
+          )}
           {tab === 'coordenadores' && (
             <Button onClick={openNewCoord}><Plus size={16} /> Novo coordenador</Button>
           )}
@@ -732,6 +861,9 @@ export function EquipePage() {
             { key: 'nerites' as const, label: 'Nerites', Icon: Users, count: neritesCount },
             ...(canManageTeam
               ? [{ key: 'mobilizadores' as const, label: 'Formigas', Icon: Megaphone, count: mobilizadores.length }]
+              : []),
+            ...(isAdmin
+              ? [{ key: 'administrativos' as const, label: 'Administrativos', Icon: Briefcase, count: administrativos.length }]
               : []),
           ]
         ).map(({ key, label, Icon, count }) => (
@@ -1083,6 +1215,57 @@ export function EquipePage() {
             </div>
           )
         )}
+
+        {tab === 'administrativos' && isAdmin && (
+          !filteredAdministrativos.length ? (
+            <EmptyState
+              title="Nenhum administrativo"
+              description="Cadastre quem lança e acompanha Demandas. A conclusão fica só com o admin."
+              action={<Button onClick={openNewAdm}><UserPlus size={16} /> Novo administrativo</Button>}
+            />
+          ) : (
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAdministrativos.map((m) => (
+                    <tr key={m.id}>
+                      <td><strong>{m.nome}</strong></td>
+                      <td>{m.email}</td>
+                      <td>
+                        <span className={`badge ${m.ativo ? 'badge-success' : 'badge-danger'}`}>
+                          {m.ativo ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '0.35rem' }}>
+                          <Button variant="ghost" size="sm" aria-label="Editar" onClick={() => openEditAdm(m)}>
+                            <Pencil size={16} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label="Excluir"
+                            onClick={() => { setError(null); setDeleteAdmId(m.id) }}
+                          >
+                            <Trash2 size={16} color="var(--color-danger)" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
       </Card>
 
       <Modal
@@ -1208,6 +1391,51 @@ export function EquipePage() {
       </Modal>
 
       <Modal
+        open={admOpen}
+        title={editingAdmId ? 'Editar administrativo' : 'Novo administrativo'}
+        onClose={() => !saving && setAdmOpen(false)}
+        onConfirm={handleSaveAdm}
+        confirmLabel="Salvar"
+        loading={saving}
+      >
+        <div style={{ display: 'grid', gap: '.75rem' }}>
+          <Input label="Nome" value={admForm.nome} onChange={(e) => setAdmForm((f) => ({ ...f, nome: e.target.value }))} />
+          <Input
+            label="E-mail"
+            type="email"
+            value={admForm.email}
+            onChange={(e) => setAdmForm((f) => ({ ...f, email: e.target.value }))}
+            disabled={Boolean(editingAdmId)}
+          />
+          {editingAdmId && (
+            <Select
+              label="Status"
+              value={admForm.ativo ? '1' : '0'}
+              onChange={(e) => setAdmForm((f) => ({ ...f, ativo: e.target.value === '1' }))}
+              options={[
+                { value: '1', label: 'Ativo' },
+                { value: '0', label: 'Inativo' },
+              ]}
+            />
+          )}
+          <Input
+            label={editingAdmId ? 'Nova senha (opcional)' : 'Senha'}
+            type="password"
+            value={admForm.password}
+            onChange={(e) => setAdmForm((f) => ({ ...f, password: e.target.value }))}
+            placeholder={editingAdmId ? 'Deixe em branco para manter' : undefined}
+          />
+          <Input
+            label={editingAdmId ? 'Confirmar nova senha' : 'Confirmar senha'}
+            type="password"
+            value={admForm.confirm}
+            onChange={(e) => setAdmForm((f) => ({ ...f, confirm: e.target.value }))}
+          />
+          {error && <div className="alert alert-error">{error}</div>}
+        </div>
+      </Modal>
+
+      <Modal
         open={coordOpen}
         title={editingCoordId ? 'Editar coordenador' : 'Novo coordenador'}
         onClose={() => !saving && setCoordOpen(false)}
@@ -1296,6 +1524,17 @@ export function EquipePage() {
         description={`Remover o acesso de "${deleteMobName ?? 'esta formiga'}".`}
         onClose={() => !saving && setDeleteMobId(null)}
         onConfirm={handleDeleteMob}
+        confirmLabel="Excluir"
+        confirmVariant="danger"
+        loading={saving}
+      />
+
+      <Modal
+        open={Boolean(deleteAdmId)}
+        title="Excluir administrativo?"
+        description={`Remover o acesso de "${deleteAdmName ?? 'este administrativo'}".`}
+        onClose={() => !saving && setDeleteAdmId(null)}
+        onConfirm={handleDeleteAdm}
         confirmLabel="Excluir"
         confirmVariant="danger"
         loading={saving}
