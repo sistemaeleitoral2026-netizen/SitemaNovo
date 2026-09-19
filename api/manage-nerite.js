@@ -150,10 +150,42 @@ export default async function handler(req, res) {
     const coordenadorId = body.coordenador_id || null
     const liderId = body.lider_id || null
     const ativo = body.ativo == null ? true : Boolean(body.ativo)
+    const allowedExtra = new Set(['operador', 'mobilizador', 'administrativo'])
+    let extraRoles = Array.isArray(body.extra_roles)
+      ? [...new Set(body.extra_roles.map(String).filter((r) => allowedExtra.has(r) && r !== target.role))]
+      : null
+    if (extraRoles && caller.role === 'diretoria') {
+      extraRoles = extraRoles.filter((r) => r !== 'administrativo')
+    }
 
     if (!nome) return json(res, 400, { error: 'Informe o nome.' })
     if (password && password.length < 8) {
       return json(res, 400, { error: 'A nova senha precisa ter no mínimo 8 caracteres.' })
+    }
+
+    const patch = {
+      nome,
+      diretoria_id: target.role === 'administrativo' ? null : diretoriaId,
+      coordenador_id: target.role === 'operador' ? coordenadorId : null,
+      lider_id: target.role === 'operador' ? liderId : null,
+      ativo,
+    }
+    if (extraRoles) {
+      Object.assign(patch, { extra_roles: extraRoles })
+      if (
+        target.role === 'operador'
+        || target.role === 'mobilizador'
+        || extraRoles.includes('operador')
+        || extraRoles.includes('mobilizador')
+      ) {
+        Object.assign(patch, { diretoria_id: diretoriaId })
+      }
+      if (target.role === 'operador' || extraRoles.includes('operador')) {
+        Object.assign(patch, {
+          coordenador_id: coordenadorId,
+          lider_id: liderId,
+        })
+      }
     }
 
     await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${neriteId}`, {
@@ -164,13 +196,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
         Prefer: 'return=minimal',
       },
-      body: JSON.stringify({
-        nome,
-        diretoria_id: target.role === 'administrativo' ? null : diretoriaId,
-        coordenador_id: target.role === 'operador' ? coordenadorId : null,
-        lider_id: target.role === 'operador' ? liderId : null,
-        ativo,
-      }),
+      body: JSON.stringify(patch),
     })
 
     if (password) {

@@ -24,6 +24,7 @@ interface AuthContextValue {
     email: string
     password: string
     role?: UserRole
+    extra_roles?: UserRole[]
     diretoria_id?: string | null
     coordenador_id?: string | null
     lider_id?: string | null
@@ -121,6 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string
     password: string
     role?: UserRole
+    extra_roles?: UserRole[]
     diretoria_id?: string | null
     coordenador_id?: string | null
     lider_id?: string | null
@@ -141,6 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email: input.email.trim().toLowerCase(),
           password: input.password,
           role: input.role ?? 'operador',
+          extra_roles: input.extra_roles ?? [],
           diretoria_id: input.diretoria_id ?? null,
           coordenador_id: input.coordenador_id ?? null,
           lider_id: input.lider_id ?? null,

@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { Spinner } from '../ui/Spinner'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
+import { profileRoles } from '../../lib/roles'
 
 export function AppShell({ children }: { children?: ReactNode }) {
   const { session, profile, loading } = useAuth()
@@ -31,7 +32,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
 
   return (
     <div className="app-shell">
-      <Sidebar role={profile.role} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar roles={profileRoles(profile)} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="main-content">
         <Header onMenuClick={() => setSidebarOpen(true)} />
         <main className="main-content-body">
