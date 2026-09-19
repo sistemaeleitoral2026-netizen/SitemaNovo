@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Pencil, Plus, Search, Trash2, UserPlus, Users, UserCog, Crown, ClipboardList } from 'lucide-react'
+import { Pencil, Plus, Search, Trash2, UserPlus, Users, UserCog, Crown, ClipboardList, Megaphone } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
@@ -14,7 +14,7 @@ import { formatPhone } from '../lib/normalize'
 import { supabase } from '../lib/supabase'
 import type { Coordenador, Lider, Profile } from '../types'
 
-type Tab = 'nerites' | 'coordenadores' | 'lideres'
+type Tab = 'nerites' | 'coordenadores' | 'lideres' | 'mobilizadores'
 
 const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
   nerites: {
@@ -29,6 +29,10 @@ const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
     title: 'Lideranças',
     subtitle: 'Cadastre, edite ou exclua as lideranças da sua diretoria.',
   },
+  mobilizadores: {
+    title: 'Formigas',
+    subtitle: 'Cadastre quem lança Formigas na sua diretoria.',
+  },
 }
 
 export function EquipePage() {
@@ -40,7 +44,7 @@ export function EquipePage() {
 
   const tabParam = searchParams.get('tab')
   const tab: Tab =
-    tabParam === 'coordenadores' || tabParam === 'lideres' || tabParam === 'nerites'
+    tabParam === 'coordenadores' || tabParam === 'lideres' || tabParam === 'nerites' || tabParam === 'mobilizadores'
       ? tabParam
       : isAdmin
         ? 'nerites'
@@ -72,6 +76,7 @@ export function EquipePage() {
   const [loading, setLoading] = useState(true)
   const [diretorias, setDiretorias] = useState<Profile[]>([])
   const [nerites, setNerites] = useState<Profile[]>([])
+  const [mobilizadores, setMobilizadores] = useState<Profile[]>([])
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
   const [lideres, setLideres] = useState<Lider[]>([])
   const [fichasByCoord, setFichasByCoord] = useState<Record<string, number>>({})
@@ -90,12 +95,15 @@ export function EquipePage() {
   }
 
   const [neriteOpen, setNeriteOpen] = useState(false)
+  const [mobOpen, setMobOpen] = useState(false)
   const [coordOpen, setCoordOpen] = useState(false)
   const [liderOpen, setLiderOpen] = useState(false)
   const [editingNeriteId, setEditingNeriteId] = useState<string | null>(null)
+  const [editingMobId, setEditingMobId] = useState<string | null>(null)
   const [editingCoordId, setEditingCoordId] = useState<string | null>(null)
   const [editingLiderId, setEditingLiderId] = useState<string | null>(null)
   const [deleteNeriteId, setDeleteNeriteId] = useState<string | null>(null)
+  const [deleteMobId, setDeleteMobId] = useState<string | null>(null)
   const [deleteCoordId, setDeleteCoordId] = useState<string | null>(null)
   const [deleteLiderId, setDeleteLiderId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -111,6 +119,14 @@ export function EquipePage() {
     lider_id: '',
     ativo: true,
   })
+  const [mobForm, setMobForm] = useState({
+    nome: '',
+    email: '',
+    password: '',
+    confirm: '',
+    diretoria_id: '',
+    ativo: true,
+  })
   const [coordForm, setCoordForm] = useState({ nome: '', diretoria_id: '' })
   const [liderForm, setLiderForm] = useState({ nome: '', telefone: '', diretoria_id: '', coordenador_id: '' })
 
@@ -120,6 +136,7 @@ export function EquipePage() {
     setDiretorias((dirs.data ?? []) as Profile[])
 
     let neritesQuery = supabase.from('profiles').select('*').eq('role', 'operador').order('nome')
+    let mobsQuery = supabase.from('profiles').select('*').eq('role', 'mobilizador').order('nome')
     let coordsQuery = supabase.from('coordenadores').select('*').order('nome')
     let lideresQuery = supabase.from('lideres').select('*').order('nome')
     let fichasQuery = supabase.from('cadastros').select('operator_id, coordenador, lider, diretoria_id')
@@ -127,15 +144,18 @@ export function EquipePage() {
     const scope = isAdmin ? filterDiretoria : diretoriaId
     if (scope) {
       neritesQuery = neritesQuery.eq('diretoria_id', scope)
+      mobsQuery = mobsQuery.eq('diretoria_id', scope)
       coordsQuery = coordsQuery.eq('diretoria_id', scope)
       lideresQuery = lideresQuery.eq('diretoria_id', scope)
     }
 
-    const [n, c, l, f] = await Promise.all([neritesQuery, coordsQuery, lideresQuery, fichasQuery])
+    const [n, m, c, l, f] = await Promise.all([neritesQuery, mobsQuery, coordsQuery, lideresQuery, fichasQuery])
     const neriteRows = (n.data ?? []) as Profile[]
+    const mobRows = (m.data ?? []) as Profile[]
     const coordRows = (c.data ?? []) as Coordenador[]
     const liderRows = (l.data ?? []) as Lider[]
     setNerites(neriteRows)
+    setMobilizadores(mobRows)
     setCoordenadores(coordRows)
     setLideres(liderRows)
 
@@ -201,6 +221,14 @@ export function EquipePage() {
         return l.nome.toLowerCase().includes(q)
       }),
     [lideres, q, coordenadorFromUrl],
+  )
+  const filteredMobilizadores = useMemo(
+    () =>
+      mobilizadores.filter((m) => {
+        if (!q) return true
+        return m.nome.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
+      }),
+    [mobilizadores, q],
   )
 
   const lideresCount = useMemo(
@@ -314,6 +342,34 @@ export function EquipePage() {
     setNeriteOpen(true)
   }
 
+  function openNewMob() {
+    setError(null)
+    setEditingMobId(null)
+    setMobForm({
+      nome: '',
+      email: '',
+      password: '',
+      confirm: '',
+      diretoria_id: diretoriaId ?? filterDiretoria ?? '',
+      ativo: true,
+    })
+    setMobOpen(true)
+  }
+
+  function openEditMob(m: Profile) {
+    setError(null)
+    setEditingMobId(m.id)
+    setMobForm({
+      nome: m.nome,
+      email: m.email,
+      password: '',
+      confirm: '',
+      diretoria_id: m.diretoria_id ?? '',
+      ativo: m.ativo,
+    })
+    setMobOpen(true)
+  }
+
   async function manageNeriteRequest(method: 'POST' | 'DELETE', body: Record<string, unknown>) {
     const { data: sessionData } = await supabase.auth.getSession()
     const token = sessionData.session?.access_token
@@ -343,17 +399,27 @@ export function EquipePage() {
 
     if (method === 'DELETE') {
       // Fallback local: sem API serverless não dá para apagar auth.users com segurança.
-      // Diretoria só desativa; admin com fichas desvincula e remove o profile se RLS permitir.
-      const { count } = await supabase
-        .from('cadastros')
-        .select('id', { count: 'exact', head: true })
-        .eq('operator_id', neriteId)
-      const fichasCount = count ?? 0
-      if (fichasCount > 0 && profile?.role !== 'admin') {
-        return { error: 'Só o administrador pode excluir nerite que já tem fichas. As fichas não são apagadas.' }
-      }
-      if (fichasCount > 0) {
-        await supabase.from('cadastros').update({ operator_id: null }).eq('operator_id', neriteId)
+      // Mobilizador: exclui o profile sem checagem de fichas.
+      // Diretoria só desativa nerite com fichas; admin com fichas desvincula e remove o profile se RLS permitir.
+      const { data: targetProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', neriteId)
+        .maybeSingle()
+      const isMobilizador = (targetProfile as { role?: string } | null)?.role === 'mobilizador'
+
+      if (!isMobilizador) {
+        const { count } = await supabase
+          .from('cadastros')
+          .select('id', { count: 'exact', head: true })
+          .eq('operator_id', neriteId)
+        const fichasCount = count ?? 0
+        if (fichasCount > 0 && profile?.role !== 'admin') {
+          return { error: 'Só o administrador pode excluir nerite que já tem fichas. As fichas não são apagadas.' }
+        }
+        if (fichasCount > 0) {
+          await supabase.from('cadastros').update({ operator_id: null }).eq('operator_id', neriteId)
+        }
       }
       const { error } = await supabase.from('profiles').delete().eq('id', neriteId)
       if (error) {
@@ -367,10 +433,11 @@ export function EquipePage() {
     const patch: Record<string, unknown> = {
       nome: body.nome,
       diretoria_id: body.diretoria_id || null,
-      coordenador_id: body.coordenador_id || null,
-      lider_id: body.lider_id || null,
       ativo: body.ativo == null ? true : Boolean(body.ativo),
     }
+    // Só aplica coordenador/lider quando enviados (nerites); mobilizador edita sem esses campos.
+    if ('coordenador_id' in body) patch.coordenador_id = body.coordenador_id || null
+    if ('lider_id' in body) patch.lider_id = body.lider_id || null
     const { error } = await supabase.from('profiles').update(patch).eq('id', neriteId)
     return { error: error?.message || null }
   }
@@ -450,6 +517,78 @@ export function EquipePage() {
       return
     }
     setDeleteNeriteId(null)
+    await load()
+  }
+
+  async function handleSaveMob() {
+    setError(null)
+    const targetDir = isAdmin ? mobForm.diretoria_id : diretoriaId
+    if (!mobForm.nome.trim() || !targetDir) {
+      setError('Informe o nome e a diretoria.')
+      return
+    }
+
+    if (editingMobId) {
+      if (mobForm.password || mobForm.confirm) {
+        if (mobForm.password !== mobForm.confirm) {
+          setError('As senhas não coincidem.')
+          return
+        }
+        if (mobForm.password.length < 8) {
+          setError('A nova senha precisa ter no mínimo 8 caracteres.')
+          return
+        }
+      }
+      setSaving(true)
+      const { error: err } = await manageNeriteRequest('POST', {
+        id: editingMobId,
+        nome: mobForm.nome.trim(),
+        diretoria_id: targetDir,
+        ativo: mobForm.ativo,
+        password: mobForm.password || undefined,
+      })
+      setSaving(false)
+      if (err) {
+        setError(err)
+        return
+      }
+    } else {
+      if (mobForm.password !== mobForm.confirm) {
+        setError('As senhas não coincidem.')
+        return
+      }
+      setSaving(true)
+      const { error: err } = await createNerite({
+        nome: mobForm.nome,
+        email: mobForm.email,
+        password: mobForm.password,
+        role: 'mobilizador',
+        diretoria_id: isAdmin ? mobForm.diretoria_id : diretoriaId,
+      })
+      setSaving(false)
+      if (err) {
+        setError(err)
+        return
+      }
+    }
+
+    setMobOpen(false)
+    setEditingMobId(null)
+    setMobForm({ nome: '', email: '', password: '', confirm: '', diretoria_id: '', ativo: true })
+    await load()
+  }
+
+  async function handleDeleteMob() {
+    if (!deleteMobId) return
+    setSaving(true)
+    const { error: err } = await manageNeriteRequest('DELETE', { id: deleteMobId })
+    setSaving(false)
+    if (err) {
+      setError(err)
+      setDeleteMobId(null)
+      return
+    }
+    setDeleteMobId(null)
     await load()
   }
 
@@ -539,6 +678,7 @@ export function EquipePage() {
   const meta = TAB_META[tab]
   const deleteNeriteName = nerites.find((n) => n.id === deleteNeriteId)?.nome
   const deleteNeriteFichas = deleteNeriteId ? (fichasByNerite[deleteNeriteId] ?? 0) : 0
+  const deleteMobName = mobilizadores.find((m) => m.id === deleteMobId)?.nome
   const deleteCoordName = coordenadores.find((c) => c.id === deleteCoordId)?.nome
   const deleteLiderName = lideres.find((l) => l.id === deleteLiderId)?.nome
 
@@ -565,6 +705,9 @@ export function EquipePage() {
           {tab === 'nerites' && (
             <Button onClick={openNewNerite}><UserPlus size={16} /> Nova nerite</Button>
           )}
+          {tab === 'mobilizadores' && canManageTeam && (
+            <Button onClick={openNewMob}><UserPlus size={16} /> Nova formiga</Button>
+          )}
           {tab === 'coordenadores' && (
             <Button onClick={openNewCoord}><Plus size={16} /> Novo coordenador</Button>
           )}
@@ -582,16 +725,19 @@ export function EquipePage() {
       )}
 
       <div className="views-row">
-        {([
-          ['coordenadores', 'Coordenadores', UserCog],
-          ['lideres', 'Lideranças', Crown],
-          ['nerites', 'Nerites', Users],
-        ] as const).map(([key, label, Icon]) => (
+        {(
+          [
+            { key: 'coordenadores' as const, label: 'Coordenadores', Icon: UserCog, count: coordenadores.length },
+            { key: 'lideres' as const, label: 'Lideranças', Icon: Crown, count: lideresCount },
+            { key: 'nerites' as const, label: 'Nerites', Icon: Users, count: neritesCount },
+            ...(canManageTeam
+              ? [{ key: 'mobilizadores' as const, label: 'Formigas', Icon: Megaphone, count: mobilizadores.length }]
+              : []),
+          ]
+        ).map(({ key, label, Icon, count }) => (
           <button key={key} type="button" className={`view-chip${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>
             <Icon size={14} /> {label}
-            <em className="view-chip-count">
-              {key === 'nerites' ? neritesCount : key === 'coordenadores' ? coordenadores.length : lideresCount}
-            </em>
+            <em className="view-chip-count">{count}</em>
           </button>
         ))}
       </div>
@@ -883,6 +1029,60 @@ export function EquipePage() {
             </div>
           )
         )}
+
+        {tab === 'mobilizadores' && canManageTeam && (
+          !filteredMobilizadores.length ? (
+            <EmptyState
+              title="Nenhuma formiga"
+              description="Cadastre quem poderá lançar Formigas na sua diretoria."
+              action={<Button onClick={openNewMob}><UserPlus size={16} /> Nova formiga</Button>}
+            />
+          ) : (
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    {isAdmin && <th>Diretoria</th>}
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredMobilizadores.map((m) => (
+                    <tr key={m.id}>
+                      <td><strong>{m.nome}</strong></td>
+                      <td>{m.email}</td>
+                      <td>
+                        <span className={`badge ${m.ativo ? 'badge-success' : 'badge-danger'}`}>
+                          {m.ativo ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </td>
+                      {isAdmin && <td>{dirName(m.diretoria_id)}</td>}
+                      <td>
+                        <div style={{ display: 'flex', gap: '0.35rem' }}>
+                          <Button variant="ghost" size="sm" aria-label="Editar" onClick={() => openEditMob(m)}>
+                            <Pencil size={16} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label="Excluir"
+                            title="Excluir formiga"
+                            onClick={() => { setError(null); setDeleteMobId(m.id) }}
+                          >
+                            <Trash2 size={16} color="var(--color-danger)" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
       </Card>
 
       <Modal
@@ -948,6 +1148,60 @@ export function EquipePage() {
             type="password"
             value={neriteForm.confirm}
             onChange={(e) => setNeriteForm((f) => ({ ...f, confirm: e.target.value }))}
+          />
+          {error && <div className="alert alert-error">{error}</div>}
+        </div>
+      </Modal>
+
+      <Modal
+        open={mobOpen}
+        title={editingMobId ? 'Editar formiga' : 'Nova formiga'}
+        onClose={() => !saving && setMobOpen(false)}
+        onConfirm={handleSaveMob}
+        confirmLabel="Salvar"
+        loading={saving}
+      >
+        <div style={{ display: 'grid', gap: '.75rem' }}>
+          {isAdmin && (
+            <Select
+              label="Diretoria"
+              value={mobForm.diretoria_id}
+              onChange={(e) => setMobForm((f) => ({ ...f, diretoria_id: e.target.value }))}
+              options={diretorias.map((d) => ({ value: d.id, label: d.nome }))}
+              placeholder="Selecione"
+            />
+          )}
+          <Input label="Nome" value={mobForm.nome} onChange={(e) => setMobForm((f) => ({ ...f, nome: e.target.value }))} />
+          <Input
+            label="E-mail"
+            type="email"
+            value={mobForm.email}
+            onChange={(e) => setMobForm((f) => ({ ...f, email: e.target.value }))}
+            disabled={Boolean(editingMobId)}
+          />
+          {editingMobId && (
+            <Select
+              label="Status"
+              value={mobForm.ativo ? '1' : '0'}
+              onChange={(e) => setMobForm((f) => ({ ...f, ativo: e.target.value === '1' }))}
+              options={[
+                { value: '1', label: 'Ativo' },
+                { value: '0', label: 'Inativo' },
+              ]}
+            />
+          )}
+          <Input
+            label={editingMobId ? 'Nova senha (opcional)' : 'Senha'}
+            type="password"
+            value={mobForm.password}
+            onChange={(e) => setMobForm((f) => ({ ...f, password: e.target.value }))}
+            placeholder={editingMobId ? 'Deixe em branco para manter' : undefined}
+          />
+          <Input
+            label={editingMobId ? 'Confirmar nova senha' : 'Confirmar senha'}
+            type="password"
+            value={mobForm.confirm}
+            onChange={(e) => setMobForm((f) => ({ ...f, confirm: e.target.value }))}
           />
           {error && <div className="alert alert-error">{error}</div>}
         </div>
@@ -1031,6 +1285,17 @@ export function EquipePage() {
         }
         onClose={() => !saving && setDeleteNeriteId(null)}
         onConfirm={handleDeleteNerite}
+        confirmLabel="Excluir"
+        confirmVariant="danger"
+        loading={saving}
+      />
+
+      <Modal
+        open={Boolean(deleteMobId)}
+        title="Excluir formiga?"
+        description={`Remover o acesso de "${deleteMobName ?? 'esta formiga'}".`}
+        onClose={() => !saving && setDeleteMobId(null)}
+        onConfirm={handleDeleteMob}
         confirmLabel="Excluir"
         confirmVariant="danger"
         loading={saving}

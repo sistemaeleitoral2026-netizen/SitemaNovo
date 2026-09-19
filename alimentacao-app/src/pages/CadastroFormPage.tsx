@@ -55,12 +55,8 @@ export function CadastroFormPage() {
   const [lideres, setLideres] = useState<Lider[]>([])
   const [coordenadorId, setCoordenadorId] = useState('')
   const [liderId, setLiderId] = useState('')
-  const [carrosAdesivados, setCarrosAdesivados] = useState(0)
-  const [adesivosCasa, setAdesivosCasa] = useState(0)
-  const [postagens, setPostagens] = useState(0)
 
   const isStaff = profile?.role === 'admin' || profile?.role === 'diretoria'
-  const showMobilizacao = isStaff && isEdit
 
   const diretoriaId =
     profile?.role === 'diretoria'
@@ -108,9 +104,6 @@ export function CadastroFormPage() {
           cidade: data.cidade ?? '',
           uf: data.uf ?? '',
         })
-        setCarrosAdesivados(Number(data.carros_adesivados) || 0)
-        setAdesivosCasa(Number(data.adesivos_casa) || 0)
-        setPostagens(Number(data.postagens) || 0)
       }
       setLoading(false)
     })
@@ -286,9 +279,6 @@ export function CadastroFormPage() {
             ? profile.id
             : null
     } else if (isStaff) {
-      payload.carros_adesivados = Math.max(0, Math.floor(Number(carrosAdesivados) || 0))
-      payload.adesivos_casa = Math.max(0, Math.floor(Number(adesivosCasa) || 0))
-      payload.postagens = Math.max(0, Math.floor(Number(postagens) || 0))
       if (profile?.role === 'diretoria') {
         payload.diretoria_id = profile.id
       }
@@ -371,45 +361,6 @@ export function CadastroFormPage() {
           </p>
         </div>
       </div>
-
-      {showMobilizacao && (
-        <div className="ficha-mobilizacao-bar">
-          <strong>Mobilização</strong>
-          <label className="ficha-mobilizacao-field">
-            <span>Carros adesivados</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              className="mobilizacao-qty"
-              value={carrosAdesivados ? String(carrosAdesivados) : ''}
-              placeholder="0"
-              onChange={(e) => setCarrosAdesivados(Number(e.target.value.replace(/\D/g, '') || 0))}
-            />
-          </label>
-          <label className="ficha-mobilizacao-field">
-            <span>Adesivos para casa</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              className="mobilizacao-qty"
-              value={adesivosCasa ? String(adesivosCasa) : ''}
-              placeholder="0"
-              onChange={(e) => setAdesivosCasa(Number(e.target.value.replace(/\D/g, '') || 0))}
-            />
-          </label>
-          <label className="ficha-mobilizacao-field">
-            <span>Postagens</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              className="mobilizacao-qty"
-              value={postagens ? String(postagens) : ''}
-              placeholder="0"
-              onChange={(e) => setPostagens(Number(e.target.value.replace(/\D/g, '') || 0))}
-            />
-          </label>
-        </div>
-      )}
 
       <Card>
         <form onSubmit={handleSubmit}>
