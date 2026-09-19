@@ -51,6 +51,12 @@ export interface Cadastro {
   lider: string
   data_nascimento: string | null
   cep: string | null
+  endereco?: string | null
+  numero?: string | null
+  complemento?: string | null
+  bairro?: string | null
+  cidade?: string | null
+  uf?: string | null
   lat: number | null
   lng: number | null
   carros_adesivados?: number
@@ -96,6 +102,10 @@ export interface ImportPreviewRow {
   lider: string
   data_nascimento: string
   cep: string
+  endereco?: string
+  numero?: string
+  complemento?: string
+  bairro?: string
   status: 'valido' | 'duplicado' | 'erro'
   mensagem?: string
 }
@@ -139,6 +149,12 @@ export interface CadastroFormData {
   lider: string
   data_nascimento: string
   cep: string
+  endereco: string
+  numero: string
+  complemento: string
+  bairro: string
+  cidade: string
+  uf: string
 }
 
 export interface PeriodFilter {

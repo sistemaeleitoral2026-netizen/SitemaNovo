@@ -27,6 +27,34 @@ export async function geocodeFromZona(zona: string): Promise<GeocodeResult | nul
   return coordsFromZona(zona)
 }
 
+export interface ViaCepAddress {
+  logradouro: string
+  bairro: string
+  localidade: string
+  uf: string
+}
+
+/** Busca só o endereço no ViaCEP (rápido; não geocodifica). */
+export async function lookupViaCep(cep: string): Promise<ViaCepAddress | null> {
+  const normalized = normalizeCep(cep)
+  if (normalized.length !== 8) return null
+
+  try {
+    const viaRes = await fetch(`https://viacep.com.br/ws/${normalized}/json/`)
+    if (!viaRes.ok) return null
+    const viaData = (await viaRes.json()) as ViaCepResponse
+    if (viaData.erro) return null
+    return {
+      logradouro: viaData.logradouro?.trim() || '',
+      bairro: viaData.bairro?.trim() || '',
+      localidade: viaData.localidade?.trim() || '',
+      uf: viaData.uf?.trim() || '',
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function geocodeFromCep(cep: string): Promise<GeocodeResult | null> {
   const normalized = normalizeCep(cep)
   if (normalized.length !== 8) return null
