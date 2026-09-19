@@ -1,19 +1,27 @@
 import { supabase } from './supabase'
 
-export async function logAudit(
+/** Auditoria em segundo plano — não deve atrasar o salvar da ficha. */
+export function logAudit(
   acao: string,
   entidade?: string,
   entidadeId?: string,
   detalhes: Record<string, unknown> = {},
-): Promise<void> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return
+): void {
+  void (async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const userId = session?.user?.id
+      if (!userId) return
 
-  await supabase.from('auditoria').insert({
-    actor_id: user.id,
-    acao,
-    entidade: entidade ?? null,
-    entidade_id: entidadeId ?? null,
-    detalhes,
-  })
+      await supabase.from('auditoria').insert({
+        actor_id: userId,
+        acao,
+        entidade: entidade ?? null,
+        entidade_id: entidadeId ?? null,
+        detalhes,
+      })
+    } catch {
+      // Auditoria nunca deve falhar o fluxo principal
+    }
+  })()
 }
