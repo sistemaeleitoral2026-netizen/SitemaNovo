@@ -476,6 +476,29 @@ table {
   text-decoration: none;
   transition: background 0.18s, color 0.18s;
 }
+.app-sidebar-link-label { flex: 1; min-width: 0; }
+.app-sidebar-badge {
+  flex: 0 0 auto;
+  min-width: 1.35rem;
+  height: 1.2rem;
+  padding: 0 .4rem;
+  border-radius: 999px;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.app-sidebar-link.is-active .app-sidebar-badge,
+.app-sidebar-link.has-badge:not(.is-active) .app-sidebar-badge {
+  background: #2563eb;
+  color: #fff;
+}
 
 .app-sidebar-link svg {
   flex: none;
@@ -1061,7 +1084,7 @@ a.ranking-row:hover .ranking-person strong { color: #2459c4; }
   margin-bottom: 1rem;
 }
 
-/* Todos os Cadastros â estrutura do layout de referÃªncia */
+/* Todos os Cadastros Ã¢ÂÂ estrutura do layout de referÃÂªncia */
 .cadastros-page .page-header { margin-bottom: 1rem; }
 .cadastros-page .page-subtitle { margin-top: .16rem; font-size: .75rem; }
 .cadastros-page .page-header-actions { gap: .625rem; }
@@ -2280,7 +2303,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .admin-top-grid { grid-template-columns: 1fr; }
 }
 
-/* ââ Meta de fichas ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Meta de fichas Ã¢ÂÂÃ¢ÂÂ */
 .meta-config-hint {
   display: inline-flex;
   align-items: center;
@@ -2864,7 +2887,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   }
 }
 
-/* ââ LideranÃ§a (meta por pessoa) ââ */
+/* Ã¢ÂÂÃ¢ÂÂ LideranÃÂ§a (meta por pessoa) Ã¢ÂÂÃ¢ÂÂ */
 .lideranca-kpi-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2988,7 +3011,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   }
 }
 
-/* ââ Design system foundations ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Design system foundations Ã¢ÂÂÃ¢ÂÂ */
 :root {
   --app-bg: #f4f5f7;
   --surface-muted: #f8fafc;
@@ -3145,7 +3168,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .page-subtitle { max-width: 720px; line-height: 1.5; }
 .badge { padding: .22rem .55rem; border-radius: 6px; }
 
-/* ââ Authentication ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Authentication Ã¢ÂÂÃ¢ÂÂ */
 .login-page {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(440px, .9fr);
@@ -3219,7 +3242,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 
-/* ââ MobilizaÃ§Ã£o: ediÃ§Ã£o explÃ­cita e layout responsivo ââ */
+/* Ã¢ÂÂÃ¢ÂÂ MobilizaÃÂ§ÃÂ£o: ediÃÂ§ÃÂ£o explÃÂ­cita e layout responsivo Ã¢ÂÂÃ¢ÂÂ */
 .mobilizacao-feedback {
   display: flex;
   align-items: center;
@@ -3278,7 +3301,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .mobilizacao-open-link { justify-content: center; width: 100%; margin-right: 0; padding: .35rem; }
 }
 
-/* ââ Dashboard: visÃ£o de mobilizaÃ§Ã£o ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Dashboard: visÃÂ£o de mobilizaÃÂ§ÃÂ£o Ã¢ÂÂÃ¢ÂÂ */
 .dashboard-overview-grid {
   grid-template-columns: minmax(235px, 1.25fr) repeat(3, minmax(0, 1fr));
 }
@@ -3333,7 +3356,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .mobilizacao-summary-grid { grid-template-columns: 1fr; }
 }
 
-/* ââ Dashboard editorial: menos caixas, mais hierarquia ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Dashboard editorial: menos caixas, mais hierarquia Ã¢ÂÂÃ¢ÂÂ */
 .dashboard-eyebrow {
   margin-bottom: .28rem !important;
   color: #7a8698 !important;
@@ -3448,7 +3471,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
 
 /* ============================================================
    Nerites dashboard redesign (standalone parity)
-   Appended overrides â keep at end of file
+   Appended overrides Ã¢ÂÂ keep at end of file
    ============================================================ */
 
 /* Remove shell padding when dashboard owns its own inset */
@@ -4144,7 +4167,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   color: #6b7280;
 }
 
-/* MobilizaÃ§Ã£o rows */
+/* MobilizaÃÂ§ÃÂ£o rows */
 .nv-mob-row {
   display: flex;
   align-items: center;
@@ -4763,7 +4786,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
 }
 
 
-/* ===== Lanï¿½ar Formigas (fiel a painel_nerites.tsx) ===== */
+/* ===== LanÃ¯Â¿Â½ar Formigas (fiel a painel_nerites.tsx) ===== */
 .fl-page { max-width: 72rem; margin: 0 auto; width: 100%; }
 .fl-page-head {
   display: flex;
@@ -5298,7 +5321,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .fl-btn-wa { justify-content: center; }
 }
 
-/* ââ Demandas ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Demandas Ã¢ÂÂÃ¢ÂÂ */
 .dm-page { max-width: 960px; animation: dmFade .15s ease-out; }
 @keyframes dmFade {
   from { opacity: 0; transform: translateY(2px); }
@@ -5607,7 +5630,59 @@ button.fichas-count.equipe-drill-count.zero:hover {
   font-weight: 550;
   cursor: pointer;
 }
-.dm-foto-btn:hover { background: #f8fafc; }
+.dm-foto-btn:disabled { opacity: .5; cursor: not-allowed; }
+.dm-fotos-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .55rem;
+  margin-top: .75rem;
+}
+.dm-foto-tile {
+  position: relative;
+  width: 72px;
+  height: 56px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+.dm-foto-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.dm-foto-tile button {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, .72);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+.dm-foto-tile button:hover { background: #e11d48; }
+.dm-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+  align-items: center;
+}
+.dm-thumbs .dm-thumb span { display: none; }
+.dm-thumbs .dm-thumb:first-child {
+  padding-right: .65rem;
+}
+.dm-thumbs .dm-thumb:first-child span {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+}
 .dm-foto-chip {
   display: inline-flex;
   align-items: center;
