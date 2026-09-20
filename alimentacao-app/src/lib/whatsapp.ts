@@ -14,10 +14,14 @@ export function buildWhatsAppUrl(
   let digits = digitsOnly(phone ?? '')
   if (!digits) return null
 
-  if (digits.startsWith('55') && digits.length >= 12) {
-    digits = digits.slice(0, 13)
-  } else if (digits.length >= 10 && digits.length <= 11) {
+  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+    digits = digits.slice(2)
+  }
+
+  if (digits.length === 11 || digits.length === 10) {
     digits = `55${digits}`
+  } else if (digits.startsWith('55') && digits.length >= 12) {
+    digits = digits.slice(0, 13)
   } else {
     return null
   }

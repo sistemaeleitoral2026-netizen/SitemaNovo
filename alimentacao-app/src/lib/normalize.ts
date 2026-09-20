@@ -32,7 +32,12 @@ export function formatCpf(value: string | null | undefined): string {
 }
 
 export function normalizePhone(value: unknown): string {
-  return digitsOnly(value).slice(0, 11)
+  let d = digitsOnly(value)
+  // Colaram com DDI 55 (ex.: 5598999999999) → remove o país
+  if (d.startsWith('55') && (d.length === 12 || d.length === 13)) {
+    d = d.slice(2)
+  }
+  return d.slice(0, 11)
 }
 
 export function formatPhone(value: string | null | undefined): string {
