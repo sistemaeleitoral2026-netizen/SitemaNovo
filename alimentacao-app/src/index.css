@@ -332,7 +332,8 @@ table {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow-x: hidden;
+  /* visible: overflow-x:hidden cria containing block e quebra position:fixed (barra Salvar) */
+  overflow: visible;
 }
 
 .main-content-body {
@@ -5176,6 +5177,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .fl-btn-wa {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: .5rem;
   padding: .55rem 1rem;
   border-radius: 10px;
@@ -5187,6 +5189,12 @@ button.fichas-count.equipe-drill-count.zero:hover {
   text-decoration: none;
   box-shadow: 0 1px 2px rgba(22, 163, 74, .25);
   cursor: pointer;
+}
+.fl-btn-wa-main {
+  width: 100%;
+  padding: .85rem 1rem;
+  font-size: .95rem;
+  border-radius: 12px;
 }
 .fl-btn-wa:hover { background: #15803d; }
 .fl-btn-wa.is-disabled,
@@ -5420,7 +5428,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
     max-width: 100%;
     width: 100%;
     margin: 0;
-    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
     overflow-x: clip;
   }
   .fl-page-lancar .fl-title {
@@ -5473,20 +5481,25 @@ button.fichas-count.equipe-drill-count.zero:hover {
     max-width: none;
     width: 100%;
   }
+  /* 3 opções em coluna no celular — cabe na tela */
   .fl-wa-segment-3 .fl-segment {
     flex-direction: column;
-    gap: .25rem;
+    gap: .3rem;
   }
   .fl-wa-segment-3 .fl-segment button {
     width: 100%;
     flex: 1 1 auto;
-    padding: .7rem .85rem;
+    padding: .75rem .85rem;
     font-size: .875rem;
     text-align: center;
+    white-space: normal;
   }
   .fl-segment button {
     font-size: .72rem;
     padding: .55rem .35rem;
+  }
+  .fl-btn-wa-main {
+    margin-bottom: .15rem;
   }
   .fl-link-row {
     flex-direction: column;
@@ -5510,11 +5523,15 @@ button.fichas-count.equipe-drill-count.zero:hover {
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 40;
+    z-index: 60;
     padding: .75rem 1rem calc(.75rem + env(safe-area-inset-bottom, 0px));
-    background: rgba(255, 255, 255, .92);
+    background: rgba(255, 255, 255, .96);
     border-top: 1px solid #e2e8f0;
     backdrop-filter: blur(8px);
+    /* evita ficar preso em container com overflow */
+    width: 100vw;
+    max-width: 100vw;
+    box-sizing: border-box;
   }
   .fl-btn-save-full {
     width: 100%;

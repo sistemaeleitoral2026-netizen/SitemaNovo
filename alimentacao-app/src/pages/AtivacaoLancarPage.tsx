@@ -355,6 +355,25 @@ export function AtivacaoLancarPage() {
                     Só a formiga que registrou este status pode alterá-lo.
                   </p>
                 )}
+                {waUrl ? (
+                  <a
+                    href={waUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="fl-btn-wa fl-btn-wa-main"
+                    onClick={() => {
+                      if (editWa) setContatoStatus('sim')
+                    }}
+                  >
+                    <ExternalLink size={16} />
+                    Enviar mensagem
+                  </a>
+                ) : (
+                  <button type="button" className="fl-btn-wa fl-btn-wa-main is-disabled" disabled>
+                    <ExternalLink size={16} />
+                    Sem telefone
+                  </button>
+                )}
                 <div className="fl-wa-row">
                   <div className="fl-wa-segment fl-wa-segment-3">
                     <SegmentedControl
@@ -368,25 +387,6 @@ export function AtivacaoLancarPage() {
                       onChange={(v) => setContatoStatus(v as ContatoWhatsappStatus)}
                     />
                   </div>
-                  {waUrl ? (
-                    <a
-                      href={waUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="fl-btn-wa"
-                      onClick={() => {
-                        if (editWa) setContatoStatus('sim')
-                      }}
-                    >
-                      <ExternalLink size={16} />
-                      Enviar mensagem
-                    </a>
-                  ) : (
-                    <button type="button" className="fl-btn-wa is-disabled" disabled>
-                      <ExternalLink size={16} />
-                      Sem telefone
-                    </button>
-                  )}
                 </div>
               </div>
             )}
