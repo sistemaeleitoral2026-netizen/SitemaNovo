@@ -247,7 +247,11 @@ export function AtivacaoPainelPage() {
       String(p.carros_adesivados),
       p.adesivos_casa > 0 ? 'Sim' : 'Nao',
       String(p.postagem_links.length || p.postagens),
-      p.contato_whatsapp ? 'Sim' : 'Nao',
+      p.contato_whatsapp_status === 'sim'
+        ? 'Ja acionada'
+        : p.contato_whatsapp_status === 'sem'
+          ? 'Nao tem WhatsApp'
+          : 'Nao acionada',
       p.postagem_links.join(' | '),
       p.ativacao_notas,
     ])
@@ -459,8 +463,8 @@ export function AtivacaoPainelPage() {
             { value: 'com_carro', label: 'Com carro adesivado' },
             { value: 'casa_sim', label: 'Com casa adesivada' },
             { value: 'com_links', label: 'Com links de rede' },
-            { value: 'contato_sim', label: 'WhatsApp acionado: Sim' },
-            { value: 'contato_nao', label: 'WhatsApp acionado: Não' },
+            { value: 'contato_sim', label: 'WhatsApp: Já acionada' },
+            { value: 'contato_nao', label: 'WhatsApp: Não acionada' },
           ]}
         />
 
@@ -525,7 +529,13 @@ export function AtivacaoPainelPage() {
                     <td>
                       <div className="ativacao-wa-cell">
                         <WhatsAppLink phone={p.telefone} className="whatsapp-link-inline" />
-                        <span>{p.contato_whatsapp ? 'Acionado' : 'Pendente'}</span>
+                        <span>
+                          {p.contato_whatsapp_status === 'sim'
+                            ? 'Já acionada'
+                            : p.contato_whatsapp_status === 'sem'
+                              ? 'Sem WhatsApp'
+                              : 'Não acionada'}
+                        </span>
                       </div>
                     </td>
                     <td>

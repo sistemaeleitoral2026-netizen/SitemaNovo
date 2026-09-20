@@ -2,6 +2,7 @@ import { supabase } from './supabase'
 import type { Cadastro, Coordenador, Lider, Profile } from '../types'
 
 export type AtivacaoTipo = 'eleitor' | 'lideranca' | 'coordenador'
+export type ContatoWhatsappStatus = 'nao' | 'sim' | 'sem'
 
 export type AtivacaoPessoa = {
   key: string
@@ -19,12 +20,27 @@ export type AtivacaoPessoa = {
   postagem_links: string[]
   ativacao_notas: string
   ativacao_em: string | null
+  /** true quando status === 'sim' (legado / KPI) */
   contato_whatsapp: boolean
+  contato_whatsapp_status: ContatoWhatsappStatus
+  formigas_wa_by: string | null
+  formigas_carros_by: string | null
+  formigas_casa_by: string | null
+  formigas_links_by: string | null
   diretoria_id: string | null
   coordenador: string
   lider: string
   operator_id: string | null
   coordenador_id: string | null
+}
+
+function toContatoStatus(row: {
+  contato_whatsapp_status?: unknown
+  contato_whatsapp?: unknown
+}): ContatoWhatsappStatus {
+  const raw = String(row.contato_whatsapp_status ?? '').trim().toLowerCase()
+  if (raw === 'sim' || raw === 'sem' || raw === 'nao') return raw
+  return row.contato_whatsapp ? 'sim' : 'nao'
 }
 
 function toQty(value: unknown) {
@@ -58,9 +74,15 @@ function fromAtivacaoFields(row: {
   ativacao_notas?: unknown
   ativacao_em?: unknown
   contato_whatsapp?: unknown
+  contato_whatsapp_status?: unknown
+  formigas_wa_by?: unknown
+  formigas_carros_by?: unknown
+  formigas_casa_by?: unknown
+  formigas_links_by?: unknown
 }) {
   const ativacao_em = (row.ativacao_em as string | null | undefined) ?? null
   const launched = Boolean(ativacao_em)
+  const status = launched ? toContatoStatus(row) : 'nao'
   return {
     carros_adesivados: launched ? toQty(row.carros_adesivados) : 0,
     adesivos_casa: launched ? toQty(row.adesivos_casa) : 0,
@@ -68,7 +90,12 @@ function fromAtivacaoFields(row: {
     postagem_links: launched ? toLinks(row.postagem_links) : [],
     ativacao_notas: launched ? String(row.ativacao_notas ?? '') : '',
     ativacao_em,
-    contato_whatsapp: launched ? Boolean(row.contato_whatsapp) : false,
+    contato_whatsapp: status === 'sim',
+    contato_whatsapp_status: status,
+    formigas_wa_by: launched ? ((row.formigas_wa_by as string | null) ?? null) : null,
+    formigas_carros_by: launched ? ((row.formigas_carros_by as string | null) ?? null) : null,
+    formigas_casa_by: launched ? ((row.formigas_casa_by as string | null) ?? null) : null,
+    formigas_links_by: launched ? ((row.formigas_links_by as string | null) ?? null) : null,
   }
 }
 
@@ -140,13 +167,13 @@ function fromCoord(c: Coordenador): AtivacaoPessoa {
 }
 
 const CADASTRO_SELECT =
-  'id, nome_completo, titulo, zona, bairro, telefone, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, diretoria_id, coordenador, lider, operator_id'
+  'id, nome_completo, titulo, zona, bairro, telefone, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, coordenador, lider, operator_id'
 
 const LIDER_SELECT =
-  'id, nome, telefone, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, diretoria_id, coordenador_id'
+  'id, nome, telefone, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, coordenador_id'
 
 const COORD_SELECT =
-  'id, nome, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, diretoria_id'
+  'id, nome, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id'
 
 export async function searchAtivacaoPessoas(term: string, limit = 12): Promise<AtivacaoPessoa[]> {
   const q = term.trim()
@@ -213,7 +240,7 @@ export type AtivacaoSaveInput = {
   casa: boolean
   links: string[]
   notas: string
-  contato_whatsapp: boolean
+  contato_whatsapp_status: ContatoWhatsappStatus
 }
 
 export async function saveAtivacao(
@@ -225,8 +252,10 @@ export async function saveAtivacao(
   const carros = Math.max(0, Math.floor(Number(input.carros_adesivados) || 0))
   const casa = input.casa ? 1 : 0
   const notas = input.notas.trim() || null
-  const contato = Boolean(input.contato_whatsapp)
-  const hasLaunch = carros > 0 || casa > 0 || links.length > 0 || Boolean(notas) || contato
+  const status: ContatoWhatsappStatus = input.contato_whatsapp_status
+  const contato = status === 'sim'
+  const hasLaunch =
+    carros > 0 || casa > 0 || links.length > 0 || Boolean(notas) || status === 'sim' || status === 'sem'
   const payload = {
     carros_adesivados: carros,
     adesivos_casa: casa,
@@ -235,6 +264,7 @@ export async function saveAtivacao(
     ativacao_notas: notas,
     ativacao_em: hasLaunch ? new Date().toISOString() : null,
     contato_whatsapp: contato,
+    contato_whatsapp_status: status,
   }
 
   const table = tipo === 'eleitor' ? 'cadastros' : tipo === 'lideranca' ? 'lideres' : 'coordenadores'
@@ -342,14 +372,15 @@ function matchesStatus(p: AtivacaoPessoa, status: AtivacaoListFilters['status'])
     p.carros_adesivados > 0
     || p.adesivos_casa > 0
     || p.postagem_links.length > 0
-    || p.contato_whatsapp
+    || p.contato_whatsapp_status === 'sim'
+    || p.contato_whatsapp_status === 'sem'
   if (status === 'com_ativacao') return hasAny
   if (status === 'sem_ativacao') return !hasAny
   if (status === 'com_carro') return p.carros_adesivados > 0
   if (status === 'casa_sim') return p.adesivos_casa > 0
   if (status === 'com_links') return p.postagem_links.length > 0
-  if (status === 'contato_sim') return p.contato_whatsapp
-  if (status === 'contato_nao') return !p.contato_whatsapp
+  if (status === 'contato_sim') return p.contato_whatsapp_status === 'sim'
+  if (status === 'contato_nao') return p.contato_whatsapp_status === 'nao'
   return true
 }
 
@@ -522,12 +553,13 @@ export async function fetchAtivacaoKpis(filters: AtivacaoListFilters = {}) {
     if (p.carros_adesivados > 0) carros += 1
     if (p.adesivos_casa > 0) casas += 1
     if (p.postagem_links.length > 0 || p.postagens > 0) postagens += 1
-    if (p.contato_whatsapp) whatsapp += 1
+    if (p.contato_whatsapp_status === 'sim') whatsapp += 1
     if (
       p.carros_adesivados > 0
       || p.adesivos_casa > 0
       || p.postagem_links.length > 0
-      || p.contato_whatsapp
+      || p.contato_whatsapp_status === 'sim'
+      || p.contato_whatsapp_status === 'sem'
     ) {
       comAtivacao += 1
     }

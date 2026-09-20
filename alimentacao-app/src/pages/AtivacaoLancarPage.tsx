@@ -23,7 +23,24 @@ import {
   saveAtivacao,
   searchAtivacaoPessoas,
   type AtivacaoPessoa,
+  type ContatoWhatsappStatus,
 } from '../lib/ativacao'
+
+function canEditSection(
+  ownerId: string | null | undefined,
+  userId: string | null | undefined,
+  canOverride: boolean,
+) {
+  if (!ownerId) return true
+  if (canOverride) return true
+  return Boolean(userId && ownerId === userId)
+}
+
+function waStatusLabel(status: ContatoWhatsappStatus) {
+  if (status === 'sim') return 'Já acionada'
+  if (status === 'sem') return 'Sem WhatsApp'
+  return 'Não acionada'
+}
 
 function SegmentedControl({
   options,
@@ -76,13 +93,18 @@ export function AtivacaoLancarPage() {
   const [links, setLinks] = useState<string[]>([])
   const [linkDraft, setLinkDraft] = useState('')
   const [notas, setNotas] = useState('')
-  const [contatoWhatsapp, setContatoWhatsapp] = useState(false)
+  const [contatoStatus, setContatoStatus] = useState<ContatoWhatsappStatus>('nao')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState<string | null>(null)
 
   const isFormActive = selected !== null
   const waUrl = buildWhatsAppUrl(selected?.telefone)
+  const canOverride = hasRole(profile, 'admin') || hasRole(profile, 'diretoria')
+  const editWa = canEditSection(selected?.formigas_wa_by, profile?.id, canOverride)
+  const editCarros = canEditSection(selected?.formigas_carros_by, profile?.id, canOverride)
+  const editCasa = canEditSection(selected?.formigas_casa_by, profile?.id, canOverride)
+  const editLinks = canEditSection(selected?.formigas_links_by, profile?.id, canOverride)
 
   useEffect(() => {
     if (!preId || !preTipo) return
@@ -123,7 +145,7 @@ export function AtivacaoLancarPage() {
     setCasa(p.adesivos_casa > 0)
     setLinks(p.postagem_links.length ? [...p.postagem_links] : [])
     setNotas(p.ativacao_notas || '')
-    setContatoWhatsapp(Boolean(p.contato_whatsapp))
+    setContatoStatus(p.contato_whatsapp_status)
     setError(null)
     setOk(null)
   }
@@ -138,7 +160,7 @@ export function AtivacaoLancarPage() {
     setCasa(false)
     setLinks([])
     setNotas('')
-    setContatoWhatsapp(false)
+    setContatoStatus('nao')
     setLinkDraft('')
     setError(null)
     setOk(null)
@@ -191,7 +213,7 @@ export function AtivacaoLancarPage() {
       casa,
       links,
       notas,
-      contato_whatsapp: contatoWhatsapp,
+      contato_whatsapp_status: contatoStatus,
     })
     setSaving(false)
     if (err) {
@@ -205,7 +227,7 @@ export function AtivacaoLancarPage() {
     setCasa(false)
     setLinks([])
     setNotas('')
-    setContatoWhatsapp(false)
+    setContatoStatus('nao')
     setLinkDraft('')
   }
 
@@ -314,8 +336,8 @@ export function AtivacaoLancarPage() {
                 </div>
                 <h3>WhatsApp</h3>
               </div>
-              <span className={`fl-pill${contatoWhatsapp ? ' ok' : ''}`}>
-                {contatoWhatsapp ? 'Acionada' : isFormActive ? 'Liberado' : 'Ainda não'}
+              <span className={`fl-pill${contatoStatus === 'sim' ? ' ok' : contatoStatus === 'sem' ? ' warn' : ''}`}>
+                {isFormActive ? waStatusLabel(contatoStatus) : 'Ainda não'}
               </span>
             </div>
 
@@ -328,15 +350,22 @@ export function AtivacaoLancarPage() {
                 <p className="fl-hint">
                   Abra a conversa e marque se essa pessoa já foi acionada pelo WhatsApp.
                 </p>
+                {!editWa && (
+                  <p className="fl-hint fl-lock-hint">
+                    Só a formiga que registrou este status pode alterá-lo.
+                  </p>
+                )}
                 <div className="fl-wa-row">
-                  <div className="fl-wa-segment">
+                  <div className="fl-wa-segment fl-wa-segment-3">
                     <SegmentedControl
+                      disabled={!editWa}
                       options={[
                         { label: 'Não acionada', value: 'nao' },
                         { label: 'Já acionada', value: 'sim' },
+                        { label: 'Não tem WhatsApp', value: 'sem' },
                       ]}
-                      value={contatoWhatsapp ? 'sim' : 'nao'}
-                      onChange={(v) => setContatoWhatsapp(v === 'sim')}
+                      value={contatoStatus}
+                      onChange={(v) => setContatoStatus(v as ContatoWhatsappStatus)}
                     />
                   </div>
                   {waUrl ? (
@@ -345,7 +374,9 @@ export function AtivacaoLancarPage() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="fl-btn-wa"
-                      onClick={() => setContatoWhatsapp(true)}
+                      onClick={() => {
+                        if (editWa) setContatoStatus('sim')
+                      }}
                     >
                       <ExternalLink size={16} />
                       Enviar mensagem
@@ -370,11 +401,14 @@ export function AtivacaoLancarPage() {
                 </div>
                 <span className="fl-pill">{carros} veículo{carros === 1 ? '' : 's'}</span>
               </div>
+              {!editCarros && isFormActive && (
+                <p className="fl-hint fl-lock-hint">Só quem registrou os carros pode alterar.</p>
+              )}
               <label className="fl-label-sm">Quantidade</label>
               <div className="fl-stepper">
                 <button
                   type="button"
-                  disabled={!isFormActive}
+                  disabled={!isFormActive || !editCarros}
                   onClick={() => setCarros((n) => Math.max(0, n - 1))}
                   aria-label="Diminuir"
                 >
@@ -382,13 +416,13 @@ export function AtivacaoLancarPage() {
                 </button>
                 <input
                   inputMode="numeric"
-                  disabled={!isFormActive}
+                  disabled={!isFormActive || !editCarros}
                   value={String(carros)}
                   onChange={(e) => setCarros(Math.max(0, Number(e.target.value.replace(/\D/g, '') || 0)))}
                 />
                 <button
                   type="button"
-                  disabled={!isFormActive}
+                  disabled={!isFormActive || !editCarros}
                   onClick={() => setCarros((n) => n + 1)}
                   aria-label="Aumentar"
                 >
@@ -407,9 +441,12 @@ export function AtivacaoLancarPage() {
                   {casa ? 'Com adesivo' : 'Sem adesivo'}
                 </span>
               </div>
+              {!editCasa && isFormActive && (
+                <p className="fl-hint fl-lock-hint">Só quem registrou o adesivo pode alterar.</p>
+              )}
               <label className="fl-label-sm">Confirmação de campo</label>
               <SegmentedControl
-                disabled={!isFormActive}
+                disabled={!isFormActive || !editCasa}
                 options={[
                   { label: 'Não possui', value: 'nao' },
                   { label: 'Possui adesivo', value: 'sim' },
@@ -428,25 +465,28 @@ export function AtivacaoLancarPage() {
               </div>
               <span className="fl-pill">{links.length} postagem{links.length === 1 ? '' : 's'}</span>
             </div>
+            {!editLinks && isFormActive && (
+              <p className="fl-hint fl-lock-hint">Só quem registrou as postagens pode alterar os links.</p>
+            )}
             <p className="fl-hint">Cada link válido conta como 1 postagem.</p>
             <div className="fl-link-row">
               <input
                 type="url"
                 placeholder="https://instagram.com/…"
                 value={linkDraft}
-                disabled={!isFormActive}
+                disabled={!isFormActive || !editLinks}
                 onChange={(e) => setLinkDraft(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault()
-                    addLink()
+                    if (editLinks) addLink()
                   }
                 }}
               />
               <button
                 type="button"
                 className="fl-btn-dark"
-                disabled={!isFormActive || !linkDraft.trim()}
+                disabled={!isFormActive || !editLinks || !linkDraft.trim()}
                 onClick={addLink}
               >
                 <Plus size={16} /> Adicionar
@@ -459,6 +499,7 @@ export function AtivacaoLancarPage() {
                     <a href={url} target="_blank" rel="noopener noreferrer">{url}</a>
                     <button
                       type="button"
+                      disabled={!editLinks}
                       onClick={() => setLinks((prev) => prev.filter((l) => l !== url))}
                     >
                       Remover
