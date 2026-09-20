@@ -25,6 +25,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Pagination } from '../components/ui/Pagination'
 import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import { FormigasFichaHistoricoDrawer } from '../components/FormigasFichaHistoricoDrawer'
+import { FormigasFotoThumbButton } from '../components/FormigasFotoField'
 import { useAuth } from '../contexts/AuthContext'
 import { hasRole } from '../lib/roles'
 import { formatPhone } from '../lib/format'
@@ -585,6 +586,11 @@ export function AtivacaoPainelPage() {
                               <Bike size={12} /> {p.motos_adesivadas}
                             </span>
                           )}
+                          <FormigasFotoThumbButton
+                            paths={p.foto_veiculo_paths}
+                            title={`Veículo — ${p.nome}`}
+                            subtitle={p.tipoLabel}
+                          />
                         </span>
                       ) : (
                         <span className="ativacao-mapa-empty">—</span>
@@ -592,27 +598,34 @@ export function AtivacaoPainelPage() {
                     </td>
                     <td>
                       {p.adesivos_casa > 0 ? (
-                        (() => {
-                          const url = mapsUrlForPessoa(p)
-                          return url ? (
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="ativacao-mapa-link"
-                              title={[p.endereco, p.numero && `nº ${p.numero}`, p.cep].filter(Boolean).join(', ') || 'Abrir no mapa'}
-                              aria-label={`Mapa de ${p.nome}`}
-                            >
-                              <MapPin size={16} strokeWidth={2.25} />
-                              <span>Mapa</span>
-                            </a>
-                          ) : (
-                            <span className="ativacao-mapa-missing" title="Sem coordenadas ou endereço">
-                              <MapPin size={16} />
-                              <span>Sem local</span>
-                            </span>
-                          )
-                        })()
+                        <span className="ativacao-casa-cell">
+                          {(() => {
+                            const url = mapsUrlForPessoa(p)
+                            return url ? (
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="ativacao-mapa-link"
+                                title={[p.endereco, p.numero && `nº ${p.numero}`, p.cep].filter(Boolean).join(', ') || 'Abrir no mapa'}
+                                aria-label={`Mapa de ${p.nome}`}
+                              >
+                                <MapPin size={16} strokeWidth={2.25} />
+                                <span>Mapa</span>
+                              </a>
+                            ) : (
+                              <span className="ativacao-mapa-missing" title="Sem coordenadas ou endereço">
+                                <MapPin size={16} />
+                                <span>Sem local</span>
+                              </span>
+                            )
+                          })()}
+                          <FormigasFotoThumbButton
+                            paths={p.foto_casa_paths}
+                            title={`Casa — ${p.nome}`}
+                            subtitle={p.tipoLabel}
+                          />
+                        </span>
                       ) : (
                         <span className="ativacao-mapa-empty">—</span>
                       )}
