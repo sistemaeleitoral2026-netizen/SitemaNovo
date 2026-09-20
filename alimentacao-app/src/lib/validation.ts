@@ -1,6 +1,19 @@
 import { normalizeCpf, normalizeCep, normalizePhone, normalizeZona, normalizeSecao, normalizeName, normalizeBirthDate } from './normalize'
 import type { CadastroFormData } from '../types'
 
+/** DDDs válidos no Brasil (Anatel). */
+const BR_DDDS = new Set([
+  '11', '12', '13', '14', '15', '16', '17', '18', '19',
+  '21', '22', '24', '27', '28',
+  '31', '32', '33', '34', '35', '37', '38',
+  '41', '42', '43', '44', '45', '46', '47', '48', '49',
+  '51', '53', '54', '55',
+  '61', '62', '63', '64', '65', '66', '67', '68', '69',
+  '71', '73', '74', '75', '77', '79',
+  '81', '82', '83', '84', '85', '86', '87', '88', '89',
+  '91', '92', '93', '94', '95', '96', '97', '98', '99',
+])
+
 export function validateCpfAlgorithm(cpf: string): boolean {
   const d = normalizeCpf(cpf)
   if (d.length !== 11) return false
@@ -19,6 +32,45 @@ export function validateCpfAlgorithm(cpf: string): boolean {
   return rest === Number(d[10])
 }
 
+/**
+ * Valida telefone BR para uso com WhatsApp/ficha.
+ * Aceita celular (11 dígitos, 9 após DDD) ou fixo (10 dígitos).
+ * Retorna mensagem de erro ou null se ok / vazio.
+ */
+export function validateBrazilianPhone(value: unknown): string | null {
+  const phone = normalizePhone(value)
+  if (!phone) return null
+
+  if (phone.length < 10 || phone.length > 11) {
+    return 'Use DDD + número (10 ou 11 dígitos). Ex.: (98) 99123-4567'
+  }
+
+  const ddd = phone.slice(0, 2)
+  if (!BR_DDDS.has(ddd)) {
+    return 'DDD inválido.'
+  }
+
+  const local = phone.slice(2)
+  if (/^(\d)\1+$/.test(local)) {
+    return 'Telefone inválido.'
+  }
+
+  // Celular: 9 dígitos locais começando com 9
+  if (phone.length === 11) {
+    if (!local.startsWith('9')) {
+      return 'Celular deve ter 9 após o DDD. Ex.: (98) 9xxxx-xxxx'
+    }
+    return null
+  }
+
+  // Fixo: 8 dígitos, não começa com 0 ou 1
+  if (local.startsWith('0') || local.startsWith('1')) {
+    return 'Número fixo inválido.'
+  }
+
+  return null
+}
+
 export interface FieldErrors {
   [key: string]: string
 }
@@ -32,9 +84,9 @@ export function validateCadastroForm(data: CadastroFormData): FieldErrors {
     errors.cpf = 'CPF inválido.'
   }
 
-  const phone = normalizePhone(data.telefone)
-  if (phone && (phone.length < 10 || phone.length > 11)) {
-    errors.telefone = 'Telefone inválido.'
+  const phoneError = validateBrazilianPhone(data.telefone)
+  if (phoneError) {
+    errors.telefone = phoneError
   }
 
   if ((data.data_nascimento ?? '').trim()) {
@@ -70,9 +122,9 @@ export function validateCadastroForm(data: CadastroFormData): FieldErrors {
 export function validateImportRow(data: CadastroFormData): FieldErrors {
   const errors: FieldErrors = {}
 
-  const phone = normalizePhone(data.telefone)
-  if (phone && (phone.length < 10 || phone.length > 11)) {
-    errors.telefone = 'Telefone inválido.'
+  const phoneError = validateBrazilianPhone(data.telefone)
+  if (phoneError) {
+    errors.telefone = phoneError
   }
 
   if ((data.data_nascimento ?? '').trim()) {
