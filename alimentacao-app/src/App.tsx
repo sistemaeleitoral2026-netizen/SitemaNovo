@@ -16,6 +16,7 @@ import { ConfiguracoesPage } from './pages/ConfiguracoesPage'
 import { EquipePage } from './pages/EquipePage'
 import { AtivacaoLancarPage } from './pages/AtivacaoLancarPage'
 import { AtivacaoPainelPage } from './pages/AtivacaoPainelPage'
+import { AtivacaoHistoricoPage } from './pages/AtivacaoHistoricoPage'
 import { DemandasLancarPage } from './pages/DemandasLancarPage'
 import { DemandasPainelPage } from './pages/DemandasPainelPage'
 import { LiderancaPage } from './pages/LiderancaPage'
@@ -131,6 +132,7 @@ function AppRoutes() {
         <Route path="mobilizacao" element={<Navigate to="/ativacao/lancar" replace />} />
         <Route path="ativacao/lancar" element={<AtivacaoRoute><AtivacaoLancarPage /></AtivacaoRoute>} />
         <Route path="ativacao/painel" element={<AtivacaoRoute><AtivacaoPainelPage /></AtivacaoRoute>} />
+        <Route path="ativacao/historico" element={<AtivacaoRoute><AtivacaoHistoricoPage /></AtivacaoRoute>} />
         <Route path="demandas/lancar" element={<DemandasRoute><DemandasLancarPage /></DemandasRoute>} />
         <Route path="demandas/painel" element={<DemandasRoute><DemandasPainelPage /></DemandasRoute>} />
         <Route path="lideranca" element={<StaffRoute><LiderancaPage /></StaffRoute>} />
