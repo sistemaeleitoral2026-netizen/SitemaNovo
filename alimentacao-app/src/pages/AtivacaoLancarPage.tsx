@@ -214,7 +214,7 @@ export function AtivacaoLancarPage() {
       links,
       notas,
       contato_whatsapp_status: contatoStatus,
-    })
+    }, selected)
     setSaving(false)
     if (err) {
       setError(err)

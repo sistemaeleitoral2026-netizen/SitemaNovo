@@ -243,10 +243,152 @@ export type AtivacaoSaveInput = {
   contato_whatsapp_status: ContatoWhatsappStatus
 }
 
+function waStatusLabel(status: ContatoWhatsappStatus) {
+  if (status === 'sim') return 'Já acionada'
+  if (status === 'sem') return 'Sem WhatsApp'
+  return 'Não acionada'
+}
+
+type FormigasHistoricoInsert = {
+  actor_id: string
+  actor_email: string | null
+  actor_nome: string | null
+  tipo: AtivacaoTipo
+  pessoa_id: string
+  pessoa_nome: string
+  secao: 'whatsapp' | 'carros' | 'casa' | 'links' | 'notas'
+  resumo: string
+  valor_antes: string | null
+  valor_depois: string | null
+  diretoria_id: string | null
+}
+
+async function logFormigasHistorico(
+  previous: AtivacaoPessoa,
+  input: AtivacaoSaveInput,
+): Promise<void> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const userId = session?.user?.id
+    if (!userId) return
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('nome, email')
+      .eq('id', userId)
+      .maybeSingle()
+
+    const actorEmail = (profile?.email ?? session.user.email ?? '').trim() || null
+    const actorNome = (profile?.nome ?? '').trim() || null
+    const who = actorEmail || actorNome || 'Formiga'
+    const pessoa = previous.nome.trim() || 'pessoa'
+    const tipoLabel = previous.tipoLabel.toLowerCase()
+
+    const nextLinks = input.links.map((l) => l.trim()).filter(Boolean)
+    const nextCarros = Math.max(0, Math.floor(Number(input.carros_adesivados) || 0))
+    const nextCasa = Boolean(input.casa)
+    const nextNotas = input.notas.trim()
+    const prevCasa = previous.adesivos_casa > 0
+    const prevLinks = previous.postagem_links
+    const prevNotas = (previous.ativacao_notas || '').trim()
+
+    const rows: FormigasHistoricoInsert[] = []
+
+    if (previous.contato_whatsapp_status !== input.contato_whatsapp_status) {
+      const depois = waStatusLabel(input.contato_whatsapp_status)
+      rows.push({
+        actor_id: userId,
+        actor_email: actorEmail,
+        actor_nome: actorNome,
+        tipo: previous.tipo,
+        pessoa_id: previous.id,
+        pessoa_nome: pessoa,
+        secao: 'whatsapp',
+        resumo: `${who} mudou WhatsApp de ${pessoa} (${tipoLabel}) para "${depois}"`,
+        valor_antes: waStatusLabel(previous.contato_whatsapp_status),
+        valor_depois: depois,
+        diretoria_id: previous.diretoria_id,
+      })
+    }
+
+    if (previous.carros_adesivados !== nextCarros) {
+      rows.push({
+        actor_id: userId,
+        actor_email: actorEmail,
+        actor_nome: actorNome,
+        tipo: previous.tipo,
+        pessoa_id: previous.id,
+        pessoa_nome: pessoa,
+        secao: 'carros',
+        resumo: `${who} alterou carros adesivados de ${pessoa} para ${nextCarros}`,
+        valor_antes: String(previous.carros_adesivados),
+        valor_depois: String(nextCarros),
+        diretoria_id: previous.diretoria_id,
+      })
+    }
+
+    if (prevCasa !== nextCasa) {
+      rows.push({
+        actor_id: userId,
+        actor_email: actorEmail,
+        actor_nome: actorNome,
+        tipo: previous.tipo,
+        pessoa_id: previous.id,
+        pessoa_nome: pessoa,
+        secao: 'casa',
+        resumo: `${who} marcou adesivo residencial de ${pessoa} como ${nextCasa ? 'sim' : 'não'}`,
+        valor_antes: prevCasa ? 'sim' : 'não',
+        valor_depois: nextCasa ? 'sim' : 'não',
+        diretoria_id: previous.diretoria_id,
+      })
+    }
+
+    const prevLinksKey = [...prevLinks].sort().join('\n')
+    const nextLinksKey = [...nextLinks].sort().join('\n')
+    if (prevLinksKey !== nextLinksKey) {
+      rows.push({
+        actor_id: userId,
+        actor_email: actorEmail,
+        actor_nome: actorNome,
+        tipo: previous.tipo,
+        pessoa_id: previous.id,
+        pessoa_nome: pessoa,
+        secao: 'links',
+        resumo: `${who} atualizou links/redes de ${pessoa} (${nextLinks.length} postagem${nextLinks.length === 1 ? '' : 's'})`,
+        valor_antes: prevLinks.length ? `${prevLinks.length} link(s)` : 'nenhum',
+        valor_depois: nextLinks.length ? `${nextLinks.length} link(s)` : 'nenhum',
+        diretoria_id: previous.diretoria_id,
+      })
+    }
+
+    if (prevNotas !== nextNotas) {
+      rows.push({
+        actor_id: userId,
+        actor_email: actorEmail,
+        actor_nome: actorNome,
+        tipo: previous.tipo,
+        pessoa_id: previous.id,
+        pessoa_nome: pessoa,
+        secao: 'notas',
+        resumo: `${who} atualizou observações de ${pessoa}`,
+        valor_antes: prevNotas || null,
+        valor_depois: nextNotas || null,
+        diretoria_id: previous.diretoria_id,
+      })
+    }
+
+    if (rows.length === 0) return
+    await supabase.from('formigas_historico').insert(rows)
+  } catch {
+    // Histórico não deve falhar o lançamento
+  }
+}
+
 export async function saveAtivacao(
   tipo: AtivacaoTipo,
   id: string,
   input: AtivacaoSaveInput,
+  previous?: AtivacaoPessoa | null,
 ): Promise<{ error: string | null }> {
   const links = input.links.map((l) => l.trim()).filter(Boolean)
   const carros = Math.max(0, Math.floor(Number(input.carros_adesivados) || 0))
@@ -270,9 +412,79 @@ export async function saveAtivacao(
   const table = tipo === 'eleitor' ? 'cadastros' : tipo === 'lideranca' ? 'lideres' : 'coordenadores'
   const { error } = await supabase.from(table).update(payload).eq('id', id)
   if (!error) {
+    if (previous && previous.id === id && previous.tipo === tipo) {
+      void logFormigasHistorico(previous, input)
+    }
     await releaseAtivacaoClaim(tipo, id)
   }
   return { error: error?.message ?? null }
+}
+
+export type FormigasHistoricoItem = {
+  id: string
+  actor_id: string
+  actor_email: string | null
+  actor_nome: string | null
+  tipo: AtivacaoTipo
+  pessoa_id: string
+  pessoa_nome: string
+  secao: 'whatsapp' | 'carros' | 'casa' | 'links' | 'notas'
+  resumo: string
+  valor_antes: string | null
+  valor_depois: string | null
+  created_at: string
+}
+
+export async function fetchFormigasHistorico(opts?: {
+  onlyMine?: boolean
+  actorId?: string | null
+  limit?: number
+  offset?: number
+}): Promise<{ items: FormigasHistoricoItem[]; total: number; error: string | null }> {
+  const limit = opts?.limit ?? 40
+  const offset = opts?.offset ?? 0
+  let q = supabase
+    .from('formigas_historico')
+    .select('*', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1)
+
+  if (opts?.actorId) {
+    q = q.eq('actor_id', opts.actorId)
+  } else if (opts?.onlyMine) {
+    const { data: { session } } = await supabase.auth.getSession()
+    const uid = session?.user?.id
+    if (!uid) return { items: [], total: 0, error: null }
+    q = q.eq('actor_id', uid)
+  }
+
+  const { data, error, count } = await q
+  if (error) return { items: [], total: 0, error: error.message }
+  return {
+    items: (data ?? []) as FormigasHistoricoItem[],
+    total: count ?? 0,
+    error: null,
+  }
+}
+
+export async function fetchFormigasHistoricoActors(): Promise<{ id: string; nome: string; email: string }[]> {
+  const { data, error } = await supabase
+    .from('formigas_historico')
+    .select('actor_id, actor_nome, actor_email')
+    .order('created_at', { ascending: false })
+    .limit(500)
+  if (error || !data) return []
+  const map = new Map<string, { id: string; nome: string; email: string }>()
+  for (const row of data) {
+    const id = String(row.actor_id ?? '')
+    if (!id || map.has(id)) continue
+    map.set(id, {
+      id,
+      nome: String(row.actor_nome ?? '').trim() || 'Formiga',
+      email: String(row.actor_email ?? '').trim(),
+    })
+  }
+  return [...map.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 }
 
 /** Reserva a próxima pessoa pendente (aleatória) e evita conflito entre formigas. */
