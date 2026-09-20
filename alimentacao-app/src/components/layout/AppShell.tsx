@@ -5,10 +5,12 @@ import { Spinner } from '../ui/Spinner'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { profileRoles } from '../../lib/roles'
+import { usePresence } from '../../hooks/usePresence'
 
 export function AppShell({ children }: { children?: ReactNode }) {
   const { session, profile, loading } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const online = usePresence(profile)
 
   if (loading) {
     return (
@@ -34,7 +36,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
     <div className="app-shell">
       <Sidebar roles={profileRoles(profile)} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="main-content">
-        <Header onMenuClick={() => setSidebarOpen(true)} />
+        <Header onMenuClick={() => setSidebarOpen(true)} online={online} />
         <main className="main-content-body">
           {children ?? <Outlet />}
         </main>
