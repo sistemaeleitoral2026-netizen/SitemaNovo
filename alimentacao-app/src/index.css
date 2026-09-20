@@ -4822,7 +4822,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
 
 
 /* ===== LanÃÂÃÂÃÂÃÂ¯ÃÂÃÂÃÂÃÂ¿ÃÂÃÂÃÂÃÂ½ar Formigas (fiel a painel_nerites.tsx) ===== */
-.fl-page { max-width: 72rem; margin: 0 auto; width: 100%; }
+.fl-page { max-width: 72rem; margin: 0 auto; width: 100%; min-width: 0; }
 .fl-page-head {
   display: flex;
   align-items: flex-start;
@@ -4922,6 +4922,8 @@ button.fichas-count.equipe-drill-count.zero:hover {
   border-radius: 16px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
   overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
 }
 .fl-card-head {
   display: flex;
@@ -5077,6 +5079,9 @@ button.fichas-count.equipe-drill-count.zero:hover {
   border: 1px solid #e2e8f0;
   background: rgba(248, 250, 252, .5);
   transition: border-color .15s ease, background .15s ease;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 .fl-block.is-active { background: #fff; }
 .fl-block.is-wa {
@@ -5135,7 +5140,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   gap: 1rem;
   flex-wrap: wrap;
 }
-.fl-wa-segment { flex: 1 1 280px; max-width: 28rem; }
+.fl-wa-segment { flex: 1 1 280px; max-width: 28rem; min-width: 0; }
 .fl-wa-segment-3 { max-width: 36rem; }
 .fl-segment {
   display: flex;
@@ -5143,10 +5148,13 @@ button.fichas-count.equipe-drill-count.zero:hover {
   border-radius: 10px;
   background: #f1f5f9;
   gap: .15rem;
+  min-width: 0;
+  width: 100%;
 }
 .fl-segment.is-disabled { opacity: .5; pointer-events: none; }
 .fl-segment button {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
   padding: .5rem .4rem;
   border: 0;
   border-radius: 8px;
@@ -5157,7 +5165,6 @@ button.fichas-count.equipe-drill-count.zero:hover {
   line-height: 1.2;
   cursor: pointer;
   transition: .15s ease;
-  white-space: nowrap;
 }
 .fl-segment button:hover { color: #334155; background: rgba(226, 232, 240, .6); }
 .fl-segment button.is-active {
@@ -5234,9 +5241,11 @@ button.fichas-count.equipe-drill-count.zero:hover {
   display: flex;
   gap: .75rem;
   margin-bottom: 1rem;
+  min-width: 0;
 }
 .fl-link-row input {
   flex: 1;
+  min-width: 0;
   padding: .75rem 1rem;
   border: 1px solid #cbd5e1;
   border-radius: 12px;
@@ -5402,13 +5411,20 @@ button.fichas-count.equipe-drill-count.zero:hover {
 
 /* Mobile — Lançar Formigas (layout do mock) */
 @media (max-width: 640px) {
+  .main-content-body:has(.fl-page-lancar) {
+    padding-left: .75rem;
+    padding-right: .75rem;
+  }
+
   .fl-page-lancar {
-    max-width: 480px;
-    margin: 0 auto;
+    max-width: 100%;
+    width: 100%;
+    margin: 0;
     padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+    overflow-x: clip;
   }
   .fl-page-lancar .fl-title {
-    font-size: 1.85rem;
+    font-size: 1.65rem;
     font-weight: 800;
     letter-spacing: -.03em;
   }
@@ -5419,20 +5435,72 @@ button.fichas-count.equipe-drill-count.zero:hover {
     border: 1px solid #f1f5f9;
     border-bottom: 0;
     box-shadow: 0 -10px 40px -15px rgba(15, 23, 42, .08);
-    margin: 0 -0.25rem;
+    margin: 0;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
   }
   .fl-card-sheet .fl-card-head {
     align-items: flex-end;
-    padding-top: 1.75rem;
+    padding: 1.5rem 1rem 1rem;
+    gap: .75rem;
   }
   .fl-card-sheet .fl-card-head h2 {
-    font-size: 1.45rem;
+    font-size: 1.35rem;
     line-height: 1.15;
     font-weight: 800;
   }
   .fl-card-sheet .fl-link {
     text-align: right;
     line-height: 1.25;
+    font-size: .8rem;
+    flex-shrink: 0;
+  }
+  .fl-card-sheet .fl-card-body {
+    padding: 1rem;
+    gap: 1.15rem;
+  }
+  .fl-block {
+    padding: 1rem;
+  }
+  .fl-block-top {
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+  .fl-wa-segment,
+  .fl-wa-segment-3 {
+    flex: 1 1 100%;
+    max-width: none;
+    width: 100%;
+  }
+  .fl-wa-segment-3 .fl-segment {
+    flex-direction: column;
+    gap: .25rem;
+  }
+  .fl-wa-segment-3 .fl-segment button {
+    width: 100%;
+    flex: 1 1 auto;
+    padding: .7rem .85rem;
+    font-size: .875rem;
+    text-align: center;
+  }
+  .fl-segment button {
+    font-size: .72rem;
+    padding: .55rem .35rem;
+  }
+  .fl-link-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .fl-link-row .fl-btn-dark {
+    width: 100%;
+    justify-content: center;
+  }
+  .fl-search-row {
+    gap: .4rem;
+  }
+  .fl-btn-proximo {
+    padding: 0 .75rem;
     font-size: .8rem;
   }
   .fl-card-foot-desktop { display: none; }
