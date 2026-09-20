@@ -604,6 +604,91 @@ table {
   flex: none;
 }
 
+.online-desktop-only {
+  display: none;
+  position: relative;
+}
+
+.online-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 500;
+  padding: .35rem .45rem;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.online-trigger:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.online-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: 260px;
+  max-height: 320px;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .08);
+  padding: .4rem 0;
+}
+
+.online-empty {
+  margin: 0;
+  padding: .75rem 1rem;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.online-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.online-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .45rem 1rem;
+}
+
+.online-row:hover {
+  background: #f9fafb;
+}
+
+.online-name {
+  font-size: 13px;
+  font-weight: 550;
+  color: #111827;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.online-role {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+@media (min-width: 900px) {
+  .online-desktop-only { display: block; }
+}
+
 .header-icon-btn { border: 0; background: transparent; color: #647187; display: grid; place-items: center; padding: .45rem; border-radius: 9px; cursor: pointer; }
 .header-icon-btn:hover { background: #f0f3f8; color: var(--color-text); }
 .header-avatar {
