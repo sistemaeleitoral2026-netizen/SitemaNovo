@@ -14,6 +14,8 @@ interface CadastrosMapProps {
   resetKey?: number
   showLegend?: boolean
   layerMode?: 'markers' | 'density'
+  /** Enquadra só os centros dos marcadores (melhor no dashboard; evita oceano vazio). */
+  fitToMarkers?: boolean
 }
 
 function zoneStyle(count: number, maxCount: number) {
@@ -37,19 +39,93 @@ const LEGEND = [
   { label: 'Muito alta', color: '#f87171' },
 ]
 
+function mapAlive(map: L.Map) {
+  try {
+    const el = map.getContainer()
+    return Boolean(el && el.isConnected && (map as unknown as { _mapPane?: unknown })._mapPane)
+  } catch {
+    return false
+  }
+}
+
 function mapHasSize(map: L.Map) {
+  if (!mapAlive(map)) return false
   const el = map.getContainer()
   return Boolean(el && el.clientWidth >= 8 && el.clientHeight >= 8)
 }
 
 function whenMapReady(map: L.Map, fn: () => void, attempts = 40) {
+  if (!mapAlive(map)) return
   if (mapHasSize(map)) {
-    map.invalidateSize({ animate: false })
-    fn()
+    try {
+      map.invalidateSize({ animate: false })
+      fn()
+    } catch {
+      /* mapa desmontado no meio do HMR */
+    }
     return
   }
   if (attempts <= 0) return
   window.setTimeout(() => whenMapReady(map, fn, attempts - 1), 50)
+}
+
+/** Enquadra o mapa no cluster da zona com mais fichas (evita oceano / zoom estadual). */
+function fitMapToActivity(map: L.Map, markers: MapMarkerData[]): () => void {
+  let cancelled = false
+  let timeoutId = 0
+
+  const apply = () => {
+    if (cancelled || !mapAlive(map)) return
+    try {
+      map.invalidateSize({ animate: false })
+      if (!markers.length) {
+        map.fitBounds(MA_BOUNDS, { animate: false })
+        return
+      }
+
+      const sorted = [...markers].sort((a, b) => b.count - a.count)
+      const primary = sorted[0]
+      const total = sorted.reduce((sum, m) => sum + m.count, 0) || 1
+
+      // Só zonas próximas da principal (~45 km) — ignora outliers no interior do MA
+      const CLUSTER_DEG = 0.4
+      const focus: MapMarkerData[] = []
+      let covered = 0
+      for (const m of sorted) {
+        const near =
+          Math.hypot(m.lat - primary.lat, m.lng - primary.lng) <= CLUSTER_DEG
+        if (!near) continue
+        focus.push(m)
+        covered += m.count
+        if (focus.length >= 6 || covered / total >= 0.88) break
+      }
+      if (!focus.length) focus.push(primary)
+
+      if (focus.length === 1) {
+        map.setView([focus[0].lat, focus[0].lng], 12, { animate: false })
+        return
+      }
+
+      map.fitBounds(
+        L.latLngBounds(focus.map((m) => [m.lat, m.lng] as [number, number])),
+        { padding: [44, 44], maxZoom: 12, animate: false },
+      )
+    } catch {
+      /* mapa desmontado no meio do HMR */
+    }
+  }
+
+  apply()
+  const raf = window.requestAnimationFrame(() => {
+    apply()
+    timeoutId = window.setTimeout(apply, 160)
+  })
+
+  return () => {
+    cancelled = true
+    window.cancelAnimationFrame(raf)
+    if (timeoutId) window.clearTimeout(timeoutId)
+  }
 }
 
 export function CadastrosMap({
@@ -59,6 +135,7 @@ export function CadastrosMap({
   resetKey = 0,
   showLegend = true,
   layerMode = 'density',
+  fitToMarkers = false,
 }: CadastrosMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
@@ -194,17 +271,39 @@ export function CadastrosMap({
       }
     })
 
+    let cancelled = false
+    let cancelFit: (() => void) | undefined
     whenMapReady(map, () => {
+      if (cancelled) return
+      if (fitToMarkers) {
+        cancelFit = fitMapToActivity(map, markers)
+        return
+      }
+      const centers = markers.map((m) => [m.lat, m.lng] as [number, number])
       if (allBounds.length > 0) {
-        map.fitBounds(L.latLngBounds(allBounds), { padding: [48, 48], maxZoom: 13 })
-      } else {
-        map.fitBounds(L.latLngBounds(markers.map((m) => [m.lat, m.lng] as [number, number])), {
+        map.fitBounds(L.latLngBounds(allBounds), { padding: [48, 48], maxZoom: 13, animate: false })
+      } else if (centers.length > 0) {
+        map.fitBounds(L.latLngBounds(centers), {
           padding: [48, 48],
           maxZoom: 13,
+          animate: false,
         })
       }
+      window.requestAnimationFrame(() => {
+        if (cancelled || !mapAlive(map)) return
+        try {
+          map.invalidateSize({ animate: false })
+        } catch {
+          /* ignore */
+        }
+      })
     })
-  }, [markers, layerMode])
+
+    return () => {
+      cancelled = true
+      cancelFit?.()
+    }
+  }, [markers, layerMode, fitToMarkers])
 
   useEffect(() => {
     const map = mapRef.current
