@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
+  ArrowRight,
   Car,
   CheckCircle2,
   ExternalLink,
@@ -9,16 +10,16 @@ import {
   Minus,
   Plus,
   Search,
-  Share2,
   X,
   MessageCircle,
-  Clock3,
 } from 'lucide-react'
 import { buildWhatsAppUrl } from '../lib/whatsapp'
 import { useAuth } from '../contexts/AuthContext'
+import { hasRole } from '../lib/roles'
 import {
-  fetchAtivacaoKpis,
+  claimNextAtivacao,
   fetchAtivacaoPessoa,
+  releaseAtivacaoClaim,
   saveAtivacao,
   searchAtivacaoPessoas,
   type AtivacaoPessoa,
@@ -58,11 +59,17 @@ export function AtivacaoLancarPage() {
   const [searchParams] = useSearchParams()
   const preTipo = searchParams.get('tipo') as AtivacaoPessoa['tipo'] | null
   const preId = searchParams.get('id')
-  const scopeDiretoriaId = profile?.role === 'diretoria' ? profile.id : undefined
+
+  const scopeDiretoriaId = useMemo(() => {
+    if (hasRole(profile, 'diretoria')) return profile?.id
+    if (hasRole(profile, 'mobilizador') && profile?.diretoria_id) return profile.diretoria_id
+    return undefined
+  }, [profile])
 
   const [query, setQuery] = useState('')
   const [suggestions, setSuggestions] = useState<AtivacaoPessoa[]>([])
   const [searching, setSearching] = useState(false)
+  const [claiming, setClaiming] = useState(false)
   const [selected, setSelected] = useState<AtivacaoPessoa | null>(null)
   const [carros, setCarros] = useState(0)
   const [casa, setCasa] = useState(false)
@@ -73,17 +80,9 @@ export function AtivacaoLancarPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState<string | null>(null)
-  const [kpis, setKpis] = useState({ carros: 0, casas: 0, postagens: 0, whatsapp: 0, pendentes: 0 })
 
   const isFormActive = selected !== null
   const waUrl = buildWhatsAppUrl(selected?.telefone)
-
-  useEffect(() => {
-    void fetchAtivacaoKpis({
-      tipo: 'todos',
-      diretoria_id: scopeDiretoriaId,
-    }).then(setKpis).catch(() => undefined)
-  }, [scopeDiretoriaId])
 
   useEffect(() => {
     if (!preId || !preTipo) return
@@ -91,6 +90,7 @@ export function AtivacaoLancarPage() {
     void fetchAtivacaoPessoa(preTipo, preId).then((p) => {
       if (p) selectPerson(p)
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preId, preTipo])
 
   useEffect(() => {
@@ -128,7 +128,10 @@ export function AtivacaoLancarPage() {
     setOk(null)
   }
 
-  function clearPerson() {
+  async function clearPerson() {
+    if (selected) {
+      void releaseAtivacaoClaim(selected.tipo, selected.id)
+    }
     setSelected(null)
     setQuery('')
     setCarros(0)
@@ -139,6 +142,28 @@ export function AtivacaoLancarPage() {
     setLinkDraft('')
     setError(null)
     setOk(null)
+  }
+
+  async function handleProximo() {
+    setClaiming(true)
+    setError(null)
+    setOk(null)
+    if (selected) {
+      await releaseAtivacaoClaim(selected.tipo, selected.id)
+    }
+    const { pessoa, error: err } = await claimNextAtivacao(scopeDiretoriaId)
+    setClaiming(false)
+    if (err) {
+      setError(err)
+      return
+    }
+    if (!pessoa) {
+      setError('Ninguém pendente agora. Tente de novo em instantes.')
+      setSelected(null)
+      setQuery('')
+      return
+    }
+    selectPerson(pessoa)
   }
 
   function addLink() {
@@ -173,13 +198,15 @@ export function AtivacaoLancarPage() {
       setError(err)
       return
     }
-    setOk('Lançamento salvo com sucesso.')
-    const refreshed = await fetchAtivacaoPessoa(selected.tipo, selected.id)
-    if (refreshed) selectPerson(refreshed)
-    void fetchAtivacaoKpis({
-      tipo: 'todos',
-      diretoria_id: scopeDiretoriaId,
-    }).then(setKpis).catch(() => undefined)
+    setOk('Lançamento salvo. Busque ou clique em Próximo.')
+    setSelected(null)
+    setQuery('')
+    setCarros(0)
+    setCasa(false)
+    setLinks([])
+    setNotas('')
+    setContatoWhatsapp(false)
+    setLinkDraft('')
   }
 
   const initials = useMemo(() => {
@@ -193,108 +220,55 @@ export function AtivacaoLancarPage() {
   }, [selected])
 
   return (
-    <div className="fl-page">
-      <div className="fl-page-head">
+    <div className="fl-page fl-page-lancar">
+      <div className="fl-page-head fl-page-head-compact">
         <div>
           <h1 className="fl-title">Lançar Formigas</h1>
-          <p className="fl-subtitle">
-            Localize a pessoa e registre carros, casa adesivada e links de postagem.
-          </p>
         </div>
-        <button type="button" className="fl-btn-secondary" onClick={() => navigate('/ativacao/painel')}>
+        <button type="button" className="fl-btn-secondary fl-btn-painel-desktop" onClick={() => navigate('/ativacao/painel')}>
           Ver Painel
         </button>
       </div>
 
-      <div className="fl-stats">
-        {(
-          [
-            {
-              key: 'carros',
-              label: 'Carros',
-              value: kpis.carros,
-              Icon: Car,
-              tone: 'blue',
-              to: '/ativacao/painel?equipe=todos&status=com_carro',
-            },
-            {
-              key: 'casas',
-              label: 'Casas',
-              value: kpis.casas,
-              Icon: Home,
-              tone: 'teal',
-              to: '/ativacao/painel?equipe=todos&status=casa_sim',
-            },
-            {
-              key: 'postagens',
-              label: 'Postagens',
-              value: kpis.postagens,
-              Icon: Share2,
-              tone: 'violet',
-              to: '/ativacao/painel?equipe=todos&status=com_links',
-            },
-            {
-              key: 'whatsapp',
-              label: 'WhatsApp',
-              value: kpis.whatsapp,
-              Icon: MessageCircle,
-              tone: 'wa',
-              to: '/ativacao/painel?equipe=todos&status=contato_sim',
-            },
-            {
-              key: 'pendentes',
-              label: 'Pendentes',
-              value: kpis.pendentes,
-              Icon: Clock3,
-              tone: 'amber',
-              to: '/ativacao/painel?equipe=todos&status=sem_ativacao',
-            },
-          ] as const
-        ).map(({ key, label, value, Icon, tone, to }) => (
-          <button
-            key={key}
-            type="button"
-            className={`fl-stat fl-stat-card tone-${tone}`}
-            onClick={() => navigate(to)}
-          >
-            <div className="fl-stat-top">
-              <span>{label}</span>
-              <div className="fl-stat-icon" aria-hidden>
-                <Icon size={18} strokeWidth={2.25} />
-              </div>
-            </div>
-            <strong>{value.toLocaleString('pt-BR')}</strong>
-            <em className="fl-stat-cta">Ver no painel →</em>
-          </button>
-        ))}
-      </div>
-
-      <form className="fl-card" onSubmit={handleSave}>
+      <form id="fl-lancar-form" className="fl-card fl-card-sheet" onSubmit={handleSave}>
         <div className="fl-card-head">
-          <h2>Registro — Formigas</h2>
-          <Link to="/ativacao/painel" className="fl-link">Consultar Painel</Link>
+          <h2>Registro —<br className="fl-br-mobile" /> Formigas</h2>
+          <Link to="/ativacao/painel" className="fl-link">Consultar<br className="fl-br-mobile" /> Painel</Link>
         </div>
 
         <div className="fl-card-body">
           <div className="fl-field">
             <label htmlFor="fl-busca">Eleitor, liderança ou coordenador</label>
-            <div className="fl-search">
-              <Search className="fl-search-icon" size={20} />
-              <input
-                id="fl-busca"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value)
-                  if (selected) setSelected(null)
-                }}
-                placeholder="Nome, CPF, título ou telefone…"
-                autoComplete="off"
-              />
-              {selected && (
-                <button type="button" className="fl-search-clear" onClick={clearPerson} aria-label="Limpar">
-                  <X size={20} />
-                </button>
-              )}
+            <div className="fl-search-row">
+              <div className="fl-search">
+                <Search className="fl-search-icon" size={20} />
+                <input
+                  id="fl-busca"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value)
+                    if (selected) {
+                      void releaseAtivacaoClaim(selected.tipo, selected.id)
+                      setSelected(null)
+                    }
+                  }}
+                  placeholder="Nome, CPF ou telefone…"
+                  autoComplete="off"
+                />
+                {selected && (
+                  <button type="button" className="fl-search-clear" onClick={() => void clearPerson()} aria-label="Limpar">
+                    <X size={20} />
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                className="fl-btn-proximo"
+                disabled={claiming || saving}
+                onClick={() => void handleProximo()}
+              >
+                {claiming ? '…' : <>Próximo <ArrowRight size={16} strokeWidth={2.5} /></>}
+              </button>
             </div>
 
             {!selected && suggestions.length > 0 && (
@@ -341,13 +315,13 @@ export function AtivacaoLancarPage() {
                 <h3>WhatsApp</h3>
               </div>
               <span className={`fl-pill${contatoWhatsapp ? ' ok' : ''}`}>
-                {contatoWhatsapp ? 'Acionada' : 'Ainda não'}
+                {contatoWhatsapp ? 'Acionada' : isFormActive ? 'Liberado' : 'Ainda não'}
               </span>
             </div>
 
             {!isFormActive ? (
               <p className="fl-hint italic">
-                Selecione uma pessoa na busca acima para liberar as opções do WhatsApp.
+                Selecione ou busque o <b>próximo</b> acima para liberar as opções do WhatsApp.
               </p>
             ) : (
               <div className="fl-wa-body">
@@ -374,7 +348,7 @@ export function AtivacaoLancarPage() {
                       onClick={() => setContatoWhatsapp(true)}
                     >
                       <ExternalLink size={16} />
-                      Abrir WhatsApp Web
+                      Enviar mensagem
                     </a>
                   ) : (
                     <button type="button" className="fl-btn-wa is-disabled" disabled>
@@ -502,7 +476,7 @@ export function AtivacaoLancarPage() {
               value={notas}
               onChange={(e) => setNotas(e.target.value)}
               placeholder="Anotações de campo (opcional)"
-              rows={5}
+              rows={4}
             />
           </div>
 
@@ -510,7 +484,7 @@ export function AtivacaoLancarPage() {
           {ok && <div className="alert alert-success">{ok}</div>}
         </div>
 
-        <div className="fl-card-foot">
+        <div className="fl-card-foot fl-card-foot-desktop">
           <button type="submit" className="fl-btn-primary" disabled={!isFormActive || saving}>
             <CheckCircle2 size={20} />
             {saving ? 'Salvando…' : 'Salvar lançamento'}
@@ -519,12 +493,24 @@ export function AtivacaoLancarPage() {
             type="button"
             className="fl-btn-secondary"
             disabled={!isFormActive}
-            onClick={clearPerson}
+            onClick={() => void clearPerson()}
           >
             Limpar
           </button>
         </div>
       </form>
+
+      <div className="fl-save-bar" aria-label="Salvar">
+        <button
+          type="submit"
+          form="fl-lancar-form"
+          className="fl-btn-primary fl-btn-save-full"
+          disabled={!isFormActive || saving}
+        >
+          <CheckCircle2 size={20} />
+          {saving ? 'Salvando…' : 'Salvar lançamento'}
+        </button>
+      </div>
     </div>
   )
 }
