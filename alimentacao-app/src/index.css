@@ -5295,6 +5295,272 @@ button.fichas-count.equipe-drill-count.zero:hover {
   font-size: .72rem;
   color: #475569;
 }
+.ativacao-casa-cell {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .35rem .45rem;
+}
+.ativacao-foto-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .22rem;
+  height: 26px;
+  padding: 0 .5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: .7rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.ativacao-foto-chip:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+/* Formigas — upload / preview de fotos */
+.fl-foto-field {
+  margin-top: .85rem;
+  padding-top: .75rem;
+  border-top: 1px dashed #e2e8f0;
+}
+.fl-foto-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-bottom: .35rem;
+}
+.fl-foto-head .fl-label-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  margin: 0;
+}
+.fl-foto-count {
+  font-style: normal;
+  font-size: .7rem;
+  font-weight: 700;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+.fl-foto-hint { margin: 0 0 .55rem; }
+.fl-foto-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .5rem;
+}
+.fl-foto-tile,
+.fl-foto-add {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  min-width: 0;
+}
+.fl-foto-tile {
+  background: #0f172a;
+  border: 1px solid #e2e8f0;
+}
+.fl-foto-open {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+.fl-foto-open img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.fl-foto-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, .72);
+  color: #fff;
+  cursor: pointer;
+}
+.fl-foto-remove:hover { background: rgba(127, 29, 29, .9); }
+.fl-foto-badge {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 1;
+  padding: .12rem .4rem;
+  border-radius: 6px;
+  background: rgba(37, 99, 235, .92);
+  color: #fff;
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.fl-foto-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .25rem;
+  border: 1.5px dashed #94a3b8;
+  background: #f8fafc;
+  color: #475569;
+  font-size: .72rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.fl-foto-add:hover {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+}
+.fl-foto-add input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.fl-foto-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: max(.75rem, env(safe-area-inset-top)) .75rem max(.75rem, env(safe-area-inset-bottom));
+  background: rgba(15, 23, 42, .62);
+  backdrop-filter: blur(3px);
+}
+.fl-foto-lightbox-card {
+  width: min(560px, 100%);
+  max-height: min(92vh, 860px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #0f172a;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .45);
+}
+.fl-foto-lightbox-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .85rem 1rem;
+  background: linear-gradient(180deg, #1e293b, #0f172a);
+  border-bottom: 1px solid rgba(148, 163, 184, .2);
+}
+.fl-foto-lightbox-titles {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+}
+.fl-foto-lightbox-titles strong {
+  color: #f8fafc;
+  font-size: .9rem;
+  font-weight: 700;
+  line-height: 1.25;
+  word-break: break-word;
+}
+.fl-foto-lightbox-titles span {
+  color: #cbd5e1;
+  font-size: .72rem;
+  font-weight: 550;
+}
+.fl-foto-lightbox-head > strong {
+  color: #f8fafc;
+  font-size: .9rem;
+  font-weight: 700;
+}
+.fl-foto-lightbox-x {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .08);
+  color: #e2e8f0;
+  cursor: pointer;
+}
+.fl-foto-lightbox-x:hover { background: rgba(255, 255, 255, .16); }
+.fl-foto-lightbox-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: .75rem;
+  background: #020617;
+}
+.fl-foto-lightbox-body img {
+  max-width: 100%;
+  max-height: min(62vh, 640px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 10px;
+}
+.fl-foto-lightbox-loading {
+  margin: 2rem 0;
+  color: #94a3b8;
+  font-size: .84rem;
+}
+.fl-foto-lightbox-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .65rem .85rem .85rem;
+  background: #0f172a;
+  border-top: 1px solid rgba(148, 163, 184, .15);
+}
+.fl-foto-lightbox-foot em {
+  font-style: normal;
+  color: #94a3b8;
+  font-size: .75rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.fl-foto-lightbox-foot button {
+  border: 0;
+  border-radius: 8px;
+  padding: .45rem .75rem;
+  background: #1e293b;
+  color: #f1f5f9;
+  font: inherit;
+  font-size: .75rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.fl-foto-lightbox-foot button:hover { background: #334155; }
+@media (max-width: 720px) {
+  .fl-foto-grid { gap: .4rem; }
+  .fl-foto-tile,
+  .fl-foto-add { border-radius: 10px; }
+  .fl-foto-lightbox-card {
+    width: 100%;
+    max-height: 96vh;
+    border-radius: 14px;
+  }
+  .fl-foto-lightbox-body img { max-height: min(58vh, 520px); }
+}
 @media (max-width: 640px) {
   .fl-veiculo-qtds.is-both {
     grid-template-columns: 1fr;

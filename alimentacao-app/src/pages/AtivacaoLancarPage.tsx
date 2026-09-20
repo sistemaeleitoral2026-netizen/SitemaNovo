@@ -25,6 +25,7 @@ import {
   FormigasFichaHistoricoDrawer,
   ownerCaption,
 } from '../components/FormigasFichaHistoricoDrawer'
+import { FormigasFotoField } from '../components/FormigasFotoField'
 import {
   claimNextAtivacao,
   fetchAtivacaoPessoa,
@@ -105,6 +106,10 @@ export function AtivacaoLancarPage() {
   const [casaCep, setCasaCep] = useState('')
   const [casaEndereco, setCasaEndereco] = useState('')
   const [casaNumero, setCasaNumero] = useState('')
+  const [fotoVeiculoKeep, setFotoVeiculoKeep] = useState<string[]>([])
+  const [fotoVeiculoFiles, setFotoVeiculoFiles] = useState<File[]>([])
+  const [fotoCasaKeep, setFotoCasaKeep] = useState<string[]>([])
+  const [fotoCasaFiles, setFotoCasaFiles] = useState<File[]>([])
   const [cepLoading, setCepLoading] = useState(false)
   const [links, setLinks] = useState<string[]>([])
   const [linkDraft, setLinkDraft] = useState('')
@@ -142,6 +147,12 @@ export function AtivacaoLancarPage() {
       )
     const nextCarrosSave = veiculoCarro ? carros : 0
     const nextMotosSave = veiculoMoto ? motos : 0
+    const fotosVeiculoChanged =
+      fotoVeiculoFiles.length > 0
+      || fotoVeiculoKeep.join('|') !== selected.foto_veiculo_paths.join('|')
+    const fotosCasaChanged =
+      fotoCasaFiles.length > 0
+      || fotoCasaKeep.join('|') !== selected.foto_casa_paths.join('|')
     return (
       nextCarrosSave !== selected.carros_adesivados
       || nextMotosSave !== selected.motos_adesivadas
@@ -150,8 +161,13 @@ export function AtivacaoLancarPage() {
       || notas.trim() !== (selected.ativacao_notas || '').trim()
       || linksChanged
       || (casa && addrChanged)
+      || ((veiculoCarro || veiculoMoto) && fotosVeiculoChanged)
+      || (casa && fotosCasaChanged)
     )
-  }, [selected, carros, motos, veiculoCarro, veiculoMoto, casa, casaCep, casaEndereco, casaNumero, links, notas, contatoStatus])
+  }, [
+    selected, carros, motos, veiculoCarro, veiculoMoto, casa, casaCep, casaEndereco, casaNumero,
+    links, notas, contatoStatus, fotoVeiculoKeep, fotoVeiculoFiles, fotoCasaKeep, fotoCasaFiles,
+  ])
 
   useEffect(() => {
     if (!dirtyPrompt) return
@@ -215,6 +231,10 @@ export function AtivacaoLancarPage() {
     setCasaCep(p.cep ? formatCep(p.cep) : '')
     setCasaEndereco(p.endereco || '')
     setCasaNumero(p.numero || '')
+    setFotoVeiculoKeep([...(p.foto_veiculo_paths || [])])
+    setFotoVeiculoFiles([])
+    setFotoCasaKeep([...(p.foto_casa_paths || [])])
+    setFotoCasaFiles([])
     setLinks(p.postagem_links.length ? [...p.postagem_links] : [])
     setNotas(p.ativacao_notas || '')
     setContatoStatus(p.contato_whatsapp_status)
@@ -233,6 +253,10 @@ export function AtivacaoLancarPage() {
     setCasaCep('')
     setCasaEndereco('')
     setCasaNumero('')
+    setFotoVeiculoKeep([])
+    setFotoVeiculoFiles([])
+    setFotoCasaKeep([])
+    setFotoCasaFiles([])
     setLinks([])
     setNotas('')
     setContatoStatus('nao')
@@ -243,6 +267,16 @@ export function AtivacaoLancarPage() {
   async function persistCurrent(): Promise<boolean> {
     if (!selected) return false
     if (skipSaveRef.current) return false
+    const nextCarros = veiculoCarro ? carros : 0
+    const nextMotos = veiculoMoto ? motos : 0
+    if ((nextCarros > 0 || nextMotos > 0) && fotoVeiculoKeep.length + fotoVeiculoFiles.length < 1) {
+      setError('Adicione pelo menos 1 foto do veículo adesivado.')
+      return false
+    }
+    if (casa && fotoCasaKeep.length + fotoCasaFiles.length < 1) {
+      setError('Adicione pelo menos 1 foto da casa adesivada.')
+      return false
+    }
     if (selected.tipo === 'eleitor' && casa) {
       const cepDigits = casaCep.replace(/\D/g, '')
       if (cepDigits.length !== 8) {
@@ -262,8 +296,8 @@ export function AtivacaoLancarPage() {
     setError(null)
     const snapshot = selected
     const { error: err } = await saveAtivacao(snapshot.tipo, snapshot.id, {
-      carros_adesivados: veiculoCarro ? carros : 0,
-      motos_adesivadas: veiculoMoto ? motos : 0,
+      carros_adesivados: nextCarros,
+      motos_adesivadas: nextMotos,
       casa,
       links,
       notas,
@@ -271,6 +305,10 @@ export function AtivacaoLancarPage() {
       cep: casaCep,
       endereco: casaEndereco,
       numero: casaNumero,
+      foto_veiculo_keep: nextCarros > 0 || nextMotos > 0 ? fotoVeiculoKeep : [],
+      foto_veiculo_files: nextCarros > 0 || nextMotos > 0 ? fotoVeiculoFiles : [],
+      foto_casa_keep: casa ? fotoCasaKeep : [],
+      foto_casa_files: casa ? fotoCasaFiles : [],
     }, snapshot)
     setSaving(false)
     if (err) {
@@ -794,6 +832,17 @@ export function AtivacaoLancarPage() {
                   )}
                 </div>
               )}
+              {isFormActive && (veiculoCarro || veiculoMoto) && (
+                <FormigasFotoField
+                  label="Fotos do veículo adesivado"
+                  keptPaths={fotoVeiculoKeep}
+                  onKeptPathsChange={setFotoVeiculoKeep}
+                  newFiles={fotoVeiculoFiles}
+                  onNewFilesChange={setFotoVeiculoFiles}
+                  disabled={!editCarros || saving}
+                  requiredHint="Obrigatório: pelo menos 1 foto (máx. 3). Toque para ampliar."
+                />
+              )}
               {isFormActive && !veiculoCarro && !veiculoMoto && (
                 <p className="fl-hint" style={{ marginTop: '.65rem', marginBottom: 0 }}>
                   Selecione carro e/ou moto para informar a quantidade.
@@ -874,6 +923,17 @@ export function AtivacaoLancarPage() {
                     </label>
                   </div>
                 </div>
+              )}
+              {isFormActive && casa && (
+                <FormigasFotoField
+                  label="Fotos da casa adesivada"
+                  keptPaths={fotoCasaKeep}
+                  onKeptPathsChange={setFotoCasaKeep}
+                  newFiles={fotoCasaFiles}
+                  onNewFilesChange={setFotoCasaFiles}
+                  disabled={!editCasa || saving}
+                  requiredHint="Obrigatório: pelo menos 1 foto (máx. 3). Toque para ampliar."
+                />
               )}
               {isFormActive && selected && selected.tipo !== 'eleitor' && casa && (
                 <p className="fl-hint">
