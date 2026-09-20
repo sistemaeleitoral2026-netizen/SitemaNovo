@@ -50,6 +50,11 @@ export interface Coordenador {
   ativacao_notas?: string | null
   ativacao_em?: string | null
   contato_whatsapp?: boolean | null
+  contato_whatsapp_status?: 'nao' | 'sim' | 'sem' | null
+  formigas_wa_by?: string | null
+  formigas_carros_by?: string | null
+  formigas_casa_by?: string | null
+  formigas_links_by?: string | null
   created_at: string
 }
 
@@ -67,6 +72,11 @@ export interface Lider {
   ativacao_notas?: string | null
   ativacao_em?: string | null
   contato_whatsapp?: boolean | null
+  contato_whatsapp_status?: 'nao' | 'sim' | 'sem' | null
+  formigas_wa_by?: string | null
+  formigas_carros_by?: string | null
+  formigas_casa_by?: string | null
+  formigas_links_by?: string | null
   created_at: string
 }
 
@@ -100,6 +110,11 @@ export interface Cadastro {
   ativacao_notas?: string | null
   ativacao_em?: string | null
   contato_whatsapp?: boolean | null
+  contato_whatsapp_status?: 'nao' | 'sim' | 'sem' | null
+  formigas_wa_by?: string | null
+  formigas_carros_by?: string | null
+  formigas_casa_by?: string | null
+  formigas_links_by?: string | null
   created_at: string
   updated_at: string
 }
