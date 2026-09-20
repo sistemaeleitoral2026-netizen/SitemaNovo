@@ -79,6 +79,13 @@ export interface FieldErrors {
 export function validateCadastroForm(data: CadastroFormData): FieldErrors {
   const errors: FieldErrors = {}
 
+  const nome = normalizeName(data.nome_completo)
+  if (!nome) {
+    errors.nome_completo = 'Informe o nome completo.'
+  } else if (nome.split(/\s+/).filter(Boolean).length < 2) {
+    errors.nome_completo = 'Informe nome e sobrenome.'
+  }
+
   const cpf = normalizeCpf(data.cpf)
   if (cpf && !validateCpfAlgorithm(cpf)) {
     errors.cpf = 'CPF inválido.'
@@ -110,7 +117,6 @@ export function validateCadastroForm(data: CadastroFormData): FieldErrors {
   // (UI da ficha limita a 089/010; não bloqueia legado/edição/import)
   void normalizeZona(data.zona)
   void normalizeSecao(data.secao)
-  void normalizeName(data.nome_completo)
   void normalizeName(data.nome_mae)
   void normalizeName(data.coordenador)
   void normalizeName(data.lider)
