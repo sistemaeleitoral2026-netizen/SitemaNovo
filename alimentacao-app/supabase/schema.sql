@@ -284,3 +284,6 @@ set nome = excluded.nome,
     email = excluded.email,
     role = 'admin',
     ativo = true;
+
+-- Ativacao claims (Formigas Próximo) — ver migration 20261003_ativacao_claims.sql
+-- Tabela ativacao_claims + claim_next_ativacao + release_ativacao_claim

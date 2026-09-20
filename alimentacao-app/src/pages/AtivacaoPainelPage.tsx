@@ -1,6 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Crown, Download, Pencil, RotateCcw, Search, UserCog, Users, ClipboardList } from 'lucide-react'
+import {
+  Car,
+  Clock3,
+  Crown,
+  Download,
+  Home,
+  MessageCircle,
+  Pencil,
+  RotateCcw,
+  Search,
+  Share2,
+  UserCog,
+  Users,
+  ClipboardList,
+} from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Select } from '../components/ui/Select'
 import { Spinner } from '../components/ui/Spinner'
@@ -8,7 +22,9 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Pagination } from '../components/ui/Pagination'
 import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import { useAuth } from '../contexts/AuthContext'
+import { hasRole } from '../lib/roles'
 import {
+  fetchAtivacaoKpis,
   fetchAtivacaoPainel,
   fetchAtivacaoTeamOptions,
   type AtivacaoListFilters,
@@ -61,9 +77,9 @@ export function AtivacaoPainelPage() {
   const navigate = useNavigate()
   const { profile } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
-  const isAdmin = profile?.role === 'admin'
-  const isDiretoria = profile?.role === 'diretoria'
-  const isMobilizador = profile?.role === 'mobilizador'
+  const isAdmin = hasRole(profile, 'admin')
+  const isDiretoria = hasRole(profile, 'diretoria')
+  const isMobilizador = hasRole(profile, 'mobilizador')
   const canPickDiretoria = isAdmin || isMobilizador
   const scopeDiretoriaId = isDiretoria ? profile?.id : null
 
@@ -94,10 +110,19 @@ export function AtivacaoPainelPage() {
   const [operatorId, setOperatorId] = useState(searchParams.get('nerite') ?? '')
   const [page, setPage] = useState(Number(searchParams.get('page') || 0) || 0)
   const [pageSize, setPageSize] = useState(25)
+  const [kpis, setKpis] = useState({ carros: 0, casas: 0, postagens: 0, whatsapp: 0, pendentes: 0 })
 
   useEffect(() => {
     if (scopeDiretoriaId) setDiretoriaId(scopeDiretoriaId)
   }, [scopeDiretoriaId])
+
+  useEffect(() => {
+    const dir = diretoriaId || scopeDiretoriaId || undefined
+    void fetchAtivacaoKpis({
+      tipo: 'todos',
+      diretoria_id: dir,
+    }).then(setKpis).catch(() => undefined)
+  }, [diretoriaId, scopeDiretoriaId])
 
   useEffect(() => {
     const scope = isDiretoria ? scopeDiretoriaId : (diretoriaId || null)
@@ -253,6 +278,69 @@ export function AtivacaoPainelPage() {
         <div className="page-header-actions">
           <Button onClick={() => navigate('/ativacao/lancar')}>+ Fazer lançamento</Button>
         </div>
+      </div>
+
+      <div className="fl-stats fl-stats-painel">
+        {(
+          [
+            {
+              key: 'carros',
+              label: 'Carros',
+              value: kpis.carros,
+              Icon: Car,
+              tone: 'blue',
+              to: '/ativacao/painel?equipe=todos&status=com_carro',
+            },
+            {
+              key: 'casas',
+              label: 'Casas',
+              value: kpis.casas,
+              Icon: Home,
+              tone: 'teal',
+              to: '/ativacao/painel?equipe=todos&status=casa_sim',
+            },
+            {
+              key: 'postagens',
+              label: 'Postagens',
+              value: kpis.postagens,
+              Icon: Share2,
+              tone: 'violet',
+              to: '/ativacao/painel?equipe=todos&status=com_links',
+            },
+            {
+              key: 'whatsapp',
+              label: 'WhatsApp',
+              value: kpis.whatsapp,
+              Icon: MessageCircle,
+              tone: 'wa',
+              to: '/ativacao/painel?equipe=todos&status=contato_sim',
+            },
+            {
+              key: 'pendentes',
+              label: 'Pendentes',
+              value: kpis.pendentes,
+              Icon: Clock3,
+              tone: 'amber',
+              to: '/ativacao/painel?equipe=todos&status=sem_ativacao',
+            },
+          ] as const
+        ).map(({ key, label, value, Icon, tone, to }) => (
+          <button
+            key={key}
+            type="button"
+            className={`fl-stat fl-stat-card tone-${tone}`}
+            onClick={() => navigate(to)}
+          >
+            <div className="fl-stat-top">
+              <span>{label}</span>
+              <div className="fl-stat-icon" aria-hidden>
+                <Icon size={18} strokeWidth={2.25} />
+              </div>
+            </div>
+            <strong>{value.toLocaleString('pt-BR')}</strong>
+            <em className="fl-stat-cta">Filtrar →</em>
+          </button>
+        ))}
       </div>
 
       {canPickDiretoria && (
