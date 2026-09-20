@@ -239,7 +239,41 @@ export async function saveAtivacao(
 
   const table = tipo === 'eleitor' ? 'cadastros' : tipo === 'lideranca' ? 'lideres' : 'coordenadores'
   const { error } = await supabase.from(table).update(payload).eq('id', id)
+  if (!error) {
+    await releaseAtivacaoClaim(tipo, id)
+  }
   return { error: error?.message ?? null }
+}
+
+/** Reserva a próxima pessoa pendente (aleatória) e evita conflito entre formigas. */
+export async function claimNextAtivacao(diretoriaId?: string | null): Promise<{
+  pessoa: AtivacaoPessoa | null
+  error: string | null
+}> {
+  const { data, error } = await supabase.rpc('claim_next_ativacao', {
+    p_diretoria_id: diretoriaId || null,
+  })
+  if (error) {
+    return { pessoa: null, error: error.message }
+  }
+  const row = Array.isArray(data) ? data[0] : data
+  const tipo = (row?.out_tipo ?? row?.tipo) as AtivacaoTipo | undefined
+  const id = (row?.out_pessoa_id ?? row?.pessoa_id) as string | undefined
+  if (!tipo || !id) {
+    return { pessoa: null, error: null }
+  }
+  const pessoa = await fetchAtivacaoPessoa(tipo, id)
+  if (!pessoa) {
+    return { pessoa: null, error: 'Pessoa não encontrada após o claim.' }
+  }
+  return { pessoa, error: null }
+}
+
+export async function releaseAtivacaoClaim(tipo: AtivacaoTipo, id: string): Promise<void> {
+  await supabase.rpc('release_ativacao_claim', {
+    p_tipo: tipo,
+    p_pessoa_id: id,
+  })
 }
 
 export type AtivacaoListFilters = {
