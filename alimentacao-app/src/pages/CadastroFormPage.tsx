@@ -442,6 +442,11 @@ export function CadastroFormPage() {
                 <WhatsAppLink phone={form.telefone} />
               </div>
               {errors.telefone && <span className="field-error">{errors.telefone}</span>}
+              {!errors.telefone && (
+                <span className="field-hint" style={{ display: 'block', marginTop: 4, fontSize: '.72rem', color: '#64748b' }}>
+                  Formato BR (DDD + número). Confirmação no WhatsApp é feita pelas Formigas no Registro.
+                </span>
+              )}
             </div>
             <Input
               label="Título de eleitor"
