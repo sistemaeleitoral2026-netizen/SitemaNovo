@@ -362,7 +362,7 @@ export function AtivacaoLancarPage() {
                       options={[
                         { label: 'Não acionada', value: 'nao' },
                         { label: 'Já acionada', value: 'sim' },
-                        { label: 'Não tem WhatsApp', value: 'sem' },
+                        { label: 'Sem WhatsApp', value: 'sem' },
                       ]}
                       value={contatoStatus}
                       onChange={(v) => setContatoStatus(v as ContatoWhatsappStatus)}
