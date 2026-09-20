@@ -5134,6 +5134,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .fl-hint { margin: 0 0 1rem; color: #64748b; font-size: .875rem; }
 .fl-hint.italic { font-style: italic; margin-bottom: 0; }
 .fl-lock-hint { color: #b45309; margin: 0 0 .5rem; }
+.fl-dirty-hint { color: #b45309; margin: .35rem 0 0; }
 .fl-wa-body { display: grid; gap: 1rem; }
 .fl-wa-row {
   display: flex;
@@ -5355,6 +5356,16 @@ button.fichas-count.equipe-drill-count.zero:hover {
 }
 .fl-btn-primary:hover:not(:disabled) { background: #1d4ed8; }
 .fl-btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.fl-btn-primary.is-dirty {
+  background: #0f172a;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, .35);
+  animation: flDirtyPulse 1.6s ease-in-out infinite;
+}
+.fl-btn-primary.is-dirty:hover:not(:disabled) { background: #1e293b; }
+@keyframes flDirtyPulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(245, 158, 11, .28); }
+  50% { box-shadow: 0 0 0 5px rgba(245, 158, 11, .45); }
+}
 .fl-btn-secondary {
   padding: .75rem 1.5rem;
   border: 1px solid #cbd5e1;

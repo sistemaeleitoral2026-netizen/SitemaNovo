@@ -106,6 +106,32 @@ export function AtivacaoLancarPage() {
   const editCasa = canEditSection(selected?.formigas_casa_by, profile?.id, canOverride)
   const editLinks = canEditSection(selected?.formigas_links_by, profile?.id, canOverride)
 
+  const isDirty = useMemo(() => {
+    if (!selected) return false
+    const nextLinks = links.map((l) => l.trim()).filter(Boolean)
+    const prevLinks = selected.postagem_links
+    const linksChanged =
+      nextLinks.length !== prevLinks.length
+      || [...nextLinks].sort().join('\n') !== [...prevLinks].sort().join('\n')
+    return (
+      carros !== selected.carros_adesivados
+      || casa !== (selected.adesivos_casa > 0)
+      || contatoStatus !== selected.contato_whatsapp_status
+      || notas.trim() !== (selected.ativacao_notas || '').trim()
+      || linksChanged
+    )
+  }, [selected, carros, casa, links, notas, contatoStatus])
+
+  useEffect(() => {
+    if (!isDirty) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [isDirty])
+
   useEffect(() => {
     if (!preId || !preTipo) return
     if (!['eleitor', 'lideranca', 'coordenador'].includes(preTipo)) return
@@ -150,10 +176,7 @@ export function AtivacaoLancarPage() {
     setOk(null)
   }
 
-  async function clearPerson() {
-    if (selected) {
-      void releaseAtivacaoClaim(selected.tipo, selected.id)
-    }
+  function resetForm() {
     setSelected(null)
     setQuery('')
     setCarros(0)
@@ -162,17 +185,55 @@ export function AtivacaoLancarPage() {
     setNotas('')
     setContatoStatus('nao')
     setLinkDraft('')
+  }
+
+  async function persistCurrent(): Promise<boolean> {
+    if (!selected) return false
+    setSaving(true)
+    setError(null)
+    const snapshot = selected
+    const { error: err } = await saveAtivacao(snapshot.tipo, snapshot.id, {
+      carros_adesivados: carros,
+      casa,
+      links,
+      notas,
+      contato_whatsapp_status: contatoStatus,
+    }, snapshot)
+    setSaving(false)
+    if (err) {
+      setError(err)
+      return false
+    }
+    return true
+  }
+
+  async function clearPerson() {
+    if (selected && isDirty) {
+      setError('Há alterações sem salvar. Clique em Salvar lançamento antes de limpar.')
+      setOk(null)
+      return
+    }
+    if (selected) {
+      void releaseAtivacaoClaim(selected.tipo, selected.id)
+    }
+    resetForm()
     setError(null)
     setOk(null)
   }
 
   async function handleProximo() {
-    setClaiming(true)
     setError(null)
     setOk(null)
-    if (selected) {
+
+    if (selected && isDirty) {
+      const saved = await persistCurrent()
+      if (!saved) return
+      setOk('Salvo. Buscando próximo…')
+    } else if (selected) {
       await releaseAtivacaoClaim(selected.tipo, selected.id)
     }
+
+    setClaiming(true)
     const { pessoa, error: err } = await claimNextAtivacao(scopeDiretoriaId)
     setClaiming(false)
     if (err) {
@@ -181,11 +242,11 @@ export function AtivacaoLancarPage() {
     }
     if (!pessoa) {
       setError('Ninguém pendente agora. Tente de novo em instantes.')
-      setSelected(null)
-      setQuery('')
+      resetForm()
       return
     }
     selectPerson(pessoa)
+    setOk(null)
   }
 
   function addLink() {
@@ -205,30 +266,29 @@ export function AtivacaoLancarPage() {
       setError('Selecione uma pessoa para lançar Formigas.')
       return
     }
-    setSaving(true)
-    setError(null)
-    setOk(null)
-    const { error: err } = await saveAtivacao(selected.tipo, selected.id, {
-      carros_adesivados: carros,
-      casa,
-      links,
-      notas,
-      contato_whatsapp_status: contatoStatus,
-    }, selected)
-    setSaving(false)
-    if (err) {
-      setError(err)
+    if (!isDirty) {
+      setOk('Nada para salvar — nenhuma alteração nesta ficha.')
       return
     }
+    const saved = await persistCurrent()
+    if (!saved) return
     setOk('Lançamento salvo. Busque ou clique em Próximo.')
+    resetForm()
+  }
+
+  function tryLeaveSelected(nextQuery: string) {
+    if (!selected) {
+      setQuery(nextQuery)
+      return
+    }
+    if (isDirty) {
+      setError('Há alterações sem salvar. Clique em Salvar lançamento antes de trocar de pessoa.')
+      setOk(null)
+      return
+    }
+    void releaseAtivacaoClaim(selected.tipo, selected.id)
     setSelected(null)
-    setQuery('')
-    setCarros(0)
-    setCasa(false)
-    setLinks([])
-    setNotas('')
-    setContatoStatus('nao')
-    setLinkDraft('')
+    setQuery(nextQuery)
   }
 
   const initials = useMemo(() => {
@@ -240,6 +300,14 @@ export function AtivacaoLancarPage() {
       .map((p) => p[0]?.toUpperCase() ?? '')
       .join('') || '--'
   }, [selected])
+
+  const saveLabel = saving ? 'Salvando…' : 'Salvar lançamento'
+  const proximoBusy = claiming || saving
+  const proximoLabel = claiming
+    ? '…'
+    : selected && isDirty
+      ? <>Salvar e próximo <ArrowRight size={16} strokeWidth={2.5} /></>
+      : <>Próximo <ArrowRight size={16} strokeWidth={2.5} /></>
 
   return (
     <div className="fl-page fl-page-lancar">
@@ -268,11 +336,7 @@ export function AtivacaoLancarPage() {
                   id="fl-busca"
                   value={query}
                   onChange={(e) => {
-                    setQuery(e.target.value)
-                    if (selected) {
-                      void releaseAtivacaoClaim(selected.tipo, selected.id)
-                      setSelected(null)
-                    }
+                    tryLeaveSelected(e.target.value)
                   }}
                   placeholder="Nome, CPF ou telefone…"
                   autoComplete="off"
@@ -286,12 +350,18 @@ export function AtivacaoLancarPage() {
               <button
                 type="button"
                 className="fl-btn-proximo"
-                disabled={claiming || saving}
+                disabled={proximoBusy}
                 onClick={() => void handleProximo()}
               >
-                {claiming ? '…' : <>Próximo <ArrowRight size={16} strokeWidth={2.5} /></>}
+                {proximoLabel}
               </button>
             </div>
+
+            {isDirty && (
+              <p className="fl-hint fl-dirty-hint">
+                Alterações pendentes — salve ou use <b>Salvar e próximo</b> para não perder.
+              </p>
+            )}
 
             {!selected && suggestions.length > 0 && (
               <div className="fl-suggest">
@@ -526,14 +596,18 @@ export function AtivacaoLancarPage() {
         </div>
 
         <div className="fl-card-foot fl-card-foot-desktop">
-          <button type="submit" className="fl-btn-primary" disabled={!isFormActive || saving}>
+          <button
+            type="submit"
+            className={`fl-btn-primary${isDirty ? ' is-dirty' : ''}`}
+            disabled={!isFormActive || saving || !isDirty}
+          >
             <CheckCircle2 size={20} />
-            {saving ? 'Salvando…' : 'Salvar lançamento'}
+            {saveLabel}
           </button>
           <button
             type="button"
             className="fl-btn-secondary"
-            disabled={!isFormActive}
+            disabled={!isFormActive || saving}
             onClick={() => void clearPerson()}
           >
             Limpar
@@ -545,11 +619,11 @@ export function AtivacaoLancarPage() {
         <button
           type="submit"
           form="fl-lancar-form"
-          className="fl-btn-primary fl-btn-save-full"
-          disabled={!isFormActive || saving}
+          className={`fl-btn-primary fl-btn-save-full${isDirty ? ' is-dirty' : ''}`}
+          disabled={!isFormActive || saving || !isDirty}
         >
           <CheckCircle2 size={20} />
-          {saving ? 'Salvando…' : 'Salvar lançamento'}
+          {saveLabel}
         </button>
       </div>
     </div>
