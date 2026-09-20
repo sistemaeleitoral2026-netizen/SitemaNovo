@@ -55,6 +55,7 @@ export function validateCadastroForm(data: CadastroFormData): FieldErrors {
   }
 
   // zona/seção: se preenchidos, só normalizam — sem erro de obrigatoriedade
+  // (UI da ficha limita a 089/010; não bloqueia legado/edição/import)
   void normalizeZona(data.zona)
   void normalizeSecao(data.secao)
   void normalizeName(data.nome_completo)
