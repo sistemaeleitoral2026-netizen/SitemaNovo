@@ -44,6 +44,7 @@ export interface Coordenador {
   nome: string
   ativo: boolean
   carros_adesivados?: number
+  motos_adesivadas?: number
   adesivos_casa?: number
   postagens?: number
   postagem_links?: string[] | null
@@ -66,6 +67,7 @@ export interface Lider {
   telefone?: string | null
   ativo: boolean
   carros_adesivados?: number
+  motos_adesivadas?: number
   adesivos_casa?: number
   postagens?: number
   postagem_links?: string[] | null
@@ -104,6 +106,7 @@ export interface Cadastro {
   lat: number | null
   lng: number | null
   carros_adesivados?: number
+  motos_adesivadas?: number
   adesivos_casa?: number
   postagens?: number
   postagem_links?: string[] | null

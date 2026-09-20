@@ -7,6 +7,7 @@ import { Pagination } from '../components/ui/Pagination'
 import {
   fetchFormigasHistorico,
   fetchFormigasHistoricoActors,
+  historicoDescricao,
   type FormigasHistoricoItem,
 } from '../lib/ativacao'
 
@@ -42,10 +43,16 @@ function secaoTone(secao: FormigasHistoricoItem['secao']) {
 
 function secaoLabel(secao: FormigasHistoricoItem['secao']) {
   if (secao === 'whatsapp') return 'WhatsApp'
-  if (secao === 'carros') return 'Carros'
+  if (secao === 'carros') return 'Veículos'
   if (secao === 'casa') return 'Casa'
   if (secao === 'links') return 'Redes'
   return 'Observações'
+}
+
+function tipoPessoaLabel(tipo: FormigasHistoricoItem['tipo']) {
+  if (tipo === 'eleitor') return 'Eleitor'
+  if (tipo === 'lideranca') return 'Liderança'
+  return 'Coordenador'
 }
 
 export function AtivacaoHistoricoPage() {
@@ -147,31 +154,46 @@ export function AtivacaoHistoricoPage() {
       ) : items.length === 0 ? (
         <div className="fh-empty">{emptyHint}</div>
       ) : (
-        <ul className="fh-list">
-          {items.map((item) => {
-            const Icon = secaoIcon(item.secao)
-            const tone = secaoTone(item.secao)
-            return (
-              <li key={item.id} className="fh-item">
-                <div className={`fh-icon tone-${tone}`}>
-                  <Icon size={18} />
-                </div>
-                <div className="fh-body">
-                  <p className="fh-resumo">{item.resumo}</p>
-                  <div className="fh-meta">
-                    <span className="fh-chip">{secaoLabel(item.secao)}</span>
-                    {item.valor_antes != null && item.valor_depois != null && (
-                      <span className="fh-change">
-                        {item.valor_antes} → {item.valor_depois}
-                      </span>
-                    )}
-                    <time dateTime={item.created_at}>{formatWhen(item.created_at)}</time>
+        <>
+          <div className="fh-list-head fh-list-head-page" aria-hidden>
+            <span>Formiga</span>
+            <span>Eleitor / equipe</span>
+            <span>Descrição</span>
+          </div>
+          <ul className="fh-list">
+            {items.map((item) => {
+              const Icon = secaoIcon(item.secao)
+              const tone = secaoTone(item.secao)
+              return (
+                <li key={item.id} className="fh-item fh-item-card">
+                  <div className={`fh-icon tone-${tone}`}>
+                    <Icon size={18} />
                   </div>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+                  <div className="fh-body">
+                    <div className="fh-item-grid">
+                      <div>
+                        <span className="fh-k">Formiga</span>
+                        <strong>{item.actor_nome || 'Formiga'}</strong>
+                      </div>
+                      <div>
+                        <span className="fh-k">{tipoPessoaLabel(item.tipo)}</span>
+                        <strong>{item.pessoa_nome}</strong>
+                      </div>
+                      <div className="fh-desc">
+                        <span className="fh-k">Descrição</span>
+                        <p>{historicoDescricao(item)}</p>
+                      </div>
+                    </div>
+                    <div className="fh-meta">
+                      <span className="fh-chip">{secaoLabel(item.secao)}</span>
+                      <time dateTime={item.created_at}>{formatWhen(item.created_at)}</time>
+                    </div>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </>
       )}
 
       {total > 0 && (

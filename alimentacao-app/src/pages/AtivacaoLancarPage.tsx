@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowRight,
+  Bike,
   Car,
   CheckCircle2,
   ExternalLink,
+  History,
   Home,
   Link2,
   Minus,
@@ -17,6 +19,12 @@ import {
 import { buildWhatsAppUrl } from '../lib/whatsapp'
 import { useAuth } from '../contexts/AuthContext'
 import { hasRole } from '../lib/roles'
+import { formatCep } from '../lib/normalize'
+import { lookupViaCep } from '../lib/geocode'
+import {
+  FormigasFichaHistoricoDrawer,
+  ownerCaption,
+} from '../components/FormigasFichaHistoricoDrawer'
 import {
   claimNextAtivacao,
   fetchAtivacaoPessoa,
@@ -90,7 +98,14 @@ export function AtivacaoLancarPage() {
   const [claiming, setClaiming] = useState(false)
   const [selected, setSelected] = useState<AtivacaoPessoa | null>(null)
   const [carros, setCarros] = useState(0)
+  const [motos, setMotos] = useState(0)
+  const [veiculoCarro, setVeiculoCarro] = useState(false)
+  const [veiculoMoto, setVeiculoMoto] = useState(false)
   const [casa, setCasa] = useState(false)
+  const [casaCep, setCasaCep] = useState('')
+  const [casaEndereco, setCasaEndereco] = useState('')
+  const [casaNumero, setCasaNumero] = useState('')
+  const [cepLoading, setCepLoading] = useState(false)
   const [links, setLinks] = useState<string[]>([])
   const [linkDraft, setLinkDraft] = useState('')
   const [notas, setNotas] = useState('')
@@ -100,6 +115,8 @@ export function AtivacaoLancarPage() {
   const [ok, setOk] = useState<string | null>(null)
   const [dirtyPrompt, setDirtyPrompt] = useState<'proximo' | 'limpar' | 'trocar' | null>(null)
   const [pendingQuery, setPendingQuery] = useState<string | null>(null)
+  const [histOpen, setHistOpen] = useState(false)
+  const skipSaveRef = useRef(false)
 
   const isFormActive = selected !== null
   const waUrl = buildWhatsAppUrl(selected?.telefone)
@@ -116,14 +133,25 @@ export function AtivacaoLancarPage() {
     const linksChanged =
       nextLinks.length !== prevLinks.length
       || [...nextLinks].sort().join('\n') !== [...prevLinks].sort().join('\n')
+    const addrChanged =
+      selected.tipo === 'eleitor'
+      && (
+        casaCep.replace(/\D/g, '') !== selected.cep.replace(/\D/g, '')
+        || casaEndereco.trim() !== selected.endereco.trim()
+        || casaNumero.trim() !== selected.numero.trim()
+      )
+    const nextCarrosSave = veiculoCarro ? carros : 0
+    const nextMotosSave = veiculoMoto ? motos : 0
     return (
-      carros !== selected.carros_adesivados
+      nextCarrosSave !== selected.carros_adesivados
+      || nextMotosSave !== selected.motos_adesivadas
       || casa !== (selected.adesivos_casa > 0)
       || contatoStatus !== selected.contato_whatsapp_status
       || notas.trim() !== (selected.ativacao_notas || '').trim()
       || linksChanged
+      || (casa && addrChanged)
     )
-  }, [selected, carros, casa, links, notas, contatoStatus])
+  }, [selected, carros, motos, veiculoCarro, veiculoMoto, casa, casaCep, casaEndereco, casaNumero, links, notas, contatoStatus])
 
   useEffect(() => {
     if (!dirtyPrompt) return
@@ -180,7 +208,13 @@ export function AtivacaoLancarPage() {
     setQuery(p.nome)
     setSuggestions([])
     setCarros(p.carros_adesivados)
+    setMotos(p.motos_adesivadas)
+    setVeiculoCarro(p.carros_adesivados > 0)
+    setVeiculoMoto(p.motos_adesivadas > 0)
     setCasa(p.adesivos_casa > 0)
+    setCasaCep(p.cep ? formatCep(p.cep) : '')
+    setCasaEndereco(p.endereco || '')
+    setCasaNumero(p.numero || '')
     setLinks(p.postagem_links.length ? [...p.postagem_links] : [])
     setNotas(p.ativacao_notas || '')
     setContatoStatus(p.contato_whatsapp_status)
@@ -192,24 +226,51 @@ export function AtivacaoLancarPage() {
     setSelected(null)
     setQuery('')
     setCarros(0)
+    setMotos(0)
+    setVeiculoCarro(false)
+    setVeiculoMoto(false)
     setCasa(false)
+    setCasaCep('')
+    setCasaEndereco('')
+    setCasaNumero('')
     setLinks([])
     setNotas('')
     setContatoStatus('nao')
     setLinkDraft('')
+    setHistOpen(false)
   }
 
   async function persistCurrent(): Promise<boolean> {
     if (!selected) return false
+    if (skipSaveRef.current) return false
+    if (selected.tipo === 'eleitor' && casa) {
+      const cepDigits = casaCep.replace(/\D/g, '')
+      if (cepDigits.length !== 8) {
+        setError('Informe o CEP da casa (obrigatório para adesivo residencial).')
+        return false
+      }
+      if (!casaEndereco.trim()) {
+        setError('Informe o endereço da casa (obrigatório para adesivo residencial).')
+        return false
+      }
+      if (!casaNumero.trim()) {
+        setError('Informe o número da casa (obrigatório para adesivo residencial).')
+        return false
+      }
+    }
     setSaving(true)
     setError(null)
     const snapshot = selected
     const { error: err } = await saveAtivacao(snapshot.tipo, snapshot.id, {
-      carros_adesivados: carros,
+      carros_adesivados: veiculoCarro ? carros : 0,
+      motos_adesivadas: veiculoMoto ? motos : 0,
       casa,
       links,
       notas,
       contato_whatsapp_status: contatoStatus,
+      cep: casaCep,
+      endereco: casaEndereco,
+      numero: casaNumero,
     }, snapshot)
     setSaving(false)
     if (err) {
@@ -219,8 +280,19 @@ export function AtivacaoLancarPage() {
     return true
   }
 
+  async function fillFromCep(raw: string) {
+    const digits = raw.replace(/\D/g, '')
+    if (digits.length !== 8) return
+    setCepLoading(true)
+    const addr = await lookupViaCep(digits)
+    setCepLoading(false)
+    if (!addr) return
+    if (addr.logradouro) setCasaEndereco((prev) => prev.trim() || addr.logradouro)
+  }
+
   async function clearPerson() {
     if (selected && isDirty) {
+      ;(document.activeElement as HTMLElement | null)?.blur?.()
       setDirtyPrompt('limpar')
       setError(null)
       setOk(null)
@@ -257,6 +329,7 @@ export function AtivacaoLancarPage() {
     setOk(null)
 
     if (selected && isDirty) {
+      ;(document.activeElement as HTMLElement | null)?.blur?.()
       setDirtyPrompt('proximo')
       return
     }
@@ -268,6 +341,7 @@ export function AtivacaoLancarPage() {
   }
 
   async function confirmDirtySalvar() {
+    if (skipSaveRef.current) return
     const action = dirtyPrompt
     setDirtyPrompt(null)
     const saved = await persistCurrent()
@@ -292,6 +366,8 @@ export function AtivacaoLancarPage() {
   }
 
   async function confirmDirtyLimpar() {
+    // Trava qualquer submit/Enter que possa salvar no mesmo gesto
+    skipSaveRef.current = true
     const action = dirtyPrompt
     const snap = selected
     setDirtyPrompt(null)
@@ -302,12 +378,14 @@ export function AtivacaoLancarPage() {
     if (action === 'proximo') {
       resetForm()
       await goProximo()
+      skipSaveRef.current = false
       return
     }
     if (action === 'limpar') {
       resetForm()
       setOk(null)
       setError(null)
+      skipSaveRef.current = false
       return
     }
     if (action === 'trocar') {
@@ -317,11 +395,16 @@ export function AtivacaoLancarPage() {
       setOk(null)
       setError(null)
     }
+    skipSaveRef.current = false
   }
 
   function confirmDirtyCancelar() {
     setDirtyPrompt(null)
     setPendingQuery(null)
+  }
+
+  function preventEnterSubmit(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') e.preventDefault()
   }
 
   function addLink() {
@@ -337,6 +420,7 @@ export function AtivacaoLancarPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
+    if (dirtyPrompt || skipSaveRef.current) return
     if (!selected) {
       setError('Selecione uma pessoa para lançar Formigas.')
       return
@@ -358,6 +442,7 @@ export function AtivacaoLancarPage() {
     }
     if (isDirty) {
       setPendingQuery(nextQuery)
+      ;(document.activeElement as HTMLElement | null)?.blur?.()
       setDirtyPrompt('trocar')
       setError(null)
       setOk(null)
@@ -393,10 +478,10 @@ export function AtivacaoLancarPage() {
 
   const dirtyPromptText =
     dirtyPrompt === 'proximo'
-      ? 'Você mexeu nesta ficha. Salve para guardar, limpe para descartar, ou cancele para continuar editando.'
+      ? 'Você mexeu nesta ficha. Salve para guardar, descarte para ir ao próximo sem salvar, ou cancele para continuar editando.'
       : dirtyPrompt === 'limpar'
-        ? 'Há alterações pendentes. Salve antes de limpar, descarte tudo, ou cancele.'
-        : 'Há alterações pendentes. Salve, descarte, ou cancele para continuar nesta ficha.'
+        ? 'Há alterações pendentes. Salve antes de limpar, descarte tudo sem salvar, ou cancele.'
+        : 'Há alterações pendentes. Salve, descarte sem salvar, ou cancele para continuar nesta ficha.'
 
   return (
     <div className="fl-page fl-page-lancar">
@@ -409,7 +494,16 @@ export function AtivacaoLancarPage() {
         </button>
       </div>
 
-      <form id="fl-lancar-form" className="fl-card fl-card-sheet" onSubmit={handleSave}>
+      <form
+        id="fl-lancar-form"
+        className="fl-card fl-card-sheet"
+        onSubmit={handleSave}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
+            e.preventDefault()
+          }
+        }}
+      >
         <div className="fl-card-head">
           <h2>Registro —<br className="fl-br-mobile" /> Formigas</h2>
           <Link to="/ativacao/painel" className="fl-link">Consultar<br className="fl-br-mobile" /> Painel</Link>
@@ -471,7 +565,7 @@ export function AtivacaoLancarPage() {
             {selected && (
               <div className="fl-person">
                 <div className="fl-person-avatar">{initials}</div>
-                <div>
+                <div className="fl-person-main">
                   <div className="fl-person-name">
                     <h3>{selected.nome}</h3>
                     <span>{selected.tipoLabel}</span>
@@ -482,6 +576,14 @@ export function AtivacaoLancarPage() {
                     <p><em>Bairro:</em> <b>{selected.bairro || '—'}</b></p>
                     {selected.telefone ? <p><em>Tel:</em> <b>{selected.telefone}</b></p> : null}
                   </div>
+                  <button
+                    type="button"
+                    className="fl-hist-ficha-btn"
+                    onClick={() => setHistOpen(true)}
+                  >
+                    <History size={14} strokeWidth={2.25} />
+                    Histórico desta ficha
+                  </button>
                 </div>
               </div>
             )}
@@ -512,6 +614,13 @@ export function AtivacaoLancarPage() {
                 {!editWa && (
                   <p className="fl-hint fl-lock-hint">
                     Só a formiga que registrou este status pode alterá-lo.
+                  </p>
+                )}
+                {(selected.formigas_wa_by || selected.contato_whatsapp_status !== 'nao') && (
+                  <p className="fl-owner-line">
+                    {selected.formigas_wa_by
+                      ? `Registrado por ${selected.formigas_wa_by_nome?.trim() || 'Formiga'}`
+                      : 'Sem registro de autor'}
                   </p>
                 )}
                 {waUrl ? (
@@ -558,36 +667,138 @@ export function AtivacaoLancarPage() {
                   <div className="fl-icon tone-blue"><Car size={20} /></div>
                   <h3>Veículos adesivados</h3>
                 </div>
-                <span className="fl-pill">{carros} veículo{carros === 1 ? '' : 's'}</span>
+                <span className="fl-pill">
+                  {(veiculoCarro ? carros : 0) + (veiculoMoto ? motos : 0)} veículo
+                  {(veiculoCarro ? carros : 0) + (veiculoMoto ? motos : 0) === 1 ? '' : 's'}
+                </span>
               </div>
               {!editCarros && isFormActive && (
-                <p className="fl-hint fl-lock-hint">Só quem registrou os carros pode alterar.</p>
+                <p className="fl-hint fl-lock-hint">Só quem registrou os veículos pode alterar.</p>
               )}
-              <label className="fl-label-sm">Quantidade</label>
-              <div className="fl-stepper">
+              {isFormActive && selected && ownerCaption(
+                selected.formigas_carros_by,
+                selected.formigas_carros_by_nome,
+                selected.carros_adesivados > 0 || selected.motos_adesivadas > 0,
+              ) && (
+                <p className="fl-owner-line">
+                  {ownerCaption(
+                    selected.formigas_carros_by,
+                    selected.formigas_carros_by_nome,
+                    true,
+                  )}
+                </p>
+              )}
+              <label className="fl-label-sm">Tipo de veículo</label>
+              <div className="fl-veiculo-tipos" role="group" aria-label="Tipo de veículo">
                 <button
                   type="button"
+                  className={`fl-veiculo-tipo${veiculoCarro ? ' is-on' : ''}`}
                   disabled={!isFormActive || !editCarros}
-                  onClick={() => setCarros((n) => Math.max(0, n - 1))}
-                  aria-label="Diminuir"
+                  aria-pressed={veiculoCarro}
+                  onClick={() => {
+                    setVeiculoCarro((on) => {
+                      const next = !on
+                      if (next && carros === 0) setCarros(1)
+                      if (!next) setCarros(0)
+                      return next
+                    })
+                  }}
                 >
-                  <Minus size={16} />
+                  <Car size={18} strokeWidth={2.25} />
+                  <span>Carro</span>
                 </button>
-                <input
-                  inputMode="numeric"
-                  disabled={!isFormActive || !editCarros}
-                  value={String(carros)}
-                  onChange={(e) => setCarros(Math.max(0, Number(e.target.value.replace(/\D/g, '') || 0)))}
-                />
                 <button
                   type="button"
+                  className={`fl-veiculo-tipo${veiculoMoto ? ' is-on' : ''}`}
                   disabled={!isFormActive || !editCarros}
-                  onClick={() => setCarros((n) => n + 1)}
-                  aria-label="Aumentar"
+                  aria-pressed={veiculoMoto}
+                  onClick={() => {
+                    setVeiculoMoto((on) => {
+                      const next = !on
+                      if (next && motos === 0) setMotos(1)
+                      if (!next) setMotos(0)
+                      return next
+                    })
+                  }}
                 >
-                  <Plus size={16} />
+                  <Bike size={18} strokeWidth={2.25} />
+                  <span>Moto</span>
                 </button>
               </div>
+
+              {(veiculoCarro || veiculoMoto) && (
+                <div className={`fl-veiculo-qtds${veiculoCarro && veiculoMoto ? ' is-both' : ''}`}>
+                  {veiculoCarro && (
+                    <div className="fl-veiculo-qtd">
+                      <label className="fl-label-sm">
+                        <Car size={14} /> Quantidade de carros
+                      </label>
+                      <div className="fl-stepper">
+                        <button
+                          type="button"
+                          disabled={!isFormActive || !editCarros}
+                          onClick={() => setCarros((n) => Math.max(0, n - 1))}
+                          aria-label="Diminuir carros"
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <input
+                          inputMode="numeric"
+                          disabled={!isFormActive || !editCarros}
+                          value={String(carros)}
+                          onKeyDown={preventEnterSubmit}
+                          onChange={(e) => setCarros(Math.max(0, Number(e.target.value.replace(/\D/g, '') || 0)))}
+                        />
+                        <button
+                          type="button"
+                          disabled={!isFormActive || !editCarros}
+                          onClick={() => setCarros((n) => n + 1)}
+                          aria-label="Aumentar carros"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {veiculoMoto && (
+                    <div className="fl-veiculo-qtd">
+                      <label className="fl-label-sm">
+                        <Bike size={14} /> Quantidade de motos
+                      </label>
+                      <div className="fl-stepper">
+                        <button
+                          type="button"
+                          disabled={!isFormActive || !editCarros}
+                          onClick={() => setMotos((n) => Math.max(0, n - 1))}
+                          aria-label="Diminuir motos"
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <input
+                          inputMode="numeric"
+                          disabled={!isFormActive || !editCarros}
+                          value={String(motos)}
+                          onKeyDown={preventEnterSubmit}
+                          onChange={(e) => setMotos(Math.max(0, Number(e.target.value.replace(/\D/g, '') || 0)))}
+                        />
+                        <button
+                          type="button"
+                          disabled={!isFormActive || !editCarros}
+                          onClick={() => setMotos((n) => n + 1)}
+                          aria-label="Aumentar motos"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {isFormActive && !veiculoCarro && !veiculoMoto && (
+                <p className="fl-hint" style={{ marginTop: '.65rem', marginBottom: 0 }}>
+                  Selecione carro e/ou moto para informar a quantidade.
+                </p>
+              )}
             </div>
 
             <div className={`fl-block${isFormActive ? ' is-active' : ''}`}>
@@ -603,6 +814,11 @@ export function AtivacaoLancarPage() {
               {!editCasa && isFormActive && (
                 <p className="fl-hint fl-lock-hint">Só quem registrou o adesivo pode alterar.</p>
               )}
+              {isFormActive && selected && ownerCaption(selected.formigas_casa_by, selected.formigas_casa_by_nome, casa) && (
+                <p className="fl-owner-line">
+                  {ownerCaption(selected.formigas_casa_by, selected.formigas_casa_by_nome, casa)}
+                </p>
+              )}
               <label className="fl-label-sm">Confirmação de campo</label>
               <SegmentedControl
                 disabled={!isFormActive || !editCasa}
@@ -613,6 +829,57 @@ export function AtivacaoLancarPage() {
                 value={casa ? 'sim' : 'nao'}
                 onChange={(v) => setCasa(v === 'sim')}
               />
+              {isFormActive && selected?.tipo === 'eleitor' && casa && (
+                <div className="fl-casa-addr">
+                  <p className="fl-hint">
+                    Endereço da casa com adesivo (obrigatório).
+                    {(selected.cep || selected.endereco) ? ' Dados do cadastro preenchidos automaticamente.' : ' Cadastre CEP, rua e número.'}
+                  </p>
+                  <div className="fl-casa-addr-grid">
+                    <label className="fl-field fl-casa-cep">
+                      <span>CEP *</span>
+                      <input
+                        inputMode="numeric"
+                        disabled={!editCasa || saving}
+                        value={casaCep}
+                        placeholder="00000-000"
+                        onKeyDown={preventEnterSubmit}
+                        onChange={(e) => {
+                          const next = formatCep(e.target.value)
+                          setCasaCep(next)
+                          if (next.replace(/\D/g, '').length === 8) void fillFromCep(next)
+                        }}
+                      />
+                      {cepLoading ? <em className="fl-cep-loading">Buscando…</em> : null}
+                    </label>
+                    <label className="fl-field fl-casa-num">
+                      <span>Nº *</span>
+                      <input
+                        disabled={!editCasa || saving}
+                        value={casaNumero}
+                        placeholder="nº"
+                        onKeyDown={preventEnterSubmit}
+                        onChange={(e) => setCasaNumero(e.target.value)}
+                      />
+                    </label>
+                    <label className="fl-field fl-casa-rua">
+                      <span>Endereço *</span>
+                      <input
+                        disabled={!editCasa || saving}
+                        value={casaEndereco}
+                        placeholder="Rua / avenida"
+                        onKeyDown={preventEnterSubmit}
+                        onChange={(e) => setCasaEndereco(e.target.value)}
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+              {isFormActive && selected && selected.tipo !== 'eleitor' && casa && (
+                <p className="fl-hint">
+                  Endereço completo só é exigido para eleitores (ficha de cadastro).
+                </p>
+              )}
             </div>
           </div>
 
@@ -626,6 +893,11 @@ export function AtivacaoLancarPage() {
             </div>
             {!editLinks && isFormActive && (
               <p className="fl-hint fl-lock-hint">Só quem registrou as postagens pode alterar os links.</p>
+            )}
+            {isFormActive && selected && ownerCaption(selected.formigas_links_by, selected.formigas_links_by_nome, links.length > 0) && (
+              <p className="fl-owner-line">
+                {ownerCaption(selected.formigas_links_by, selected.formigas_links_by_nome, links.length > 0)}
+              </p>
             )}
             <p className="fl-hint">Cada link válido conta como 1 postagem.</p>
             <div className="fl-link-row">
@@ -741,9 +1013,13 @@ export function AtivacaoLancarPage() {
                   type="button"
                   className="fl-btn-danger-outline"
                   disabled={saving || claiming}
-                  onClick={() => void confirmDirtyLimpar()}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    void confirmDirtyLimpar()
+                  }}
                 >
-                  Limpar alterações
+                  Descartar sem salvar
                 </button>
                 <button
                   type="button"
@@ -758,6 +1034,16 @@ export function AtivacaoLancarPage() {
           </div>,
           document.body,
         )}
+
+      {selected && (
+        <FormigasFichaHistoricoDrawer
+          open={histOpen}
+          onClose={() => setHistOpen(false)}
+          tipo={selected.tipo}
+          pessoaId={selected.id}
+          pessoaNome={selected.nome}
+        />
+      )}
     </div>
   )
 }

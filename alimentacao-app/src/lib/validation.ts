@@ -118,8 +118,13 @@ export function validateCadastroForm(data: CadastroFormData): FieldErrors {
   void normalizeZona(data.zona)
   void normalizeSecao(data.secao)
   void normalizeName(data.nome_mae)
-  void normalizeName(data.coordenador)
-  void normalizeName(data.lider)
+
+  if (!normalizeName(data.coordenador)) {
+    errors.coordenador = 'Selecione o coordenador.'
+  }
+  if (!normalizeName(data.lider)) {
+    errors.lider = 'Selecione a liderança.'
+  }
 
   return errors
 }
