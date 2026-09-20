@@ -552,7 +552,7 @@ function AdminDashboard() {
                 <div className="nd-meta-bar-fill" style={{ width: `${Math.min(pctFine, 100)}%` }} />
               </div>
               <div className="nd-meta-bar-legend">
-                <span>0 fichas</span>
+                <span>{fmt(goal.atual)} fichas</span>
                 <span>Meta: {fmt(goal.meta)} fichas</span>
               </div>
             </div>
