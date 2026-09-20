@@ -20,6 +20,8 @@ import type { Cadastro, Profile } from '../types'
 
 type ViewMode = 'todos' | 'mapped' | 'unmapped' | 'week7'
 type ColumnKey = 'nome' | 'nerite' | 'coordenador' | 'lider' | 'nascimento' | 'nome_mae' | 'cpf' | 'telefone' | 'titulo' | 'zona' | 'secao' | 'cep' | 'endereco' | 'localizacao' | 'data' | 'acoes'
+type SortKey = Exclude<ColumnKey, 'acoes'>
+type SortDir = 'desc' | 'asc'
 type CadastroOperator = Pick<Profile, 'id' | 'nome' | 'diretoria_id'>
 
 const columnOptions: { key: ColumnKey; label: string; defaultVisible: boolean }[] = [
@@ -40,6 +42,49 @@ const columnOptions: { key: ColumnKey; label: string; defaultVisible: boolean }[
   { key: 'data', label: 'Data', defaultVisible: false },
   { key: 'acoes', label: 'Ações', defaultVisible: true },
 ]
+
+function compareText(a: string, b: string) {
+  return a.localeCompare(b, 'pt-BR', { sensitivity: 'base', numeric: true })
+}
+
+function sortValue(
+  c: Cadastro,
+  key: SortKey,
+  neriteNames: Map<string, string>,
+): string | number {
+  switch (key) {
+    case 'nome':
+      return (c.nome_completo ?? '').trim()
+    case 'nerite':
+      return (c.operator_id && neriteNames.get(c.operator_id)) || ''
+    case 'coordenador':
+      return (c.coordenador ?? '').trim()
+    case 'lider':
+      return (c.lider ?? '').trim()
+    case 'nascimento':
+      return c.data_nascimento || ''
+    case 'nome_mae':
+      return (c.nome_mae ?? '').trim()
+    case 'cpf':
+      return (c.cpf ?? '').replace(/\D/g, '')
+    case 'telefone':
+      return (c.telefone ?? '').replace(/\D/g, '')
+    case 'titulo':
+      return (c.titulo ?? '').trim()
+    case 'zona':
+      return (c.zona ?? '').trim()
+    case 'secao':
+      return (c.secao ?? '').trim()
+    case 'cep':
+      return (c.cep ?? '').replace(/\D/g, '')
+    case 'endereco':
+      return [c.endereco, c.numero, c.bairro].filter(Boolean).join(' ')
+    case 'localizacao':
+      return c.lat != null && c.lng != null ? 1 : 0
+    case 'data':
+      return c.created_at || ''
+  }
+}
 
 async function fetchCadastroOperators() {
   const rpcResult = await supabase.rpc('list_cadastro_operadores')
@@ -80,6 +125,8 @@ export function CadastrosPage() {
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(
     () => new Set(columnOptions.filter((column) => column.defaultVisible).map((column) => column.key)),
   )
+  const [sortKey, setSortKey] = useState<SortKey>('data')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
 
   const showColumn = (key: ColumnKey) => visibleColumns.has(key) && (key !== 'nerite' || !isOwnOnly)
 
@@ -90,6 +137,16 @@ export function CadastrosPage() {
       else next.add(key)
       return next
     })
+  }
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))
+    } else {
+      setSortKey(key)
+      setSortDir('desc')
+    }
+    setPage(0)
   }
 
   const load = useCallback(async () => {
@@ -230,6 +287,21 @@ export function CadastrosPage() {
     period, dateFrom, dateTo, cepFilter, tituloFilter, dupFilter, duplicateTitles, neriteNames, neriteById,
   ])
 
+  const sortedCadastros = useMemo(() => {
+    const dir = sortDir === 'desc' ? -1 : 1
+    return [...filteredCadastros].sort((a, b) => {
+      const va = sortValue(a, sortKey, neriteNames)
+      const vb = sortValue(b, sortKey, neriteNames)
+      if (typeof va === 'number' && typeof vb === 'number') {
+        return (va - vb) * dir
+      }
+      const cmp = compareText(String(va), String(vb))
+      if (cmp !== 0) return cmp * dir
+      // desempate estável por data mais recente
+      return b.created_at.localeCompare(a.created_at)
+    })
+  }, [filteredCadastros, sortKey, sortDir, neriteNames])
+
   useEffect(() => setPage(0), [
     search, operatorFilter, coordenadorFilter, liderFilter, diretoriaFilter,
     zonaFilter, secaoFilter, geoFilter, view, periodPreset,
@@ -250,8 +322,26 @@ export function CadastrosPage() {
     return parts.join(' · ')
   }, [liderFilter, coordenadorFilter, operatorFilter, neriteNames])
 
-  const totalPages = Math.max(1, Math.ceil(filteredCadastros.length / pageSize))
-  const pageItems = filteredCadastros.slice(page * pageSize, (page + 1) * pageSize)
+  const totalPages = Math.max(1, Math.ceil(sortedCadastros.length / pageSize))
+  const pageItems = sortedCadastros.slice(page * pageSize, (page + 1) * pageSize)
+
+  function SortHeader({ column, label }: { column: SortKey; label: string }) {
+    const active = sortKey === column
+    return (
+      <th aria-sort={active ? (sortDir === 'desc' ? 'descending' : 'ascending') : 'none'}>
+        <button
+          type="button"
+          className={`sort-th-btn${active ? ' is-active' : ''}`}
+          onClick={() => toggleSort(column)}
+        >
+          <span>{label}</span>
+          <span className="sort-th-icon" aria-hidden>
+            {active ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}
+          </span>
+        </button>
+      </th>
+    )
+  }
 
   function clearFilters() {
     setSearch('')
@@ -537,21 +627,21 @@ export function CadastrosPage() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    {showColumn('nome') && <th>Nome</th>}
-                    {showColumn('nerite') && <th>Nerite</th>}
-                    {showColumn('coordenador') && <th>Coordenador</th>}
-                    {showColumn('lider') && <th>Líder</th>}
-                    {showColumn('nascimento') && <th>Nascimento</th>}
-                    {showColumn('nome_mae') && <th>Nome da mãe</th>}
-                    {showColumn('cpf') && <th>CPF</th>}
-                    {showColumn('telefone') && <th>Telefone</th>}
-                    {showColumn('titulo') && <th>Título</th>}
-                    {showColumn('zona') && <th>Zona</th>}
-                    {showColumn('secao') && <th>Seção</th>}
-                    {showColumn('cep') && <th>CEP</th>}
-                    {showColumn('endereco') && <th>Endereço</th>}
-                    {showColumn('localizacao') && <th>Localização</th>}
-                    {showColumn('data') && <th>Data</th>}
+                    {showColumn('nome') && <SortHeader column="nome" label="Nome" />}
+                    {showColumn('nerite') && <SortHeader column="nerite" label="Nerite" />}
+                    {showColumn('coordenador') && <SortHeader column="coordenador" label="Coordenador" />}
+                    {showColumn('lider') && <SortHeader column="lider" label="Líder" />}
+                    {showColumn('nascimento') && <SortHeader column="nascimento" label="Nascimento" />}
+                    {showColumn('nome_mae') && <SortHeader column="nome_mae" label="Nome da mãe" />}
+                    {showColumn('cpf') && <SortHeader column="cpf" label="CPF" />}
+                    {showColumn('telefone') && <SortHeader column="telefone" label="Telefone" />}
+                    {showColumn('titulo') && <SortHeader column="titulo" label="Título" />}
+                    {showColumn('zona') && <SortHeader column="zona" label="Zona" />}
+                    {showColumn('secao') && <SortHeader column="secao" label="Seção" />}
+                    {showColumn('cep') && <SortHeader column="cep" label="CEP" />}
+                    {showColumn('endereco') && <SortHeader column="endereco" label="Endereço" />}
+                    {showColumn('localizacao') && <SortHeader column="localizacao" label="Localização" />}
+                    {showColumn('data') && <SortHeader column="data" label="Data" />}
                     {showColumn('acoes') && <th className="sticky-actions-head">Ações</th>}
                   </tr>
                 </thead>

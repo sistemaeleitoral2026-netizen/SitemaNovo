@@ -418,9 +418,9 @@ export function buildMapMarkers(cadastros: Cadastro[]): MapMarkerData[] {
         ? g.lngs.reduce((a, b) => a + b, 0) / g.lngs.length
         : fromZona?.lng
 
-      // Preferência: coordenada da zona eleitoral; senão média dos pontos existentes
-      const lat = fromZona?.lat ?? avgLat
-      const lng = fromZona?.lng ?? avgLng
+      // Preferência: média dos cadastros geocodificados (foco real); senão sede da zona
+      const lat = avgLat ?? fromZona?.lat
+      const lng = avgLng ?? fromZona?.lng
       if (lat == null || lng == null) return null
 
       return {
