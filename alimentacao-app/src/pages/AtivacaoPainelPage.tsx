@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
+  Bike,
   Car,
   Clock3,
   Crown,
   Download,
+  History,
   Home,
+  MapPin,
   MessageCircle,
   Pencil,
   RotateCcw,
@@ -21,12 +24,15 @@ import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Pagination } from '../components/ui/Pagination'
 import { WhatsAppLink } from '../components/ui/WhatsAppLink'
+import { FormigasFichaHistoricoDrawer } from '../components/FormigasFichaHistoricoDrawer'
 import { useAuth } from '../contexts/AuthContext'
 import { hasRole } from '../lib/roles'
+import { formatPhone } from '../lib/format'
 import {
   fetchAtivacaoKpis,
   fetchAtivacaoPainel,
   fetchAtivacaoTeamOptions,
+  mapsUrlForPessoa,
   type AtivacaoListFilters,
   type AtivacaoPessoa,
   type AtivacaoTeamOptions,
@@ -111,10 +117,34 @@ export function AtivacaoPainelPage() {
   const [page, setPage] = useState(Number(searchParams.get('page') || 0) || 0)
   const [pageSize, setPageSize] = useState(25)
   const [kpis, setKpis] = useState({ carros: 0, casas: 0, postagens: 0, whatsapp: 0, pendentes: 0 })
+  const [histTarget, setHistTarget] = useState<AtivacaoPessoa | null>(null)
 
   useEffect(() => {
     if (scopeDiretoriaId) setDiretoriaId(scopeDiretoriaId)
   }, [scopeDiretoriaId])
+
+  // Deep link / navegação externa → estado (cards, Dashboard, refresh)
+  useEffect(() => {
+    const nextStatus = parseStatus(searchParams.get('status'))
+    const nextEquipe = parseEquipeChip(searchParams.get('equipe'))
+    const nextSearch = searchParams.get('q') ?? ''
+    const nextDir = scopeDiretoriaId || searchParams.get('diretoria') || ''
+    const nextCoord = searchParams.get('coordenador') ?? ''
+    const nextLider = searchParams.get('lider') ?? ''
+    const nextNerite = searchParams.get('nerite') ?? ''
+    const nextPage = Number(searchParams.get('page') || 0) || 0
+
+    setStatus((cur) => (cur === nextStatus ? cur : nextStatus))
+    setEquipeChip((cur) => (cur === nextEquipe ? cur : nextEquipe))
+    setSearch((cur) => (cur === nextSearch ? cur : nextSearch))
+    if (!scopeDiretoriaId) {
+      setDiretoriaId((cur) => (cur === nextDir ? cur : nextDir))
+    }
+    setCoordenador((cur) => (cur === nextCoord ? cur : nextCoord))
+    setLider((cur) => (cur === nextLider ? cur : nextLider))
+    setOperatorId((cur) => (cur === nextNerite ? cur : nextNerite))
+    setPage((cur) => (cur === nextPage ? cur : nextPage))
+  }, [searchParams, scopeDiretoriaId])
 
   useEffect(() => {
     const dir = diretoriaId || scopeDiretoriaId || undefined
@@ -233,7 +263,8 @@ export function AtivacaoPainelPage() {
   function exportCsv() {
     const header = [
       'Tipo', 'Nome', 'Titulo', 'Zona', 'Bairro', 'Telefone',
-      'Coordenador', 'Lideranca', 'Carros', 'Casa', 'Postagens', 'Contato WA', 'Links', 'Notas',
+      'Coordenador', 'Lideranca', 'Carros', 'Motos', 'Casa', 'Endereco', 'Numero', 'CEP', 'Mapa',
+      'Postagens', 'Contato WA', 'Links', 'Notas',
     ]
     const rows = items.map((p) => [
       p.tipoLabel,
@@ -245,7 +276,12 @@ export function AtivacaoPainelPage() {
       p.coordenador,
       p.lider,
       String(p.carros_adesivados),
+      String(p.motos_adesivadas),
       p.adesivos_casa > 0 ? 'Sim' : 'Nao',
+      p.adesivos_casa > 0 ? p.endereco : '',
+      p.adesivos_casa > 0 ? p.numero : '',
+      p.adesivos_casa > 0 ? p.cep : '',
+      p.adesivos_casa > 0 ? (mapsUrlForPessoa(p) ?? '') : '',
       String(p.postagem_links.length || p.postagens),
       p.contato_whatsapp_status === 'sim'
         ? 'Ja acionada'
@@ -276,7 +312,8 @@ export function AtivacaoPainelPage() {
         <div>
           <h1 className="page-title">Painel — Formigas</h1>
           <p className="page-subtitle">
-            Filtre pela diretora e pelos botões da hierarquia (igual à Equipe).
+            {fichasCount.toLocaleString('pt-BR')} eleitor{fichasCount === 1 ? '' : 'es'}
+            {diretoriaId && diretoraLabel ? ` · ${diretoraLabel}` : ''}
           </p>
         </div>
         <div className="page-header-actions">
@@ -289,11 +326,11 @@ export function AtivacaoPainelPage() {
           [
             {
               key: 'carros',
-              label: 'Carros',
+              label: 'Veículos',
               value: kpis.carros,
               Icon: Car,
               tone: 'blue',
-              to: '/ativacao/painel?equipe=todos&status=com_carro',
+              statusKey: 'com_carro' as const,
             },
             {
               key: 'casas',
@@ -301,7 +338,7 @@ export function AtivacaoPainelPage() {
               value: kpis.casas,
               Icon: Home,
               tone: 'teal',
-              to: '/ativacao/painel?equipe=todos&status=casa_sim',
+              statusKey: 'casa_sim' as const,
             },
             {
               key: 'postagens',
@@ -309,7 +346,7 @@ export function AtivacaoPainelPage() {
               value: kpis.postagens,
               Icon: Share2,
               tone: 'violet',
-              to: '/ativacao/painel?equipe=todos&status=com_links',
+              statusKey: 'com_links' as const,
             },
             {
               key: 'whatsapp',
@@ -317,7 +354,7 @@ export function AtivacaoPainelPage() {
               value: kpis.whatsapp,
               Icon: MessageCircle,
               tone: 'wa',
-              to: '/ativacao/painel?equipe=todos&status=contato_sim',
+              statusKey: 'contato_sim' as const,
             },
             {
               key: 'pendentes',
@@ -325,26 +362,34 @@ export function AtivacaoPainelPage() {
               value: kpis.pendentes,
               Icon: Clock3,
               tone: 'amber',
-              to: '/ativacao/painel?equipe=todos&status=sem_ativacao',
+              statusKey: 'sem_ativacao' as const,
             },
           ] as const
-        ).map(({ key, label, value, Icon, tone, to }) => (
-          <button
-            key={key}
-            type="button"
-            className={`fl-stat fl-stat-card tone-${tone}`}
-            onClick={() => navigate(to)}
-          >
-            <div className="fl-stat-top">
-              <span>{label}</span>
-              <div className="fl-stat-icon" aria-hidden>
-                <Icon size={18} strokeWidth={2.25} />
+        ).map(({ key, label, value, Icon, tone, statusKey }) => {
+          const active = status === statusKey
+          return (
+            <button
+              key={key}
+              type="button"
+              className={`fl-stat fl-stat-card tone-${tone}${active ? ' is-filter-active' : ''}`}
+              aria-pressed={active}
+              onClick={() => {
+                setEquipeChip('todos')
+                setStatus(statusKey)
+                setPage(0)
+              }}
+            >
+              <div className="fl-stat-top">
+                <span>{label}</span>
+                <div className="fl-stat-icon" aria-hidden>
+                  <Icon size={18} strokeWidth={2.25} />
+                </div>
               </div>
-            </div>
-            <strong>{value.toLocaleString('pt-BR')}</strong>
-            <em className="fl-stat-cta">Filtrar →</em>
-          </button>
-        ))}
+              <strong>{value.toLocaleString('pt-BR')}</strong>
+              <em className="fl-stat-cta">{active ? 'Filtro ativo' : 'Filtrar →'}</em>
+            </button>
+          )
+        })}
       </div>
 
       {canPickDiretoria && (
@@ -460,7 +505,7 @@ export function AtivacaoPainelPage() {
             { value: 'todos', label: 'Todos os status' },
             { value: 'com_ativacao', label: 'Com algum lançamento' },
             { value: 'sem_ativacao', label: 'Sem lançamento' },
-            { value: 'com_carro', label: 'Com carro adesivado' },
+            { value: 'com_carro', label: 'Com veículo adesivado' },
             { value: 'casa_sim', label: 'Com casa adesivada' },
             { value: 'com_links', label: 'Com links de rede' },
             { value: 'contato_sim', label: 'WhatsApp: Já acionada' },
@@ -497,7 +542,7 @@ export function AtivacaoPainelPage() {
                   <th>Pessoa</th>
                   <th>Perfil</th>
                   <th>Equipe</th>
-                  <th>Carros</th>
+                  <th>Veículos</th>
                   <th>Casa</th>
                   <th>Postagens</th>
                   <th>WhatsApp</th>
@@ -509,9 +554,13 @@ export function AtivacaoPainelPage() {
                   <tr key={p.key}>
                     <td>
                       <strong>{p.nome}</strong>
-                      {(p.titulo || p.bairro) && (
+                      {(p.titulo || p.telefone || p.bairro) && (
                         <span className="ativacao-sub">
-                          {[p.titulo && `Título ${p.titulo}`, p.bairro].filter(Boolean).join(' · ')}
+                          {[
+                            p.titulo && `Título ${p.titulo}`,
+                            p.telefone && formatPhone(p.telefone),
+                            p.bairro,
+                          ].filter(Boolean).join(' · ')}
                         </span>
                       )}
                     </td>
@@ -523,8 +572,51 @@ export function AtivacaoPainelPage() {
                           .join(' · ') || '—'}
                       </span>
                     </td>
-                    <td className="tabular-nums">{p.carros_adesivados}</td>
-                    <td>{p.adesivos_casa > 0 ? 'Sim' : 'Não'}</td>
+                    <td>
+                      {(p.carros_adesivados > 0 || p.motos_adesivadas > 0) ? (
+                        <span className="ativacao-veiculo-cell">
+                          {p.carros_adesivados > 0 && (
+                            <span className="ativacao-veiculo-chip">
+                              <Car size={12} /> {p.carros_adesivados}
+                            </span>
+                          )}
+                          {p.motos_adesivadas > 0 && (
+                            <span className="ativacao-veiculo-chip">
+                              <Bike size={12} /> {p.motos_adesivadas}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="ativacao-mapa-empty">—</span>
+                      )}
+                    </td>
+                    <td>
+                      {p.adesivos_casa > 0 ? (
+                        (() => {
+                          const url = mapsUrlForPessoa(p)
+                          return url ? (
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ativacao-mapa-link"
+                              title={[p.endereco, p.numero && `nº ${p.numero}`, p.cep].filter(Boolean).join(', ') || 'Abrir no mapa'}
+                              aria-label={`Mapa de ${p.nome}`}
+                            >
+                              <MapPin size={16} strokeWidth={2.25} />
+                              <span>Mapa</span>
+                            </a>
+                          ) : (
+                            <span className="ativacao-mapa-missing" title="Sem coordenadas ou endereço">
+                              <MapPin size={16} />
+                              <span>Sem local</span>
+                            </span>
+                          )
+                        })()
+                      ) : (
+                        <span className="ativacao-mapa-empty">—</span>
+                      )}
+                    </td>
                     <td className="tabular-nums">{p.postagem_links.length || p.postagens}</td>
                     <td>
                       <div className="ativacao-wa-cell">
@@ -539,12 +631,23 @@ export function AtivacaoPainelPage() {
                       </div>
                     </td>
                     <td>
-                      <Link
-                        to={`/ativacao/lancar?tipo=${p.tipo}&id=${p.id}`}
-                        aria-label={`Editar lançamento de ${p.nome}`}
-                      >
-                        <Button variant="ghost" size="sm"><Pencil size={16} /></Button>
-                      </Link>
+                      <div className="ativacao-acoes">
+                        <button
+                          type="button"
+                          className="ativacao-hist-btn"
+                          title={ownersTooltip(p)}
+                          aria-label={`Histórico de ${p.nome}`}
+                          onClick={() => setHistTarget(p)}
+                        >
+                          <History size={16} />
+                        </button>
+                        <Link
+                          to={`/ativacao/lancar?tipo=${p.tipo}&id=${p.id}`}
+                          aria-label={`Editar lançamento de ${p.nome}`}
+                        >
+                          <Button variant="ghost" size="sm"><Pencil size={16} /></Button>
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -562,6 +665,25 @@ export function AtivacaoPainelPage() {
           />
         </>
       )}
+
+      {histTarget && (
+        <FormigasFichaHistoricoDrawer
+          open
+          onClose={() => setHistTarget(null)}
+          tipo={histTarget.tipo}
+          pessoaId={histTarget.id}
+          pessoaNome={histTarget.nome}
+        />
+      )}
     </div>
   )
+}
+
+function ownersTooltip(p: AtivacaoPessoa): string {
+  const parts: string[] = []
+  if (p.formigas_wa_by) parts.push(`WA: ${p.formigas_wa_by_nome || 'Formiga'}`)
+  if (p.formigas_carros_by) parts.push(`Carros: ${p.formigas_carros_by_nome || 'Formiga'}`)
+  if (p.formigas_casa_by) parts.push(`Casa: ${p.formigas_casa_by_nome || 'Formiga'}`)
+  if (p.formigas_links_by) parts.push(`Links: ${p.formigas_links_by_nome || 'Formiga'}`)
+  return parts.length ? parts.join(' · ') : 'Histórico desta ficha'
 }
