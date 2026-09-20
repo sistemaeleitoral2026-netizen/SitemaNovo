@@ -14,7 +14,13 @@ export type AtivacaoPessoa = {
   zona: string
   bairro: string
   telefone: string
+  cep: string
+  endereco: string
+  numero: string
+  lat: number | null
+  lng: number | null
   carros_adesivados: number
+  motos_adesivadas: number
   adesivos_casa: number
   postagens: number
   postagem_links: string[]
@@ -27,6 +33,10 @@ export type AtivacaoPessoa = {
   formigas_carros_by: string | null
   formigas_casa_by: string | null
   formigas_links_by: string | null
+  formigas_wa_by_nome: string | null
+  formigas_carros_by_nome: string | null
+  formigas_casa_by_nome: string | null
+  formigas_links_by_nome: string | null
   diretoria_id: string | null
   coordenador: string
   lider: string
@@ -68,6 +78,7 @@ function toLinks(value: unknown): string[] {
 /** Só vale como Formigas se houve lançamento (ativacao_em). Evita lixo da antiga mobilização. */
 function fromAtivacaoFields(row: {
   carros_adesivados?: unknown
+  motos_adesivadas?: unknown
   adesivos_casa?: unknown
   postagens?: unknown
   postagem_links?: unknown
@@ -85,6 +96,7 @@ function fromAtivacaoFields(row: {
   const status = launched ? toContatoStatus(row) : 'nao'
   return {
     carros_adesivados: launched ? toQty(row.carros_adesivados) : 0,
+    motos_adesivadas: launched ? toQty(row.motos_adesivadas) : 0,
     adesivos_casa: launched ? toQty(row.adesivos_casa) : 0,
     postagens: launched ? toQty(row.postagens) : 0,
     postagem_links: launched ? toLinks(row.postagem_links) : [],
@@ -96,7 +108,43 @@ function fromAtivacaoFields(row: {
     formigas_carros_by: launched ? ((row.formigas_carros_by as string | null) ?? null) : null,
     formigas_casa_by: launched ? ((row.formigas_casa_by as string | null) ?? null) : null,
     formigas_links_by: launched ? ((row.formigas_links_by as string | null) ?? null) : null,
+    formigas_wa_by_nome: null as string | null,
+    formigas_carros_by_nome: null as string | null,
+    formigas_casa_by_nome: null as string | null,
+    formigas_links_by_nome: null as string | null,
   }
+}
+
+async function enrichOwnerNames(items: AtivacaoPessoa[]): Promise<AtivacaoPessoa[]> {
+  if (items.length === 0) return items
+  const ids = new Set<string>()
+  for (const p of items) {
+    if (p.formigas_wa_by) ids.add(p.formigas_wa_by)
+    if (p.formigas_carros_by) ids.add(p.formigas_carros_by)
+    if (p.formigas_casa_by) ids.add(p.formigas_casa_by)
+    if (p.formigas_links_by) ids.add(p.formigas_links_by)
+  }
+  if (ids.size === 0) return items
+
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, nome')
+    .in('id', [...ids])
+
+  const nomeById = new Map<string, string>()
+  for (const row of data ?? []) {
+    const id = String(row.id ?? '')
+    if (!id) continue
+    nomeById.set(id, String(row.nome ?? '').trim() || 'Formiga')
+  }
+
+  return items.map((p) => ({
+    ...p,
+    formigas_wa_by_nome: p.formigas_wa_by ? (nomeById.get(p.formigas_wa_by) ?? null) : null,
+    formigas_carros_by_nome: p.formigas_carros_by ? (nomeById.get(p.formigas_carros_by) ?? null) : null,
+    formigas_casa_by_nome: p.formigas_casa_by ? (nomeById.get(p.formigas_casa_by) ?? null) : null,
+    formigas_links_by_nome: p.formigas_links_by ? (nomeById.get(p.formigas_links_by) ?? null) : null,
+  }))
 }
 
 export function casaSim(value: unknown) {
@@ -115,6 +163,11 @@ function fromCadastro(c: Cadastro): AtivacaoPessoa {
     zona: c.zona ?? '',
     bairro: c.bairro ?? '',
     telefone: c.telefone ?? '',
+    cep: (c.cep ?? '').replace(/\D/g, ''),
+    endereco: (c.endereco ?? '').trim(),
+    numero: (c.numero ?? '').trim(),
+    lat: typeof c.lat === 'number' ? c.lat : null,
+    lng: typeof c.lng === 'number' ? c.lng : null,
     ...ativ,
     diretoria_id: c.diretoria_id ?? null,
     coordenador: (c.coordenador ?? '').trim(),
@@ -136,6 +189,11 @@ function fromLider(l: Lider): AtivacaoPessoa {
     zona: '',
     bairro: '',
     telefone: l.telefone ?? '',
+    cep: '',
+    endereco: '',
+    numero: '',
+    lat: null,
+    lng: null,
     ...ativ,
     diretoria_id: l.diretoria_id ?? null,
     coordenador: '',
@@ -157,6 +215,11 @@ function fromCoord(c: Coordenador): AtivacaoPessoa {
     zona: '',
     bairro: '',
     telefone: '',
+    cep: '',
+    endereco: '',
+    numero: '',
+    lat: null,
+    lng: null,
     ...ativ,
     diretoria_id: c.diretoria_id ?? null,
     coordenador: c.nome ?? '',
@@ -167,13 +230,13 @@ function fromCoord(c: Coordenador): AtivacaoPessoa {
 }
 
 const CADASTRO_SELECT =
-  'id, nome_completo, titulo, zona, bairro, telefone, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, coordenador, lider, operator_id'
+  'id, nome_completo, titulo, zona, bairro, telefone, cep, endereco, numero, lat, lng, carros_adesivados, motos_adesivadas, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, coordenador, lider, operator_id'
 
 const LIDER_SELECT =
-  'id, nome, telefone, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, coordenador_id'
+  'id, nome, telefone, carros_adesivados, motos_adesivadas, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, coordenador_id'
 
 const COORD_SELECT =
-  'id, nome, carros_adesivados, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id'
+  'id, nome, carros_adesivados, motos_adesivadas, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id'
 
 export async function searchAtivacaoPessoas(term: string, limit = 12): Promise<AtivacaoPessoa[]> {
   const q = term.trim()
@@ -216,37 +279,70 @@ export async function searchAtivacaoPessoas(term: string, limit = 12): Promise<A
     ...((lidRes.data ?? []) as Lider[]).map(fromLider),
     ...((coordRes.data ?? []) as Coordenador[]).map(fromCoord),
   ]
-  return rows.slice(0, limit)
+  return enrichOwnerNames(rows.slice(0, limit))
 }
 
 export async function fetchAtivacaoPessoa(
   tipo: AtivacaoTipo,
   id: string,
 ): Promise<AtivacaoPessoa | null> {
+  let pessoa: AtivacaoPessoa | null = null
   if (tipo === 'eleitor') {
     const { data } = await supabase.from('cadastros').select(CADASTRO_SELECT).eq('id', id).maybeSingle()
-    return data ? fromCadastro(data as Cadastro) : null
-  }
-  if (tipo === 'lideranca') {
+    pessoa = data ? fromCadastro(data as Cadastro) : null
+  } else if (tipo === 'lideranca') {
     const { data } = await supabase.from('lideres').select(LIDER_SELECT).eq('id', id).maybeSingle()
-    return data ? fromLider(data as Lider) : null
+    pessoa = data ? fromLider(data as Lider) : null
+  } else {
+    const { data } = await supabase.from('coordenadores').select(COORD_SELECT).eq('id', id).maybeSingle()
+    pessoa = data ? fromCoord(data as Coordenador) : null
   }
-  const { data } = await supabase.from('coordenadores').select(COORD_SELECT).eq('id', id).maybeSingle()
-  return data ? fromCoord(data as Coordenador) : null
+  if (!pessoa) return null
+  const [enriched] = await enrichOwnerNames([pessoa])
+  return enriched
 }
 
 export type AtivacaoSaveInput = {
   carros_adesivados: number
+  motos_adesivadas: number
   casa: boolean
   links: string[]
   notas: string
   contato_whatsapp_status: ContatoWhatsappStatus
+  /** Endereço da casa (obrigatório p/ eleitor com adesivo) */
+  cep?: string
+  endereco?: string
+  numero?: string
 }
 
 function waStatusLabel(status: ContatoWhatsappStatus) {
   if (status === 'sim') return 'Já acionada'
   if (status === 'sem') return 'Sem WhatsApp'
   return 'Não acionada'
+}
+
+/** Link do Google Maps a partir de coords ou endereço. */
+export function mapsUrlForPessoa(p: {
+  lat?: number | null
+  lng?: number | null
+  endereco?: string | null
+  numero?: string | null
+  cep?: string | null
+  bairro?: string | null
+}): string | null {
+  if (p.lat != null && p.lng != null && Number.isFinite(p.lat) && Number.isFinite(p.lng)) {
+    return `https://www.google.com/maps?q=${p.lat},${p.lng}`
+  }
+  const parts = [
+    (p.endereco ?? '').trim(),
+    (p.numero ?? '').trim() ? `nº ${(p.numero ?? '').trim()}` : '',
+    (p.bairro ?? '').trim(),
+    (p.cep ?? '').replace(/\D/g, '').length === 8
+      ? (p.cep ?? '').replace(/\D/g, '').replace(/(\d{5})(\d{3})/, '$1-$2')
+      : '',
+  ].filter(Boolean)
+  if (!parts.length) return null
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(parts.join(', '))}`
 }
 
 type FormigasHistoricoInsert = {
@@ -280,12 +376,11 @@ async function logFormigasHistorico(
 
     const actorEmail = (profile?.email ?? session.user.email ?? '').trim() || null
     const actorNome = (profile?.nome ?? '').trim() || null
-    const who = actorEmail || actorNome || 'Formiga'
     const pessoa = previous.nome.trim() || 'pessoa'
-    const tipoLabel = previous.tipoLabel.toLowerCase()
 
     const nextLinks = input.links.map((l) => l.trim()).filter(Boolean)
     const nextCarros = Math.max(0, Math.floor(Number(input.carros_adesivados) || 0))
+    const nextMotos = Math.max(0, Math.floor(Number(input.motos_adesivadas) || 0))
     const nextCasa = Boolean(input.casa)
     const nextNotas = input.notas.trim()
     const prevCasa = previous.adesivos_casa > 0
@@ -304,14 +399,29 @@ async function logFormigasHistorico(
         pessoa_id: previous.id,
         pessoa_nome: pessoa,
         secao: 'whatsapp',
-        resumo: `${who} mudou WhatsApp de ${pessoa} (${tipoLabel}) para "${depois}"`,
+        resumo: `WhatsApp alterado para "${depois}"`,
         valor_antes: waStatusLabel(previous.contato_whatsapp_status),
         valor_depois: depois,
         diretoria_id: previous.diretoria_id,
       })
     }
 
-    if (previous.carros_adesivados !== nextCarros) {
+    if (
+      previous.carros_adesivados !== nextCarros
+      || previous.motos_adesivadas !== nextMotos
+    ) {
+      const depois = [
+        nextCarros > 0 ? `${nextCarros} carro${nextCarros === 1 ? '' : 's'}` : null,
+        nextMotos > 0 ? `${nextMotos} moto${nextMotos === 1 ? '' : 's'}` : null,
+      ].filter(Boolean).join(' · ') || 'nenhum'
+      const antes = [
+        previous.carros_adesivados > 0
+          ? `${previous.carros_adesivados} carro${previous.carros_adesivados === 1 ? '' : 's'}`
+          : null,
+        previous.motos_adesivadas > 0
+          ? `${previous.motos_adesivadas} moto${previous.motos_adesivadas === 1 ? '' : 's'}`
+          : null,
+      ].filter(Boolean).join(' · ') || 'nenhum'
       rows.push({
         actor_id: userId,
         actor_email: actorEmail,
@@ -320,14 +430,33 @@ async function logFormigasHistorico(
         pessoa_id: previous.id,
         pessoa_nome: pessoa,
         secao: 'carros',
-        resumo: `${who} alterou carros adesivados de ${pessoa} para ${nextCarros}`,
-        valor_antes: String(previous.carros_adesivados),
-        valor_depois: String(nextCarros),
+        resumo: `Veículos adesivados: ${depois}`,
+        valor_antes: antes,
+        valor_depois: depois,
         diretoria_id: previous.diretoria_id,
       })
     }
 
-    if (prevCasa !== nextCasa) {
+    const addrBits = [
+      (input.endereco ?? '').trim(),
+      (input.numero ?? '').trim() ? `nº ${(input.numero ?? '').trim()}` : '',
+      (input.cep ?? '').replace(/\D/g, '').length === 8
+        ? `CEP ${(input.cep ?? '').replace(/\D/g, '').replace(/(\d{5})(\d{3})/, '$1-$2')}`
+        : '',
+    ].filter(Boolean)
+    const addrKey = addrBits.join(', ')
+    const prevAddrKey = [
+      previous.endereco.trim(),
+      previous.numero.trim() ? `nº ${previous.numero.trim()}` : '',
+      previous.cep.replace(/\D/g, '').length === 8
+        ? `CEP ${previous.cep.replace(/\D/g, '').replace(/(\d{5})(\d{3})/, '$1-$2')}`
+        : '',
+    ].filter(Boolean).join(', ')
+
+    if (prevCasa !== nextCasa || (nextCasa && addrKey && addrKey !== prevAddrKey)) {
+      const depois = nextCasa
+        ? (addrKey || 'sim')
+        : 'não'
       rows.push({
         actor_id: userId,
         actor_email: actorEmail,
@@ -336,9 +465,11 @@ async function logFormigasHistorico(
         pessoa_id: previous.id,
         pessoa_nome: pessoa,
         secao: 'casa',
-        resumo: `${who} marcou adesivo residencial de ${pessoa} como ${nextCasa ? 'sim' : 'não'}`,
-        valor_antes: prevCasa ? 'sim' : 'não',
-        valor_depois: nextCasa ? 'sim' : 'não',
+        resumo: nextCasa
+          ? `Marcou adesivo residencial${addrKey ? ` — ${addrKey}` : ''}`
+          : 'Removeu adesivo residencial',
+        valor_antes: prevCasa ? (prevAddrKey || 'sim') : 'não',
+        valor_depois: depois,
         diretoria_id: previous.diretoria_id,
       })
     }
@@ -354,7 +485,7 @@ async function logFormigasHistorico(
         pessoa_id: previous.id,
         pessoa_nome: pessoa,
         secao: 'links',
-        resumo: `${who} atualizou links/redes de ${pessoa} (${nextLinks.length} postagem${nextLinks.length === 1 ? '' : 's'})`,
+        resumo: `Atualizou links/redes (${nextLinks.length} postagem${nextLinks.length === 1 ? '' : 's'})`,
         valor_antes: prevLinks.length ? `${prevLinks.length} link(s)` : 'nenhum',
         valor_depois: nextLinks.length ? `${nextLinks.length} link(s)` : 'nenhum',
         diretoria_id: previous.diretoria_id,
@@ -370,7 +501,7 @@ async function logFormigasHistorico(
         pessoa_id: previous.id,
         pessoa_nome: pessoa,
         secao: 'notas',
-        resumo: `${who} atualizou observações de ${pessoa}`,
+        resumo: 'Atualizou observações',
         valor_antes: prevNotas || null,
         valor_depois: nextNotas || null,
         diretoria_id: previous.diretoria_id,
@@ -392,14 +523,33 @@ export async function saveAtivacao(
 ): Promise<{ error: string | null }> {
   const links = input.links.map((l) => l.trim()).filter(Boolean)
   const carros = Math.max(0, Math.floor(Number(input.carros_adesivados) || 0))
+  const motos = Math.max(0, Math.floor(Number(input.motos_adesivadas) || 0))
   const casa = input.casa ? 1 : 0
   const notas = input.notas.trim() || null
   const status: ContatoWhatsappStatus = input.contato_whatsapp_status
   const contato = status === 'sim'
   const hasLaunch =
-    carros > 0 || casa > 0 || links.length > 0 || Boolean(notas) || status === 'sim' || status === 'sem'
-  const payload = {
+    carros > 0 || motos > 0 || casa > 0 || links.length > 0 || Boolean(notas) || status === 'sim' || status === 'sem'
+
+  const cepDigits = (input.cep ?? '').replace(/\D/g, '')
+  const endereco = (input.endereco ?? '').trim()
+  const numero = (input.numero ?? '').trim()
+
+  if (tipo === 'eleitor' && casa > 0) {
+    if (cepDigits.length !== 8) {
+      return { error: 'Informe um CEP válido da casa com adesivo.' }
+    }
+    if (!endereco) {
+      return { error: 'Informe o endereço da casa com adesivo.' }
+    }
+    if (!numero) {
+      return { error: 'Informe o número da casa com adesivo.' }
+    }
+  }
+
+  const payload: Record<string, unknown> = {
     carros_adesivados: carros,
+    motos_adesivadas: motos,
     adesivos_casa: casa,
     postagem_links: links,
     postagens: links.length,
@@ -407,6 +557,22 @@ export async function saveAtivacao(
     ativacao_em: hasLaunch ? new Date().toISOString() : null,
     contato_whatsapp: contato,
     contato_whatsapp_status: status,
+  }
+
+  if (tipo === 'eleitor' && casa > 0) {
+    payload.cep = cepDigits
+    payload.endereco = endereco
+    payload.numero = numero
+    try {
+      const { geocodeFromCep } = await import('./geocode')
+      const coords = await geocodeFromCep(cepDigits)
+      if (coords) {
+        payload.lat = coords.lat
+        payload.lng = coords.lng
+      }
+    } catch {
+      // geocode opcional — endereço já fica salvo
+    }
   }
 
   const table = tipo === 'eleitor' ? 'cadastros' : tipo === 'lideranca' ? 'lideres' : 'coordenadores'
@@ -433,6 +599,35 @@ export type FormigasHistoricoItem = {
   valor_antes: string | null
   valor_depois: string | null
   created_at: string
+}
+
+export function historicoDescricao(item: FormigasHistoricoItem): string {
+  if (item.secao === 'whatsapp') {
+    return item.valor_depois
+      ? `WhatsApp: ${item.valor_depois}`
+      : (item.resumo || 'Atualizou WhatsApp')
+  }
+  if (item.secao === 'carros') {
+    return item.valor_depois != null
+      ? `Veículos: ${item.valor_depois}`
+      : (item.resumo || 'Atualizou veículos')
+  }
+  if (item.secao === 'casa') {
+    if (item.valor_depois && item.valor_depois !== 'sim' && item.valor_depois !== 'não') {
+      return `Adesivo residencial — ${item.valor_depois}`
+    }
+    return item.valor_depois === 'sim'
+      ? 'Marcou adesivo residencial'
+      : item.valor_depois === 'não'
+        ? 'Removeu adesivo residencial'
+        : (item.resumo || 'Atualizou adesivo residencial')
+  }
+  if (item.secao === 'links') {
+    return item.valor_depois
+      ? `Redes/postagens: ${item.valor_depois}`
+      : (item.resumo || 'Atualizou links')
+  }
+  return item.resumo || 'Atualizou observações'
 }
 
 export async function fetchFormigasHistorico(opts?: {
@@ -465,6 +660,24 @@ export async function fetchFormigasHistorico(opts?: {
     total: count ?? 0,
     error: null,
   }
+}
+
+/** Timeline de uma ficha (todas as formigas que mexeram nela). */
+export async function fetchFormigasHistoricoPorPessoa(
+  tipo: AtivacaoTipo,
+  pessoaId: string,
+  limit = 80,
+): Promise<{ items: FormigasHistoricoItem[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from('formigas_historico')
+    .select('*')
+    .eq('tipo', tipo)
+    .eq('pessoa_id', pessoaId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) return { items: [], error: error.message }
+  return { items: (data ?? []) as FormigasHistoricoItem[], error: null }
 }
 
 export async function fetchFormigasHistoricoActors(): Promise<{ id: string; nome: string; email: string }[]> {
@@ -582,13 +795,14 @@ function matchesStatus(p: AtivacaoPessoa, status: AtivacaoListFilters['status'])
   if (!status || status === 'todos') return true
   const hasAny =
     p.carros_adesivados > 0
+    || p.motos_adesivadas > 0
     || p.adesivos_casa > 0
     || p.postagem_links.length > 0
     || p.contato_whatsapp_status === 'sim'
     || p.contato_whatsapp_status === 'sem'
   if (status === 'com_ativacao') return hasAny
   if (status === 'sem_ativacao') return !hasAny
-  if (status === 'com_carro') return p.carros_adesivados > 0
+  if (status === 'com_carro') return p.carros_adesivados > 0 || p.motos_adesivadas > 0
   if (status === 'casa_sim') return p.adesivos_casa > 0
   if (status === 'com_links') return p.postagem_links.length > 0
   if (status === 'contato_sim') return p.contato_whatsapp_status === 'sim'
@@ -745,7 +959,10 @@ export async function fetchAtivacaoPainel(filters: AtivacaoListFilters = {}): Pr
 
   const total = items.length
   const start = page * pageSize
-  return { items: items.slice(start, start + pageSize), total }
+  const pageItems = items.slice(start, start + pageSize)
+  // KPIs pedem pageSize enorme — não resolve nomes de owners nesse caminho.
+  if (pageSize > 500) return { items: pageItems, total }
+  return { items: await enrichOwnerNames(pageItems), total }
 }
 
 export async function fetchAtivacaoKpis(filters: AtivacaoListFilters = {}) {
@@ -762,12 +979,13 @@ export async function fetchAtivacaoKpis(filters: AtivacaoListFilters = {}) {
   let whatsapp = 0
   let comAtivacao = 0
   for (const p of items) {
-    if (p.carros_adesivados > 0) carros += 1
+    if (p.carros_adesivados > 0 || p.motos_adesivadas > 0) carros += 1
     if (p.adesivos_casa > 0) casas += 1
-    if (p.postagem_links.length > 0 || p.postagens > 0) postagens += 1
+    if (p.postagem_links.length > 0) postagens += 1
     if (p.contato_whatsapp_status === 'sim') whatsapp += 1
     if (
       p.carros_adesivados > 0
+      || p.motos_adesivadas > 0
       || p.adesivos_casa > 0
       || p.postagem_links.length > 0
       || p.contato_whatsapp_status === 'sim'

@@ -116,17 +116,27 @@ export function CadastroFormPage() {
 
   useEffect(() => {
     if (!coordenadores.length && !lideres.length) return
-    if (form.coordenador && !coordenadorId) {
+
+    // Só sincroniza o select com o texto já salvo na ficha (edição) — sem preencher automático.
+    if (!coordenadorId && form.coordenador) {
       const match = coordenadores.find(
         (c) => c.nome.toLowerCase() === form.coordenador.toLowerCase(),
       )
       if (match) setCoordenadorId(match.id)
     }
-    if (form.lider && !liderId) {
+
+    if (!liderId && form.lider) {
       const match = lideres.find((l) => l.nome.toLowerCase() === form.lider.toLowerCase())
       if (match) setLiderId(match.id)
     }
-  }, [coordenadores, lideres, form.coordenador, form.lider, coordenadorId, liderId])
+  }, [
+    coordenadores,
+    lideres,
+    form.coordenador,
+    form.lider,
+    coordenadorId,
+    liderId,
+  ])
 
   const lideresFiltrados = useMemo(() => {
     if (!coordenadorId) return lideres
@@ -243,6 +253,16 @@ export function CadastroFormPage() {
     setSaveOk(null)
 
     const normalized = normalizeCadastroFields(form)
+    // Grava o nome exatamente do que foi selecionado no dropdown (sem inventar)
+    if (coordenadorId) {
+      const nome = coordenadores.find((c) => c.id === coordenadorId)?.nome
+      if (nome) normalized.coordenador = nome
+    }
+    if (liderId) {
+      const nome = lideres.find((l) => l.id === liderId)?.nome
+      if (nome) normalized.lider = nome
+    }
+
     const fieldErrors = validateCadastroForm(normalized)
     if (Object.keys(fieldErrors).length) {
       setErrors(fieldErrors)
@@ -393,16 +413,17 @@ export function CadastroFormPage() {
               autoComplete="name"
             />
             <Select
-              label="Coordenador"
+              label="Coordenador *"
               value={coordenadorId}
               onChange={(e) => handleCoordenadorChange(e.target.value)}
               error={errors.coordenador}
               placeholder={coordenadores.length ? 'Selecione o coordenador' : 'Nenhum cadastrado ainda'}
               options={coordenadores.map((c) => ({ value: c.id, label: c.nome }))}
+              required
             />
             <div className="ui-field">
               <label htmlFor="lideranca" className="ui-field-label">
-                Liderança
+                Liderança *
               </label>
               <div className="phone-with-whatsapp">
                 <select
