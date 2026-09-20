@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowRight,
@@ -97,6 +98,8 @@ export function AtivacaoLancarPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState<string | null>(null)
+  const [dirtyPrompt, setDirtyPrompt] = useState<'proximo' | 'limpar' | 'trocar' | null>(null)
+  const [pendingQuery, setPendingQuery] = useState<string | null>(null)
 
   const isFormActive = selected !== null
   const waUrl = buildWhatsAppUrl(selected?.telefone)
@@ -121,6 +124,15 @@ export function AtivacaoLancarPage() {
       || linksChanged
     )
   }, [selected, carros, casa, links, notas, contatoStatus])
+
+  useEffect(() => {
+    if (!dirtyPrompt) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [dirtyPrompt])
 
   useEffect(() => {
     if (!isDirty) return
@@ -209,7 +221,8 @@ export function AtivacaoLancarPage() {
 
   async function clearPerson() {
     if (selected && isDirty) {
-      setError('Há alterações sem salvar. Clique em Salvar lançamento antes de limpar.')
+      setDirtyPrompt('limpar')
+      setError(null)
       setOk(null)
       return
     }
@@ -221,19 +234,9 @@ export function AtivacaoLancarPage() {
     setOk(null)
   }
 
-  async function handleProximo() {
-    setError(null)
-    setOk(null)
-
-    if (selected && isDirty) {
-      const saved = await persistCurrent()
-      if (!saved) return
-      setOk('Salvo. Buscando próximo…')
-    } else if (selected) {
-      await releaseAtivacaoClaim(selected.tipo, selected.id)
-    }
-
+  async function goProximo() {
     setClaiming(true)
+    setError(null)
     const { pessoa, error: err } = await claimNextAtivacao(scopeDiretoriaId)
     setClaiming(false)
     if (err) {
@@ -247,6 +250,78 @@ export function AtivacaoLancarPage() {
     }
     selectPerson(pessoa)
     setOk(null)
+  }
+
+  async function handleProximo() {
+    setError(null)
+    setOk(null)
+
+    if (selected && isDirty) {
+      setDirtyPrompt('proximo')
+      return
+    }
+
+    if (selected) {
+      await releaseAtivacaoClaim(selected.tipo, selected.id)
+    }
+    await goProximo()
+  }
+
+  async function confirmDirtySalvar() {
+    const action = dirtyPrompt
+    setDirtyPrompt(null)
+    const saved = await persistCurrent()
+    if (!saved) return
+
+    if (action === 'proximo') {
+      setOk('Lançamento salvo.')
+      await goProximo()
+      return
+    }
+    if (action === 'limpar') {
+      resetForm()
+      setOk('Lançamento salvo.')
+      return
+    }
+    if (action === 'trocar') {
+      resetForm()
+      if (pendingQuery != null) setQuery(pendingQuery)
+      setPendingQuery(null)
+      setOk('Lançamento salvo.')
+    }
+  }
+
+  async function confirmDirtyLimpar() {
+    const action = dirtyPrompt
+    const snap = selected
+    setDirtyPrompt(null)
+    if (snap) {
+      void releaseAtivacaoClaim(snap.tipo, snap.id)
+    }
+
+    if (action === 'proximo') {
+      resetForm()
+      await goProximo()
+      return
+    }
+    if (action === 'limpar') {
+      resetForm()
+      setOk(null)
+      setError(null)
+      return
+    }
+    if (action === 'trocar') {
+      resetForm()
+      if (pendingQuery != null) setQuery(pendingQuery)
+      setPendingQuery(null)
+      setOk(null)
+      setError(null)
+    }
+  }
+
+  function confirmDirtyCancelar() {
+    setDirtyPrompt(null)
+    setPendingQuery(null)
   }
 
   function addLink() {
@@ -282,7 +357,9 @@ export function AtivacaoLancarPage() {
       return
     }
     if (isDirty) {
-      setError('Há alterações sem salvar. Clique em Salvar lançamento antes de trocar de pessoa.')
+      setPendingQuery(nextQuery)
+      setDirtyPrompt('trocar')
+      setError(null)
       setOk(null)
       return
     }
@@ -302,12 +379,24 @@ export function AtivacaoLancarPage() {
   }, [selected])
 
   const saveLabel = saving ? 'Salvando…' : 'Salvar lançamento'
-  const proximoBusy = claiming || saving
+  const proximoBusy = claiming || saving || dirtyPrompt !== null
   const proximoLabel = claiming
     ? '…'
-    : selected && isDirty
-      ? <>Salvar e próximo <ArrowRight size={16} strokeWidth={2.5} /></>
-      : <>Próximo <ArrowRight size={16} strokeWidth={2.5} /></>
+    : <>Próximo <ArrowRight size={16} strokeWidth={2.5} /></>
+
+  const dirtyPromptTitle =
+    dirtyPrompt === 'proximo'
+      ? 'Alterações sem salvar'
+      : dirtyPrompt === 'limpar'
+        ? 'Limpar esta ficha?'
+        : 'Trocar de pessoa?'
+
+  const dirtyPromptText =
+    dirtyPrompt === 'proximo'
+      ? 'Você mexeu nesta ficha. Salve para guardar, limpe para descartar, ou cancele para continuar editando.'
+      : dirtyPrompt === 'limpar'
+        ? 'Há alterações pendentes. Salve antes de limpar, descarte tudo, ou cancele.'
+        : 'Há alterações pendentes. Salve, descarte, ou cancele para continuar nesta ficha.'
 
   return (
     <div className="fl-page fl-page-lancar">
@@ -359,7 +448,7 @@ export function AtivacaoLancarPage() {
 
             {isDirty && (
               <p className="fl-hint fl-dirty-hint">
-                Alterações pendentes — salve ou use <b>Salvar e próximo</b> para não perder.
+                Alterações pendentes — use <b>Salvar lançamento</b> ou, ao clicar em Próximo, escolha Salvar / Limpar / Cancelar.
               </p>
             )}
 
@@ -626,6 +715,49 @@ export function AtivacaoLancarPage() {
           {saveLabel}
         </button>
       </div>
+
+      {dirtyPrompt
+        && createPortal(
+          <div className="fl-dirty-overlay" role="presentation" onClick={confirmDirtyCancelar}>
+            <div
+              className="fl-dirty-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="fl-dirty-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 id="fl-dirty-title">{dirtyPromptTitle}</h3>
+              <p>{dirtyPromptText}</p>
+              <div className="fl-dirty-actions">
+                <button
+                  type="button"
+                  className="fl-btn-primary"
+                  disabled={saving || claiming}
+                  onClick={() => void confirmDirtySalvar()}
+                >
+                  {saving ? 'Salvando…' : 'Salvar'}
+                </button>
+                <button
+                  type="button"
+                  className="fl-btn-danger-outline"
+                  disabled={saving || claiming}
+                  onClick={() => void confirmDirtyLimpar()}
+                >
+                  Limpar alterações
+                </button>
+                <button
+                  type="button"
+                  className="fl-btn-secondary"
+                  disabled={saving || claiming}
+                  onClick={confirmDirtyCancelar}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }
