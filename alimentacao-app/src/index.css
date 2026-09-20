@@ -5124,8 +5124,10 @@ button.fichas-count.equipe-drill-count.zero:hover {
 }
 .fl-pill.ok { background: #dcfce7; color: #15803d; }
 .fl-pill.teal { background: #ccfbf1; color: #0f766e; }
+.fl-pill.warn { background: #fef3c7; color: #b45309; }
 .fl-hint { margin: 0 0 1rem; color: #64748b; font-size: .875rem; }
 .fl-hint.italic { font-style: italic; margin-bottom: 0; }
+.fl-lock-hint { color: #b45309; margin: 0 0 .5rem; }
 .fl-wa-body { display: grid; gap: 1rem; }
 .fl-wa-row {
   display: flex;
@@ -5134,24 +5136,28 @@ button.fichas-count.equipe-drill-count.zero:hover {
   flex-wrap: wrap;
 }
 .fl-wa-segment { flex: 1 1 280px; max-width: 28rem; }
+.fl-wa-segment-3 { max-width: 36rem; }
 .fl-segment {
   display: flex;
   padding: .25rem;
   border-radius: 10px;
   background: #f1f5f9;
+  gap: .15rem;
 }
 .fl-segment.is-disabled { opacity: .5; pointer-events: none; }
 .fl-segment button {
   flex: 1;
-  padding: .5rem 1rem;
+  padding: .5rem .4rem;
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: #64748b;
-  font-size: .875rem;
+  font-size: .75rem;
   font-weight: 550;
+  line-height: 1.2;
   cursor: pointer;
   transition: .15s ease;
+  white-space: nowrap;
 }
 .fl-segment button:hover { color: #334155; background: rgba(226, 232, 240, .6); }
 .fl-segment button.is-active {
