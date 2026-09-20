@@ -287,7 +287,7 @@ export function AtivacaoLancarPage() {
                   setQuery(e.target.value)
                   if (selected) setSelected(null)
                 }}
-                placeholder="Digite o nome ou o título…"
+                placeholder="Nome, CPF, título ou telefone…"
                 autoComplete="off"
               />
               {selected && (

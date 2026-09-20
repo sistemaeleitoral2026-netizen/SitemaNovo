@@ -153,22 +153,26 @@ export async function searchAtivacaoPessoas(term: string, limit = 12): Promise<A
   if (q.length < 2) return []
 
   const digits = q.replace(/\D/g, '')
+  const digitSearch = digits.length >= 4
+  const cadOr = digitSearch
+    ? `nome_completo.ilike.%${q}%,cpf.ilike.%${digits}%,titulo.ilike.%${digits}%,telefone.ilike.%${digits}%`
+    : `nome_completo.ilike.%${q}%`
+  const liderOr = digitSearch
+    ? `nome.ilike.%${q}%,telefone.ilike.%${digits}%`
+    : `nome.ilike.%${q}%`
+
   const [cadRes, lidRes, coordRes] = await Promise.all([
     supabase
       .from('cadastros')
       .select(CADASTRO_SELECT)
-      .or(
-        digits.length >= 4
-          ? `nome_completo.ilike.%${q}%,titulo.ilike.%${digits}%`
-          : `nome_completo.ilike.%${q}%`,
-      )
+      .or(cadOr)
       .order('nome_completo')
       .limit(limit),
     supabase
       .from('lideres')
       .select(LIDER_SELECT)
       .eq('ativo', true)
-      .ilike('nome', `%${q}%`)
+      .or(liderOr)
       .order('nome')
       .limit(8),
     supabase
@@ -447,11 +451,13 @@ export async function fetchAtivacaoPainel(filters: AtivacaoListFilters = {}): Pr
       const nome = p.nome.toLowerCase()
       const titulo = p.titulo.toLowerCase()
       const bairro = p.bairro.toLowerCase()
+      const telefone = (p.telefone ?? '').replace(/\D/g, '')
       return (
         nome.includes(q)
         || bairro.includes(q)
         || (digits && titulo.includes(digits))
         || titulo.includes(q)
+        || (digits && telefone.includes(digits))
       )
     })
   }

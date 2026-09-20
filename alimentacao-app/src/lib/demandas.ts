@@ -10,6 +10,8 @@ export type DemandaCadastroHit = {
   telefone: string
   bairro: string
   zona: string
+  tipo: 'cadastro' | 'lideranca' | 'coordenador'
+  tipoLabel: string
 }
 
 export type DemandaCreateInput = {
@@ -55,32 +57,76 @@ export async function searchCadastrosDemanda(term: string, limit = 12): Promise<
   const q = term.trim()
   if (q.length < 2) return []
   const d = digits(q)
+  const digitSearch = d.length >= 4
 
-  let query = supabase
-    .from('cadastros')
-    .select('id, nome_completo, cpf, titulo, telefone, bairro, zona')
-    .order('nome_completo')
-    .limit(limit)
+  const cadOr = digitSearch
+    ? `nome_completo.ilike.%${q}%,cpf.ilike.%${d}%,titulo.ilike.%${d}%,telefone.ilike.%${d}%`
+    : `nome_completo.ilike.%${q}%`
+  const liderOr = digitSearch
+    ? `nome.ilike.%${q}%,telefone.ilike.%${d}%`
+    : `nome.ilike.%${q}%`
 
-  if (d.length >= 4) {
-    query = query.or(
-      `nome_completo.ilike.%${q}%,cpf.ilike.%${d}%,titulo.ilike.%${d}%,telefone.ilike.%${d}%`,
-    )
-  } else {
-    query = query.ilike('nome_completo', `%${q}%`)
-  }
+  const [cadRes, lidRes, coordRes] = await Promise.all([
+    supabase
+      .from('cadastros')
+      .select('id, nome_completo, cpf, titulo, telefone, bairro, zona')
+      .or(cadOr)
+      .order('nome_completo')
+      .limit(limit),
+    supabase
+      .from('lideres')
+      .select('id, nome, telefone')
+      .eq('ativo', true)
+      .or(liderOr)
+      .order('nome')
+      .limit(6),
+    supabase
+      .from('coordenadores')
+      .select('id, nome')
+      .eq('ativo', true)
+      .ilike('nome', `%${q}%`)
+      .order('nome')
+      .limit(6),
+  ])
 
-  const { data, error } = await query
-  if (error) throw new Error(error.message)
+  if (cadRes.error) throw new Error(cadRes.error.message)
+  if (lidRes.error) throw new Error(lidRes.error.message)
+  if (coordRes.error) throw new Error(coordRes.error.message)
 
-  return ((data ?? []) as Cadastro[]).map((c) => ({
-    id: c.id,
-    nome: c.nome_completo ?? '',
-    documento: (c.cpf || c.titulo || '').trim(),
-    telefone: (c.telefone ?? '').trim(),
-    bairro: c.bairro ?? '',
-    zona: c.zona ?? '',
-  }))
+  const hits: DemandaCadastroHit[] = [
+    ...((cadRes.data ?? []) as Cadastro[]).map((c) => ({
+      id: c.id,
+      nome: c.nome_completo ?? '',
+      documento: (c.cpf || c.titulo || '').trim(),
+      telefone: (c.telefone ?? '').trim(),
+      bairro: c.bairro ?? '',
+      zona: c.zona ?? '',
+      tipo: 'cadastro' as const,
+      tipoLabel: 'Eleitor',
+    })),
+    ...((lidRes.data ?? []) as { id: string; nome: string; telefone?: string | null }[]).map((l) => ({
+      id: l.id,
+      nome: l.nome ?? '',
+      documento: '',
+      telefone: (l.telefone ?? '').trim(),
+      bairro: '',
+      zona: '',
+      tipo: 'lideranca' as const,
+      tipoLabel: 'Liderança',
+    })),
+    ...((coordRes.data ?? []) as { id: string; nome: string }[]).map((c) => ({
+      id: c.id,
+      nome: c.nome ?? '',
+      documento: '',
+      telefone: '',
+      bairro: '',
+      zona: '',
+      tipo: 'coordenador' as const,
+      tipoLabel: 'Coordenador',
+    })),
+  ]
+
+  return hits.slice(0, limit)
 }
 
 async function uploadFoto(userId: string, file: File): Promise<string> {
