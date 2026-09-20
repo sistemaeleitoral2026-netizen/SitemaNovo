@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Network,
@@ -6,8 +6,23 @@ import {
   Share2,
   Map as MapIcon,
   Award,
+  FileText,
+  Clock,
+  MapPin,
+  Users,
+  RefreshCw,
 } from 'lucide-react'
 import { format, parseISO, startOfDay, subDays } from 'date-fns'
+import {
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts'
 import { useAuth } from '../contexts/AuthContext'
 import { PeriodFilterSelect } from '../components/ui/PeriodFilter'
 import { Spinner } from '../components/ui/Spinner'
@@ -23,10 +38,12 @@ import {
   shouldShowMetaPopup,
 } from '../lib/meta'
 import { fetchDemandaCounts } from '../lib/demandas'
+import { cadastrosLinkForLider, liderFichaKey, liderNameKey } from '../lib/liderFichas'
 import { supabase } from '../lib/supabase'
 import type { Cadastro, Coordenador, DemandaUrgencia, Lider, Profile } from '../types'
 
 type DirFilter = 'all' | string
+type ViewMode = 'geral' | 'zona' | 'equipe'
 
 type MobilizacaoSource = Pick<Cadastro,
   'operator_id' | 'diretoria_id' | 'carros_adesivados' | 'adesivos_casa' | 'postagens' | 'contato_whatsapp'
@@ -73,22 +90,22 @@ interface DiretoriaStats {
   nerites: number
 }
 
-interface DashAlert {
-  cor: string
-  titulo: string
-  texto: string
-  valor: string
-  to: string
-}
-
 const URGENCIA_ROWS: { key: DemandaUrgencia; label: string; cor: string }[] = [
   { key: 'urgente', label: 'Urgente', cor: '#f43f5e' },
-  { key: 'alta', label: 'Alta', cor: '#f59e0b' },
-  { key: 'normal', label: 'Normal', cor: '#60a5fa' },
+  { key: 'alta', label: 'Alta prioridade', cor: '#f59e0b' },
+  { key: 'normal', label: 'Normal', cor: '#3b82f6' },
   { key: 'baixa', label: 'Baixa', cor: '#94a3b8' },
 ]
 
-const ZONA_BAR_COLORS = ['#1f4fd8', '#5b84e6', '#8aa8ef', '#b9cbf5']
+const RANK_AVATAR_COLORS = [
+  { bg: '#dbeafe', fg: '#1d4ed8', bar: '#2563eb' },
+  { bg: '#d1fae5', fg: '#047857', bar: '#10b981' },
+  { bg: '#fef3c7', fg: '#b45309', bar: '#f59e0b' },
+  { bg: '#e0e7ff', fg: '#4338ca', bar: '#6366f1' },
+  { bg: '#f3e8ff', fg: '#7e22ce', bar: '#a855f7' },
+]
+
+const ZONA_DOT_COLORS = ['#2563eb', '#0ea5e9', '#f59e0b', '#94a3b8']
 
 function fmt(n: number) {
   return n.toLocaleString('pt-BR')
@@ -107,10 +124,16 @@ export function DashboardPage() {
   return <AdminDashboard />
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   AdminDashboard — New design (nd-*)
+   ═══════════════════════════════════════════════════════════════ */
+
 function AdminDashboard() {
   const { profile } = useAuth()
   const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('30d')
   const [dirFilter, setDirFilter] = useState<DirFilter>('all')
+  const [viewMode, setViewMode] = useState<ViewMode>('geral')
+  const [reloadKey, setReloadKey] = useState(0)
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
   const [mobilizacaoCadastros, setMobilizacaoCadastros] = useState<MobilizacaoSource[]>([])
   const [totalFichas, setTotalFichas] = useState(0)
@@ -120,20 +143,19 @@ function AdminDashboard() {
   const [lideres, setLideres] = useState<Lider[]>([])
   const [demandaCounts, setDemandaCounts] = useState({ abertas: 0, feitas: 0 })
   const [urgenciaCounts, setUrgenciaCounts] = useState<Record<DemandaUrgencia, number>>({
-    urgente: 0,
-    alta: 0,
-    normal: 0,
-    baixa: 0,
+    urgente: 0, alta: 0, normal: 0, baixa: 0,
   })
   const [loading, setLoading] = useState(true)
   const [meta, setMeta] = useState(() => getMetaFichas())
   const [metaPopupOpen, setMetaPopupOpen] = useState(false)
 
+  const refMap = useRef<HTMLElement>(null)
+  const refEquipe = useRef<HTMLElement>(null)
+  const refDesempenho = useRef<HTMLElement>(null)
+
   const period = useMemo(() => getPeriodFromPreset(periodPreset), [periodPreset])
 
-  useEffect(() => {
-    setMeta(getMetaFichas())
-  }, [])
+  useEffect(() => { setMeta(getMetaFichas()) }, [])
 
   useEffect(() => {
     async function load() {
@@ -158,7 +180,6 @@ function AdminDashboard() {
         setCoordenadores((coords.data ?? []) as Coordenador[])
         setLideres((lids.data ?? []) as Lider[])
         setDemandaCounts(demCounts)
-
         const urg: Record<DemandaUrgencia, number> = { urgente: 0, alta: 0, normal: 0, baixa: 0 }
         for (const row of urgRes.data ?? []) {
           const key = ((row as { urgencia?: DemandaUrgencia }).urgencia ?? 'normal') as DemandaUrgencia
@@ -171,19 +192,29 @@ function AdminDashboard() {
       }
     }
     load()
-  }, [period])
+  }, [period, reloadKey])
 
   useEffect(() => {
     if (loading || !profile?.id) return
-    if (shouldShowMetaPopup(profile.id)) {
-      setMetaPopupOpen(true)
-    }
+    if (shouldShowMetaPopup(profile.id)) setMetaPopupOpen(true)
   }, [loading, profile?.id])
 
   function closeMetaPopup() {
     if (profile?.id) markMetaPopupSeen(profile.id)
     setMetaPopupOpen(false)
   }
+
+  function handleReload() { setReloadKey((k) => k + 1) }
+
+  function handleViewMode(mode: ViewMode) {
+    setViewMode(mode)
+    setTimeout(() => {
+      if (mode === 'zona') refMap.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      if (mode === 'equipe') refEquipe.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 60)
+  }
+
+  /* ── derived data ── */
 
   const goal = useMemo(() => metaProgress(totalFichas, meta), [totalFichas, meta])
   const pctFine = Math.round((goal.atual / goal.meta) * 1000) / 10
@@ -203,9 +234,7 @@ function AdminDashboard() {
 
   const dirStats: DiretoriaStats[] = useMemo(() => {
     return orderedDirs.map((dir, index) => {
-      const teamIds = new Set(
-        nerites.filter((n) => n.diretoria_id === dir.id).map((n) => n.id),
-      )
+      const teamIds = new Set(nerites.filter((n) => n.diretoria_id === dir.id).map((n) => n.id))
       const fichadas = cadastros.filter(
         (c) => c.diretoria_id === dir.id || Boolean(c.operator_id && teamIds.has(c.operator_id)),
       ).length
@@ -223,12 +252,8 @@ function AdminDashboard() {
 
   const scopedCadastros = useMemo(() => {
     if (dirFilter === 'all') return cadastros
-    const teamIds = new Set(
-      nerites.filter((n) => n.diretoria_id === dirFilter).map((n) => n.id),
-    )
-    return cadastros.filter(
-      (c) => c.diretoria_id === dirFilter || Boolean(c.operator_id && teamIds.has(c.operator_id)),
-    )
+    const teamIds = new Set(nerites.filter((n) => n.diretoria_id === dirFilter).map((n) => n.id))
+    return cadastros.filter((c) => c.diretoria_id === dirFilter || Boolean(c.operator_id && teamIds.has(c.operator_id)))
   }, [cadastros, dirFilter, nerites])
 
   const scopedNerites = useMemo(() => {
@@ -236,10 +261,11 @@ function AdminDashboard() {
     return nerites.filter((n) => n.diretoria_id === dirFilter)
   }, [nerites, dirFilter])
 
-  const scopedLideres = useMemo(() => {
-    if (dirFilter === 'all') return lideres
-    return lideres.filter((l) => l.diretoria_id === dirFilter)
-  }, [lideres, dirFilter])
+  const neriteById = useMemo(() => {
+    const map = new Map<string, Profile>()
+    nerites.forEach((n) => map.set(n.id, n))
+    return map
+  }, [nerites])
 
   const mobilizacaoTotals = useMemo(() => {
     if (dirFilter === 'all') return sumMobilizacao(mobilizacaoCadastros, coordenadores, lideres)
@@ -251,20 +277,12 @@ function AdminDashboard() {
     )
   }, [mobilizacaoCadastros, coordenadores, lideres, nerites, dirFilter])
 
-  const fichasSemDiretoria = useMemo(() => {
-    const teamIds = new Set(nerites.map((n) => n.id))
-    return cadastros.filter((c) => !c.diretoria_id && !Boolean(c.operator_id && teamIds.has(c.operator_id))).length
-  }, [cadastros, nerites])
-
   const todayCount = useMemo(() => {
     const start = startOfDay(new Date()).toISOString()
     return scopedCadastros.filter((c) => c.created_at >= start).length
   }, [scopedCadastros])
 
-  const zonas = useMemo(() => {
-    const set = new Set(scopedCadastros.map((c) => c.zona).filter(Boolean))
-    return set.size
-  }, [scopedCadastros])
+  const zonas = useMemo(() => new Set(scopedCadastros.map((c) => c.zona).filter(Boolean)).size, [scopedCadastros])
 
   const ranking = useMemo(() => {
     const counts = new Map<string, number>()
@@ -284,40 +302,61 @@ function AdminDashboard() {
   }, [scopedCadastros, scopedNerites])
 
   const topLideres = useMemo(() => {
-    const counts = new Map<string, number>()
+    const counts = new Map<string, {
+      nome: string
+      coordenador: string
+      diretoriaId: string
+      total: number
+    }>()
+
     scopedCadastros.forEach((c) => {
       const nome = (c.lider ?? '').trim()
-      if (!nome) return
-      counts.set(nome, (counts.get(nome) ?? 0) + 1)
-    })
-    return Array.from(counts.entries())
-      .map(([nome, total]) => ({
+      if (!liderNameKey(nome)) return
+      const coordenador = (c.coordenador ?? '').trim()
+      const diretoriaId = c.diretoria_id
+        || (c.operator_id ? neriteById.get(c.operator_id)?.diretoria_id : null)
+        || ''
+      const key = liderFichaKey(nome, coordenador, diretoriaId)
+      const prev = counts.get(key)
+      if (prev) {
+        prev.total += 1
+        return
+      }
+      counts.set(key, {
         nome,
-        total,
-        share: scopedCadastros.length ? Math.round((total / scopedCadastros.length) * 100) : 0,
+        coordenador,
+        diretoriaId: String(diretoriaId),
+        total: 1,
+      })
+    })
+
+    return Array.from(counts.entries())
+      .map(([key, item]) => ({
+        key,
+        ...item,
+        share: scopedCadastros.length ? Math.round((item.total / scopedCadastros.length) * 100) : 0,
       }))
-      .sort((a, b) => b.total - a.total)
+      .sort((a, b) => {
+        if (b.total !== a.total) return b.total - a.total
+        return a.nome.localeCompare(b.nome, 'pt-BR')
+      })
       .slice(0, 5)
-  }, [scopedCadastros])
+  }, [scopedCadastros, neriteById])
 
   const maxLider = topLideres[0]?.total || 1
   const maxRank = ranking[0]?.total || 1
 
   const ultimos = useMemo(
-    () =>
-      [...scopedCadastros]
-        .sort((a, b) => b.created_at.localeCompare(a.created_at))
-        .slice(0, 6)
-        .map((c) => ({
-          id: c.id,
-          nome: c.nome_completo,
-          detalhe: [
-            c.zona ? `Zona ${c.zona}` : null,
-            c.secao ? `Seção ${c.secao}` : null,
-            (c.lider ?? '').trim() || null,
-          ].filter(Boolean).join(' · ') || '—',
-          data: formatShortDateTime(c.created_at),
-        })),
+    () => [...scopedCadastros]
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .slice(0, 6)
+      .map((c) => ({
+        id: c.id,
+        nome: c.nome_completo,
+        detalhe: [c.zona ? `Zona ${c.zona}` : null, c.secao ? `Seção ${c.secao}` : null, (c.lider ?? '').trim() || null]
+          .filter(Boolean).join(' · ') || '—',
+        data: formatShortDateTime(c.created_at),
+      })),
     [scopedCadastros],
   )
 
@@ -327,10 +366,7 @@ function AdminDashboard() {
 
   const periodLabel = useMemo(() => {
     const map: Record<PeriodPreset, string> = {
-      '7d': 'últimos 7 dias',
-      '30d': 'últimos 30 dias',
-      '90d': 'últimos 90 dias',
-      all: 'todo o período',
+      '7d': 'últimos 7 dias', '30d': 'últimos 30 dias', '90d': 'últimos 90 dias', all: 'todo o período',
     }
     return map[periodPreset]
   }, [periodPreset])
@@ -343,10 +379,7 @@ function AdminDashboard() {
     return periodDays(periodPreset)
   }, [periodPreset, evolution])
 
-  const diasAtivosNum = useMemo(
-    () => evolution.filter((e) => e.total > 0).length,
-    [evolution],
-  )
+  const diasAtivosNum = useMemo(() => evolution.filter((e) => e.total > 0).length, [evolution])
 
   const ritmo = useMemo(() => {
     if (diasAtivosNum <= 0) return 0
@@ -369,97 +402,20 @@ function AdminDashboard() {
   const atualizadoEm = useMemo(() => {
     const latest = [...scopedCadastros].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
     if (!latest) return 'sem lançamentos'
-    try {
-      return `atualizado ${format(parseISO(latest.created_at), "dd/MM 'às' HH:mm")}`
-    } catch {
-      return '—'
-    }
+    try { return `Atualizado ${format(parseISO(latest.created_at), "dd/MM 'às' HH:mm")}` } catch { return '—' }
   }, [scopedCadastros])
 
   const ultimoLancamento = useMemo(() => {
     const latest = [...scopedCadastros].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
     if (!latest) return 'sem lançamentos'
-    try {
-      return `último lançamento ${format(parseISO(latest.created_at), "dd/MM, HH:mm")}`
-    } catch {
-      return '—'
-    }
+    try { return `Último: ${format(parseISO(latest.created_at), 'HH:mm (dd/MM)')}` } catch { return '—' }
   }, [scopedCadastros])
 
   const topSecoes = useMemo(() => {
     const map = new Map<string, number>()
-    scopedCadastros.forEach((c) => {
-      const s = (c.secao ?? '').trim()
-      if (!s) return
-      map.set(s, (map.get(s) ?? 0) + 1)
-    })
-    return Array.from(map.entries())
-      .map(([n, v]) => ({ n, v }))
-      .sort((a, b) => b.v - a.v)
-      .slice(0, 5)
+    scopedCadastros.forEach((c) => { const s = (c.secao ?? '').trim(); if (!s) return; map.set(s, (map.get(s) ?? 0) + 1) })
+    return Array.from(map.entries()).map(([n, v]) => ({ n, v })).sort((a, b) => b.v - a.v).slice(0, 4)
   }, [scopedCadastros])
-
-  const melhorDia = useMemo(() => {
-    if (!evolution.length) return { label: '—', total: 0 }
-    const best = [...evolution].sort((a, b) => b.total - a.total)[0]
-    if (!best || best.total <= 0) return { label: '—', total: 0 }
-    return { label: best.date, total: best.total }
-  }, [evolution])
-
-  const ritmoChart = useMemo(() => {
-    const dayCount = 14
-    const byDay = new Map(evolution.map((e) => [e.date, e.total]))
-    const bars = Array.from({ length: dayCount }, (_, i) => {
-      const d = subDays(new Date(), dayCount - 1 - i)
-      const date = format(d, 'dd/MM')
-      return { date, label: format(d, 'dd'), total: byDay.get(date) ?? 0 }
-    })
-    const maxSerie = Math.max(...bars.map((b) => b.total), 1)
-    const yMax = Math.max(10, Math.ceil(maxSerie / 10) * 10)
-    const eixoY = [yMax, Math.round(yMax * 0.75), Math.round(yMax * 0.5), Math.round(yMax * 0.25), 0]
-    const eixoAcum = [1, 0.75, 0.5, 0.25, 0].map((k) => fmt(Math.round(goal.meta * k)))
-
-    const pontos = bars.length
-    const passo = pontos > 1 ? 100 / (pontos - 1) : 100
-    const primeiroDia = Math.max(1, diasPeriodo - pontos + 1)
-    const yMeta = (valor: number) => (100 - (Math.min(valor, goal.meta * 1.05) / goal.meta) * 100)
-
-    let acum = 0
-    const acumPts = bars.map((b, i) => {
-      acum += b.total
-      return `${(i * passo).toFixed(2)},${yMeta(acum).toFixed(2)}`
-    })
-    const acumPoints = acumPts.join(' ')
-    const areaPath = `M0,100 L${acumPts.join(' L')} L100,100 Z`
-    const porDiaNecessario = goal.meta / diasPeriodo
-    const metaPoints = bars
-      .map((_, i) => `${(i * passo).toFixed(2)},${yMeta((primeiroDia + i) * porDiaNecessario).toFixed(2)}`)
-      .join(' ')
-
-    const gapMeta = Math.round(diasPeriodo * porDiaNecessario - scopedCadastros.length)
-    const peak = bars.reduce((m, b) => (b.total > m.total ? b : m), { date: '', label: '', total: -1 })
-
-    return {
-      eixoY,
-      eixoAcum,
-      bars: bars.map((b) => {
-        const active = b.total > 0 && b.date === peak.date
-        return {
-          ...b,
-          active,
-          h: b.total > 0 ? `${Math.max((b.total / yMax) * 100, 1.5)}%` : '3px',
-          cor: active ? '#1f4fd8' : b.total > 0 ? '#c3cfe4' : '#edeff3',
-        }
-      }),
-      acumPoints,
-      areaPath,
-      metaPoints,
-      gapMeta,
-      porDiaNecessario: Math.round(porDiaNecessario),
-      peak,
-      nota: `Barras = fichas lançadas por dia (eixo à esquerda). Linhas = acumulado real contra o ritmo necessário de ${fmt(Math.round(porDiaNecessario))} fichas/dia (eixo à direita). Hoje o acumulado está ${fmt(Math.abs(gapMeta))} fichas ${gapMeta >= 0 ? 'atrás' : 'à frente'} desse ritmo.`,
-    }
-  }, [evolution, goal.meta, diasPeriodo, scopedCadastros.length])
 
   const mobBase = mobilizacaoTotals.fichas + mobilizacaoTotals.equipe
   const mobComLancamento = Math.max(0, mobBase - mobilizacaoTotals.pendentes)
@@ -467,58 +423,12 @@ function AdminDashboard() {
   const filtroAtivo = dirFilter !== 'all'
   const dirQuery = filtroAtivo ? `?diretoria=${dirFilter}` : ''
   const dirQueryAmp = filtroAtivo ? `&diretoria=${dirFilter}` : ''
-  const totalSistemaFichas = Math.max(totalFichas, 1)
 
   const maiorZona = zonaData[0]
   const zonasFracas = useMemo(() => {
     if (zonaData.length < 2) return []
     return zonaData.filter((z) => z.value > 0 && z.value <= Math.max(15, Math.ceil(scopedCadastros.length * 0.02)))
   }, [zonaData, scopedCadastros.length])
-
-  const alertas = useMemo((): DashAlert[] => {
-    const list: DashAlert[] = []
-    if (mobilizacaoTotals.pendentes > 0) {
-      list.push({
-        cor: '#d97706',
-        titulo: 'Formigas sem nenhum lançamento',
-        texto: 'Nenhum carro, casa, postagem ou contato registrado desde o início',
-        valor: fmt(mobilizacaoTotals.pendentes),
-        to: `/ativacao/painel?status=sem_ativacao${dirQueryAmp}`,
-      })
-    }
-    if (zonasFracas.length > 0) {
-      const soma = zonasFracas.reduce((a, z) => a + z.value, 0)
-      const nomes = zonasFracas
-        .slice(0, 2)
-        .map((z) => z.name.replace(/^Zona eleitoral\s+/i, ''))
-        .join(' e ')
-      list.push({
-        cor: '#d97706',
-        titulo: 'Zonas quase sem cobertura',
-        texto: `Zonas ${nomes} somam ${fmt(soma)} fichas — abrir frente de campo`,
-        valor: fmt(soma),
-        to: `/mapa${dirQuery}`,
-      })
-    }
-    const diasParados = Math.max(0, diasPeriodo - diasAtivosNum)
-    if (diasParados > 0 && diasPeriodo > 0) {
-      list.push({
-        cor: '#1f4fd8',
-        titulo: `Coleta parada em ${diasParados} dos ${diasPeriodo} dias`,
-        texto: `Todo o volume veio de ${diasAtivosNum} dias; sem ritmo diário a meta não fecha`,
-        valor: `${diasAtivosNum}/${diasPeriodo}`,
-        to: `/cadastros${dirQuery}`,
-      })
-    }
-    return list.slice(0, 3)
-  }, [
-    mobilizacaoTotals.pendentes,
-    zonasFracas,
-    diasPeriodo,
-    diasAtivosNum,
-    dirQuery,
-    dirQueryAmp,
-  ])
 
   const equipeAtiva = ranking.length || scopedNerites.filter((n) => n.ativo).length
   const mediaPorNerite = equipeAtiva > 0 ? Math.round(scopedCadastros.length / equipeAtiva) : 0
@@ -528,37 +438,41 @@ function AdminDashboard() {
     const pct = Math.round((maiorZona.value / scopedCadastros.length) * 100)
     const zonaLabel = maiorZona.name.replace(/^Zona eleitoral\s+/i, '')
     if (zonasFracas.length === 0) {
-      return pct >= 50
-        ? `Risco de concentração: ${pct}% das fichas estão na zona ${zonaLabel}.`
-        : null
+      return pct >= 50 ? `Alta concentração (${pct}%) na Zona ${zonaLabel}.` : null
     }
-    const fracos = zonasFracas
-      .slice(0, 2)
-      .map((z) => z.name.replace(/^Zona eleitoral\s+/i, ''))
-      .join(' e ')
+    const fracos = zonasFracas.slice(0, 2).map((z) => z.name.replace(/^Zona eleitoral\s+/i, '')).join(' e ')
     const somaFraca = zonasFracas.reduce((a, z) => a + z.value, 0)
-    return `Risco de concentração: ${pct}% das fichas estão na zona ${zonaLabel}. As zonas ${fracos} somam ${fmt(somaFraca)} fichas — território praticamente inexplorado.`
+    return `Alta concentração (${pct}%) na Zona ${zonaLabel}. As zonas ${fracos} somam ${fmt(somaFraca)} fichas — território praticamente inexplorado.`
   }, [maiorZona, scopedCadastros.length, zonasFracas])
 
   const somaNerites = ranking.reduce((a, n) => a + n.total, 0)
   const somaLideresTop = topLideres.reduce((a, l) => a + l.total, 0)
 
-  const atividadeNota = useMemo(() => {
-    if (!ultimos.length) return 'Sem fichas recentes neste filtro.'
-    const todayIso = startOfDay(new Date()).toISOString()
-    const deHoje = scopedCadastros.filter((c) => c.created_at >= todayIso)
-    if (deHoje.length >= 2) {
-      const sorted = [...deHoje].sort((a, b) => a.created_at.localeCompare(b.created_at))
-      try {
-        const a = format(parseISO(sorted[0].created_at), 'HH:mm')
-        const b = format(parseISO(sorted[sorted.length - 1].created_at), 'HH:mm')
-        return `Todas as entradas de hoje entre ${a} e ${b}`
-      } catch {
-        /* fall through */
-      }
-    }
-    return `${ultimos.length} fichas mais recentes do filtro`
-  }, [ultimos, scopedCadastros])
+  /* ── Recharts: ritmo de coleta ── */
+
+  const chartData = useMemo(() => {
+    const numBars = periodPreset === '7d' ? 7 : 30
+    const byDay = new Map(evolution.map((e) => [e.date, e.total]))
+    const porDia = diasPeriodo > 0 ? goal.meta / diasPeriodo : 0
+    const firstDay = Math.max(1, diasPeriodo - numBars + 1)
+    let cumulative = 0
+    return Array.from({ length: numBars }, (_, i) => {
+      const d = subDays(new Date(), numBars - 1 - i)
+      const dateKey = format(d, 'dd/MM')
+      const daily = byDay.get(dateKey) ?? 0
+      cumulative += daily
+      return { date: dateKey, label: format(d, 'dd'), daily, cumulative, metaPace: Math.round((firstDay + i) * porDia) }
+    })
+  }, [evolution, goal.meta, diasPeriodo, periodPreset])
+
+  const chartPeak = useMemo(() => {
+    if (!chartData.length) return { label: '—', daily: 0 }
+    return chartData.reduce((m, d) => (d.daily > m.daily ? d : m), chartData[0])
+  }, [chartData])
+
+  const barSize = chartData.length <= 7 ? 24 : chartData.length <= 14 ? 16 : 10
+
+  /* ── loading state ── */
 
   if (loading) {
     return (
@@ -568,49 +482,40 @@ function AdminDashboard() {
     )
   }
 
-  return (
-    <div className="nv-dash nv2-dash">
-      <MetaGoalPopup
-        open={metaPopupOpen}
-        atual={totalFichas}
-        meta={meta}
-        onClose={closeMetaPopup}
-      />
+  /* ── render ── */
 
-      <div className="nv-heading">
+  return (
+    <div className="nd-dash">
+      <MetaGoalPopup open={metaPopupOpen} atual={totalFichas} meta={meta} onClose={closeMetaPopup} />
+
+      {/* ──── 1. Header ──── */}
+      <div className="nd-header">
         <div>
-          <p className="nv-eyebrow">Painel administrativo</p>
-          <h1>Visão geral</h1>
-          <p className="nv-sub">
-            Exibindo <strong>{escopoNome}</strong> · {periodLabel} · {atualizadoEm}
+          <span className="nd-badge">Painel Administrativo</span>
+          <h2 className="nd-title">Visão geral da operação</h2>
+          <p className="nd-subtitle">
+            Exibindo: <strong>{escopoNome}</strong> · {periodLabel} · {atualizadoEm}
           </p>
         </div>
-        <div className="nv-heading-actions">
-          <div className="nv-tabs" role="group" aria-label="Filtro de diretoria">
-            <button
-              type="button"
-              className={`nv-tab${dirFilter === 'all' ? ' active' : ''}`}
-              onClick={() => setDirFilter('all')}
-            >
-              Geral
-            </button>
-            {dirStats.map((d) => (
-              <button
-                key={d.id}
-                type="button"
-                className={`nv-tab${dirFilter === d.id ? ' active' : ''}`}
-                onClick={() => setDirFilter(d.id)}
-              >
-                {d.nome.replace(/^Diretora\s+/i, '')}
+        <div className="nd-controls">
+          <div className="nd-tabs" role="group" aria-label="Modo de visualização">
+            {(['geral', 'zona', 'equipe'] as const).map((m) => (
+              <button key={m} type="button" className={`nd-tab${viewMode === m ? ' active' : ''}`} onClick={() => handleViewMode(m)}>
+                {m === 'geral' ? 'Geral' : m === 'zona' ? 'Zona' : 'Equipe'}
               </button>
             ))}
           </div>
           <PeriodFilterSelect value={periodPreset} onChange={setPeriodPreset} showRange={false} />
+          <button type="button" className="nd-refresh" onClick={handleReload}>
+            <RefreshCw size={14} />
+            <span>Atualizar</span>
+          </button>
         </div>
       </div>
 
+      {/* filter banner */}
       {filtroAtivo && (
-        <div className="nv-filter-banner">
+        <div className="nd-filter-banner">
           <span>
             Painel filtrado pela <strong>{escopoNome}</strong> — fichas, mobilização, mapa e rankings
             consideram só essa equipe. A meta segue global.
@@ -619,630 +524,595 @@ function AdminDashboard() {
         </div>
       )}
 
-      <section className="nv2-meta" aria-label="Meta de fichas e alertas">
-        <div className="nv2-meta-card">
-          <div className="nv2-meta-head">
-            <span>Meta de fichas · global</span>
-            <Link to="/configuracoes">Configurar meta</Link>
+      {/* ──── 2. Meta + KPI grid ──── */}
+      <div className="nd-overview">
+        {/* Meta card — dark gradient (7 cols) */}
+        <div className="nd-meta">
+          <div className="nd-meta-glow" />
+          <div>
+            <div className="nd-meta-head">
+              <div className="nd-meta-head-left">
+                <span className="nd-meta-dot" />
+                <span className="nd-meta-label">Meta da Equipe — {escopoNome}</span>
+              </div>
+              <Link to="/configuracoes" className="nd-meta-link">Configurar meta</Link>
+            </div>
+            <div className="nd-meta-numbers">
+              <div className="nd-meta-big-wrap">
+                <span className="nd-meta-big tabular-nums">{fmt(goal.atual)}</span>
+                <span className="nd-meta-of">de {fmt(goal.meta)} fichas</span>
+              </div>
+              <span className="nd-meta-pct">
+                <strong className="tabular-nums">{pctLabel}</strong>
+                <span>atingido</span>
+              </span>
+            </div>
+            <div className="nd-meta-bar-wrap">
+              <div className="nd-meta-bar-track">
+                <div className="nd-meta-bar-fill" style={{ width: `${Math.min(pctFine, 100)}%` }} />
+              </div>
+              <div className="nd-meta-bar-legend">
+                <span>0 fichas</span>
+                <span>Meta: {fmt(goal.meta)} fichas</span>
+              </div>
+            </div>
           </div>
-          <div className="nv2-meta-value">
-            <strong className="tabular-nums">{fmt(goal.atual)}</strong>
-            <span>de {fmt(goal.meta)} fichas</span>
-            <span className="nv2-meta-pct">
-              <em className="tabular-nums">{pctLabel}</em>
-              <span>da meta</span>
-            </span>
-          </div>
-          <div className="nv2-meta-bar" role="progressbar" aria-valuenow={pctFine} aria-valuemin={0} aria-valuemax={100}>
-            <i style={{ width: `${Math.max(pctFine, goal.batida ? 100 : 0.6)}%` }} />
-          </div>
-          <div className="nv2-meta-stats">
-            <div>
-              <span>Faltam</span>
+          <div className="nd-meta-stats">
+            <div className="nd-meta-stat">
+              <span className="nd-meta-stat-lbl">Faltam</span>
               <strong className="tabular-nums">{goal.batida ? '0' : fmt(goal.restante)}</strong>
-              <em>{goal.batida ? 'meta alcançada' : 'fichas para a meta'}</em>
+              <span className="nd-meta-stat-hint">{goal.batida ? 'meta alcançada' : 'fichas para meta'}</span>
             </div>
-            <div>
-              <span>Ritmo</span>
-              <strong className="tabular-nums">{ritmo > 0 ? `${fmt(ritmo)}/dia` : '—'}</strong>
-              <em>média dos {diasAtivosNum} dias com coleta</em>
+            <div className="nd-meta-stat">
+              <span className="nd-meta-stat-lbl">Ritmo Atual</span>
+              <strong className="nd-meta-stat-green tabular-nums">
+                {ritmo > 0 ? fmt(ritmo) : '—'}
+                {ritmo > 0 && <span className="nd-meta-stat-unit">/dia</span>}
+              </strong>
+              <span className="nd-meta-stat-hint">nos últimos {diasAtivosNum} dias ativos</span>
             </div>
-            <div>
-              <span>Projeção</span>
-              <strong className="tabular-nums">
+            <div className="nd-meta-stat">
+              <span className="nd-meta-stat-lbl">Projeção</span>
+              <strong className="nd-meta-stat-amber tabular-nums">
                 {goal.batida ? '0 dias' : diasParaMeta != null ? `${diasParaMeta} dias` : '—'}
               </strong>
-              <em>de coleta para fechar a meta</em>
+              <span className="nd-meta-stat-hint">de coleta para fechar</span>
             </div>
           </div>
         </div>
 
-        <div className="nv2-alerts">
-          <div className="nv2-alerts-head">
-            <span>Precisa da sua atenção</span>
-            <em>{alertas.length}</em>
+        {/* KPI cards — 2×2 (5 cols) */}
+        <div className="nd-kpis">
+          <div className="nd-kpi">
+            <div className="nd-kpi-top">
+              <span className="nd-kpi-label">Fichas no Período</span>
+              <span className="nd-kpi-icon blue"><FileText size={14} /></span>
+            </div>
+            <div className="nd-kpi-body">
+              <span className="nd-kpi-value tabular-nums">{fmt(scopedCadastros.length)}</span>
+              <span className="nd-kpi-tag blue">{Math.round(pctFine)}% da meta</span>
+            </div>
+            <p className="nd-kpi-hint">{escopoCurto} · {periodLabel}</p>
           </div>
-          <div className="nv2-alerts-list">
-            {alertas.length ? alertas.map((a) => (
-              <Link key={a.titulo} to={a.to} className="nv2-alert">
-                <span className="nv2-alert-dot" style={{ background: a.cor }} />
-                <span className="nv2-alert-body">
-                  <strong>{a.titulo}</strong>
-                  <span>{a.texto}</span>
-                </span>
-                <strong className="nv2-alert-valor tabular-nums">{a.valor}</strong>
-              </Link>
-            )) : (
-              <div className="nv-empty">Nenhum alerta no momento.</div>
-            )}
+          <div className="nd-kpi">
+            <div className="nd-kpi-top">
+              <span className="nd-kpi-label">Cadastros 24h</span>
+              <span className="nd-kpi-icon green"><Clock size={14} /></span>
+            </div>
+            <div className="nd-kpi-body">
+              <span className="nd-kpi-value tabular-nums">{fmt(todayCount)}</span>
+              <span className="nd-kpi-tag green">
+                {scopedCadastros.length ? `${Math.round((todayCount / scopedCadastros.length) * 100)}% do total` : '0%'}
+              </span>
+            </div>
+            <p className="nd-kpi-hint">{ultimoLancamento}</p>
+          </div>
+          <div className="nd-kpi">
+            <div className="nd-kpi-top">
+              <span className="nd-kpi-label">Zonas Cobertas</span>
+              <span className="nd-kpi-icon indigo"><MapPin size={14} /></span>
+            </div>
+            <div className="nd-kpi-body">
+              <span className="nd-kpi-value tabular-nums">{zonas}</span>
+              <span className="nd-kpi-tag indigo">
+                {maiorZona ? `${maiorZona.name.replace(/^Zona eleitoral\s+/i, '')} lidera` : 'sem dados'}
+              </span>
+            </div>
+            <p className="nd-kpi-hint">
+              {maiorZona && scopedCadastros.length
+                ? `${Math.round((maiorZona.value / scopedCadastros.length) * 100)}% das fichas em uma zona`
+                : 'nenhuma zona no filtro'}
+            </p>
+          </div>
+          <div className="nd-kpi">
+            <div className="nd-kpi-top">
+              <span className="nd-kpi-label">Equipe Ativa</span>
+              <span className="nd-kpi-icon amber"><Users size={14} /></span>
+            </div>
+            <div className="nd-kpi-body">
+              <span className="nd-kpi-value tabular-nums">{fmt(equipeAtiva)}</span>
+              <span className="nd-kpi-tag amber">nerites</span>
+            </div>
+            <p className="nd-kpi-hint">
+              {equipeAtiva ? `${fmt(mediaPorNerite)} fichas por nerite em média` : 'sem lançamentos'}
+            </p>
           </div>
         </div>
-      </section>
+      </div>
 
-      <section className="nv2-kpis" aria-label="Indicadores do período">
-        <div className="nv2-kpi">
-          <span className="nv2-kpi-label">Fichas no período</span>
-          <div className="nv2-kpi-row">
-            <strong className="tabular-nums">{fmt(scopedCadastros.length)}</strong>
-            <em className="nv2-kpi-tag tone-muted">{Math.round(pctFine)}% da meta</em>
-          </div>
-          <span className="nv2-kpi-hint">{escopoCurto} · {periodLabel}</span>
-        </div>
-        <div className="nv2-kpi">
-          <span className="nv2-kpi-label">Cadastradas hoje</span>
-          <div className="nv2-kpi-row">
-            <strong className="tabular-nums">{fmt(todayCount)}</strong>
-            <em className="nv2-kpi-tag tone-green">
-              {scopedCadastros.length
-                ? `${Math.round((todayCount / scopedCadastros.length) * 100)}% do total`
-                : '0% do total'}
-            </em>
-          </div>
-          <span className="nv2-kpi-hint">{ultimoLancamento}</span>
-        </div>
-        <div className="nv2-kpi">
-          <span className="nv2-kpi-label">Zonas alcançadas</span>
-          <div className="nv2-kpi-row">
-            <strong className="tabular-nums">{zonas}</strong>
-            {maiorZona && (
-              <em className="nv2-kpi-tag tone-muted">
-                {maiorZona.name.replace(/^Zona eleitoral\s+/i, '')} lidera
-              </em>
-            )}
-          </div>
-          <span className="nv2-kpi-hint">
-            {maiorZona && scopedCadastros.length
-              ? `${Math.round((maiorZona.value / scopedCadastros.length) * 100)}% das fichas em uma zona só`
-              : 'nenhuma zona no filtro'}
-          </span>
-        </div>
-        <div className="nv2-kpi">
-          <span className="nv2-kpi-label">Equipe ativa</span>
-          <div className="nv2-kpi-row">
-            <strong className="tabular-nums">{fmt(equipeAtiva)}</strong>
-            <em className="nv2-kpi-tag tone-muted">nerites</em>
-          </div>
-          <span className="nv2-kpi-hint">
-            {equipeAtiva
-              ? `${fmt(mediaPorNerite)} fichas por nerite em média`
-              : 'nenhuma nerite com lançamentos'}
-          </span>
-        </div>
-      </section>
-
-      <section aria-label="Diretorias e equipes">
-        <div className="nv-section-head">
+      {/* ──── 3. Divisão entre equipes ──── */}
+      <section ref={refEquipe}>
+        <div className="nd-section-head">
           <div>
-            <h2 className="nv-section-title">Diretorias e suas equipes</h2>
-            <p>Clique no card para filtrar o painel inteiro</p>
+            <h3 className="nd-section-title">Divisão entre as equipes</h3>
+            <p className="nd-section-subtitle">Distribuição comparativa entre as frentes de trabalho</p>
           </div>
-          <span className="nv-section-hint">
-            {fmt(totalFichas)} fichas no sistema
-            {fichasSemDiretoria > 0 ? ` · ${fichasSemDiretoria} sem diretoria` : ' · 0 sem diretoria'}
+          <span className="nd-section-badge">
+            {fmt(scopedCadastros.length)} fichas contabilizadas • {dirStats.length} frente{dirStats.length !== 1 ? 's' : ''} ativa{dirStats.length !== 1 ? 's' : ''}
           </span>
         </div>
-        <div className="nv2-dir-grid">
+        <div className="nd-team-grid">
           {dirStats.map((d) => {
             const ativo = dirFilter === d.id
-            const share = Math.round((d.fichadas / totalSistemaFichas) * 100)
+            const periodoTotal = Math.max(
+              dirStats.reduce((acc, x) => acc + x.fichadas, 0),
+              1,
+            )
+            const share = Math.round((d.fichadas / periodoTotal) * 100)
             const porNerite = d.nerites > 0 ? Math.round(d.fichadas / d.nerites) : 0
-            const porLider = d.lideres > 0
-              ? (d.fichadas / d.lideres).toFixed(1).replace('.', ',')
-              : '0'
+            const porLider = d.lideres > 0 ? (d.fichadas / d.lideres).toFixed(1).replace('.', ',') : '0'
             return (
               <div
                 key={d.id}
                 role="button"
                 tabIndex={0}
-                className={`nv2-dir-card${ativo ? ' active' : ''}`}
+                className={`nd-team-card${ativo ? ' active' : ''} tone-${d.tone}`}
                 onClick={() => setDirFilter(ativo ? 'all' : d.id)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    setDirFilter(ativo ? 'all' : d.id)
-                  }
-                }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDirFilter(ativo ? 'all' : d.id) } }}
               >
-                <div className="nv2-dir-top">
-                  <span className={`nv2-dir-avatar tone-${d.tone}${ativo ? ' on' : ''}`}>
-                    {initials(d.nome)}
-                  </span>
-                  <div className="nv2-dir-copy">
-                    <div className="nv2-dir-name">
-                      {d.nome}
-                      {ativo && <em>filtrando</em>}
+                <div className="nd-team-top">
+                  <div className="nd-team-left">
+                    <span className={`nd-team-avatar ${d.tone}`}>{initials(d.nome)}</span>
+                    <div className="nd-team-copy">
+                      <h4 className="nd-team-name">
+                        {d.nome}
+                        {ativo && <em className="nd-team-active-tag">filtrando</em>}
+                      </h4>
+                      <p className="nd-team-detail">
+                        {d.fichadas > 0
+                          ? `${share}% das fichas · ${fmt(porNerite)} fichas por membro`
+                          : 'sem fichas lançadas'}
+                      </p>
                     </div>
-                    <p>
-                      {d.fichadas > 0
-                        ? `${share}% das fichas · ${fmt(porNerite)} fichas por nerite`
-                        : 'sem fichas lançadas'}
-                    </p>
                   </div>
-                  <div className="nv2-dir-count">
-                    <strong className={`tabular-nums${d.fichadas === 0 ? ' is-zero' : ''}`}>
-                      {fmt(d.fichadas)}
-                    </strong>
-                    <span>fichas</span>
+                  <div className="nd-team-count">
+                    <span className="nd-team-count-value tabular-nums">{fmt(d.fichadas)}</span>
+                    <span className="nd-team-count-label">fichas</span>
                   </div>
                 </div>
-                <div className="nv-bar thin">
-                  <i style={{ width: `${Math.min(100, share)}%` }} />
+
+                <div className="nd-team-bar">
+                  <div className={`nd-team-bar-fill ${d.tone}`} style={{ width: `${Math.min(100, Math.max(share, d.fichadas > 0 ? 2 : 0))}%` }} />
                 </div>
-                <div className="nv2-dir-minis">
-                  <Link to={`/equipe?tab=coordenadores&diretoria=${d.id}`} onClick={(e) => e.stopPropagation()}>
-                    <span>Coord.</span>
-                    <strong className="tabular-nums">{d.coordenadores}</strong>
+
+                <div className="nd-team-stats">
+                  <Link
+                    to={`/equipe?tab=coordenadores&diretoria=${d.id}`}
+                    className="nd-team-stat"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span className="nd-team-stat-label">Coord.</span>
+                    <strong className="nd-team-stat-value tabular-nums">{d.coordenadores}</strong>
                   </Link>
-                  <Link to={`/equipe?tab=lideres&diretoria=${d.id}`} onClick={(e) => e.stopPropagation()}>
-                    <span>Lideranças</span>
-                    <strong className="tabular-nums">{d.lideres}</strong>
+                  <Link
+                    to={`/equipe?tab=lideres&diretoria=${d.id}`}
+                    className="nd-team-stat"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span className="nd-team-stat-label">Lideranças</span>
+                    <strong className="nd-team-stat-value tabular-nums">{d.lideres}</strong>
                   </Link>
-                  <Link to={`/equipe?tab=nerites&diretoria=${d.id}`} onClick={(e) => e.stopPropagation()}>
-                    <span>Nerites</span>
-                    <strong className="tabular-nums">{d.nerites}</strong>
+                  <Link
+                    to={`/equipe?tab=nerites&diretoria=${d.id}`}
+                    className="nd-team-stat"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span className="nd-team-stat-label">Membros</span>
+                    <strong className="nd-team-stat-value tabular-nums">{d.nerites}</strong>
                   </Link>
                 </div>
-                <div className="nv2-dir-foot">
-                  <span>
+
+                <div className="nd-team-foot">
+                  <span className="nd-team-foot-text">
                     {ativo
-                      ? 'filtro ativo — clique para remover'
-                      : `${porLider} fichas por liderança · clique para filtrar`}
+                      ? 'Filtro ativo — clique para voltar a Geral'
+                      : `${porLider} coletas por liderança · ritmo estável`}
                   </span>
-                  <Link to={`/cadastros?diretoria=${d.id}`} onClick={(e) => e.stopPropagation()}>
-                    Abrir fichas →
+                  <Link
+                    to={`/cadastros?diretoria=${d.id}`}
+                    className={`nd-team-foot-link ${d.tone}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Abrir frente <span className="nd-arrow">→</span>
                   </Link>
                 </div>
               </div>
             )
           })}
-          {!dirStats.length && (
-            <div className="nv-empty">Nenhuma diretoria cadastrada.</div>
-          )}
+          {!dirStats.length && <div className="nd-empty">Nenhuma diretoria cadastrada.</div>}
         </div>
       </section>
 
-      <section className="nv2-ritmo" aria-label="Ritmo de coleta">
-        <div className="nv2-panel">
-          <div className="nv2-panel-head">
+      {/* ──── 4. Ritmo de coleta ──── */}
+      <section>
+        <div className="nd-card">
+          <div className="nd-chart-head">
             <div>
-              <h2>Ritmo de coleta</h2>
-              <p>{escopoCurto} · fichas por dia nos últimos 14 dias</p>
+              <div className="nd-chart-title-row">
+                <h3 className="nd-chart-title">Ritmo de coleta</h3>
+                <span className="nd-chart-tag">Diário vs. Acumulado</span>
+              </div>
+              <p className="nd-chart-sub">{escopoCurto} • {periodLabel}</p>
             </div>
-            <div className="nv2-panel-stats">
-              <div>
-                <span>Dias ativos</span>
-                <strong className="tabular-nums">{diasAtivosNum}/{diasPeriodo}</strong>
+            <div className="nd-chart-right">
+              <div className="nd-chart-legend">
+                <span className="nd-chart-lg"><i className="nd-lg-bar" /> Fichas no dia</span>
+                <span className="nd-chart-lg"><i className="nd-lg-line" /> Acumulado no período</span>
+                <span className="nd-chart-lg"><i className="nd-lg-dash" /> Ritmo necessário p/ meta</span>
               </div>
-              <div>
-                <span>Melhor dia</span>
-                <strong className="tabular-nums">
-                  {melhorDia.total > 0 ? `${fmt(melhorDia.total)} · ${melhorDia.label}` : '—'}
-                </strong>
-              </div>
+              {chartPeak.daily > 0 && (
+                <div className="nd-chart-peak">
+                  <span className="nd-chart-peak-label">Pico registrado</span>
+                  <strong className="tabular-nums">{fmt(chartPeak.daily)} fichas (Dia {chartPeak.label})</strong>
+                </div>
+              )}
             </div>
           </div>
-          <div className="nv2-ritmo-legend">
-            <span><i className="nv2-leg-bar" />Fichas por dia</span>
-            <span><i className="nv2-leg-line" />Acumulado (eixo direito)</span>
-            <span><i className="nv2-leg-dash" />Ritmo necessário p/ meta</span>
+          <div className="nd-chart-wrap">
+            <ResponsiveContainer width="100%" height={280}>
+              <ComposedChart data={chartData} margin={{ top: 10, right: 10, bottom: 0, left: -10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} />
+                <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={40} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={55} />
+                <Tooltip
+                  contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 12px', fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                  itemStyle={{ padding: '2px 0' }}
+                  labelStyle={{ fontWeight: 600, marginBottom: 4, color: '#0f172a' }}
+                  labelFormatter={(l) => `Dia ${l}`}
+                />
+                <Bar yAxisId="left" dataKey="daily" name="Fichas no dia" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={barSize} />
+                <Line yAxisId="right" type="monotone" dataKey="cumulative" name="Acumulado" stroke="#059669" strokeWidth={2} dot={false} />
+                <Line yAxisId="right" type="monotone" dataKey="metaPace" name="Ritmo p/ meta" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="5 5" dot={false} />
+              </ComposedChart>
+            </ResponsiveContainer>
           </div>
-          <div className="nv2-ritmo-chart">
-            <div className="nv2-ritmo-y">
-              {ritmoChart.eixoY.map((t) => (
-                <span key={`y-${t}`}>{t}</span>
-              ))}
-            </div>
-            <div className="nv2-ritmo-main">
-              <div className="nv2-ritmo-plot">
-                <div className="nv2-ritmo-grid" aria-hidden>
-                  <div /><div /><div /><div /><div />
-                </div>
-                <div className="nv2-ritmo-bars">
-                  {ritmoChart.bars.map((b, i) => (
-                    <div className="nv2-ritmo-col" key={`${b.date}-${i}`}>
-                      <div
-                        className={`nv2-ritmo-bar${b.active ? ' active' : ''}`}
-                        style={{ height: b.h, background: b.cor }}
-                        title={`${b.date}: ${b.total}`}
-                      />
-                    </div>
-                  ))}
-                </div>
-                <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="nv2-ritmo-svg" aria-hidden>
-                  <path d={ritmoChart.areaPath} fill="rgba(15,138,95,.08)" stroke="none" />
-                  <polyline
-                    points={ritmoChart.metaPoints}
-                    fill="none"
-                    stroke="#c3cbd8"
-                    strokeWidth="1.5"
-                    strokeDasharray="4 4"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  <polyline
-                    points={ritmoChart.acumPoints}
-                    fill="none"
-                    stroke="#0f8a5f"
-                    strokeWidth="2"
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                </svg>
-                <div className="nv2-ritmo-badge">
-                  <span>Acumulado</span>
-                  <strong className="tabular-nums">{fmt(scopedCadastros.length)}</strong>
-                  <em>
-                    {pctLabel} da meta · {fmt(Math.abs(ritmoChart.gapMeta))}{' '}
-                    {ritmoChart.gapMeta >= 0 ? 'atrás' : 'à frente'} do ritmo
-                  </em>
-                </div>
-              </div>
-              <div className="nv2-ritmo-labels">
-                {ritmoChart.bars.map((b, i) => (
-                  <span key={`${b.label}-l-${i}`} className={b.active ? 'on' : undefined}>
-                    {b.label}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div className="nv2-ritmo-y acum">
-              {ritmoChart.eixoAcum.map((t) => (
-                <span key={`a-${t}`}>{t}</span>
-              ))}
-            </div>
+          <div className="nd-chart-foot">
+            <span>
+              Volume acumulado: <strong className="tabular-nums">{fmt(scopedCadastros.length)} fichas</strong>
+              {ritmo > 0 && <> (Média: {fmt(ritmo)} fichas/dia)</>}
+            </span>
+            <span>Meta: <strong className="tabular-nums">{fmt(goal.meta)} fichas</strong></span>
           </div>
-          <div className="nv2-panel-note">{ritmoChart.nota}</div>
         </div>
       </section>
 
-      <section className="nv2-campo" aria-label="Formigas e demandas">
-        <div className="nv2-panel">
-          <div className="nv2-panel-head">
-            <div>
-              <h2>Formigas · mobilização de rua</h2>
-              <p>
-                {fmt(mobBase)} pessoas no escopo · carro, casa, postagem e contato
-              </p>
-            </div>
-            <Link to={`/ativacao/painel${dirQuery}`}>Abrir painel →</Link>
-          </div>
-          <div className="nv2-tiles">
-            {([
-              ['Carros', mobilizacaoTotals.carros, 'veículos adesivados', 'com_carro'],
-              ['Casas', mobilizacaoTotals.casa, 'adesivo residencial', 'casa_sim'],
-              ['Postagens', mobilizacaoTotals.postagens, 'links validados', 'com_links'],
-              ['WhatsApp', mobilizacaoTotals.whatsapp, 'contatos confirmados', 'contato_sim'],
-            ] as const).map(([label, value, hint, status]) => (
-              <Link
-                key={status}
-                to={`/ativacao/painel?status=${status}${dirQueryAmp}`}
-                className="nv2-tile"
-              >
-                <span>{label}</span>
-                <strong className="tabular-nums">{fmt(value)}</strong>
-                <em>{hint}</em>
-              </Link>
-            ))}
-          </div>
-          <div className="nv2-mob-pend">
-            <div className="nv2-mob-pend-row">
+      {/* ──── 5. Mapa + Concentração ──── */}
+      <section ref={refMap}>
+        <div className="nd-map-grid">
+          <div className="nd-card nd-map-col">
+            <div className="nd-card-head">
               <div>
-                <strong>Sem nenhum lançamento</strong>
-                <span>pessoas que ainda não tiveram carro, casa, postagem ou contato registrados</span>
+                <h3 className="nd-card-title">Mapa por zona eleitoral</h3>
+                <p className="nd-card-sub">Intensidade pelas fichas do filtro atual</p>
               </div>
-              <span className="nv2-mob-pend-val">
-                <em className="nv-pill-warn">pendente</em>
-                <strong className="tabular-nums">{fmt(mobilizacaoTotals.pendentes)}</strong>
-              </span>
+              <Link to={`/mapa${dirQuery}`} className="nd-card-link">Visão completa →</Link>
             </div>
-            <div className="nv-bar amber">
-              <i style={{ width: `${Math.max(coberturaPct, mobComLancamento > 0 ? 2 : 0)}%` }} />
+            <div className="nd-map-wrap">
+              <CadastrosMap markers={mapMarkers} height={320} showLegend={false} fitToMarkers />
+              <div className="nd-map-legend" aria-hidden>
+                <div className="nd-map-legend-title">Intensidade</div>
+                <div className="nd-map-legend-row"><span className="nd-map-legend-swatch" style={{ background: '#7fd8c4' }} /> Baixa</div>
+                <div className="nd-map-legend-row"><span className="nd-map-legend-swatch" style={{ background: '#f2cf6a' }} /> Média</div>
+                <div className="nd-map-legend-row"><span className="nd-map-legend-swatch" style={{ background: '#f0a355' }} /> Alta</div>
+                <div className="nd-map-legend-row"><span className="nd-map-legend-swatch" style={{ background: '#e2614f' }} /> Muito alta</div>
+              </div>
             </div>
-            <div className="nv2-mob-cover">
-              <span>Cobertura de mobilização</span>
-              <span className="tabular-nums">
-                {fmt(mobComLancamento)} de {fmt(mobBase)} · {coberturaPct}%
-              </span>
+            <div className="nd-map-foot">
+              <span>Intensidade pelas fichas do filtro atual</span>
+              <Link to={`/mapa${dirQuery}`}>Abrir mapa completo →</Link>
             </div>
           </div>
-          <div className="nv2-panel-note">
-            {mobilizacaoTotals.pendentes > 0 && scopedLideres.length > 0
-              ? `Estrutura montada: comece pelas ${fmt(scopedLideres.length)} lideranças — elas puxam carro e postagem da própria base.`
-              : coberturaPct >= 80
-                ? 'Cobertura de mobilização em bom nível no escopo atual.'
-                : 'Acompanhe o lançamento de carro, casa, postagem e contato WhatsApp no painel Formigas.'}
-          </div>
-        </div>
 
-        <div className="nv2-panel">
-          <div className="nv2-panel-head">
-            <div>
-              <h2>Demandas</h2>
-              <p>Pedidos registrados pelo administrativo</p>
+          <div className="nd-card nd-conc-col">
+            <div className="nd-card-head">
+              <div>
+                <h3 className="nd-card-title">Concentração territorial</h3>
+                <p className="nd-card-sub">
+                  {scopedCadastros.length
+                    ? `${fmt(scopedCadastros.length)} fichas distribuídas por zona`
+                    : 'nenhuma ficha no filtro'}
+                </p>
+              </div>
+              {zonaData.length > 0 && <span className="nd-conc-badge">Top {Math.min(zonaData.length, 4)} Zonas</span>}
             </div>
-            <Link to="/demandas/painel">Visualizar →</Link>
-          </div>
-          <div className="nv2-tiles two">
-            <Link to="/demandas/painel" className="nv2-tile">
-              <span>Em aberto</span>
-              <strong className="tabular-nums">{fmt(demandaCounts.abertas)}</strong>
-              <em>aguardando resposta</em>
-            </Link>
-            <Link to="/demandas/painel" className="nv2-tile">
-              <span>Concluídas</span>
-              <strong className="tabular-nums">{fmt(demandaCounts.feitas)}</strong>
-              <em>histórico do período</em>
-            </Link>
-          </div>
-          <div className="nv2-urg">
-            <span className="nv2-urg-label">Fila por urgência</span>
-            {URGENCIA_ROWS.map((u) => {
-              const valor = urgenciaCounts[u.key]
-              return (
-                <div key={u.key} className="nv2-urg-row">
-                  <span className="nv2-alert-dot" style={{ background: u.cor }} />
-                  <span>{u.label}</span>
-                  <strong
-                    className="tabular-nums"
-                    style={{ color: valor > 0 ? '#111827' : '#9aa1ad' }}
-                  >
-                    {fmt(valor)}
-                  </strong>
-                </div>
-              )
-            })}
-          </div>
-          <div className="nv2-dem-box">
-            {demandaCounts.abertas === 0 ? (
+            {zonaData.length ? (
               <>
-                <strong>Fila zerada</strong>
-                <span>
-                  O administrativo registra os pedidos do eleitorado. Enquanto nada entra, não há nada
-                  represado — o indicador a observar é o tempo de resposta quando a fila encher.
-                </span>
+                <div className="nd-zona-list">
+                  {zonaData.slice(0, 4).map((z, i) => {
+                    const pct = scopedCadastros.length ? Math.round((z.value / scopedCadastros.length) * 100) : 0
+                    const zonaLabel = z.name.replace(/^Zona eleitoral\s+/i, '')
+                    const color = ZONA_DOT_COLORS[i] ?? '#94a3b8'
+                    return (
+                      <div key={z.name} className="nd-zona-item">
+                        <div className="nd-zona-top">
+                          <span className="nd-zona-name">
+                            <span className="nd-zona-dot" style={{ background: color }} />
+                            Zona {zonaLabel}
+                          </span>
+                          <span className="nd-zona-value tabular-nums">
+                            {fmt(z.value)} <span className="nd-zona-pct">({pct}%)</span>
+                          </span>
+                        </div>
+                        <div className="nd-zona-bar">
+                          <div className="nd-zona-bar-fill" style={{ width: `${Math.max(pct, z.value > 0 ? 1.5 : 0)}%`, background: color }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                {concentracaoNota && (
+                  <div className="nd-zona-callout">
+                    <strong>Análise:</strong> {concentracaoNota}
+                  </div>
+                )}
+                {topSecoes.length > 0 && (
+                  <div className="nd-secoes">
+                    <span className="nd-secoes-label">Seções com Maior Coleta</span>
+                    <div className="nd-secoes-grid">
+                      {topSecoes.map((s) => (
+                        <Link key={s.n} to={`/cadastros?secao=${encodeURIComponent(s.n)}${dirQueryAmp}`} className="nd-secao">
+                          <span>Seção {s.n}</span>
+                          <strong className="tabular-nums">{s.v} fichas</strong>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {zonaData.length > 4 && (
+                  <div className="nd-zona-more">
+                    <Link to={`/mapa${dirQuery}`}>Ver todas as {zonaData.length} zonas →</Link>
+                  </div>
+                )}
               </>
             ) : (
-              <>
-                <strong>{fmt(demandaCounts.abertas)} demandas em aberto</strong>
-                <span>
-                  Priorize urgentes e altas na fila. O painel de demandas mostra o detalhe e o histórico.
-                </span>
-              </>
+              <div className="nd-empty">Nenhuma ficha neste filtro — sem zonas para exibir.</div>
             )}
-            <Link to="/demandas/painel">Ver histórico de demandas →</Link>
           </div>
         </div>
       </section>
 
-      <section className="nv2-territorio" aria-label="Mapa e concentração territorial">
-        <div className="nv2-panel">
-          <div className="nv2-panel-head pad">
-            <div>
-              <h2>Mapa por zona eleitoral</h2>
-              <p>Intensidade pelas fichas do filtro atual</p>
-            </div>
-            <Link to={`/mapa${dirQuery}`}>Mapa completo →</Link>
-          </div>
-          <div className="nv2-map-wrap">
-            <CadastrosMap markers={mapMarkers} height={330} showLegend={false} />
-            <div className="nv-map-legend" aria-hidden>
-              <div className="nv-map-legend-title">Intensidade</div>
-              <div className="nv-map-legend-row">
-                <span className="nv-map-legend-swatch" style={{ background: '#7fd8c4' }} /> Baixa
-              </div>
-              <div className="nv-map-legend-row">
-                <span className="nv-map-legend-swatch" style={{ background: '#f2cf6a' }} /> Média
-              </div>
-              <div className="nv-map-legend-row">
-                <span className="nv-map-legend-swatch" style={{ background: '#f0a355' }} /> Alta
-              </div>
-              <div className="nv-map-legend-row">
-                <span className="nv-map-legend-swatch" style={{ background: '#e2614f' }} /> Muito alta
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="nv2-panel">
-          <div className="nv2-panel-head border">
-            <div>
-              <h2>Concentração territorial</h2>
-              <p>
-                {scopedCadastros.length
-                  ? `${fmt(scopedCadastros.length)} fichas em ${zonas} ${zonas === 1 ? 'zona' : 'zonas'} eleitorais`
-                  : 'nenhuma ficha no filtro'}
-              </p>
-            </div>
-          </div>
-          {zonaData.length ? (
-            <>
-              <div className="nv2-zona-list">
-                {zonaData.slice(0, 4).map((z, i) => {
-                  const pct = scopedCadastros.length
-                    ? Math.round((z.value / scopedCadastros.length) * 100)
-                    : 0
-                  const zonaLabel = z.name.replace(/^Zona eleitoral\s+/i, '')
-                  return (
-                    <div key={z.name} className="nv2-zona-row">
-                      <div className="nv2-zona-top">
-                        <span>Zona {zonaLabel}</span>
-                        <span className="tabular-nums">{fmt(z.value)} · {pct}%</span>
-                      </div>
-                      <div className="nv-bar thin">
-                        <i style={{
-                          width: `${Math.max(pct, z.value > 0 ? 1.5 : 0)}%`,
-                          background: ZONA_BAR_COLORS[Math.min(i, ZONA_BAR_COLORS.length - 1)],
-                        }}
-                        />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-              {concentracaoNota && (
-                <div className="nv2-concentracao-nota">{concentracaoNota}</div>
-              )}
-              {topSecoes.length > 0 && (
-                <div className="nv2-secoes">
-                  <div className="nv2-urg-label">Seções mais ativas</div>
-                  {topSecoes.map((s) => (
-                    <Link
-                      key={s.n}
-                      to={`/cadastros?secao=${encodeURIComponent(s.n)}${dirQueryAmp}`}
-                      className="nv2-secao-row"
-                    >
-                      <span>Seção {s.n}</span>
-                      <span className="tabular-nums">{s.v}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="nv-empty">Nenhuma ficha neste filtro — sem zonas para exibir.</div>
-          )}
-        </div>
-      </section>
-
-      <section aria-label="Desempenho da operação">
-        <div className="nv-section-head">
-          <div>
-            <h2 className="nv-section-title">Desempenho da operação</h2>
-            <p>Quem produz, quem entrega e o que entrou por último</p>
-          </div>
-        </div>
-        <div className="nv2-desempenho">
-          <div className="nv2-panel">
-            <div className="nv2-panel-head border">
+      {/* ──── 6. Mobilização + Demandas ──── */}
+      <section>
+        <div className="nd-mob-grid">
+          {/* Ativação */}
+          <div className="nd-card">
+            <div className="nd-card-head">
               <div>
-                <h3>Produção por nerite</h3>
-                <p>Fichas no filtro atual</p>
+                <h3 className="nd-card-title">Mobilização de rua — Ativação</h3>
+                <p className="nd-card-sub">Adesivagem de carros, casas, postagens e contatos</p>
               </div>
-              <Link to="/nerites">Ver tudo →</Link>
+              <Link to={`/ativacao/painel${dirQuery}`} className="nd-card-link">Abrir painel →</Link>
+            </div>
+            <div className="nd-mob-counters">
+              <Link to={`/ativacao/painel?status=com_carro${dirQueryAmp}`} className="nd-mob-counter">
+                <span className="nd-mob-counter-lbl">Carros</span>
+                <strong className="nd-mob-counter-val tabular-nums">{fmt(mobilizacaoTotals.carros)}</strong>
+                <span className="nd-mob-counter-hint">veículos adesiv.</span>
+              </Link>
+              <Link to={`/ativacao/painel?status=casa_sim${dirQueryAmp}`} className="nd-mob-counter">
+                <span className="nd-mob-counter-lbl">Casas</span>
+                <strong className="nd-mob-counter-val tabular-nums">{fmt(mobilizacaoTotals.casa)}</strong>
+                <span className="nd-mob-counter-hint">casas adesivadas</span>
+              </Link>
+              <Link to={`/ativacao/painel?status=com_links${dirQueryAmp}`} className="nd-mob-counter">
+                <span className="nd-mob-counter-lbl">Postagens</span>
+                <strong className="nd-mob-counter-val tabular-nums">{fmt(mobilizacaoTotals.postagens)}</strong>
+                <span className="nd-mob-counter-hint">redes / mídias</span>
+              </Link>
+              <div className="nd-mob-counter">
+                <span className="nd-mob-counter-lbl">% Ativado</span>
+                <strong className="nd-mob-counter-val tabular-nums">{coberturaPct}%</strong>
+                <span className="nd-mob-counter-hint">conversão direta</span>
+              </div>
+            </div>
+            <div className="nd-mob-base">
+              <div className="nd-mob-base-copy">
+                <div className="nd-mob-base-title">
+                  <strong>Base total de eleitores contatados</strong>
+                  <span className="nd-mob-base-tag">Cadastros</span>
+                </div>
+                <p className="nd-mob-base-sub">Cadastros aptos para receberem kits de rua e materiais</p>
+              </div>
+              <span className="nd-mob-base-value tabular-nums">{fmt(mobBase)}</span>
+            </div>
+          </div>
+
+          {/* Demandas */}
+          <div className="nd-card">
+            <div className="nd-card-head">
+              <div>
+                <h3 className="nd-card-title">Demandas da comunidade</h3>
+                <p className="nd-card-sub">Pedidos registrados pelos eleitores durante a coleta</p>
+              </div>
+              <Link to="/demandas/painel" className="nd-card-link">Ver todas →</Link>
+            </div>
+            <div className="nd-dem-overview">
+              <Link to="/demandas/painel" className="nd-dem-box">
+                <span className="nd-dem-box-lbl">Em Aberto</span>
+                <strong className="nd-dem-box-val tabular-nums">{fmt(demandaCounts.abertas)}</strong>
+                <span className="nd-dem-box-hint">aguardando triagem</span>
+              </Link>
+              <Link to="/demandas/painel" className="nd-dem-box nd-dem-box-green">
+                <span className="nd-dem-box-lbl">Concluídas</span>
+                <strong className="nd-dem-box-val tabular-nums">{fmt(demandaCounts.feitas)}</strong>
+                <span className="nd-dem-box-hint">resolvidas no período</span>
+              </Link>
+            </div>
+            <div className="nd-dem-urg">
+              {URGENCIA_ROWS.map((u) => (
+                <div key={u.key} className="nd-dem-urg-row">
+                  <div className="nd-dem-urg-left">
+                    <span className="nd-dem-urg-dot" style={{ background: u.cor }} />
+                    <span>{u.label}</span>
+                  </div>
+                  <strong className="tabular-nums" style={{ color: urgenciaCounts[u.key] > 0 ? '#0f172a' : '#94a3b8' }}>
+                    {fmt(urgenciaCounts[u.key])}
+                  </strong>
+                </div>
+              ))}
+            </div>
+            <div className="nd-dem-foot">
+              <span>{demandaCounts.abertas === 0 ? 'Fila zerada no momento' : `${fmt(demandaCounts.abertas)} demandas aguardando`}</span>
+              <Link to="/demandas/lancar" className="nd-dem-foot-link">Cadastrar nova demanda</Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ──── 7. Desempenho ──── */}
+      <section ref={refDesempenho}>
+        <div className="nd-section-head nd-section-head-only">
+          <div>
+            <h3 className="nd-section-title">Desempenho da operação</h3>
+            <p className="nd-section-subtitle">Quem produz, quem entrega e as últimas fichas registradas no sistema</p>
+          </div>
+        </div>
+
+        <div className="nd-perf-grid">
+          {/* Produção por membro */}
+          <div className="nd-card">
+            <div className="nd-perf-head">
+              <div>
+                <h4 className="nd-perf-title">Produção por membro</h4>
+                <span className="nd-perf-sub">Top 5 no ciclo atual</span>
+              </div>
+              <Link to="/nerites" className="nd-card-link">Ver todos →</Link>
             </div>
             {ranking.length ? (
               <>
-                <div className="nv2-rank-list">
-                  {ranking.map((nerite, index) => (
-                    <Link to={`/nerites/${nerite.id}`} className="nv2-rank-row" key={nerite.id}>
-                      <span className={`nv2-rank-pos${index === 0 ? ' top' : ''}`}>{index + 1}</span>
-                      <div className="nv2-rank-body">
-                        <div className="nv2-rank-meta">
-                          <span>{nerite.nome}</span>
-                          <strong className="tabular-nums">
-                            {fmt(nerite.total)} <em>{nerite.share}%</em>
-                          </strong>
+                <div className="nd-rank-list">
+                  {ranking.map((nerite, index) => {
+                    const c = RANK_AVATAR_COLORS[index] ?? RANK_AVATAR_COLORS[0]
+                    return (
+                      <Link to={`/nerites/${nerite.id}`} className="nd-rank-item" key={nerite.id}>
+                        <span className="nd-rank-pos">{index + 1}</span>
+                        <span className="nd-rank-avatar" style={{ background: c.bg, color: c.fg }}>{initials(nerite.nome)}</span>
+                        <div className="nd-rank-body">
+                          <div className="nd-rank-meta">
+                            <span className="nd-rank-name">{nerite.nome}</span>
+                            <span className="nd-rank-count tabular-nums">{fmt(nerite.total)} <span className="nd-rank-unit">fichas</span></span>
+                          </div>
+                          <div className="nd-rank-bar">
+                            <div className="nd-rank-bar-fill" style={{ width: `${Math.max((nerite.total / maxRank) * 100, 4)}%`, background: c.bar }} />
+                          </div>
                         </div>
-                        <div className="nv-bar thin">
-                          <i style={{ width: `${Math.max((nerite.total / maxRank) * 100, 4)}%` }} />
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
+                      </Link>
+                    )
+                  })}
                 </div>
-                <div className="nv2-panel-note">
-                  {ranking.length} {ranking.length === 1 ? 'nerite concentra' : 'nerites concentram'}{' '}
-                  {fmt(somaNerites)} das {fmt(scopedCadastros.length)} fichas
-                  ({scopedCadastros.length ? Math.round((somaNerites / scopedCadastros.length) * 100) : 0}%).
+                <div className="nd-note">
+                  {ranking.length} {ranking.length === 1 ? 'frente responde' : 'frentes respondem'} por{' '}
+                  {scopedCadastros.length ? Math.round((somaNerites / scopedCadastros.length) * 100) : 0}% das coletas
                 </div>
               </>
             ) : (
-              <div className="nv-empty">Nenhuma nerite com lançamentos neste filtro.</div>
+              <div className="nd-empty">Nenhuma nerite com lançamentos neste filtro.</div>
             )}
           </div>
 
-          <div className="nv2-panel">
-            <div className="nv2-panel-head border">
+          {/* Lideranças que entregam */}
+          <div className="nd-card">
+            <div className="nd-perf-head">
               <div>
-                <h3>Lideranças que entregam</h3>
-                <p>
-                  Top 5 entre {fmt(scopedLideres.length || topLideres.length)} lideranças
-                  {scopedLideres.length ? ' cadastradas' : ' no filtro'}
-                </p>
+                <h4 className="nd-perf-title">Lideranças que entregam</h4>
+                <span className="nd-perf-sub">Mais ativas no período</span>
               </div>
-              <Link to="/lideranca">Ver tudo →</Link>
+              <Link to="/lideranca" className="nd-card-link">Ver todas →</Link>
             </div>
             {topLideres.length ? (
               <>
-                <div className="nv2-rank-list">
-                  {topLideres.map((lider, index) => (
-                    <Link
-                      to={`/cadastros?lider=${encodeURIComponent(lider.nome)}${dirQueryAmp}`}
-                      className="nv2-rank-row"
-                      key={lider.nome}
-                    >
-                      <span className={`nv2-rank-pos${index === 0 ? ' top' : ''}`}>{index + 1}</span>
-                      <div className="nv2-rank-body">
-                        <div className="nv2-rank-meta">
-                          <span>{lider.nome}</span>
-                          <strong className="tabular-nums">
-                            {fmt(lider.total)} <em>{lider.share}%</em>
-                          </strong>
+                <div className="nd-rank-list">
+                  {topLideres.map((lider, index) => {
+                    const c = RANK_AVATAR_COLORS[index] ?? RANK_AVATAR_COLORS[0]
+                    return (
+                      <Link
+                        to={cadastrosLinkForLider({
+                          nome: lider.nome,
+                          coordenador: lider.coordenador,
+                          diretoriaId: lider.diretoriaId || (dirFilter !== 'all' ? dirFilter : null),
+                        })}
+                        className="nd-rank-item"
+                        key={lider.key}
+                      >
+                        <span className="nd-rank-pos">{index + 1}</span>
+                        <span className="nd-rank-avatar" style={{ background: c.bg, color: c.fg }}>{initials(lider.nome)}</span>
+                        <div className="nd-rank-body">
+                          <div className="nd-rank-meta">
+                            <span className="nd-rank-name">
+                              {lider.nome}
+                              {lider.coordenador ? (
+                                <em className="nd-rank-coord"> · {lider.coordenador}</em>
+                              ) : null}
+                            </span>
+                            <span className="nd-rank-count tabular-nums">{fmt(lider.total)} <span className="nd-rank-unit">fichas</span></span>
+                          </div>
+                          <div className="nd-rank-bar">
+                            <div className="nd-rank-bar-fill" style={{ width: `${Math.max((lider.total / maxLider) * 100, 4)}%` }} />
+                          </div>
                         </div>
-                        <div className="nv-bar thin">
-                          <i style={{ width: `${Math.max((lider.total / maxLider) * 100, 4)}%` }} />
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
+                      </Link>
+                    )
+                  })}
                 </div>
-                <div className="nv2-panel-note">
+                <div className="nd-note">
                   As {topLideres.length} maiores lideranças respondem por{' '}
-                  {scopedCadastros.length
-                    ? Math.round((somaLideresTop / scopedCadastros.length) * 100)
-                    : 0}
-                  % das fichas — base pulverizada, sem dependência de um único nome.
+                  {scopedCadastros.length ? Math.round((somaLideresTop / scopedCadastros.length) * 100) : 0}% das fichas
                 </div>
               </>
             ) : (
-              <div className="nv-empty">Sem lideranças com fichas neste filtro.</div>
+              <div className="nd-empty">Sem lideranças com fichas neste filtro.</div>
             )}
           </div>
 
-          <div className="nv2-panel">
-            <div className="nv2-panel-head border">
+          {/* Últimas fichas */}
+          <div className="nd-card">
+            <div className="nd-perf-head">
               <div>
-                <h3>Últimas fichas</h3>
-                <p>Entradas mais recentes do filtro</p>
+                <h4 className="nd-perf-title">Últimas fichas cadastradas</h4>
+                <span className="nd-perf-sub">Fluxo em tempo real da equipe</span>
               </div>
+              <span className="nd-live-dot" />
             </div>
             {ultimos.length ? (
               <>
-                <div className="nv2-activity-list">
+                <div className="nd-activity-list">
                   {ultimos.map((item) => (
-                    <div className="nv2-activity-row" key={item.id}>
+                    <div className="nd-activity-item" key={item.id}>
                       <div>
-                        <strong>{item.nome}</strong>
-                        <span>{item.detalhe}</span>
+                        <p className="nd-activity-name">{item.nome}</p>
+                        <span className="nd-activity-detail">{item.detalhe}</span>
                       </div>
-                      <time>{item.data}</time>
+                      <span className="nd-activity-time tabular-nums">{item.data}</span>
                     </div>
                   ))}
                 </div>
-                <div className="nv2-panel-note">{atividadeNota}</div>
+                <div className="nd-activity-foot">
+                  <Link to={`/cadastros${dirQuery}`}>Ver todas as {fmt(scopedCadastros.length)} fichas →</Link>
+                </div>
               </>
             ) : (
-              <div className="nv-empty">Sem fichas registradas neste filtro.</div>
+              <div className="nd-empty">Sem fichas registradas neste filtro.</div>
             )}
           </div>
         </div>
@@ -1250,6 +1120,10 @@ function AdminDashboard() {
     </div>
   )
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   DiretoriaDashboard (unchanged)
+   ═══════════════════════════════════════════════════════════════ */
 
 function DiretoriaDashboard() {
   const { profile } = useAuth()

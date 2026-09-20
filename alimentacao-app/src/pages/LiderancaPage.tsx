@@ -8,6 +8,7 @@ import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Pagination } from '../components/ui/Pagination'
 import { META_LIDERANCA_FICHAS } from '../lib/meta'
+import { cadastrosLinkForLider, liderFichaKey, liderNameKey } from '../lib/liderFichas'
 import { formatPhone } from '../lib/normalize'
 import { fetchCadastroFichaStats } from '../lib/cadastros'
 import { supabase } from '../lib/supabase'
@@ -21,15 +22,12 @@ type LiderancaRow = {
   nome: string
   telefone: string | null
   coordenador: string
+  diretoriaId: string
   fichas: number
   meta: number
   restante: number
   pct: number
   finalizou: boolean
-}
-
-function nameKey(value: string | null | undefined) {
-  return (value ?? '').trim().toLowerCase()
 }
 
 export function LiderancaPage() {
@@ -75,17 +73,9 @@ export function LiderancaPage() {
         setCoordenadores(coordRows)
 
         const byLider: Record<string, number> = {}
-        const scopeLiderKeys = new Set(liderRows.map((l) => nameKey(l.nome)))
-
         fRows.forEach((row) => {
-          const key = nameKey(row.lider)
-          if (!key) return
-          if (diretoriaScope) {
-            if (row.diretoria_id === diretoriaScope || scopeLiderKeys.has(key)) {
-              byLider[key] = (byLider[key] ?? 0) + 1
-            }
-            return
-          }
+          if (!liderNameKey(row.lider)) return
+          const key = liderFichaKey(row.lider, row.coordenador, row.diretoria_id)
           byLider[key] = (byLider[key] ?? 0) + 1
         })
 
@@ -105,16 +95,17 @@ export function LiderancaPage() {
 
     return lideres
       .map((l) => {
-        const fichas = fichasByLider[nameKey(l.nome)] ?? 0
+        const coordenador = l.coordenador_id ? (coordById.get(l.coordenador_id) ?? '—') : '—'
+        const fichas = (fichasByLider[liderFichaKey(l.nome, coordenador, l.diretoria_id)] ?? 0)
+          + (fichasByLider[liderFichaKey(l.nome, coordenador, null)] ?? 0)
         const finalizou = fichas >= meta
         const pct = Math.min(100, Math.round((fichas / meta) * 100))
         return {
           id: l.id,
           nome: l.nome,
+          diretoriaId: l.diretoria_id,
           telefone: l.telefone ?? null,
-          coordenador: l.coordenador_id
-            ? (coordById.get(l.coordenador_id) ?? '—')
-            : '—',
+          coordenador,
           fichas,
           meta,
           restante: Math.max(0, meta - fichas),
@@ -296,7 +287,11 @@ export function LiderancaPage() {
                       </td>
                       <td>
                         <Link
-                          to={`/cadastros?lider=${encodeURIComponent(row.nome)}`}
+                          to={cadastrosLinkForLider({
+                            nome: row.nome,
+                            coordenador: row.coordenador,
+                            diretoriaId: row.diretoriaId,
+                          })}
                           className="lideranca-link"
                         >
                           Ver fichas
