@@ -22,6 +22,8 @@ export type AtivacaoPessoa = {
   carros_adesivados: number
   motos_adesivadas: number
   adesivos_casa: number
+  foto_veiculo_paths: string[]
+  foto_casa_paths: string[]
   postagens: number
   postagem_links: string[]
   ativacao_notas: string
@@ -43,6 +45,9 @@ export type AtivacaoPessoa = {
   operator_id: string | null
   coordenador_id: string | null
 }
+
+export const FORMIGAS_MAX_FOTOS = 3
+const FORMIGAS_FOTOS_BUCKET = 'formigas-fotos'
 
 function toContatoStatus(row: {
   contato_whatsapp_status?: unknown
@@ -75,11 +80,20 @@ function toLinks(value: unknown): string[] {
   return []
 }
 
+function toPaths(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((v) => String(v ?? '').trim()).filter(Boolean)
+  }
+  return []
+}
+
 /** Só vale como Formigas se houve lançamento (ativacao_em). Evita lixo da antiga mobilização. */
 function fromAtivacaoFields(row: {
   carros_adesivados?: unknown
   motos_adesivadas?: unknown
   adesivos_casa?: unknown
+  foto_veiculo_paths?: unknown
+  foto_casa_paths?: unknown
   postagens?: unknown
   postagem_links?: unknown
   ativacao_notas?: unknown
@@ -98,6 +112,8 @@ function fromAtivacaoFields(row: {
     carros_adesivados: launched ? toQty(row.carros_adesivados) : 0,
     motos_adesivadas: launched ? toQty(row.motos_adesivadas) : 0,
     adesivos_casa: launched ? toQty(row.adesivos_casa) : 0,
+    foto_veiculo_paths: launched ? toPaths(row.foto_veiculo_paths) : [],
+    foto_casa_paths: launched ? toPaths(row.foto_casa_paths) : [],
     postagens: launched ? toQty(row.postagens) : 0,
     postagem_links: launched ? toLinks(row.postagem_links) : [],
     ativacao_notas: launched ? String(row.ativacao_notas ?? '') : '',
@@ -230,13 +246,13 @@ function fromCoord(c: Coordenador): AtivacaoPessoa {
 }
 
 const CADASTRO_SELECT =
-  'id, nome_completo, titulo, zona, bairro, telefone, cep, endereco, numero, lat, lng, carros_adesivados, motos_adesivadas, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, coordenador, lider, operator_id'
+  'id, nome_completo, titulo, zona, bairro, telefone, cep, endereco, numero, lat, lng, carros_adesivados, motos_adesivadas, adesivos_casa, foto_veiculo_paths, foto_casa_paths, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, coordenador, lider, operator_id'
 
 const LIDER_SELECT =
-  'id, nome, telefone, carros_adesivados, motos_adesivadas, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, coordenador_id'
+  'id, nome, telefone, carros_adesivados, motos_adesivadas, adesivos_casa, foto_veiculo_paths, foto_casa_paths, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, coordenador_id'
 
 const COORD_SELECT =
-  'id, nome, carros_adesivados, motos_adesivadas, adesivos_casa, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id'
+  'id, nome, carros_adesivados, motos_adesivadas, adesivos_casa, foto_veiculo_paths, foto_casa_paths, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id'
 
 export async function searchAtivacaoPessoas(term: string, limit = 12): Promise<AtivacaoPessoa[]> {
   const q = term.trim()
@@ -313,6 +329,45 @@ export type AtivacaoSaveInput = {
   cep?: string
   endereco?: string
   numero?: string
+  /** Paths já salvos que devem permanecer */
+  foto_veiculo_keep?: string[]
+  foto_casa_keep?: string[]
+  /** Novos arquivos a enviar */
+  foto_veiculo_files?: File[]
+  foto_casa_files?: File[]
+}
+
+async function uploadFormigasFoto(
+  userId: string,
+  tipo: AtivacaoTipo,
+  pessoaId: string,
+  kind: 'veiculo' | 'casa',
+  file: File,
+): Promise<string> {
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
+  const path = `${userId}/${tipo}/${pessoaId}/${kind}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext || 'jpg'}`
+  const { error } = await supabase.storage.from(FORMIGAS_FOTOS_BUCKET).upload(path, file, {
+    cacheControl: '3600',
+    upsert: false,
+    contentType: file.type || 'image/jpeg',
+  })
+  if (error) throw new Error(error.message)
+  return path
+}
+
+export async function getFormigasFotoUrl(path: string | null | undefined): Promise<string | null> {
+  if (!path) return null
+  const { data, error } = await supabase.storage.from(FORMIGAS_FOTOS_BUCKET).createSignedUrl(path, 60 * 60)
+  if (error) return null
+  return data.signedUrl
+}
+
+export async function getFormigasFotoUrls(paths: string[]): Promise<string[]> {
+  const unique = [...new Set(paths.filter(Boolean))]
+  if (!unique.length) return []
+  const urls = await Promise.all(unique.map((p) => getFormigasFotoUrl(p)))
+  const map = new Map(unique.map((p, i) => [p, urls[i]]))
+  return paths.map((p) => map.get(p) ?? null).filter((u): u is string => Boolean(u))
 }
 
 function waStatusLabel(status: ContatoWhatsappStatus) {
@@ -547,6 +602,44 @@ export async function saveAtivacao(
     }
   }
 
+  const { data: { session } } = await supabase.auth.getSession()
+  const userId = session?.user?.id
+  if (!userId) return { error: 'Sessão expirada. Entre novamente.' }
+
+  const keepVeiculo = [...new Set((input.foto_veiculo_keep ?? []).filter(Boolean))].slice(0, FORMIGAS_MAX_FOTOS)
+  const keepCasa = [...new Set((input.foto_casa_keep ?? []).filter(Boolean))].slice(0, FORMIGAS_MAX_FOTOS)
+  const filesVeiculo = (input.foto_veiculo_files ?? []).slice(0, Math.max(0, FORMIGAS_MAX_FOTOS - keepVeiculo.length))
+  const filesCasa = (input.foto_casa_files ?? []).slice(0, Math.max(0, FORMIGAS_MAX_FOTOS - keepCasa.length))
+
+  if ((carros > 0 || motos > 0) && keepVeiculo.length + filesVeiculo.length < 1) {
+    return { error: 'Adicione pelo menos 1 foto do veículo adesivado.' }
+  }
+  if (casa > 0 && keepCasa.length + filesCasa.length < 1) {
+    return { error: 'Adicione pelo menos 1 foto da casa adesivada.' }
+  }
+
+  const uploaded: string[] = []
+  let foto_veiculo_paths = keepVeiculo
+  let foto_casa_paths = keepCasa
+  try {
+    for (const file of filesVeiculo) {
+      const path = await uploadFormigasFoto(userId, tipo, id, 'veiculo', file)
+      uploaded.push(path)
+      foto_veiculo_paths = [...foto_veiculo_paths, path]
+    }
+    for (const file of filesCasa) {
+      const path = await uploadFormigasFoto(userId, tipo, id, 'casa', file)
+      uploaded.push(path)
+      foto_casa_paths = [...foto_casa_paths, path]
+    }
+  } catch (err) {
+    if (uploaded.length) void supabase.storage.from(FORMIGAS_FOTOS_BUCKET).remove(uploaded)
+    return { error: err instanceof Error ? err.message : 'Falha ao enviar as fotos.' }
+  }
+
+  if (!(carros > 0 || motos > 0)) foto_veiculo_paths = []
+  if (!(casa > 0)) foto_casa_paths = []
+
   const payload: Record<string, unknown> = {
     carros_adesivados: carros,
     motos_adesivadas: motos,
@@ -557,6 +650,8 @@ export async function saveAtivacao(
     ativacao_em: hasLaunch ? new Date().toISOString() : null,
     contato_whatsapp: contato,
     contato_whatsapp_status: status,
+    foto_veiculo_paths,
+    foto_casa_paths,
   }
 
   if (tipo === 'eleitor' && casa > 0) {
@@ -577,13 +672,29 @@ export async function saveAtivacao(
 
   const table = tipo === 'eleitor' ? 'cadastros' : tipo === 'lideranca' ? 'lideres' : 'coordenadores'
   const { error } = await supabase.from(table).update(payload).eq('id', id)
-  if (!error) {
-    if (previous && previous.id === id && previous.tipo === tipo) {
-      void logFormigasHistorico(previous, input)
-    }
-    await releaseAtivacaoClaim(tipo, id)
+  if (error) {
+    if (uploaded.length) void supabase.storage.from(FORMIGAS_FOTOS_BUCKET).remove(uploaded)
+    return { error: error.message }
   }
-  return { error: error?.message ?? null }
+
+  // Remove do storage paths que saíram da ficha
+  if (previous) {
+    const dropped = [
+      ...previous.foto_veiculo_paths.filter((p) => !foto_veiculo_paths.includes(p)),
+      ...previous.foto_casa_paths.filter((p) => !foto_casa_paths.includes(p)),
+    ]
+    if (dropped.length) void supabase.storage.from(FORMIGAS_FOTOS_BUCKET).remove(dropped)
+  }
+
+  if (previous && previous.id === id && previous.tipo === tipo) {
+    void logFormigasHistorico(previous, {
+      ...input,
+      foto_veiculo_keep: foto_veiculo_paths,
+      foto_casa_keep: foto_casa_paths,
+    })
+  }
+  await releaseAtivacaoClaim(tipo, id)
+  return { error: null }
 }
 
 export type FormigasHistoricoItem = {
