@@ -296,9 +296,10 @@ export function DemandasLancarPage() {
       return
     }
 
+    const isCadastro = Boolean(selected && selected.tipo === 'cadastro')
     const { error: err } = await createDemanda(profile.id, {
-      origem: mode === 'buscar' ? 'cadastro' : 'avulso',
-      cadastro_id: selected?.id,
+      origem: isCadastro ? 'cadastro' : 'avulso',
+      cadastro_id: isCadastro ? selected?.id : null,
       nome: mode === 'buscar' ? (selected?.nome ?? nome) : nome,
       documento: mode === 'buscar' ? (selected?.documento ?? documento) : documento,
       telefone,
@@ -406,7 +407,7 @@ export function DemandasLancarPage() {
                     setQuery(e.target.value)
                     if (selected) clearCadastro()
                   }}
-                  placeholder="Digite para localizar..."
+                  placeholder="Eleitor, liderança ou coordenador..."
                   autoComplete="off"
                 />
                 {(query || selected) && (
@@ -417,11 +418,16 @@ export function DemandasLancarPage() {
                 {!selected && hits.length > 0 && (
                   <ul className="dm-hits-dropdown">
                     {hits.map((h) => (
-                      <li key={h.id}>
+                      <li key={`${h.tipo}:${h.id}`}>
                         <button type="button" onClick={() => pickCadastro(h)}>
                           <strong>{h.nome}</strong>
                           <span>
-                            {[h.documento && `CPF: ${h.documento}`, h.bairro, h.telefone && formatPhone(h.telefone)]
+                            {[
+                              h.tipoLabel,
+                              h.documento && `CPF/Título: ${h.documento}`,
+                              h.bairro,
+                              h.telefone && formatPhone(h.telefone),
+                            ]
                               .filter(Boolean)
                               .join(' · ')}
                           </span>
@@ -440,6 +446,7 @@ export function DemandasLancarPage() {
                       <strong>{selected.nome}</strong>
                       <span>
                         {[
+                          selected.tipoLabel,
                           selected.documento && `CPF: ${selected.documento}`,
                           selected.bairro && `Bairro: ${selected.bairro}`,
                         ]
