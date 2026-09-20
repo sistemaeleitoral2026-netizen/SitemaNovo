@@ -930,9 +930,11 @@ function AdminDashboard() {
               <div className="nd-mob-base-copy">
                 <div className="nd-mob-base-title">
                   <strong>Base total de eleitores contatados</strong>
-                  <span className="nd-mob-base-tag">Cadastros</span>
+                  <span className="nd-mob-base-tag">Fichas + equipe</span>
                 </div>
-                <p className="nd-mob-base-sub">Cadastros aptos para receberem kits de rua e materiais</p>
+                <p className="nd-mob-base-sub">
+                  Cadastros aptos para receberem kits de rua e materiais — inclui a equipe junto com as fichas (não é só a quantidade de cadastros)
+                </p>
               </div>
               <span className="nd-mob-base-value tabular-nums">{fmt(mobBase)}</span>
             </div>
