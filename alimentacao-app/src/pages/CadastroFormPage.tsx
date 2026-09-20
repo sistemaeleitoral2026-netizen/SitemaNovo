@@ -9,7 +9,7 @@ import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/Spinner'
 import { Modal } from '../components/ui/Modal'
 import { WhatsAppLink } from '../components/ui/WhatsAppLink'
-import { normalizeCadastroFields, formatCpf, formatPhone, formatCep } from '../lib/normalize'
+import { normalizeCadastroFields, formatCpf, formatPhone, formatCep, normalizeZona } from '../lib/normalize'
 import { validateCadastroForm, isDuplicateCpfError, isDuplicateTituloError } from '../lib/validation'
 import { coordsFromZona, lookupViaCep } from '../lib/geocode'
 import { findDuplicateCadastro, type DuplicateCadastroInfo } from '../lib/cadastros'
@@ -36,6 +36,11 @@ const emptyForm: CadastroFormData = {
   cidade: '',
   uf: '',
 }
+
+const ZONA_OPTIONS = [
+  { value: '089', label: 'Zona 089' },
+  { value: '010', label: 'Zona 010' },
+]
 
 export function CadastroFormPage() {
   const { id } = useParams<{ id: string }>()
@@ -90,7 +95,7 @@ export function CadastroFormPage() {
           cpf: formatCpf(data.cpf ?? ''),
           telefone: formatPhone(data.telefone ?? ''),
           titulo: data.titulo ?? '',
-          zona: data.zona ?? '',
+          zona: normalizeZona(data.zona ?? ''),
           secao: data.secao ?? '',
           nome_mae: data.nome_mae ?? '',
           coordenador: data.coordenador ?? '',
@@ -446,12 +451,17 @@ export function CadastroFormPage() {
               error={errors.titulo}
               placeholder="Somente números"
             />
-            <Input
+            <Select
               label="Zona eleitoral"
               value={form.zona}
               onChange={(e) => updateField('zona', e.target.value)}
               error={errors.zona}
-              placeholder="Zona"
+              options={
+                form.zona && !ZONA_OPTIONS.some((o) => o.value === form.zona)
+                  ? [...ZONA_OPTIONS, { value: form.zona, label: `Zona ${form.zona} (atual)` }]
+                  : ZONA_OPTIONS
+              }
+              placeholder="Selecione a zona"
             />
             <Input
               label="Sessão eleitoral"
