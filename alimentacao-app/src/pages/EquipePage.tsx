@@ -311,11 +311,41 @@ export function EquipePage() {
   )
 
   const coordOptionsForForm = useMemo(() => {
+    // Usa a diretoria do modal aberto — senão sobra diretoria de outro formulário e a lista fica vazia/errada.
     const dir = isAdmin
-      ? (neriteForm.diretoria_id || coordForm.diretoria_id || liderForm.diretoria_id)
+      ? (liderOpen
+          ? liderForm.diretoria_id
+          : neriteOpen
+            ? neriteForm.diretoria_id
+            : coordOpen
+              ? coordForm.diretoria_id
+              : (neriteForm.diretoria_id || coordForm.diretoria_id || liderForm.diretoria_id))
       : diretoriaId
-    return coordenadores.filter((c) => !dir || c.diretoria_id === dir)
-  }, [coordenadores, isAdmin, neriteForm.diretoria_id, coordForm.diretoria_id, liderForm.diretoria_id, diretoriaId])
+
+    const selectedId = liderOpen
+      ? liderForm.coordenador_id
+      : neriteOpen
+        ? neriteForm.coordenador_id
+        : ''
+
+    return coordenadores.filter((c) => {
+      if (dir && c.diretoria_id !== dir) return false
+      if (c.ativo === false && c.id !== selectedId) return false
+      return true
+    })
+  }, [
+    coordenadores,
+    isAdmin,
+    diretoriaId,
+    liderOpen,
+    neriteOpen,
+    coordOpen,
+    liderForm.diretoria_id,
+    liderForm.coordenador_id,
+    neriteForm.diretoria_id,
+    neriteForm.coordenador_id,
+    coordForm.diretoria_id,
+  ])
 
   const liderOptionsForForm = useMemo(() => {
     const dir = isAdmin ? neriteForm.diretoria_id : diretoriaId
@@ -1470,8 +1500,17 @@ export function EquipePage() {
             value={liderForm.coordenador_id}
             onChange={(e) => setLiderForm((f) => ({ ...f, coordenador_id: e.target.value }))}
             options={coordOptionsForForm.map((c) => ({ value: c.id, label: c.nome }))}
-            placeholder="Opcional — vincula ao coordenador"
+            placeholder={
+              liderForm.diretoria_id
+                ? (coordOptionsForForm.length ? 'Selecione o coordenador' : 'Nenhum coordenador nesta diretoria')
+                : 'Selecione a diretoria primeiro'
+            }
           />
+          {liderOpen && liderForm.diretoria_id && coordOptionsForForm.length === 0 && (
+            <p style={{ margin: 0, fontSize: '.8rem', color: '#b45309' }}>
+              Cadastre um coordenador nesta diretoria (aba Coordenadores) e volte aqui para vincular.
+            </p>
+          )}
           <Input label="Nome da liderança" value={liderForm.nome} onChange={(e) => setLiderForm((f) => ({ ...f, nome: e.target.value }))} placeholder="Nome que aparece na ficha" />
           <div className="ui-field">
             <label htmlFor="lider-telefone" className="ui-field-label">
