@@ -163,9 +163,13 @@ begin
     return new;
   end if;
 
-  if public.is_admin() then
+  -- Admin, diretoria e formiga podem alterar fichas de terceiros,
+  -- mas nunca trocam o operator_id (dono da ficha).
+  if public.is_admin() or public.is_diretoria() or public.is_mobilizador() then
     if tg_op = 'INSERT' and new.operator_id is null then
       new.operator_id := auth.uid();
+    elsif tg_op = 'UPDATE' then
+      new.operator_id := old.operator_id;
     end if;
     return new;
   end if;
@@ -173,7 +177,7 @@ begin
   if tg_op = 'INSERT' then
     new.operator_id := auth.uid();
   elsif tg_op = 'UPDATE' then
-    if old.operator_id <> auth.uid() then
+    if old.operator_id is distinct from auth.uid() then
       raise exception 'Sem permissão para alterar cadastro de outra nerite';
     end if;
     new.operator_id := old.operator_id;
