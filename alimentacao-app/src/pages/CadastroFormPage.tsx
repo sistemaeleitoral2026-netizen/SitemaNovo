@@ -368,19 +368,29 @@ export function CadastroFormPage() {
       </div>
 
       <Card>
-        <form onSubmit={handleSubmit}>
+        <form
+          onSubmit={handleSubmit}
+          onKeyDown={(e) => {
+            // Evita salvar “vazio” ao apertar Enter no meio do preenchimento
+            if (e.key !== 'Enter') return
+            const tag = (e.target as HTMLElement).tagName
+            if (tag === 'INPUT' || tag === 'SELECT') e.preventDefault()
+          }}
+        >
           <div className="form-section-title">
             <User size={18} color="#2459c4" />
             <strong>Dados do eleitor</strong>
           </div>
           <div className="form-grid">
             <Input
-              label="Nome completo"
+              label="Nome completo *"
               value={form.nome_completo}
               onChange={(e) => updateField('nome_completo', e.target.value)}
               onBlur={() => void checkDuplicate('pessoa')}
               error={errors.nome_completo}
-              placeholder="Nome completo"
+              placeholder="Nome e sobrenome"
+              required
+              autoComplete="name"
             />
             <Select
               label="Coordenador"
