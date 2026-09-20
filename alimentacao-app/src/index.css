@@ -5527,7 +5527,153 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .fl-stats-painel { margin-bottom: 1.25rem; }
 }
 
-/* ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Demandas ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ */
+/* ===== Histórico Formigas ===== */
+.fh-page {
+  max-width: 42rem;
+  margin: 0 auto;
+  width: 100%;
+  min-width: 0;
+}
+.fh-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.fh-title {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -.02em;
+}
+.fh-sub {
+  margin: .35rem 0 0;
+  color: #64748b;
+  font-size: .875rem;
+}
+.fh-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  flex-shrink: 0;
+  padding: .55rem .85rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.fh-refresh:hover:not(:disabled) { background: #f8fafc; }
+.fh-refresh:disabled { opacity: .55; cursor: not-allowed; }
+.fh-filters {
+  display: grid;
+  gap: .4rem;
+  margin-bottom: 1rem;
+}
+.fh-filters label {
+  font-size: .8rem;
+  font-weight: 650;
+  color: #334155;
+}
+.fh-filters select {
+  width: 100%;
+  padding: .7rem .85rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  font-size: .875rem;
+  color: #0f172a;
+}
+.fh-loading,
+.fh-empty {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: #64748b;
+  font-size: .9rem;
+  border: 1px dashed #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+.fh-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: .75rem;
+}
+.fh-item {
+  display: flex;
+  gap: .85rem;
+  align-items: flex-start;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  min-width: 0;
+}
+.fh-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: #f1f5f9;
+  color: #64748b;
+}
+.fh-icon.tone-wa { background: #dcfce7; color: #16a34a; }
+.fh-icon.tone-blue { background: #eff6ff; color: #2563eb; }
+.fh-icon.tone-teal { background: #f0fdfa; color: #0d9488; }
+.fh-icon.tone-violet { background: #f5f3ff; color: #7c3aed; }
+.fh-icon.tone-amber { background: #fffbeb; color: #d97706; }
+.fh-body { flex: 1; min-width: 0; }
+.fh-resumo {
+  margin: 0 0 .45rem;
+  color: #0f172a;
+  font-size: .9rem;
+  font-weight: 550;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.fh-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem .65rem;
+  align-items: center;
+  color: #64748b;
+  font-size: .75rem;
+}
+.fh-chip {
+  padding: .15rem .5rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 650;
+  font-size: .68rem;
+}
+.fh-change {
+  color: #475569;
+  font-weight: 550;
+}
+.fh-meta time { color: #94a3b8; }
+
+@media (max-width: 640px) {
+  .fh-head { flex-direction: column; align-items: stretch; }
+  .fh-refresh { width: 100%; justify-content: center; }
+  .fh-title { font-size: 1.3rem; }
+  .fh-item { padding: .85rem; }
+  .fh-resumo { font-size: .85rem; }
+}
+
+/* ===== Demandas ===== */
 .dm-page { max-width: 960px; animation: dmFade .15s ease-out; }
 @keyframes dmFade {
   from { opacity: 0; transform: translateY(2px); }

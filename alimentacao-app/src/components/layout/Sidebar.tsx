@@ -17,6 +17,7 @@ import {
   Megaphone,
   Inbox,
   ClipboardPen,
+  History,
 } from 'lucide-react'
 import type { UserRole } from '../../types'
 import { fetchDemandaCounts } from '../../lib/demandas'
@@ -49,6 +50,7 @@ const navGroups: NavGroup[] = [
     items: [
       { to: '/ativacao/lancar', label: 'Lançar', icon: Megaphone, roles: ['mobilizador'] },
       { to: '/ativacao/painel', label: 'Painel', icon: ClipboardList, roles: ['mobilizador'] },
+      { to: '/ativacao/historico', label: 'Histórico', icon: History, roles: ['mobilizador'] },
     ],
   },
   {
@@ -82,6 +84,7 @@ const navGroups: NavGroup[] = [
     items: [
       { to: '/ativacao/lancar', label: 'Lançar', icon: Megaphone, roles: ['admin', 'diretoria'] },
       { to: '/ativacao/painel', label: 'Painel', icon: ClipboardList, roles: ['admin', 'diretoria'] },
+      { to: '/ativacao/historico', label: 'Histórico', icon: History, roles: ['admin', 'diretoria'] },
     ],
   },
   {
