@@ -20,6 +20,7 @@ import { AtivacaoHistoricoPage } from './pages/AtivacaoHistoricoPage'
 import { DemandasLancarPage } from './pages/DemandasLancarPage'
 import { DemandasPainelPage } from './pages/DemandasPainelPage'
 import { LiderancaPage } from './pages/LiderancaPage'
+import { TvDashboardPage } from './pages/TvDashboardPage'
 import { hasRole } from './lib/roles'
 import type { Profile } from './types'
 
@@ -114,6 +115,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
       <Route path="/esqueci-senha" element={<PublicOnly><ForgotPasswordPage /></PublicOnly>} />
+      <Route path="/tv" element={<TvDashboardPage />} />
 
       <Route element={<AppShell />}>
         <Route index element={<HomeRedirect />} />
