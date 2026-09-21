@@ -254,7 +254,7 @@ const LIDER_SELECT =
 const COORD_SELECT =
   'id, nome, carros_adesivados, motos_adesivadas, adesivos_casa, foto_veiculo_paths, foto_casa_paths, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id'
 
-export async function searchAtivacaoPessoas(term: string, limit = 12): Promise<AtivacaoPessoa[]> {
+export async function searchAtivacaoPessoas(term: string, limit = 12, diretoriaId?: string): Promise<AtivacaoPessoa[]> {
   const q = term.trim()
   if (q.length < 2) return []
 
@@ -267,28 +267,36 @@ export async function searchAtivacaoPessoas(term: string, limit = 12): Promise<A
     ? `nome.ilike.%${q}%,telefone.ilike.%${digits}%`
     : `nome.ilike.%${q}%`
 
-  const [cadRes, lidRes, coordRes] = await Promise.all([
-    supabase
+  let cadQuery = supabase
       .from('cadastros')
       .select(CADASTRO_SELECT)
       .or(cadOr)
       .order('nome_completo')
-      .limit(limit),
-    supabase
+      .limit(limit)
+  let liderQuery = supabase
       .from('lideres')
       .select(LIDER_SELECT)
       .eq('ativo', true)
       .or(liderOr)
       .order('nome')
-      .limit(8),
-    supabase
+      .limit(8)
+  let coordQuery = supabase
       .from('coordenadores')
       .select(COORD_SELECT)
       .eq('ativo', true)
       .ilike('nome', `%${q}%`)
       .order('nome')
-      .limit(8),
-  ])
+      .limit(8)
+  if (diretoriaId) {
+    cadQuery = cadQuery.eq('diretoria_id', diretoriaId)
+    liderQuery = liderQuery.eq('diretoria_id', diretoriaId)
+    coordQuery = coordQuery.eq('diretoria_id', diretoriaId)
+  }
+
+  const [cadRes, lidRes, coordRes] = await Promise.all([cadQuery, liderQuery, coordQuery])
+
+  const searchError = cadRes.error || lidRes.error || coordRes.error
+  if (searchError) throw new Error(searchError.message)
 
   const rows: AtivacaoPessoa[] = [
     ...((cadRes.data ?? []) as unknown as Cadastro[]).map(fromCadastro),
@@ -647,7 +655,8 @@ export async function saveAtivacao(
     postagem_links: links,
     postagens: links.length,
     ativacao_notas: notas,
-    ativacao_em: hasLaunch ? new Date().toISOString() : null,
+    // Mantém a data do primeiro lançamento; editar uma ficha não altera sua antiguidade.
+    ativacao_em: hasLaunch ? (previous?.ativacao_em ?? new Date().toISOString()) : null,
     contato_whatsapp: contato,
     contato_whatsapp_status: status,
     foto_veiculo_paths,
@@ -671,10 +680,14 @@ export async function saveAtivacao(
   }
 
   const table = tipo === 'eleitor' ? 'cadastros' : tipo === 'lideranca' ? 'lideres' : 'coordenadores'
-  const { error } = await supabase.from(table).update(payload).eq('id', id)
+  const { data: updated, error } = await supabase.from(table).update(payload).eq('id', id).select('id').maybeSingle()
   if (error) {
     if (uploaded.length) void supabase.storage.from(FORMIGAS_FOTOS_BUCKET).remove(uploaded)
     return { error: error.message }
+  }
+  if (!updated) {
+    if (uploaded.length) void supabase.storage.from(FORMIGAS_FOTOS_BUCKET).remove(uploaded)
+    return { error: 'O registro não foi atualizado. Recarregue a ficha e tente novamente.' }
   }
 
   // Remove do storage paths que saíram da ficha
@@ -687,7 +700,7 @@ export async function saveAtivacao(
   }
 
   if (previous && previous.id === id && previous.tipo === tipo) {
-    void logFormigasHistorico(previous, {
+    await logFormigasHistorico(previous, {
       ...input,
       foto_veiculo_keep: foto_veiculo_paths,
       foto_casa_keep: foto_casa_paths,

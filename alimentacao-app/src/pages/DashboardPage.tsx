@@ -238,7 +238,7 @@ function AdminDashboard() {
       const fichadas = cadastros.filter(
         (c) => c.diretoria_id === dir.id || Boolean(c.operator_id && teamIds.has(c.operator_id)),
       ).length
-      return {
+    return {
         id: dir.id,
         nome: dir.nome.startsWith('Diretora') ? dir.nome : `Diretora ${dir.nome}`,
         tone: index === 0 ? 'blue' : 'emerald',
@@ -1357,7 +1357,7 @@ function DiretoriaDashboard() {
               <div className="nv-empty">Nenhuma ficha lançada neste período.</div>
             )}
           </div>
-        </div>
+      </div>
 
         <div className="nv-panel">
           <div className="nv-panel-head">
@@ -1426,7 +1426,7 @@ function DiretoriaDashboard() {
               </div>
             </div>
           </div>
-        </div>
+      </div>
 
         <div className="nv-panel">
           <div className="nv-panel-head">
