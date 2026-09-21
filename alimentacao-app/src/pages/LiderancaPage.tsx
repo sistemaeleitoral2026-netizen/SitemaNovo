@@ -8,7 +8,11 @@ import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Pagination } from '../components/ui/Pagination'
 import { META_LIDERANCA_FICHAS } from '../lib/meta'
-import { cadastrosLinkForLider, liderFichaKey, liderNameKey } from '../lib/liderFichas'
+import {
+  cadastrosLinkForLider,
+  countFichasForLider,
+  resolveLimiteFichas,
+} from '../lib/liderFichas'
 import { formatPhone } from '../lib/normalize'
 import { fetchCadastroFichaStats } from '../lib/cadastros'
 import { supabase } from '../lib/supabase'
@@ -16,6 +20,12 @@ import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import type { Coordenador, Lider } from '../types'
 
 type StatusView = 'todos' | 'finalizadas' | 'andamento'
+
+type FichaStat = {
+  lider: string | null
+  coordenador: string | null
+  diretoria_id: string | null
+}
 
 type LiderancaRow = {
   id: string
@@ -37,7 +47,7 @@ export function LiderancaPage() {
 
   const [lideres, setLideres] = useState<Lider[]>([])
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
-  const [fichasByLider, setFichasByLider] = useState<Record<string, number>>({})
+  const [fichaStats, setFichaStats] = useState<FichaStat[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -67,37 +77,36 @@ export function LiderancaPage() {
         if (coordsRes.error) throw new Error(coordsRes.error.message)
         if (lideresRes.error) throw new Error(lideresRes.error.message)
 
-        const liderRows = (lideresRes.data ?? []) as Lider[]
-        const coordRows = (coordsRes.data ?? []) as Coordenador[]
-        setLideres(liderRows)
-        setCoordenadores(coordRows)
-
-        const byLider: Record<string, number> = {}
-        fRows.forEach((row) => {
-          if (!liderNameKey(row.lider)) return
-          const key = liderFichaKey(row.lider, row.coordenador, row.diretoria_id)
-          byLider[key] = (byLider[key] ?? 0) + 1
-        })
-
-        setFichasByLider(byLider)
+        setLideres((lideresRes.data ?? []) as Lider[])
+        setCoordenadores((coordsRes.data ?? []) as Coordenador[])
+        setFichaStats(
+          fRows.map((row) => ({
+            lider: row.lider ?? null,
+            coordenador: row.coordenador ?? null,
+            diretoria_id: row.diretoria_id ?? null,
+          })),
+        )
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Não foi possível carregar as lideranças.')
       } finally {
         setLoading(false)
       }
     }
-    load()
+    void load()
   }, [diretoriaScope])
 
   const rows = useMemo((): LiderancaRow[] => {
     const coordById = new Map(coordenadores.map((c) => [c.id, c.nome]))
-    const meta = META_LIDERANCA_FICHAS
 
     return lideres
       .map((l) => {
         const coordenador = l.coordenador_id ? (coordById.get(l.coordenador_id) ?? '—') : '—'
-        const fichas = (fichasByLider[liderFichaKey(l.nome, coordenador, l.diretoria_id)] ?? 0)
-          + (fichasByLider[liderFichaKey(l.nome, coordenador, null)] ?? 0)
+        const fichas = countFichasForLider(fichaStats, {
+          nome: l.nome,
+          coordenadorNome: coordenador,
+          diretoriaId: l.diretoria_id,
+        })
+        const meta = resolveLimiteFichas(l.limite_fichas)
         const finalizou = fichas >= meta
         const pct = Math.min(100, Math.round((fichas / meta) * 100))
         return {
@@ -118,7 +127,7 @@ export function LiderancaPage() {
         if (b.fichas !== a.fichas) return b.fichas - a.fichas
         return a.nome.localeCompare(b.nome, 'pt-BR')
       })
-  }, [lideres, coordenadores, fichasByLider])
+  }, [lideres, coordenadores, fichaStats])
 
   const counts = useMemo(() => {
     let finalizadas = 0
@@ -166,8 +175,9 @@ export function LiderancaPage() {
         <div>
           <h1 className="page-title">Liderança</h1>
           <p className="page-subtitle">
-            Cada liderança tem meta de {META_LIDERANCA_FICHAS} fichas
+            Meta individual por liderança (padrão {META_LIDERANCA_FICHAS} fichas)
             {isAdmin ? ' — visão de todas as diretorias' : ''}.
+            {' '}Pode ultrapassar a meta. Ajuste em Equipe → Lideranças.
           </p>
         </div>
       </div>
@@ -225,7 +235,13 @@ export function LiderancaPage() {
         {!filtered.length ? (
           <EmptyState
             title="Nenhuma liderança encontrada"
-            description="Cadastre lideranças na Equipe ou ajuste o filtro."
+            description={
+              view === 'finalizadas'
+                ? 'Nenhuma liderança atingiu a meta de fichas ainda.'
+                : view === 'andamento'
+                  ? 'Todas as lideranças já finalizaram a lista.'
+                  : 'Cadastre lideranças na Equipe ou ajuste o filtro.'
+            }
           />
         ) : (
           <>

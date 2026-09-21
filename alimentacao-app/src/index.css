@@ -2309,6 +2309,10 @@ a.recent-row:hover strong { color: #2459c4; }
   background: #f1f5f9;
   color: #94a3b8;
 }
+.fichas-count.done {
+  background: #d1fae5;
+  color: #047857;
+}
 button.fichas-count.equipe-drill-count {
   border: 0;
   cursor: pointer;

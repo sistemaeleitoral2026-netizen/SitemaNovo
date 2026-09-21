@@ -13,6 +13,8 @@ import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import { EquipeMemberModal } from '../components/equipe/EquipeMemberModal'
 import { formatPhone } from '../lib/normalize'
 import { fetchCadastroFichaStats, fetchOperatorCadastroStats } from '../lib/cadastros'
+import { resolveLimiteFichas } from '../lib/liderFichas'
+import { META_LIDERANCA_FICHAS } from '../lib/meta'
 import { supabase } from '../lib/supabase'
 import type { Coordenador, Lider, Profile, UserRole } from '../types'
 import { labelRole, normalizeExtraRoles } from '../lib/roles'
@@ -30,7 +32,7 @@ const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
   },
   lideres: {
     title: 'Lideranças',
-    subtitle: 'Cadastre, edite ou exclua as lideranças da sua diretoria.',
+    subtitle: `Cadastre, edite ou exclua as lideranças. Meta padrão: ${META_LIDERANCA_FICHAS} fichas (editável; pode passar da meta).`,
   },
   mobilizadores: {
     title: 'Formigas',
@@ -166,7 +168,13 @@ export function EquipePage() {
     extra_roles: [] as UserRole[],
   })
   const [coordForm, setCoordForm] = useState({ nome: '', diretoria_id: '' })
-  const [liderForm, setLiderForm] = useState({ nome: '', telefone: '', diretoria_id: '', coordenador_id: '' })
+  const [liderForm, setLiderForm] = useState({
+    nome: '',
+    telefone: '',
+    diretoria_id: '',
+    coordenador_id: '',
+    limite_fichas: String(META_LIDERANCA_FICHAS),
+  })
 
   async function load() {
     setLoading(true)
@@ -378,6 +386,7 @@ export function EquipePage() {
       telefone: '',
       diretoria_id: diretoriaId ?? filterDiretoria ?? '',
       coordenador_id: coordenadorFromUrl || '',
+      limite_fichas: String(META_LIDERANCA_FICHAS),
     })
     setLiderOpen(true)
   }
@@ -390,6 +399,7 @@ export function EquipePage() {
       telefone: formatPhone(l.telefone ?? ''),
       diretoria_id: l.diretoria_id,
       coordenador_id: l.coordenador_id ?? '',
+      limite_fichas: String(resolveLimiteFichas(l.limite_fichas)),
     })
     setLiderOpen(true)
   }
@@ -877,12 +887,14 @@ export function EquipePage() {
       setError('Informe o nome e a diretoria.')
       return
     }
+    const limite = resolveLimiteFichas(liderForm.limite_fichas)
     setSaving(true)
     const payload = {
       nome: liderForm.nome.trim(),
       telefone: liderForm.telefone.replace(/\D/g, '') || null,
       diretoria_id: targetDir,
       coordenador_id: liderForm.coordenador_id || null,
+      limite_fichas: limite,
     }
     const { error: err } = editingLiderId
       ? await supabase.from('lideres').update(payload).eq('id', editingLiderId)
@@ -894,7 +906,13 @@ export function EquipePage() {
     }
     setLiderOpen(false)
     setEditingLiderId(null)
-    setLiderForm({ nome: '', telefone: '', diretoria_id: '', coordenador_id: '' })
+    setLiderForm({
+      nome: '',
+      telefone: '',
+      diretoria_id: '',
+      coordenador_id: '',
+      limite_fichas: String(META_LIDERANCA_FICHAS),
+    })
     await load()
   }
 
@@ -1233,6 +1251,7 @@ export function EquipePage() {
                 <tbody>
                   {filteredLideres.map((l) => {
                     const fichas = fichasByLider[l.nome] ?? 0
+                    const limite = resolveLimiteFichas(l.limite_fichas)
                     return (
                     <tr key={l.id}>
                       <td>
@@ -1255,7 +1274,12 @@ export function EquipePage() {
                       </td>
                       <td>{coordenadores.find((c) => c.id === l.coordenador_id)?.nome ?? '—'}</td>
                       <td>
-                        <span className={`fichas-count${fichas ? '' : ' zero'}`}>{fichas}</span>
+                        <span
+                          className={`fichas-count${fichas ? '' : ' zero'}${fichas >= limite ? ' done' : ''}`}
+                          title={`Meta: ${limite} fichas (pode ultrapassar)`}
+                        >
+                          {fichas}/{limite}
+                        </span>
                       </td>
                       {isAdmin && <td>{dirName(l.diretoria_id)}</td>}
                       {canManageTeam && (
@@ -1512,6 +1536,20 @@ export function EquipePage() {
             </p>
           )}
           <Input label="Nome da liderança" value={liderForm.nome} onChange={(e) => setLiderForm((f) => ({ ...f, nome: e.target.value }))} placeholder="Nome que aparece na ficha" />
+          <Input
+            label="Meta de fichas"
+            inputMode="numeric"
+            value={liderForm.limite_fichas}
+            onChange={(e) => setLiderForm((f) => ({
+              ...f,
+              limite_fichas: e.target.value.replace(/\D/g, '').slice(0, 4),
+            }))}
+            placeholder={String(META_LIDERANCA_FICHAS)}
+          />
+          <p style={{ margin: '-.35rem 0 0', fontSize: '.75rem', color: '#64748b' }}>
+            Padrão {META_LIDERANCA_FICHAS}. Aparece como <strong>atual/meta</strong> (ex.: 20/40).
+            Não bloqueia novas fichas — pode passar da meta.
+          </p>
           <div className="ui-field">
             <label htmlFor="lider-telefone" className="ui-field-label">
               Contato (WhatsApp)
