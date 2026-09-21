@@ -46,6 +46,8 @@ export interface Coordenador {
   carros_adesivados?: number
   motos_adesivadas?: number
   adesivos_casa?: number
+  foto_veiculo_paths?: string[] | null
+  foto_casa_paths?: string[] | null
   postagens?: number
   postagem_links?: string[] | null
   ativacao_notas?: string | null
@@ -69,6 +71,8 @@ export interface Lider {
   carros_adesivados?: number
   motos_adesivadas?: number
   adesivos_casa?: number
+  foto_veiculo_paths?: string[] | null
+  foto_casa_paths?: string[] | null
   postagens?: number
   postagem_links?: string[] | null
   ativacao_notas?: string | null
@@ -108,6 +112,8 @@ export interface Cadastro {
   carros_adesivados?: number
   motos_adesivadas?: number
   adesivos_casa?: number
+  foto_veiculo_paths?: string[] | null
+  foto_casa_paths?: string[] | null
   postagens?: number
   postagem_links?: string[] | null
   ativacao_notas?: string | null
