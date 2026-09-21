@@ -19,6 +19,7 @@ import { Pagination } from '../components/ui/Pagination'
 import { Modal } from '../components/ui/Modal'
 import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import {
+  attachDemandaFotoUrls,
   fetchDemandaCounts,
   fetchDemandaFilterCounts,
   fetchDemandas,
@@ -88,22 +89,27 @@ export function DemandasPainelPage() {
     setLoading(true)
     try {
       const [list, c] = await Promise.all([
-        fetchDemandas({ status, search, urgencia, comFotos, page, pageSize }),
+        fetchDemandas({ status, search, urgencia, comFotos, page, pageSize, skipFotos: true }),
         fetchDemandaCounts(),
       ])
       setItems(list.items)
       setTotal(list.total)
       setCounts(c)
+      setSelected([])
+      setError(null)
+      setLoading(false)
+
+      // Assina URLs em lote depois — lista já aparece; fotos entram em seguida
+      const withFotos = await attachDemandaFotoUrls(list.items)
+      setItems(withFotos)
+
       try {
         setFilterCounts(await fetchDemandaFilterCounts(status, search))
       } catch {
         setFilterCounts({ todas: list.total, urgente: 0, normal: 0, fotos: 0 })
       }
-      setSelected([])
-      setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao carregar demandas.')
-    } finally {
       setLoading(false)
     }
   }
