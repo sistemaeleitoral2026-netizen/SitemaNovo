@@ -515,7 +515,7 @@ export function AtivacaoPainelPage() {
         />
 
         <Button variant="secondary" onClick={exportCsv}>
-          <Download size={16} /> Exportar
+          <Download size={16} /> Exportar página
         </Button>
         <button type="button" className="clear-filters" onClick={clearFilters} style={{ color: '#2f6fed' }}>
           <RotateCcw size={13} /> Limpar
