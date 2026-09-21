@@ -207,6 +207,8 @@ export async function createDemanda(userId: string, input: DemandaCreateInput): 
 export type DemandaListFilters = {
   status?: DemandaStatus | 'todas'
   search?: string
+  urgencia?: DemandaUrgencia | 'todas'
+  comFotos?: boolean
   page?: number
   pageSize?: number
 }
@@ -224,23 +226,34 @@ export async function fetchDemandas(filters: DemandaListFilters = {}): Promise<{
   const status = filters.status ?? 'todas'
   const q = (filters.search ?? '').trim()
 
-  let query = supabase
-    .from('demandas')
-    .select('*', { count: 'exact' })
-    .order('created_at', { ascending: false })
-
-  if (status !== 'todas') query = query.eq('status', status)
-  if (q) {
-    const d = digits(q)
-    query = query.or(
-      d.length >= 3
-        ? `nome.ilike.%${q}%,documento.ilike.%${q}%,telefone.ilike.%${d}%,descricao.ilike.%${q}%`
-        : `nome.ilike.%${q}%,documento.ilike.%${q}%,descricao.ilike.%${q}%`,
-    )
+  function buildQuery(includeUrgencia: boolean) {
+    let query = supabase
+      .from('demandas')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+    if (status !== 'todas') query = query.eq('status', status)
+    if (includeUrgencia && filters.urgencia && filters.urgencia !== 'todas') {
+      query = query.eq('urgencia', filters.urgencia)
+    }
+    if (filters.comFotos) query = query.not('foto_path', 'is', null)
+    if (q) {
+      const d = digits(q)
+      query = query.or(
+        d.length >= 3
+          ? `nome.ilike.%${q}%,documento.ilike.%${q}%,telefone.ilike.%${d}%,descricao.ilike.%${q}%`
+          : `nome.ilike.%${q}%,documento.ilike.%${q}%,descricao.ilike.%${q}%`,
+      )
+    }
+    return query
   }
 
   const from = page * pageSize
-  const { data, error, count } = await query.range(from, from + pageSize - 1)
+  let { data, error, count } = await buildQuery(true).range(from, from + pageSize - 1)
+  // Em bancos antigos, todas as demandas são tratadas como prioridade normal.
+  if (error && /urgencia/i.test(error.message) && filters.urgencia && filters.urgencia !== 'todas') {
+    if (filters.urgencia !== 'normal') return { items: [], total: 0 }
+    ;({ data, error, count } = await buildQuery(false).range(from, from + pageSize - 1))
+  }
   if (error) throw new Error(error.message)
 
   const rows = (data ?? []) as Demanda[]
@@ -268,6 +281,32 @@ export async function fetchDemandas(filters: DemandaListFilters = {}): Promise<{
   )
 
   return { items, total: count ?? items.length }
+}
+
+export async function fetchDemandaFilterCounts(status: DemandaStatus, search = '') {
+  const rows = await Promise.all(
+    (['todas', 'urgente', 'normal', 'fotos'] as const).map(async (kind) => {
+      let query = supabase.from('demandas').select('id', { count: 'exact', head: true }).eq('status', status)
+      if (kind === 'fotos') query = query.not('foto_path', 'is', null)
+      else if (kind !== 'todas') query = query.eq('urgencia', kind)
+      if (search.trim()) {
+        const q = search.trim()
+        const d = digits(q)
+        query = query.or(d.length >= 3
+          ? `nome.ilike.%${q}%,documento.ilike.%${q}%,telefone.ilike.%${d}%,descricao.ilike.%${q}%`
+          : `nome.ilike.%${q}%,documento.ilike.%${q}%,descricao.ilike.%${q}%`)
+      }
+      const { count, error } = await query
+      return { count: count ?? 0, error: error?.message ?? null }
+    }),
+  )
+  const todas = rows[0].error ? 0 : rows[0].count
+  return {
+    todas,
+    urgente: rows[1].error ? 0 : rows[1].count,
+    normal: rows[2].error && /urgencia/i.test(rows[2].error) ? todas : (rows[2].error ? 0 : rows[2].count),
+    fotos: rows[3].error ? 0 : rows[3].count,
+  }
 }
 
 export async function fetchDemandaCounts(): Promise<{ abertas: number; feitas: number }> {
