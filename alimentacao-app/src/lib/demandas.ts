@@ -130,12 +130,15 @@ export async function searchCadastrosDemanda(term: string, limit = 12): Promise<
 }
 
 async function uploadFoto(userId: string, file: File): Promise<string> {
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
+  const prepared = await compressDemandaFoto(file)
+  const ext = prepared.type === 'image/jpeg'
+    ? 'jpg'
+    : (prepared.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
   const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext || 'jpg'}`
-  const { error } = await supabase.storage.from('demandas-fotos').upload(path, file, {
-    cacheControl: '3600',
+  const { error } = await supabase.storage.from('demandas-fotos').upload(path, prepared, {
+    cacheControl: '86400',
     upsert: false,
-    contentType: file.type || 'image/jpeg',
+    contentType: prepared.type || 'image/jpeg',
   })
   if (error) throw new Error(error.message)
   return path
@@ -143,14 +146,85 @@ async function uploadFoto(userId: string, file: File): Promise<string> {
 
 export async function getDemandaFotoUrl(path: string | null | undefined): Promise<string | null> {
   if (!path) return null
-  const { data, error } = await supabase.storage.from('demandas-fotos').createSignedUrl(path, 60 * 60)
-  if (error) return null
-  return data.signedUrl
+  const map = await signDemandaFotoPaths([path])
+  return map.get(path) ?? null
 }
 
-async function getDemandaFotoUrls(paths: string[]): Promise<string[]> {
-  const urls = await Promise.all(paths.map((p) => getDemandaFotoUrl(p)))
-  return urls.filter((u): u is string => Boolean(u))
+/** Assina várias fotos em 1 request (em vez de N createSignedUrl). */
+export async function signDemandaFotoPaths(paths: string[]): Promise<Map<string, string>> {
+  const unique = [...new Set(paths.filter(Boolean))]
+  const out = new Map<string, string>()
+  if (!unique.length) return out
+
+  const { data, error } = await supabase.storage
+    .from('demandas-fotos')
+    .createSignedUrls(unique, 60 * 60)
+
+  if (!error && data?.length) {
+    for (const row of data) {
+      if (row.path && row.signedUrl && !row.error) out.set(row.path, row.signedUrl)
+    }
+    if (out.size === unique.length) return out
+  }
+
+  // Fallback: paths que falharam no lote
+  await Promise.all(
+    unique
+      .filter((p) => !out.has(p))
+      .map(async (path) => {
+        const { data: one } = await supabase.storage
+          .from('demandas-fotos')
+          .createSignedUrl(path, 60 * 60)
+        if (one?.signedUrl) out.set(path, one.signedUrl)
+      }),
+  )
+  return out
+}
+
+/** Anexa URLs assinadas depois — lista aparece rápido, fotos entram em seguida. */
+export async function attachDemandaFotoUrls(items: DemandaComAutor[]): Promise<DemandaComAutor[]> {
+  const allPaths = items.flatMap((r) => resolveDemandaFotoPaths(r))
+  if (!allPaths.length) return items
+  const map = await signDemandaFotoPaths(allPaths)
+  return items.map((r) => {
+    const paths = resolveDemandaFotoPaths(r)
+    const foto_urls = paths.map((p) => map.get(p)).filter((u): u is string => Boolean(u))
+    return { ...r, foto_paths: paths, foto_urls, foto_url: foto_urls[0] ?? null }
+  })
+}
+
+/** Reduz foto de celular antes do upload (thumbnail do painel fica bem mais rápido). */
+async function compressDemandaFoto(file: File): Promise<File> {
+  if (!file.type.startsWith('image/') || file.type === 'image/gif') return file
+  // Já pequena — não reprocessa
+  if (file.size <= 350_000) return file
+
+  try {
+    const bitmap = await createImageBitmap(file)
+    const maxSide = 1600
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height))
+    const w = Math.max(1, Math.round(bitmap.width * scale))
+    const h = Math.max(1, Math.round(bitmap.height * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      bitmap.close()
+      return file
+    }
+    ctx.drawImage(bitmap, 0, 0, w, h)
+    bitmap.close()
+
+    const blob: Blob | null = await new Promise((resolve) => {
+      canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.72)
+    })
+    if (!blob || blob.size >= file.size) return file
+    const base = file.name.replace(/\.[^.]+$/, '') || 'demanda'
+    return new File([blob], `${base}.jpg`, { type: 'image/jpeg', lastModified: Date.now() })
+  } catch {
+    return file
+  }
 }
 
 export async function createDemanda(userId: string, input: DemandaCreateInput): Promise<{ error: string | null; id?: string }> {
@@ -211,6 +285,8 @@ export type DemandaListFilters = {
   comFotos?: boolean
   page?: number
   pageSize?: number
+  /** Se true, não assina URLs agora — use attachDemandaFotoUrls depois. */
+  skipFotos?: boolean
 }
 
 export type DemandaComAutor = Demanda & {
@@ -264,21 +340,22 @@ export async function fetchDemandas(filters: DemandaListFilters = {}): Promise<{
     for (const p of profiles ?? []) nomes.set(p.id, p.nome)
   }
 
-  const items: DemandaComAutor[] = await Promise.all(
-    rows.map(async (r) => {
-      const paths = resolveDemandaFotoPaths(r)
-      const foto_urls = await getDemandaFotoUrls(paths)
-      return {
-        ...r,
-        urgencia: r.urgencia ?? 'normal',
-        foto_paths: paths,
-        autor_nome: nomes.get(r.created_by) ?? '—',
-        resolvedor_nome: r.resolved_by ? (nomes.get(r.resolved_by) ?? '—') : undefined,
-        foto_urls,
-        foto_url: foto_urls[0] ?? null,
-      }
-    }),
-  )
+  let items: DemandaComAutor[] = rows.map((r) => {
+    const paths = resolveDemandaFotoPaths(r)
+    return {
+      ...r,
+      urgencia: r.urgencia ?? 'normal',
+      foto_paths: paths,
+      autor_nome: nomes.get(r.created_by) ?? '—',
+      resolvedor_nome: r.resolved_by ? (nomes.get(r.resolved_by) ?? '—') : undefined,
+      foto_urls: [],
+      foto_url: null,
+    }
+  })
+
+  if (!filters.skipFotos) {
+    items = await attachDemandaFotoUrls(items)
+  }
 
   return { items, total: count ?? items.length }
 }
