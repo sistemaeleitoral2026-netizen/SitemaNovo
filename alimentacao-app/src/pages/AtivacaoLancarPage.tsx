@@ -101,9 +101,10 @@ export function AtivacaoLancarPage() {
   const preTipo = searchParams.get('tipo') as AtivacaoPessoa['tipo'] | null
   const preId = searchParams.get('id')
 
+  // Só a conta "diretoria" fica presa à própria pasta.
+  // Formigas (mobilizador) buscam e editam qualquer ficha — como admin.
   const scopeDiretoriaId = useMemo(() => {
     if (hasRole(profile, 'diretoria')) return profile?.id
-    if (hasRole(profile, 'mobilizador') && profile?.diretoria_id) return profile.diretoria_id
     return undefined
   }, [profile])
 
