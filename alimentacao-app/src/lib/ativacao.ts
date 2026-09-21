@@ -298,12 +298,12 @@ export async function searchAtivacaoPessoas(term: string, limit = 12, diretoriaI
   const searchError = cadRes.error || lidRes.error || coordRes.error
   if (searchError) throw new Error(searchError.message)
 
-  const rows: AtivacaoPessoa[] = [
-    ...((cadRes.data ?? []) as unknown as Cadastro[]).map(fromCadastro),
-    ...((lidRes.data ?? []) as unknown as Lider[]).map(fromLider),
-    ...((coordRes.data ?? []) as unknown as Coordenador[]).map(fromCoord),
-  ]
-  return enrichOwnerNames(rows.slice(0, limit))
+  // Liderança/coordenador primeiro: senão o slice(0, limit) só devolve eleitores
+  // e a formiga "não acha" a liderança na busca.
+  const liderancas = ((lidRes.data ?? []) as unknown as Lider[]).map(fromLider)
+  const coordenadores = ((coordRes.data ?? []) as unknown as Coordenador[]).map(fromCoord)
+  const eleitores = ((cadRes.data ?? []) as unknown as Cadastro[]).map(fromCadastro)
+  return enrichOwnerNames([...liderancas, ...coordenadores, ...eleitores].slice(0, limit))
 }
 
 export async function fetchAtivacaoPessoa(
