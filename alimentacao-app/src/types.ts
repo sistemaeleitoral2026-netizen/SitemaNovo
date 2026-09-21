@@ -68,6 +68,8 @@ export interface Lider {
   nome: string
   telefone?: string | null
   ativo: boolean
+  /** Meta de fichas (padrão 20). Não bloqueia cadastros acima da meta. */
+  limite_fichas?: number
   carros_adesivados?: number
   motos_adesivadas?: number
   adesivos_casa?: number

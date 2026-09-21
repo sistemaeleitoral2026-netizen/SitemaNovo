@@ -1,3 +1,5 @@
+import { META_LIDERANCA_FICHAS } from './meta'
+
 /** Chave estável para agrupar fichas por liderança sem misturar homônimos. */
 export function liderNameKey(value: string | null | undefined) {
   return (value ?? '').trim().toLowerCase()
@@ -9,6 +11,58 @@ export function liderFichaKey(
   diretoriaId: string | null | undefined,
 ) {
   return JSON.stringify([liderNameKey(lider), liderNameKey(coordenador), diretoriaId ?? ''])
+}
+
+export function resolveLimiteFichas(value: unknown): number {
+  const n = Math.floor(Number(value))
+  if (!Number.isFinite(n) || n < 1) return META_LIDERANCA_FICHAS
+  return Math.min(9999, n)
+}
+
+type FichaStatRow = {
+  lider?: string | null
+  coordenador?: string | null
+  diretoria_id?: string | null
+}
+
+/**
+ * Conta fichas de uma liderança de forma tolerante:
+ * - exige nome da liderança
+ * - restringe à diretoria quando informada (aceita ficha sem diretoria_id)
+ * - se houver coordenador, preferimos match; fichas sem coordenador ainda entram
+ */
+export function countFichasForLider(
+  rows: FichaStatRow[],
+  opts: {
+    nome: string
+    coordenadorNome?: string | null
+    diretoriaId?: string | null
+  },
+): number {
+  const nome = liderNameKey(opts.nome)
+  if (!nome) return 0
+  const dirWanted = opts.diretoriaId || null
+  const coordWanted = liderNameKey(
+    opts.coordenadorNome && opts.coordenadorNome !== '—' ? opts.coordenadorNome : '',
+  )
+
+  let withCoord = 0
+  let anyInDir = 0
+
+  for (const row of rows) {
+    if (liderNameKey(row.lider) !== nome) continue
+    if (dirWanted && row.diretoria_id && row.diretoria_id !== dirWanted) continue
+    anyInDir += 1
+    const rowCoord = liderNameKey(row.coordenador)
+    if (!coordWanted || !rowCoord || rowCoord === coordWanted) {
+      withCoord += 1
+    }
+  }
+
+  // Se há coordenador definido e encontramos matches, usa withCoord;
+  // senão (ou coordenador vazio), conta todas da diretoria/nome.
+  if (coordWanted && withCoord > 0) return withCoord
+  return anyInDir
 }
 
 export function cadastrosLinkForLider(opts: {
