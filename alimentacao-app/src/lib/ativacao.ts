@@ -291,9 +291,9 @@ export async function searchAtivacaoPessoas(term: string, limit = 12): Promise<A
   ])
 
   const rows: AtivacaoPessoa[] = [
-    ...((cadRes.data ?? []) as Cadastro[]).map(fromCadastro),
-    ...((lidRes.data ?? []) as Lider[]).map(fromLider),
-    ...((coordRes.data ?? []) as Coordenador[]).map(fromCoord),
+    ...((cadRes.data ?? []) as unknown as Cadastro[]).map(fromCadastro),
+    ...((lidRes.data ?? []) as unknown as Lider[]).map(fromLider),
+    ...((coordRes.data ?? []) as unknown as Coordenador[]).map(fromCoord),
   ]
   return enrichOwnerNames(rows.slice(0, limit))
 }
@@ -305,13 +305,13 @@ export async function fetchAtivacaoPessoa(
   let pessoa: AtivacaoPessoa | null = null
   if (tipo === 'eleitor') {
     const { data } = await supabase.from('cadastros').select(CADASTRO_SELECT).eq('id', id).maybeSingle()
-    pessoa = data ? fromCadastro(data as Cadastro) : null
+    pessoa = data ? fromCadastro(data as unknown as Cadastro) : null
   } else if (tipo === 'lideranca') {
     const { data } = await supabase.from('lideres').select(LIDER_SELECT).eq('id', id).maybeSingle()
-    pessoa = data ? fromLider(data as Lider) : null
+    pessoa = data ? fromLider(data as unknown as Lider) : null
   } else {
     const { data } = await supabase.from('coordenadores').select(COORD_SELECT).eq('id', id).maybeSingle()
-    pessoa = data ? fromCoord(data as Coordenador) : null
+    pessoa = data ? fromCoord(data as unknown as Coordenador) : null
   }
   if (!pessoa) return null
   const [enriched] = await enrichOwnerNames([pessoa])
