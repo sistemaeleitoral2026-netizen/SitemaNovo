@@ -333,10 +333,11 @@ export type AtivacaoSaveInput = {
   links: string[]
   notas: string
   contato_whatsapp_status: ContatoWhatsappStatus
-  /** Endereço da casa (obrigatório p/ eleitor com adesivo) */
+  /** Endereço da casa (obrigatório p/ eleitor com adesivo) — grava na ficha */
   cep?: string
   endereco?: string
   numero?: string
+  bairro?: string
   /** Paths já salvos que devem permanecer */
   foto_veiculo_keep?: string[]
   foto_casa_keep?: string[]
@@ -667,15 +668,47 @@ export async function saveAtivacao(
     payload.cep = cepDigits
     payload.endereco = endereco
     payload.numero = numero
+
+    const bairroInput = (input.bairro ?? '').trim()
+    let cidade = ''
+    let uf = ''
+    let bairro = bairroInput
+
     try {
-      const { geocodeFromCep } = await import('./geocode')
-      const coords = await geocodeFromCep(cepDigits)
+      const { lookupViaCep, geocodeFromAddress, geocodeFromCep, coordsFromZona } = await import('./geocode')
+      const via = await lookupViaCep(cepDigits)
+      if (via) {
+        if (!bairro && via.bairro) bairro = via.bairro
+        cidade = via.localidade || ''
+        uf = via.uf || ''
+      }
+      if (bairro) payload.bairro = bairro
+      if (cidade) payload.cidade = cidade
+      if (uf) payload.uf = uf
+
+      // Prioridade: endereço completo → CEP (BrasilAPI) → zona eleitoral da ficha → coords já existentes
+      const coords =
+        (await geocodeFromAddress({
+          endereco,
+          numero,
+          bairro,
+          cidade,
+          uf,
+          cep: cepDigits,
+        }))
+        || (await geocodeFromCep(cepDigits))
+        || (previous?.zona ? coordsFromZona(previous.zona) : null)
+        || (previous?.lat != null && previous?.lng != null
+          ? { lat: previous.lat, lng: previous.lng }
+          : null)
+
       if (coords) {
         payload.lat = coords.lat
         payload.lng = coords.lng
       }
     } catch {
-      // geocode opcional — endereço já fica salvo
+      if (bairro) payload.bairro = bairro
+      // endereço textual já fica salvo mesmo se geocode falhar
     }
   }
 
