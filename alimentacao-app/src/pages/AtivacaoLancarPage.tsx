@@ -146,6 +146,13 @@ export function AtivacaoLancarPage() {
   const editCarros = canEditSection(selected?.formigas_carros_by, profile?.id, canOverride)
   const editCasa = canEditSection(selected?.formigas_casa_by, profile?.id, canOverride)
   const editLinks = canEditSection(selected?.formigas_links_by, profile?.id, canOverride)
+  // Casa já marcada na versão antiga sem CEP: qualquer formiga pode completar o endereço
+  const casaNeedsAddress = Boolean(
+    selected
+    && selected.adesivos_casa > 0
+    && (selected.cep ?? '').replace(/\D/g, '').length !== 8,
+  )
+  const editCasaAddr = editCasa || casaNeedsAddress
 
   const isDirty = useMemo(() => {
     if (!selected) return false
@@ -155,13 +162,10 @@ export function AtivacaoLancarPage() {
       nextLinks.length !== prevLinks.length
       || [...nextLinks].sort().join('\n') !== [...prevLinks].sort().join('\n')
     const addrChanged =
-      selected.tipo === 'eleitor'
-      && (
-        casaCep.replace(/\D/g, '') !== selected.cep.replace(/\D/g, '')
-        || casaEndereco.trim() !== selected.endereco.trim()
-        || casaNumero.trim() !== selected.numero.trim()
-        || casaBairro.trim() !== selected.bairro.trim()
-      )
+      casaCep.replace(/\D/g, '') !== selected.cep.replace(/\D/g, '')
+      || casaEndereco.trim() !== selected.endereco.trim()
+      || casaNumero.trim() !== selected.numero.trim()
+      || casaBairro.trim() !== selected.bairro.trim()
     const nextCarrosSave = veiculoCarro ? carros : 0
     const nextMotosSave = veiculoMoto ? motos : 0
     const fotosVeiculoChanged =
@@ -304,7 +308,7 @@ export function AtivacaoLancarPage() {
       setError('Adicione pelo menos 1 foto da casa adesivada.')
       return false
     }
-    if (selected.tipo === 'eleitor' && casa) {
+    if (casa) {
       const cepDigits = casaCep.replace(/\D/g, '')
       if (cepDigits.length !== 8) {
         setError('Informe o CEP da casa (obrigatório para adesivo residencial).')
@@ -897,8 +901,13 @@ export function AtivacaoLancarPage() {
                   {casa ? 'Com adesivo' : 'Sem adesivo'}
                 </span>
               </div>
-              {!editCasa && isFormActive && (
+              {!editCasa && isFormActive && !casaNeedsAddress && (
                 <p className="fl-hint fl-lock-hint">Só quem registrou o adesivo pode alterar.</p>
+              )}
+              {!editCasa && isFormActive && casaNeedsAddress && (
+                <p className="fl-hint fl-lock-hint">
+                  Esta casa foi marcada sem endereço. Complete CEP e rua abaixo (obrigatório).
+                </p>
               )}
               {isFormActive && selected && ownerCaption(selected.formigas_casa_by, selected.formigas_casa_by_nome, casa) && (
                 <p className="fl-owner-line">
@@ -915,20 +924,23 @@ export function AtivacaoLancarPage() {
                 value={casa ? 'sim' : 'nao'}
                 onChange={(v) => setCasa(v === 'sim')}
               />
-              {isFormActive && selected?.tipo === 'eleitor' && casa && (
+              {isFormActive && casa && (
                 <div className="fl-casa-addr">
                   <p className="fl-hint">
-                    Informe o endereço da casa com adesivo. Esse endereço passa a ser o da ficha do eleitor
-                    {(selected.cep || selected.endereco)
-                      ? ' (pode ajustar o que já estava no cadastro).'
-                      : ' (mesmo que a ficha ainda não tivesse endereço).'}
+                    {selected?.tipo === 'eleitor'
+                      ? `Informe o endereço da casa com adesivo. Esse endereço passa a ser o da ficha do eleitor${
+                          (selected.cep || selected.endereco)
+                            ? ' (pode ajustar o que já estava no cadastro).'
+                            : ' (mesmo que a ficha ainda não tivesse endereço).'
+                        }`
+                      : 'Informe o CEP e o endereço da casa com adesivo desta liderança/coordenação. Obrigatório para aparecer no Painel e no mapa.'}
                   </p>
                   <div className="fl-casa-addr-grid">
                     <label className="fl-field fl-casa-cep">
                       <span>CEP *</span>
                       <input
                         inputMode="numeric"
-                        disabled={!editCasa || saving}
+                        disabled={!editCasaAddr || saving}
                         value={casaCep}
                         placeholder="00000-000"
                         onKeyDown={preventEnterSubmit}
@@ -943,7 +955,7 @@ export function AtivacaoLancarPage() {
                     <label className="fl-field fl-casa-num">
                       <span>Nº *</span>
                       <input
-                        disabled={!editCasa || saving}
+                        disabled={!editCasaAddr || saving}
                         value={casaNumero}
                         placeholder="nº"
                         onKeyDown={preventEnterSubmit}
@@ -953,7 +965,7 @@ export function AtivacaoLancarPage() {
                     <label className="fl-field fl-casa-rua">
                       <span>Endereço *</span>
                       <input
-                        disabled={!editCasa || saving}
+                        disabled={!editCasaAddr || saving}
                         value={casaEndereco}
                         placeholder="Rua / avenida"
                         onKeyDown={preventEnterSubmit}
@@ -963,7 +975,7 @@ export function AtivacaoLancarPage() {
                     <label className="fl-field fl-casa-bairro">
                       <span>Bairro</span>
                       <input
-                        disabled={!editCasa || saving}
+                        disabled={!editCasaAddr || saving}
                         value={casaBairro}
                         placeholder="Bairro"
                         onKeyDown={preventEnterSubmit}
@@ -983,11 +995,6 @@ export function AtivacaoLancarPage() {
                   disabled={!editCasa || saving}
                   requiredHint="Obrigatório: pelo menos 1 foto (máx. 3). Toque para ampliar."
                 />
-              )}
-              {isFormActive && selected && selected.tipo !== 'eleitor' && casa && (
-                <p className="fl-hint">
-                  Endereço completo só é exigido para eleitores (ficha de cadastro).
-                </p>
               )}
             </div>
           </div>
