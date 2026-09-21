@@ -6,6 +6,7 @@ import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
 import { formatDateTime } from '../lib/format'
 import { DEFAULT_META, getMetaFichas, setMetaFichas } from '../lib/meta'
+import { persistMetaFichasRemote } from '../lib/tvDashboard'
 
 export function ConfiguracoesPage() {
   const { profile, updatePassword } = useAuth()
@@ -19,6 +20,8 @@ export function ConfiguracoesPage() {
   const [metaInput, setMetaInput] = useState(String(DEFAULT_META))
   const [metaMessage, setMetaMessage] = useState<string | null>(null)
   const [metaError, setMetaError] = useState<string | null>(null)
+  const [metaSaving, setMetaSaving] = useState(false)
+  const [copiedTv, setCopiedTv] = useState(false)
 
   useEffect(() => {
     setMetaInput(String(getMetaFichas()))
@@ -52,7 +55,7 @@ export function ConfiguracoesPage() {
     setConfirm('')
   }
 
-  function handleSaveMeta(e: React.FormEvent) {
+  async function handleSaveMeta(e: React.FormEvent) {
     e.preventDefault()
     setMetaError(null)
     setMetaMessage(null)
@@ -61,9 +64,27 @@ export function ConfiguracoesPage() {
       setMetaError('Informe uma meta válida (mínimo 1).')
       return
     }
+    setMetaSaving(true)
     const saved = setMetaFichas(n)
+    const { error: remoteErr } = await persistMetaFichasRemote(saved)
+    setMetaSaving(false)
     setMetaInput(String(saved))
-    setMetaMessage(`Meta atualizada para ${saved.toLocaleString('pt-BR')} fichas.`)
+    if (remoteErr) {
+      setMetaError(`Meta local salva, mas a TV não sincronizou: ${remoteErr}`)
+      return
+    }
+    setMetaMessage(`Meta atualizada para ${saved.toLocaleString('pt-BR')} fichas (vale no dashboard e na TV).`)
+  }
+
+  async function copyTvLink() {
+    const url = `${window.location.origin}/tv`
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopiedTv(true)
+      window.setTimeout(() => setCopiedTv(false), 2000)
+    } catch {
+      setCopiedTv(false)
+    }
   }
 
   return (
@@ -105,10 +126,9 @@ export function ConfiguracoesPage() {
 
         {isAdmin && (
           <Card title="Meta de fichas">
-            <form onSubmit={handleSaveMeta} style={{ display: 'grid', gap: '1rem' }}>
+            <form onSubmit={(e) => void handleSaveMeta(e)} style={{ display: 'grid', gap: '1rem' }}>
               <p style={{ margin: 0, fontSize: '.84rem', color: 'var(--muted)', lineHeight: 1.45 }}>
-                Defina a meta geral do sistema. O dashboard do admin mostra quanto falta
-                e o primeiro acesso do dia exibe um aviso central.
+                Defina a meta geral do sistema. O dashboard do admin e o painel de TV usam o mesmo valor.
               </p>
               <Input
                 label="Meta atual (fichas)"
@@ -125,8 +145,38 @@ export function ConfiguracoesPage() {
               </div>
               {metaError && <div className="alert alert-error">{metaError}</div>}
               {metaMessage && <div className="alert alert-success">{metaMessage}</div>}
-              <Button type="submit">Salvar meta</Button>
+              <Button type="submit" loading={metaSaving}>Salvar meta</Button>
             </form>
+          </Card>
+        )}
+
+        {isAdmin && (
+          <Card title="Painel de TV">
+            <div style={{ display: 'grid', gap: '.85rem' }}>
+              <p style={{ margin: 0, fontSize: '.84rem', color: 'var(--muted)', lineHeight: 1.45 }}>
+                Link exclusivo para televisão: números em tempo real e narração a cada 30 minutos
+                de quanto falta para a meta. Abra em tela cheia no navegador da TV.
+              </p>
+              <code style={{
+                display: 'block',
+                padding: '.65rem .8rem',
+                borderRadius: 8,
+                background: '#f1f5f9',
+                fontSize: '.82rem',
+                wordBreak: 'break-all',
+              }}
+              >
+                {typeof window !== 'undefined' ? `${window.location.origin}/tv` : '/tv'}
+              </code>
+              <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+                <Button type="button" variant="secondary" onClick={() => void copyTvLink()}>
+                  {copiedTv ? 'Link copiado' : 'Copiar link'}
+                </Button>
+                <a href="/tv" target="_blank" rel="noopener noreferrer">
+                  <Button type="button">Abrir painel TV</Button>
+                </a>
+              </div>
+            </div>
           </Card>
         )}
 
