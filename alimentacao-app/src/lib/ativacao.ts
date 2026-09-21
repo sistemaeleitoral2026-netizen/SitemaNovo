@@ -203,13 +203,13 @@ function fromLider(l: Lider): AtivacaoPessoa {
     nome: l.nome ?? '',
     titulo: '',
     zona: '',
-    bairro: '',
+    bairro: (l.bairro ?? '').trim(),
     telefone: l.telefone ?? '',
-    cep: '',
-    endereco: '',
-    numero: '',
-    lat: null,
-    lng: null,
+    cep: (l.cep ?? '').replace(/\D/g, ''),
+    endereco: (l.endereco ?? '').trim(),
+    numero: (l.numero ?? '').trim(),
+    lat: l.lat ?? null,
+    lng: l.lng ?? null,
     ...ativ,
     diretoria_id: l.diretoria_id ?? null,
     coordenador: '',
@@ -229,13 +229,13 @@ function fromCoord(c: Coordenador): AtivacaoPessoa {
     nome: c.nome ?? '',
     titulo: '',
     zona: '',
-    bairro: '',
+    bairro: (c.bairro ?? '').trim(),
     telefone: '',
-    cep: '',
-    endereco: '',
-    numero: '',
-    lat: null,
-    lng: null,
+    cep: (c.cep ?? '').replace(/\D/g, ''),
+    endereco: (c.endereco ?? '').trim(),
+    numero: (c.numero ?? '').trim(),
+    lat: c.lat ?? null,
+    lng: c.lng ?? null,
     ...ativ,
     diretoria_id: c.diretoria_id ?? null,
     coordenador: c.nome ?? '',
@@ -249,10 +249,10 @@ const CADASTRO_SELECT =
   'id, nome_completo, titulo, zona, bairro, telefone, cep, endereco, numero, lat, lng, carros_adesivados, motos_adesivadas, adesivos_casa, foto_veiculo_paths, foto_casa_paths, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, coordenador, lider, operator_id'
 
 const LIDER_SELECT =
-  'id, nome, telefone, carros_adesivados, motos_adesivadas, adesivos_casa, foto_veiculo_paths, foto_casa_paths, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, coordenador_id'
+  'id, nome, telefone, carros_adesivados, motos_adesivadas, adesivos_casa, foto_veiculo_paths, foto_casa_paths, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, coordenador_id, cep, endereco, numero, bairro, cidade, uf, lat, lng'
 
 const COORD_SELECT =
-  'id, nome, carros_adesivados, motos_adesivadas, adesivos_casa, foto_veiculo_paths, foto_casa_paths, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id'
+  'id, nome, carros_adesivados, motos_adesivadas, adesivos_casa, foto_veiculo_paths, foto_casa_paths, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, cep, endereco, numero, bairro, cidade, uf, lat, lng'
 
 export async function searchAtivacaoPessoas(term: string, limit = 12, diretoriaId?: string): Promise<AtivacaoPessoa[]> {
   const q = term.trim()
@@ -599,7 +599,7 @@ export async function saveAtivacao(
   const endereco = (input.endereco ?? '').trim()
   const numero = (input.numero ?? '').trim()
 
-  if (tipo === 'eleitor' && casa > 0) {
+  if (casa > 0) {
     if (cepDigits.length !== 8) {
       return { error: 'Informe um CEP válido da casa com adesivo.' }
     }
@@ -664,7 +664,7 @@ export async function saveAtivacao(
     foto_casa_paths,
   }
 
-  if (tipo === 'eleitor' && casa > 0) {
+  if (casa > 0) {
     payload.cep = cepDigits
     payload.endereco = endereco
     payload.numero = numero
