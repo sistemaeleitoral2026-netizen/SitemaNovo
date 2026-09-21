@@ -120,6 +120,7 @@ export function AtivacaoLancarPage() {
   const [casaCep, setCasaCep] = useState('')
   const [casaEndereco, setCasaEndereco] = useState('')
   const [casaNumero, setCasaNumero] = useState('')
+  const [casaBairro, setCasaBairro] = useState('')
   const [fotoVeiculoKeep, setFotoVeiculoKeep] = useState<string[]>([])
   const [fotoVeiculoFiles, setFotoVeiculoFiles] = useState<File[]>([])
   const [fotoCasaKeep, setFotoCasaKeep] = useState<string[]>([])
@@ -158,6 +159,7 @@ export function AtivacaoLancarPage() {
         casaCep.replace(/\D/g, '') !== selected.cep.replace(/\D/g, '')
         || casaEndereco.trim() !== selected.endereco.trim()
         || casaNumero.trim() !== selected.numero.trim()
+        || casaBairro.trim() !== selected.bairro.trim()
       )
     const nextCarrosSave = veiculoCarro ? carros : 0
     const nextMotosSave = veiculoMoto ? motos : 0
@@ -179,7 +181,7 @@ export function AtivacaoLancarPage() {
       || (casa && fotosCasaChanged)
     )
   }, [
-    selected, carros, motos, veiculoCarro, veiculoMoto, casa, casaCep, casaEndereco, casaNumero,
+    selected, carros, motos, veiculoCarro, veiculoMoto, casa, casaCep, casaEndereco, casaNumero, casaBairro,
     links, notas, contatoStatus, fotoVeiculoKeep, fotoVeiculoFiles, fotoCasaKeep, fotoCasaFiles,
   ])
 
@@ -253,6 +255,7 @@ export function AtivacaoLancarPage() {
     setCasaCep(p.cep ? formatCep(p.cep) : '')
     setCasaEndereco(p.endereco || '')
     setCasaNumero(p.numero || '')
+    setCasaBairro(p.bairro || '')
     setFotoVeiculoKeep([...(p.foto_veiculo_paths || [])])
     setFotoVeiculoFiles([])
     setFotoCasaKeep([...(p.foto_casa_paths || [])])
@@ -275,6 +278,7 @@ export function AtivacaoLancarPage() {
     setCasaCep('')
     setCasaEndereco('')
     setCasaNumero('')
+    setCasaBairro('')
     setFotoVeiculoKeep([])
     setFotoVeiculoFiles([])
     setFotoCasaKeep([])
@@ -327,6 +331,7 @@ export function AtivacaoLancarPage() {
       cep: casaCep,
       endereco: casaEndereco,
       numero: casaNumero,
+      bairro: casaBairro,
       foto_veiculo_keep: nextCarros > 0 || nextMotos > 0 ? fotoVeiculoKeep : [],
       foto_veiculo_files: nextCarros > 0 || nextMotos > 0 ? fotoVeiculoFiles : [],
       foto_casa_keep: casa ? fotoCasaKeep : [],
@@ -348,6 +353,7 @@ export function AtivacaoLancarPage() {
     setCepLoading(false)
     if (!addr) return
     if (addr.logradouro) setCasaEndereco((prev) => prev.trim() || addr.logradouro)
+    if (addr.bairro) setCasaBairro((prev) => prev.trim() || addr.bairro)
   }
 
   async function clearPerson() {
@@ -911,8 +917,10 @@ export function AtivacaoLancarPage() {
               {isFormActive && selected?.tipo === 'eleitor' && casa && (
                 <div className="fl-casa-addr">
                   <p className="fl-hint">
-                    Endereço da casa com adesivo (obrigatório).
-                    {(selected.cep || selected.endereco) ? ' Dados do cadastro preenchidos automaticamente.' : ' Cadastre CEP, rua e número.'}
+                    Informe o endereço da casa com adesivo. Esse endereço passa a ser o da ficha do eleitor
+                    {(selected.cep || selected.endereco)
+                      ? ' (pode ajustar o que já estava no cadastro).'
+                      : ' (mesmo que a ficha ainda não tivesse endereço).'}
                   </p>
                   <div className="fl-casa-addr-grid">
                     <label className="fl-field fl-casa-cep">
@@ -949,6 +957,16 @@ export function AtivacaoLancarPage() {
                         placeholder="Rua / avenida"
                         onKeyDown={preventEnterSubmit}
                         onChange={(e) => setCasaEndereco(e.target.value)}
+                      />
+                    </label>
+                    <label className="fl-field fl-casa-bairro">
+                      <span>Bairro</span>
+                      <input
+                        disabled={!editCasa || saving}
+                        value={casaBairro}
+                        placeholder="Bairro"
+                        onKeyDown={preventEnterSubmit}
+                        onChange={(e) => setCasaBairro(e.target.value)}
                       />
                     </label>
                   </div>

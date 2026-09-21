@@ -5580,6 +5580,10 @@ button.fichas-count.equipe-drill-count.zero:hover {
   grid-template-columns: 7.5rem 5rem 1fr;
   gap: .55rem .65rem;
 }
+.fl-casa-rua,
+.fl-casa-bairro {
+  grid-column: 1 / -1;
+}
 .fl-casa-addr .fl-field {
   display: flex;
   flex-direction: column;
@@ -5677,7 +5681,8 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .fh-list-head-page { display: none; }
   .fh-item-grid { grid-template-columns: 1fr; gap: .45rem; }
   .fl-casa-addr-grid { grid-template-columns: 1fr 1fr; }
-  .fl-casa-rua { grid-column: 1 / -1; }
+  .fl-casa-rua,
+  .fl-casa-bairro { grid-column: 1 / -1; }
 }
 .fl-owner-line {
   margin: 0 0 .65rem;
