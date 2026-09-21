@@ -52,6 +52,20 @@ function waStatusLabel(status: ContatoWhatsappStatus) {
   return 'Não acionada'
 }
 
+function normalizePostUrl(value: string): string | null {
+  const raw = value.trim()
+  if (!raw) return null
+  const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+  try {
+    const url = new URL(candidate)
+    if (!url.hostname.includes('.') || !['http:', 'https:'].includes(url.protocol)) return null
+    url.hash = ''
+    return url.toString().replace(/\/$/, '')
+  } catch {
+    return null
+  }
+}
+
 function SegmentedControl({
   options,
   value,
@@ -192,7 +206,8 @@ export function AtivacaoLancarPage() {
     if (!preId || !preTipo) return
     if (!['eleitor', 'lideranca', 'coordenador'].includes(preTipo)) return
     void fetchAtivacaoPessoa(preTipo, preId).then((p) => {
-      if (p) selectPerson(p)
+      if (p && (!scopeDiretoriaId || p.diretoria_id === scopeDiretoriaId)) selectPerson(p)
+      else if (p) setError('Esta pessoa não pertence à sua diretoria.')
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preId, preTipo])
@@ -206,10 +221,17 @@ export function AtivacaoLancarPage() {
     let cancelled = false
     setSearching(true)
     const t = window.setTimeout(() => {
-      void searchAtivacaoPessoas(term).then((rows) => {
+      void searchAtivacaoPessoas(term, 12, scopeDiretoriaId).then((rows) => {
         if (!cancelled) {
           setSuggestions(rows)
           setSearching(false)
+          setError(null)
+        }
+      }).catch((err: Error) => {
+        if (!cancelled) {
+          setSuggestions([])
+          setSearching(false)
+          setError(err.message || 'Não foi possível buscar as pessoas.')
         }
       })
     }, 220)
@@ -217,7 +239,7 @@ export function AtivacaoLancarPage() {
       cancelled = true
       window.clearTimeout(t)
     }
-  }, [query, selected])
+  }, [query, selected, scopeDiretoriaId])
 
   function selectPerson(p: AtivacaoPessoa) {
     setSelected(p)
@@ -446,14 +468,20 @@ export function AtivacaoLancarPage() {
   }
 
   function addLink() {
-    const url = linkDraft.trim()
-    if (!url || !isFormActive) return
-    if (links.includes(url)) {
+    if (!isFormActive) return
+    const url = normalizePostUrl(linkDraft)
+    if (!url) {
+      setError('Informe um link válido, como instagram.com/publicacao.')
+      return
+    }
+    if (links.some((item) => item.toLowerCase() === url.toLowerCase())) {
       setLinkDraft('')
+      setError('Este link já foi adicionado.')
       return
     }
     setLinks((prev) => [...prev, url])
     setLinkDraft('')
+    setError(null)
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -593,6 +621,10 @@ export function AtivacaoLancarPage() {
                       {s.tipoLabel}
                       {s.titulo ? ` · Título ${s.titulo}` : ''}
                       {s.zona ? ` · Zona ${s.zona}` : ''}
+                      {s.telefone ? ` · ${s.telefone}` : ''}
+                      {s.bairro ? ` · ${s.bairro}` : ''}
+                      {s.coordenador ? ` · Coord. ${s.coordenador}` : ''}
+                      {s.lider ? ` · Lid. ${s.lider}` : ''}
                     </span>
                   </button>
                 ))}
@@ -667,9 +699,6 @@ export function AtivacaoLancarPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="fl-btn-wa fl-btn-wa-main"
-                    onClick={() => {
-                      if (editWa) setContatoStatus('sim')
-                    }}
                   >
                     <ExternalLink size={16} />
                     Enviar mensagem
@@ -694,6 +723,7 @@ export function AtivacaoLancarPage() {
                     />
                   </div>
                 </div>
+                <p className="fl-hint">Abrir a conversa não altera o registro. Depois do envio, marque “Já acionada”.</p>
               </div>
             )}
           </div>

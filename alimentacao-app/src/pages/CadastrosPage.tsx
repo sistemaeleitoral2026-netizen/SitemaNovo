@@ -119,6 +119,7 @@ export function CadastrosPage() {
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(25)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [columnMenuOpen, setColumnMenuOpen] = useState(false)
@@ -151,6 +152,7 @@ export function CadastrosPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
+    setLoadError(null)
     try {
       const [data, profilesResult] = await Promise.all([
         fetchCadastros({ operatorId: isOwnOnly ? profile?.id : undefined }),
@@ -158,9 +160,12 @@ export function CadastrosPage() {
           ? Promise.resolve({ data: [] })
           : fetchCadastroOperators(),
       ])
+      if ('error' in profilesResult && profilesResult.error) throw profilesResult.error
       setCadastros(data)
       setNerites((profilesResult.data ?? []) as CadastroOperator[])
       setPage(0)
+    } catch {
+      setLoadError('Não foi possível carregar as fichas. Confira sua conexão e tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -614,6 +619,10 @@ export function CadastrosPage() {
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
             <Spinner size={36} />
+          </div>
+        ) : loadError ? (
+          <div className="alert alert-error" style={{ margin: '1rem' }}>
+            {loadError} <Button size="sm" variant="secondary" onClick={() => void load()}>Tentar novamente</Button>
           </div>
         ) : !pageItems.length ? (
           <EmptyState

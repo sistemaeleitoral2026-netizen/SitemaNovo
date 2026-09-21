@@ -53,6 +53,7 @@ export function CadastroFormPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [globalError, setGlobalError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [saveOk, setSaveOk] = useState<string | null>(null)
   const [cepLoading, setCepLoading] = useState(false)
   const [duplicateInfo, setDuplicateInfo] = useState<DuplicateCadastroInfo | null>(null)
@@ -78,6 +79,11 @@ export function CadastroFormPage() {
       }
 
       const [coords, lids] = await Promise.all([coordsQuery, lidsQuery])
+      if (coords.error || lids.error) {
+        setLoadError('Não foi possível carregar coordenadores e lideranças. Atualize a página e tente novamente.')
+        if (!isEdit) setLoading(false)
+        return
+      }
       setCoordenadores((coords.data ?? []) as Coordenador[])
       setLideres((lids.data ?? []) as Lider[])
       if (!isEdit) setLoading(false)
@@ -88,8 +94,12 @@ export function CadastroFormPage() {
 
   useEffect(() => {
     if (!id) return
-    supabase.from('cadastros').select('*').eq('id', id).maybeSingle().then(({ data }) => {
-      if (data) {
+    supabase.from('cadastros').select('*').eq('id', id).maybeSingle().then(({ data, error }) => {
+      if (error || !data) {
+        setLoadError('Não foi possível carregar esta ficha. Atualize a página e tente novamente.')
+        setLoading(false)
+        return
+      }
         setForm({
           nome_completo: data.nome_completo ?? '',
           cpf: formatCpf(data.cpf ?? ''),
@@ -109,7 +119,6 @@ export function CadastroFormPage() {
           cidade: data.cidade ?? '',
           uf: data.uf ?? '',
         })
-      }
       setLoading(false)
     })
   }, [id])
@@ -253,17 +262,15 @@ export function CadastroFormPage() {
     setSaveOk(null)
 
     const normalized = normalizeCadastroFields(form)
-    // Grava o nome exatamente do que foi selecionado no dropdown (sem inventar)
-    if (coordenadorId) {
-      const nome = coordenadores.find((c) => c.id === coordenadorId)?.nome
-      if (nome) normalized.coordenador = nome
-    }
-    if (liderId) {
-      const nome = lideres.find((l) => l.id === liderId)?.nome
-      if (nome) normalized.lider = nome
-    }
+    const selectedCoordinator = coordenadores.find((c) => c.id === coordenadorId)
+    const selectedLeader = lideres.find((l) => l.id === liderId)
+    normalized.coordenador = selectedCoordinator?.nome?.trim() ?? ''
+    normalized.lider = selectedLeader?.nome?.trim() ?? ''
 
     const fieldErrors = validateCadastroForm(normalized)
+    if (selectedLeader?.coordenador_id && selectedLeader.coordenador_id !== selectedCoordinator?.id) {
+      fieldErrors.lider = 'Selecione uma liderança vinculada ao coordenador escolhido.'
+    }
     if (Object.keys(fieldErrors).length) {
       setErrors(fieldErrors)
       return
@@ -310,7 +317,8 @@ export function CadastroFormPage() {
     }
 
     if (isEdit && id) {
-      const { error } = await supabase.from('cadastros').update(payload).eq('id', id)
+      const { data: saved, error } = await supabase.from('cadastros').update(payload).eq('id', id)
+        .select('nome_completo,coordenador,lider').single()
       setSaving(false)
       if (error) {
         if (isDuplicateCpfError(error.message)) {
@@ -326,10 +334,15 @@ export function CadastroFormPage() {
         }
         return
       }
+      if (saved.nome_completo !== normalized.nome_completo || saved.coordenador !== normalized.coordenador || saved.lider !== normalized.lider) {
+        setGlobalError('A ficha foi gravada com dados diferentes dos informados. Revise o cadastro antes de continuar.')
+        return
+      }
       logAudit('atualizar', 'cadastros', id, { cpf: normalized.cpf })
       navigate(profile?.role === 'operador' ? '/meus-cadastros' : '/cadastros')
     } else {
-      const { data, error } = await supabase.from('cadastros').insert(payload).select('id').single()
+      const { data, error } = await supabase.from('cadastros').insert(payload)
+        .select('id,nome_completo,coordenador,lider').single()
       setSaving(false)
       if (error) {
         if (isDuplicateCpfError(error.message)) {
@@ -343,14 +356,18 @@ export function CadastroFormPage() {
         } else {
           setGlobalError(error.message)
         }
+        return
+      }
+      if (data.nome_completo !== normalized.nome_completo || data.coordenador !== normalized.coordenador || data.lider !== normalized.lider) {
+        setGlobalError('A ficha foi gravada com dados diferentes dos informados. Revise o cadastro antes de continuar.')
         return
       }
       logAudit('criar', 'cadastros', data.id, { cpf: normalized.cpf })
 
       // Nerite: fica na ficha limpa para cadastrar a próxima (evita reload da lista)
       if (profile?.role === 'operador') {
-        const keepCoord = form.coordenador
-        const keepLider = form.lider
+        const keepCoord = normalized.coordenador
+        const keepLider = normalized.lider
         const keepCoordId = coordenadorId
         const keepLiderId = liderId
         setForm({ ...emptyForm, coordenador: keepCoord, lider: keepLider })
@@ -372,6 +389,10 @@ export function CadastroFormPage() {
         <Spinner size={40} />
       </div>
     )
+  }
+
+  if (loadError) {
+    return <div className="alert alert-error">{loadError}</div>
   }
 
   return (
@@ -632,7 +653,7 @@ export function CadastroFormPage() {
             <Button type="submit" loading={saving}>
               <Save size={16} /> Salvar Cadastro
             </Button>
-            <Button type="button" variant="secondary" onClick={handleClear}>
+            <Button type="button" variant="secondary" onClick={handleClear} disabled={saving}>
               Limpar
             </Button>
           </div>
