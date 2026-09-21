@@ -4,6 +4,9 @@
   "buildCommand": "npm run build --prefix alimentacao-app",
   "outputDirectory": "alimentacao-app/dist",
   "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/((?!api/|assets/).*)",
+      "destination": "/index.html"
+    }
   ]
 }
