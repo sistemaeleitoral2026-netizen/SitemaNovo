@@ -58,6 +58,15 @@ export interface Coordenador {
   formigas_carros_by?: string | null
   formigas_casa_by?: string | null
   formigas_links_by?: string | null
+  cep?: string | null
+  endereco?: string | null
+  numero?: string | null
+  complemento?: string | null
+  bairro?: string | null
+  cidade?: string | null
+  uf?: string | null
+  lat?: number | null
+  lng?: number | null
   created_at: string
 }
 
@@ -85,6 +94,15 @@ export interface Lider {
   formigas_carros_by?: string | null
   formigas_casa_by?: string | null
   formigas_links_by?: string | null
+  cep?: string | null
+  endereco?: string | null
+  numero?: string | null
+  complemento?: string | null
+  bairro?: string | null
+  cidade?: string | null
+  uf?: string | null
+  lat?: number | null
+  lng?: number | null
   created_at: string
 }
 
