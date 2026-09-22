@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
 import {
   fetchTvDashboardStats,
   formatTvNumber,
@@ -10,7 +9,8 @@ import {
   type TvDashboardStats,
 } from '../lib/tvDashboard'
 
-const POLL_MS = 8_000
+/** Poll mais lento: a TV só precisa de contagens; 45s basta e reduz carga no Postgres. */
+const POLL_MS = 45_000
 /** Padrão: 30 minutos entre narrações. */
 const NARRATE_DEFAULT_MS = 30 * 60 * 1000
 /** Mínimo no modo teste (?narra=): 60 segundos — evita repetir sem parar. */
@@ -89,29 +89,13 @@ export function TvDashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [metaParam])
 
-  // Atualiza mais rápido quando a aba volta ao foco
+  // Atualiza ao voltar o foco (sem Realtime — conexão persistente consome RAM no nano)
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState === 'visible') void refresh()
     }
     document.addEventListener('visibilitychange', onVis)
     return () => document.removeEventListener('visibilitychange', onVis)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metaParam])
-
-  // Supabase Realtime: qualquer INSERT/UPDATE/DELETE em cadastros dispara refresh
-  useEffect(() => {
-    const channel = supabase
-      .channel('tv-cadastros')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'cadastros' },
-        () => { void refresh() },
-      )
-      .subscribe()
-    return () => {
-      void supabase.removeChannel(channel)
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [metaParam])
 
