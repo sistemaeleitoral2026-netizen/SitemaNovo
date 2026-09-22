@@ -49,11 +49,13 @@ function chipToTipo(chip: EquipeChip): AtivacaoListFilters['tipo'] {
   return 'eleitor'
 }
 
-function parseEquipeChip(raw: string | null): EquipeChip {
+function parseEquipeChip(raw: string | null, status?: AtivacaoListFilters['status']): EquipeChip {
   if (raw === 'formigas') return 'eleitores'
   if (raw && ['todos', 'coordenadores', 'lideres', 'nerites', 'eleitores'].includes(raw)) {
     return raw as EquipeChip
   }
+  // Vindo do Dashboard (carros/casas/postagens): totais incluem lideranças e coordenadores.
+  if (status && status !== 'todos') return 'todos'
   return 'eleitores'
 }
 
@@ -103,7 +105,7 @@ export function AtivacaoPainelPage() {
   })
 
   const [equipeChip, setEquipeChip] = useState<EquipeChip>(() =>
-    parseEquipeChip(searchParams.get('equipe')),
+    parseEquipeChip(searchParams.get('equipe'), parseStatus(searchParams.get('status'))),
   )
   const [search, setSearch] = useState(searchParams.get('q') ?? '')
   const [status, setStatus] = useState<AtivacaoListFilters['status']>(() =>
@@ -127,14 +129,13 @@ export function AtivacaoPainelPage() {
   // Deep link / navegação externa → estado (cards, Dashboard, refresh)
   useEffect(() => {
     const nextStatus = parseStatus(searchParams.get('status'))
-    const nextEquipe = parseEquipeChip(searchParams.get('equipe'))
+    const nextEquipe = parseEquipeChip(searchParams.get('equipe'), nextStatus)
     const nextSearch = searchParams.get('q') ?? ''
     const nextDir = scopeDiretoriaId || searchParams.get('diretoria') || ''
     const nextCoord = searchParams.get('coordenador') ?? ''
     const nextLider = searchParams.get('lider') ?? ''
     const nextNerite = searchParams.get('nerite') ?? ''
     const nextPage = Number(searchParams.get('page') || 0) || 0
-
     setStatus((cur) => (cur === nextStatus ? cur : nextStatus))
     setEquipeChip((cur) => (cur === nextEquipe ? cur : nextEquipe))
     setSearch((cur) => (cur === nextSearch ? cur : nextSearch))

@@ -975,17 +975,17 @@ function AdminDashboard() {
               <Link to={`/ativacao/painel${dirQuery}`} className="nd-card-link">Abrir painel →</Link>
             </div>
             <div className="nd-mob-counters">
-              <Link to={`/ativacao/painel?status=com_carro${dirQueryAmp}`} className="nd-mob-counter">
+              <Link to={`/ativacao/painel?status=com_carro&equipe=todos${dirQueryAmp}`} className="nd-mob-counter">
                 <span className="nd-mob-counter-lbl">Carros</span>
                 <strong className="nd-mob-counter-val tabular-nums">{fmt(mobilizacaoTotals.carros)}</strong>
                 <span className="nd-mob-counter-hint">veículos adesiv.</span>
               </Link>
-              <Link to={`/ativacao/painel?status=casa_sim${dirQueryAmp}`} className="nd-mob-counter">
+              <Link to={`/ativacao/painel?status=casa_sim&equipe=todos${dirQueryAmp}`} className="nd-mob-counter">
                 <span className="nd-mob-counter-lbl">Casas</span>
                 <strong className="nd-mob-counter-val tabular-nums">{fmt(mobilizacaoTotals.casa)}</strong>
                 <span className="nd-mob-counter-hint">casas adesivadas</span>
               </Link>
-              <Link to={`/ativacao/painel?status=com_links${dirQueryAmp}`} className="nd-mob-counter">
+              <Link to={`/ativacao/painel?status=com_links&equipe=todos${dirQueryAmp}`} className="nd-mob-counter">
                 <span className="nd-mob-counter-lbl">Postagens</span>
                 <strong className="nd-mob-counter-val tabular-nums">{fmt(mobilizacaoTotals.postagens)}</strong>
                 <span className="nd-mob-counter-hint">redes / mídias</span>
@@ -1492,7 +1492,7 @@ function DiretoriaDashboard() {
               ['Postagens', mobilizacaoTotals.postagens, 'postagens', false],
               ['Sem lançamento', mobilizacaoTotals.pendentes, 'pendente', true],
             ] as const).map(([label, value, status, pendente]) => (
-              <Link key={status} to={`/ativacao/painel?status=${status}`} className="nv-mob-row">
+              <Link key={status} to={`/ativacao/painel?status=${status}&equipe=todos`} className="nv-mob-row">
                 <span>{label}</span>
                 <span className="nv-mob-row-right">
                   {pendente && <em className="nv-pill-warn">pendente</em>}
