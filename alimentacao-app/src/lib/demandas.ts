@@ -374,6 +374,30 @@ export async function fetchDemandaCounts(): Promise<{ abertas: number; feitas: n
   return { abertas: a.count ?? 0, feitas: f.count ?? 0 }
 }
 
+/** Contagens por urgência (demandas abertas) — 4 COUNTs head, sem baixar linhas. */
+export async function fetchDemandaUrgenciaCounts(): Promise<Record<DemandaUrgencia, number>> {
+  const keys: DemandaUrgencia[] = ['urgente', 'alta', 'normal', 'baixa']
+  const results = await Promise.all(
+    keys.map((urgencia) =>
+      supabase
+        .from('demandas')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'aberta')
+        .eq('urgencia', urgencia),
+    ),
+  )
+  const out: Record<DemandaUrgencia, number> = { urgente: 0, alta: 0, normal: 0, baixa: 0 }
+  keys.forEach((key, i) => {
+    const res = results[i]
+    if (res.error && /urgencia/i.test(res.error.message)) {
+      // coluna ausente — deixa zero
+      return
+    }
+    out[key] = res.count ?? 0
+  })
+  return out
+}
+
 export async function marcarDemandaFeita(
   id: string,
   adminId: string,
