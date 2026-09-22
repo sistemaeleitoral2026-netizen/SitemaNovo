@@ -48,6 +48,8 @@ export interface Coordenador {
   carros_adesivados?: number
   motos_adesivadas?: number
   adesivos_casa?: number
+  /** nao | sim | talvez — adesivo residencial (Formigas) */
+  adesivos_casa_status?: 'nao' | 'sim' | 'talvez' | null
   foto_veiculo_paths?: string[] | null
   foto_casa_paths?: string[] | null
   postagens?: number
@@ -84,6 +86,8 @@ export interface Lider {
   carros_adesivados?: number
   motos_adesivadas?: number
   adesivos_casa?: number
+  /** nao | sim | talvez — adesivo residencial (Formigas) */
+  adesivos_casa_status?: 'nao' | 'sim' | 'talvez' | null
   foto_veiculo_paths?: string[] | null
   foto_casa_paths?: string[] | null
   postagens?: number
@@ -134,6 +138,8 @@ export interface Cadastro {
   carros_adesivados?: number
   motos_adesivadas?: number
   adesivos_casa?: number
+  /** nao | sim | talvez — adesivo residencial (Formigas) */
+  adesivos_casa_status?: 'nao' | 'sim' | 'talvez' | null
   foto_veiculo_paths?: string[] | null
   foto_casa_paths?: string[] | null
   postagens?: number
