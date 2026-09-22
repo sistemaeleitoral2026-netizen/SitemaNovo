@@ -148,8 +148,8 @@ export function CadastroFormPage() {
   ])
 
   const lideresFiltrados = useMemo(() => {
-    if (!coordenadorId) return lideres
-    return lideres.filter((l) => !l.coordenador_id || l.coordenador_id === coordenadorId)
+    if (!coordenadorId) return []
+    return lideres.filter((l) => l.coordenador_id === coordenadorId)
   }, [lideres, coordenadorId])
 
   function updateField(field: keyof CadastroFormData, value: string) {
@@ -165,9 +165,10 @@ export function CadastroFormPage() {
     setCoordenadorId(value)
     const nome = coordenadores.find((c) => c.id === value)?.nome ?? ''
     updateField('coordenador', nome)
+    // Troca de coordenador: limpa liderança que não é dele
     if (liderId) {
       const current = lideres.find((l) => l.id === liderId)
-      if (current?.coordenador_id && current.coordenador_id !== value) {
+      if (!current || current.coordenador_id !== value) {
         setLiderId('')
         updateField('lider', '')
       }
@@ -452,7 +453,11 @@ export function CadastroFormPage() {
                   className={`ui-select${errors.lider ? ' ui-input-error' : ''}`}
                 >
                   <option value="">
-                    {lideresFiltrados.length ? 'Selecione a liderança' : 'Nenhuma cadastrada ainda'}
+                    {!coordenadorId
+                      ? 'Selecione o coordenador primeiro'
+                      : lideresFiltrados.length
+                        ? 'Selecione a liderança'
+                        : 'Nenhuma liderança deste coordenador'}
                   </option>
                   {lideresFiltrados.map((l) => (
                     <option key={l.id} value={l.id}>
@@ -500,10 +505,12 @@ export function CadastroFormPage() {
             <Input
               label="Título de eleitor"
               value={form.titulo}
-              onChange={(e) => updateField('titulo', e.target.value)}
+              onChange={(e) => updateField('titulo', e.target.value.replace(/\D/g, '').slice(0, 12))}
               onBlur={() => void checkDuplicate('titulo')}
               error={errors.titulo}
-              placeholder="Somente números"
+              placeholder="12 dígitos"
+              inputMode="numeric"
+              maxLength={12}
             />
             <Select
               label="Zona eleitoral"
