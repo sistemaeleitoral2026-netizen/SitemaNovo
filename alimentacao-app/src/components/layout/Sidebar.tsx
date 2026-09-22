@@ -18,6 +18,7 @@ import {
   Inbox,
   ClipboardPen,
   History,
+  FileText,
 } from 'lucide-react'
 import type { UserRole } from '../../types'
 import { fetchDemandaCounts } from '../../lib/demandas'
@@ -102,6 +103,7 @@ const navGroups: NavGroup[] = [
       { to: '/lideranca', label: 'Liderança', icon: ListChecks, roles: ['admin', 'diretoria'] },
       { to: '/mapa', label: 'Mapa por zona', icon: Map, roles: ['admin', 'diretoria'] },
       { to: '/relatorios', label: 'Relatórios', icon: BarChart3, roles: ['admin', 'diretoria'] },
+      { to: '/relatorios/fichas-txt', label: 'Relatório TXT', icon: FileText, roles: ['admin', 'diretoria'] },
       { to: '/configuracoes', label: 'Configurações', icon: Settings, roles: ['admin', 'diretoria'] },
     ],
   },
@@ -121,6 +123,9 @@ function linkActive(to: string, pathname: string, search: string) {
   if (to === '/cadastros') {
     return /^\/cadastros\/[^/]+\/editar\/?$/.test(pathname)
   }
+
+  // Evita marcar "Relatórios" quando está em /relatorios/fichas-txt
+  if (to === '/relatorios') return false
 
   return pathname.startsWith(`${to}/`)
 }
