@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { Check, Columns3, Download, Filter, Pencil, Plus, RotateCcw, Search, Trash2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { hasRole } from '../lib/roles'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Button } from '../components/ui/Button'
@@ -368,14 +369,13 @@ export function CadastrosPage() {
   }
 
   const canEdit = (_c: Cadastro) =>
-    profile?.role === 'admin' || profile?.role === 'diretoria' || _c.operator_id === profile?.id
+    hasRole(profile, ['admin', 'diretoria']) || _c.operator_id === profile?.id
 
   const canDelete = (c: Cadastro) => {
-    if (profile?.role === 'admin') return true
+    if (hasRole(profile, 'admin')) return true
     if (c.operator_id === profile?.id) return true
-    if (profile?.role !== 'diretoria') return false
-    // Diretoria também exclui ficha de qualquer nerite
-    return true
+    if (hasRole(profile, 'diretoria')) return true
+    return false
   }
 
   async function handleDelete() {
