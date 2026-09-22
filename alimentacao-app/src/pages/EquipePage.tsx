@@ -937,18 +937,26 @@ export function EquipePage() {
       return
     }
     const newNome = liderForm.nome.trim()
+    const newCoordId = liderForm.coordenador_id || null
+    // Mesmo nome ok em coordenações diferentes; bloqueia só dentro do mesmo coordenador
     const duplicate = lideres.find(
       (l) =>
         l.id !== editingLiderId
         && l.diretoria_id === targetDir
+        && (l.coordenador_id || null) === newCoordId
         && l.nome.trim().toLowerCase() === newNome.toLowerCase(),
     )
     if (duplicate) {
-      setError(`Já existe uma liderança chamada "${duplicate.nome}" nesta diretoria. Use um nome diferente.`)
+      setError(`Já existe uma liderança chamada "${duplicate.nome}" neste coordenador. Use um nome diferente.`)
       return
     }
-    const oldNome = editingLiderId
-      ? (lideres.find((l) => l.id === editingLiderId)?.nome ?? null)
+    const editing = editingLiderId
+      ? lideres.find((l) => l.id === editingLiderId)
+      : null
+    const oldNome = editing?.nome ?? null
+    const oldCoordId = editing?.coordenador_id || null
+    const oldCoordNome = oldCoordId
+      ? (coordenadores.find((c) => c.id === oldCoordId)?.nome ?? null)
       : null
     const limite = resolveLimiteFichas(liderForm.limite_fichas)
     setSaving(true)
@@ -956,7 +964,7 @@ export function EquipePage() {
       nome: newNome,
       telefone: liderForm.telefone.replace(/\D/g, '') || null,
       diretoria_id: targetDir,
-      coordenador_id: liderForm.coordenador_id || null,
+      coordenador_id: newCoordId,
       limite_fichas: limite,
     }
     const { error: err } = editingLiderId
@@ -967,14 +975,17 @@ export function EquipePage() {
       setError(err.message)
       return
     }
-    // Fichas guardam o nome em texto — ao renomear, atualiza as fichas da mesma diretoria
-    // (senão as fichas ficam com o nome antigo e “somem” / vão para outra liderança com o mesmo nome)
+    // Fichas guardam lider+coordenador em texto — só sincroniza as da MESMA coordenação
     if (editingLiderId && oldNome && oldNome !== newNome) {
-      const { error: syncErr } = await supabase
+      let sync = supabase
         .from('cadastros')
         .update({ lider: newNome })
         .eq('diretoria_id', targetDir)
         .eq('lider', oldNome)
+      if (oldCoordNome) {
+        sync = sync.eq('coordenador', oldCoordNome)
+      }
+      const { error: syncErr } = await sync
       if (syncErr) {
         setSaving(false)
         setError(`Liderança salva, mas as fichas não atualizaram o nome: ${syncErr.message}`)
