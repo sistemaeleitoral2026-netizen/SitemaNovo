@@ -1,4 +1,4 @@
-import { normalizeCpf, normalizeCep, normalizePhone, normalizeZona, normalizeSecao, normalizeName, normalizeBirthDate } from './normalize'
+import { normalizeCpf, normalizeCep, normalizePhone, normalizeZona, normalizeSecao, normalizeName, normalizeBirthDate, normalizeTitulo } from './normalize'
 import type { CadastroFormData } from '../types'
 
 /** DDDs válidos no Brasil (Anatel). */
@@ -119,6 +119,11 @@ export function validateCadastroForm(data: CadastroFormData): FieldErrors {
   void normalizeSecao(data.secao)
   void normalizeName(data.nome_mae)
 
+  const tituloDigits = String(data.titulo ?? '').replace(/\D/g, '')
+  if (tituloDigits && tituloDigits.length > 12) {
+    errors.titulo = 'Título de eleitor: no máximo 12 dígitos.'
+  }
+
   if (!normalizeName(data.coordenador)) {
     errors.coordenador = 'Selecione o coordenador.'
   }
@@ -153,6 +158,11 @@ export function validateImportRow(data: CadastroFormData): FieldErrors {
   const cep = normalizeCep(data.cep)
   if (cep && cep.length !== 8) {
     errors.cep = 'CEP inválido.'
+  }
+
+  const titulo = normalizeTitulo(data.titulo)
+  if (titulo && titulo.length > 12) {
+    errors.titulo = 'Título de eleitor: no máximo 12 dígitos.'
   }
 
   return errors
