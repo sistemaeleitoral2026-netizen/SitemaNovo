@@ -26,6 +26,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Pagination } from '../components/ui/Pagination'
 import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import { FormigasFichaHistoricoDrawer } from '../components/FormigasFichaHistoricoDrawer'
+import { FormigasFichaPreviewModal } from '../components/FormigasFichaPreviewModal'
 import { FormigasFotoThumbButton } from '../components/FormigasFotoField'
 import { useAuth } from '../contexts/AuthContext'
 import { hasRole } from '../lib/roles'
@@ -145,6 +146,7 @@ export function AtivacaoPainelPage() {
     pendentes: 0,
   })
   const [histTarget, setHistTarget] = useState<AtivacaoPessoa | null>(null)
+  const [preview, setPreview] = useState<AtivacaoPessoa | null>(null)
 
   useEffect(() => {
     if (scopeDiretoriaId) setDiretoriaId(scopeDiretoriaId)
@@ -588,16 +590,23 @@ export function AtivacaoPainelPage() {
                 {items.map((p) => (
                   <tr key={p.key}>
                     <td>
-                      <strong>{p.nome}</strong>
-                      {(p.titulo || p.telefone || p.bairro) && (
-                        <span className="ativacao-sub">
-                          {[
-                            p.titulo && `Título ${p.titulo}`,
-                            p.telefone && formatPhone(p.telefone),
-                            p.bairro,
-                          ].filter(Boolean).join(' · ')}
-                        </span>
-                      )}
+                      <button
+                        type="button"
+                        className="ffv-person-btn"
+                        onClick={() => setPreview(p)}
+                        title="Ver ficha completa"
+                      >
+                        <strong>{p.nome}</strong>
+                        {(p.titulo || p.telefone || p.bairro) && (
+                          <span className="ativacao-sub">
+                            {[
+                              p.titulo && `Título ${p.titulo}`,
+                              p.telefone && formatPhone(p.telefone),
+                              p.bairro,
+                            ].filter(Boolean).join(' · ')}
+                          </span>
+                        )}
+                      </button>
                     </td>
                     <td><span className="mob-tipo">{p.tipoLabel}</span></td>
                     <td>
@@ -732,6 +741,13 @@ export function AtivacaoPainelPage() {
           tipo={histTarget.tipo}
           pessoaId={histTarget.id}
           pessoaNome={histTarget.nome}
+        />
+      )}
+
+      {preview && (
+        <FormigasFichaPreviewModal
+          pessoa={preview}
+          onClose={() => setPreview(null)}
         />
       )}
     </div>
