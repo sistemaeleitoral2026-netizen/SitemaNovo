@@ -3,6 +3,8 @@ const DEFAULT_META = 6000
 
 /** Meta fixa de fichas por liderança (vale para novas e antigas). */
 export const META_LIDERANCA_FICHAS = 20
+/** Meta padrão de lideranças vinculadas a um coordenador. */
+export const META_COORDENADOR_LIDERANCAS = 20
 
 export function getMetaFichas(): number {
   try {
