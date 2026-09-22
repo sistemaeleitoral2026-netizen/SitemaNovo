@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle2, CircleDashed, Crown, Search } from 'lucide-react'
+import { CheckCircle2, CircleDashed, Crown, Pencil, Search } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Pagination } from '../components/ui/Pagination'
+import { Modal } from '../components/ui/Modal'
+import { Button } from '../components/ui/Button'
 import { META_LIDERANCA_FICHAS } from '../lib/meta'
 import {
   cadastrosLinkForLider,
@@ -25,6 +27,7 @@ type FichaStat = {
   lider: string | null
   coordenador: string | null
   diretoria_id: string | null
+  total: number
 }
 
 type LiderancaRow = {
@@ -43,6 +46,7 @@ type LiderancaRow = {
 export function LiderancaPage() {
   const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
+  const canEditMeta = profile?.role === 'admin' || profile?.role === 'diretoria'
   const diretoriaScope = profile?.role === 'diretoria' ? profile.id : null
 
   const [lideres, setLideres] = useState<Lider[]>([])
@@ -54,6 +58,9 @@ export function LiderancaPage() {
   const [view, setView] = useState<StatusView>('todos')
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(25)
+  const [metaEdit, setMetaEdit] = useState<{ id: string; nome: string; meta: string } | null>(null)
+  const [metaSaving, setMetaSaving] = useState(false)
+  const [metaError, setMetaError] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -84,6 +91,7 @@ export function LiderancaPage() {
             lider: row.lider ?? null,
             coordenador: row.coordenador ?? null,
             diretoria_id: row.diretoria_id ?? null,
+            total: row.total ?? 0,
           })),
         )
       } catch (e) {
@@ -161,6 +169,26 @@ export function LiderancaPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const pageItems = filtered.slice(page * pageSize, (page + 1) * pageSize)
 
+  async function saveMeta() {
+    if (!metaEdit) return
+    const limite = resolveLimiteFichas(metaEdit.meta)
+    setMetaSaving(true)
+    setMetaError(null)
+    const { error: err } = await supabase
+      .from('lideres')
+      .update({ limite_fichas: limite })
+      .eq('id', metaEdit.id)
+    setMetaSaving(false)
+    if (err) {
+      setMetaError(err.message)
+      return
+    }
+    setLideres((prev) =>
+      prev.map((l) => (l.id === metaEdit.id ? { ...l, limite_fichas: limite } : l)),
+    )
+    setMetaEdit(null)
+  }
+
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
@@ -176,8 +204,9 @@ export function LiderancaPage() {
           <h1 className="page-title">Liderança</h1>
           <p className="page-subtitle">
             Meta individual por liderança (padrão {META_LIDERANCA_FICHAS} fichas)
-            {isAdmin ? ' — visão de todas as diretorias' : ''}.
-            {' '}Pode ultrapassar a meta. Ajuste em Equipe → Lideranças.
+            {isAdmin ? '. Visão de todas as diretorias' : ''}.
+            {' '}Pode ultrapassar a meta.
+            {canEditMeta ? ' Use o lápis em Ações para editar a meta.' : ''}
           </p>
         </div>
       </div>
@@ -302,16 +331,35 @@ export function LiderancaPage() {
                         </span>
                       </td>
                       <td>
-                        <Link
-                          to={cadastrosLinkForLider({
-                            nome: row.nome,
-                            coordenador: row.coordenador,
-                            diretoriaId: row.diretoriaId,
-                          })}
-                          className="lideranca-link"
-                        >
-                          Ver fichas
-                        </Link>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
+                          <Link
+                            to={cadastrosLinkForLider({
+                              nome: row.nome,
+                              coordenador: row.coordenador,
+                              diretoriaId: row.diretoriaId,
+                            })}
+                            className="lideranca-link"
+                          >
+                            Ver fichas
+                          </Link>
+                          {canEditMeta && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label={`Editar meta de ${row.nome}`}
+                              onClick={() => {
+                                setMetaError(null)
+                                setMetaEdit({
+                                  id: row.id,
+                                  nome: row.nome,
+                                  meta: String(row.meta),
+                                })
+                              }}
+                            >
+                              <Pencil size={15} />
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -331,6 +379,36 @@ export function LiderancaPage() {
           </>
         )}
       </Card>
+
+      <Modal
+        open={Boolean(metaEdit)}
+        title={metaEdit ? `Meta: ${metaEdit.nome}` : 'Editar meta'}
+        onClose={() => !metaSaving && setMetaEdit(null)}
+        onConfirm={() => void saveMeta()}
+        confirmLabel="Salvar meta"
+        loading={metaSaving}
+      >
+        <div style={{ display: 'grid', gap: '.75rem' }}>
+          <Input
+            label="Meta de fichas"
+            inputMode="numeric"
+            value={metaEdit?.meta ?? ''}
+            onChange={(e) =>
+              setMetaEdit((prev) =>
+                prev
+                  ? { ...prev, meta: e.target.value.replace(/\D/g, '').slice(0, 4) }
+                  : prev,
+              )
+            }
+            placeholder={String(META_LIDERANCA_FICHAS)}
+          />
+          <p style={{ margin: 0, fontSize: '.8rem', color: '#64748b' }}>
+            Padrão {META_LIDERANCA_FICHAS}. Aparece como atual/meta (ex.: 20/40).
+            Não bloqueia novas fichas.
+          </p>
+          {metaError && <div className="alert alert-error">{metaError}</div>}
+        </div>
+      </Modal>
     </div>
   )
 }
