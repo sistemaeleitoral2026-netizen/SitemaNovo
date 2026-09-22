@@ -32,6 +32,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { hasRole } from '../lib/roles'
 import { formatPhone } from '../lib/format'
 import {
+  countAtivacaoEleitores,
   fetchAtivacaoKpis,
   fetchAtivacaoPainel,
   fetchAtivacaoTeamOptions,
@@ -126,6 +127,7 @@ export function AtivacaoPainelPage() {
     parseEquipeChip(searchParams.get('equipe'), parseStatus(searchParams.get('status'))),
   )
   const [search, setSearch] = useState(searchParams.get('q') ?? '')
+  const [searchDebounced, setSearchDebounced] = useState(search)
   const [status, setStatus] = useState<AtivacaoListFilters['status']>(() =>
     parseStatus(searchParams.get('status')),
   )
@@ -152,6 +154,11 @@ export function AtivacaoPainelPage() {
     if (scopeDiretoriaId) setDiretoriaId(scopeDiretoriaId)
   }, [scopeDiretoriaId])
 
+  useEffect(() => {
+    const t = window.setTimeout(() => setSearchDebounced(search.trim()), 300)
+    return () => window.clearTimeout(t)
+  }, [search])
+
   // Deep link / navegação externa → estado (cards, Dashboard, refresh)
   useEffect(() => {
     const nextStatus = parseStatus(searchParams.get('status'))
@@ -165,6 +172,7 @@ export function AtivacaoPainelPage() {
     setStatus((cur) => (cur === nextStatus ? cur : nextStatus))
     setEquipeChip((cur) => (cur === nextEquipe ? cur : nextEquipe))
     setSearch((cur) => (cur === nextSearch ? cur : nextSearch))
+    setSearchDebounced((cur) => (cur === nextSearch.trim() ? cur : nextSearch.trim()))
     if (!scopeDiretoriaId) {
       setDiretoriaId((cur) => (cur === nextDir ? cur : nextDir))
     }
@@ -189,20 +197,17 @@ export function AtivacaoPainelPage() {
 
   useEffect(() => {
     let cancelled = false
-    void fetchAtivacaoPainel({
-      tipo: 'eleitor',
-      page: 0,
-      pageSize: 1,
-      diretoria_id: diretoriaId || undefined,
-    }).then((res) => {
-      if (!cancelled) setFichasCount(res.total)
-    }).catch(() => undefined)
+    void countAtivacaoEleitores(diretoriaId || undefined)
+      .then((n) => {
+        if (!cancelled) setFichasCount(n)
+      })
+      .catch(() => undefined)
     return () => { cancelled = true }
   }, [diretoriaId])
 
   const lideresOpts = useMemo(() => {
     if (!coordenador) return team.lideres
-    return team.lideres.filter((l) => !l.coordenador_id || l.coordenador_id === coordenador)
+    return team.lideres.filter((l) => l.coordenador_id === coordenador)
   }, [team, coordenador])
 
   const neritesOpts = useMemo(() => {
@@ -241,7 +246,7 @@ export function AtivacaoPainelPage() {
             operator_id: operatorId || undefined,
           }
     void fetchAtivacaoPainel({
-      search,
+      search: searchDebounced,
       tipo,
       status,
       page,
@@ -262,7 +267,7 @@ export function AtivacaoPainelPage() {
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [search, tipo, status, page, pageSize, diretoriaId, coordenador, lider, operatorId, coordenadorNome, liderNome, equipeChip])
+  }, [searchDebounced, tipo, status, page, pageSize, diretoriaId, coordenador, lider, operatorId, coordenadorNome, liderNome, equipeChip])
 
   useEffect(() => {
     const next = new URLSearchParams()
