@@ -1337,7 +1337,7 @@ function DiretoriaDashboard() {
   return (
     <div className="nv-dash">
       <div className="nv-heading">
-        <div>
+    <div>
           <p className="nv-eyebrow">Painel da diretoria</p>
           <h1>{dirNome}</h1>
           <p className="nv-sub">
@@ -1360,7 +1360,7 @@ function DiretoriaDashboard() {
                 ? 'ainda falta cadastrar coordenadores.'
                 : 'ainda falta cadastrar lideranças.'}
           </span>
-        </div>
+      </div>
       )}
 
       <section className="nv-summary" aria-label="Resumo da diretoria">
@@ -1468,7 +1468,7 @@ function DiretoriaDashboard() {
           </div>
           <div className="nv-panel-body">
             {evolution.length ? (
-              <EvolutionChart data={evolution} />
+          <EvolutionChart data={evolution} />
             ) : (
               <div className="nv-empty">Nenhuma ficha lançada neste período.</div>
             )}
