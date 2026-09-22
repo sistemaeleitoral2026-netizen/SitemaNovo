@@ -30,14 +30,14 @@ import { MetaGoalPopup } from '../components/ui/MetaGoalPopup'
 import { EvolutionChart } from '../components/charts/EvolutionChart'
 import { CadastrosMap } from '../components/map/CadastrosMap'
 import { getPeriodFromPreset, type PeriodPreset } from '../lib/period'
-import { buildEvolutionData, buildMapMarkers, buildZonaData, fetchDashboardCadastros, filterCadastrosByPeriod } from '../lib/cadastros'
+import { buildEvolutionData, buildMapMarkers, buildZonaData, fetchDashboardCadastros, fetchMobilizacaoCadastroRows } from '../lib/cadastros'
 import {
   getMetaFichas,
   markMetaPopupSeen,
   metaProgress,
   shouldShowMetaPopup,
 } from '../lib/meta'
-import { fetchDemandaCounts } from '../lib/demandas'
+import { fetchDemandaCounts, fetchDemandaUrgenciaCounts } from '../lib/demandas'
 import { cadastrosLinkForLider, liderFichaKey, liderNameKey } from '../lib/liderFichas'
 import { supabase } from '../lib/supabase'
 import type { Cadastro, Coordenador, DemandaUrgencia, Lider, Profile } from '../types'
@@ -63,8 +63,11 @@ function sumMobilizacao(
   cadastros: MobilizacaoSource[],
   coordenadores: Coordenador[],
   lideres: Lider[],
+  opts?: { totalFichas?: number },
 ): MobilizacaoTotals {
-  const rows = [...cadastros, ...coordenadores, ...lideres]
+  const totalFichas = opts?.totalFichas ?? cadastros.length
+  const equipe = [...coordenadores, ...lideres]
+  const rows = [...cadastros, ...equipe]
   const totals = rows.reduce<MobilizacaoTotals>((acc, row) => {
     const carros = Number(row.carros_adesivados) || 0
     const casa = Number(row.adesivos_casa) || 0
@@ -74,9 +77,18 @@ function sumMobilizacao(
     acc.casa += casa
     acc.postagens += postagens
     acc.whatsapp += whatsapp
-    if (carros === 0 && casa === 0 && postagens === 0 && !row.contato_whatsapp) acc.pendentes += 1
     return acc
-  }, { carros: 0, casa: 0, postagens: 0, whatsapp: 0, pendentes: 0, fichas: cadastros.length, equipe: coordenadores.length + lideres.length })
+  }, { carros: 0, casa: 0, postagens: 0, whatsapp: 0, pendentes: 0, fichas: totalFichas, equipe: equipe.length })
+
+  // Cadastros passados são só os com Formigas; pendentes = restante + equipe sem sinal.
+  const fichasPendentes = Math.max(0, totalFichas - cadastros.length)
+  const equipePendentes = equipe.filter((row) => {
+    const carros = Number(row.carros_adesivados) || 0
+    const casa = Number(row.adesivos_casa) || 0
+    const postagens = Number(row.postagens) || 0
+    return carros === 0 && casa === 0 && postagens === 0 && !row.contato_whatsapp
+  }).length
+  totals.pendentes = fichasPendentes + equipePendentes
   return totals
 }
 
@@ -134,7 +146,7 @@ function AdminDashboard() {
   const [dirFilter, setDirFilter] = useState<DirFilter>('all')
   const [viewMode, setViewMode] = useState<ViewMode>('geral')
   const [reloadKey, setReloadKey] = useState(0)
-  const [allCadastros, setAllCadastros] = useState<Cadastro[]>([])
+  const [cadastros, setCadastros] = useState<Cadastro[]>([])
   const [mobilizacaoCadastros, setMobilizacaoCadastros] = useState<MobilizacaoSource[]>([])
   const [totalFichas, setTotalFichas] = useState(0)
   const [diretorias, setDiretorias] = useState<Profile[]>([])
@@ -146,6 +158,8 @@ function AdminDashboard() {
     urgente: 0, alta: 0, normal: 0, baixa: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [chartsLoading, setChartsLoading] = useState(true)
+  const [dirScopedTotalFichas, setDirScopedTotalFichas] = useState(0)
   const [meta, setMeta] = useState(() => getMetaFichas())
   const [metaPopupOpen, setMetaPopupOpen] = useState(false)
 
@@ -154,45 +168,94 @@ function AdminDashboard() {
   const refDesempenho = useRef<HTMLElement>(null)
 
   const period = useMemo(() => getPeriodFromPreset(periodPreset), [periodPreset])
-  const cadastros = useMemo(() => filterCadastrosByPeriod(allCadastros, period), [allCadastros, period])
 
   useEffect(() => { setMeta(getMetaFichas()) }, [])
 
+  // Shell rápido: totais + equipe + demandas (sem dump de fichas)
   useEffect(() => {
-    async function load() {
+    let cancelled = false
+    async function loadShell() {
       setLoading(true)
       try {
-        const [allRows, totalRes, dirs, ops, coords, lids, demCounts, urgRes] = await Promise.all([
-          fetchDashboardCadastros(),
-          supabase.from('cadastros').select('*', { count: 'exact', head: true }),
+        const [totalRes, dirs, ops, coords, lids, demCounts, urgCounts] = await Promise.all([
+          supabase.from('cadastros').select('id', { count: 'exact', head: true }),
           supabase.from('profiles').select('id,nome,role,diretoria_id,email,ativo').eq('role', 'diretoria').order('nome'),
           supabase.from('profiles').select('id,nome,role,diretoria_id,email,ativo').eq('role', 'operador').order('nome'),
           supabase.from('coordenadores').select('id,nome,diretoria_id,carros_adesivados,adesivos_casa,postagens,contato_whatsapp'),
           supabase.from('lideres').select('id,nome,diretoria_id,coordenador_id,limite_fichas,carros_adesivados,adesivos_casa,postagens,contato_whatsapp'),
           fetchDemandaCounts(),
-          supabase.from('demandas').select('urgencia').eq('status', 'aberta'),
+          fetchDemandaUrgenciaCounts(),
         ])
-        setAllCadastros(allRows)
-        setMobilizacaoCadastros(allRows)
-        setTotalFichas(totalRes.count ?? allRows.length)
+        if (cancelled) return
+        setTotalFichas(totalRes.count ?? 0)
         setDiretorias((dirs.data ?? []) as Profile[])
         setNerites((ops.data ?? []) as Profile[])
         setCoordenadores((coords.data ?? []) as Coordenador[])
         setLideres((lids.data ?? []) as Lider[])
         setDemandaCounts(demCounts)
-        const urg: Record<DemandaUrgencia, number> = { urgente: 0, alta: 0, normal: 0, baixa: 0 }
-        for (const row of urgRes.data ?? []) {
-          const key = ((row as { urgencia?: DemandaUrgencia }).urgencia ?? 'normal') as DemandaUrgencia
-          if (key in urg) urg[key] += 1
-          else urg.normal += 1
-        }
-        setUrgenciaCounts(urg)
+        setUrgenciaCounts(urgCounts)
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
-    load()
+    void loadShell()
+    return () => { cancelled = true }
   }, [reloadKey])
+
+  // Fichas do período (refetch ao mudar período)
+  useEffect(() => {
+    if (loading) return
+    let cancelled = false
+    async function loadPeriod() {
+      setChartsLoading(true)
+      try {
+        const periodRows = await fetchDashboardCadastros({ period })
+        if (!cancelled) setCadastros(periodRows)
+      } finally {
+        if (!cancelled) setChartsLoading(false)
+      }
+    }
+    void loadPeriod()
+    return () => { cancelled = true }
+  }, [loading, period, reloadKey])
+
+  // Mobilização: só fichas com Formigas (não depende do período)
+  useEffect(() => {
+    if (loading) return
+    let cancelled = false
+    async function loadMob() {
+      try {
+        const mobRows = await fetchMobilizacaoCadastroRows()
+        if (!cancelled) setMobilizacaoCadastros(mobRows)
+      } catch {
+        if (!cancelled) setMobilizacaoCadastros([])
+      }
+    }
+    void loadMob()
+    return () => { cancelled = true }
+  }, [loading, reloadKey])
+
+  // COUNT exact da diretoria filtrada (para mobilização / pendentes)
+  useEffect(() => {
+    if (dirFilter === 'all') {
+      setDirScopedTotalFichas(totalFichas)
+      return
+    }
+    let cancelled = false
+    const teamIds = nerites.filter((n) => n.diretoria_id === dirFilter).map((n) => n.id)
+    async function countDir() {
+      let q = supabase.from('cadastros').select('id', { count: 'exact', head: true })
+      if (teamIds.length) {
+        q = q.or(`diretoria_id.eq.${dirFilter},operator_id.in.(${teamIds.join(',')})`)
+      } else {
+        q = q.eq('diretoria_id', dirFilter)
+      }
+      const { count } = await q
+      if (!cancelled) setDirScopedTotalFichas(count ?? 0)
+    }
+    void countDir()
+    return () => { cancelled = true }
+  }, [dirFilter, nerites, totalFichas])
 
   useEffect(() => {
     if (loading || !profile?.id) return
@@ -268,14 +331,20 @@ function AdminDashboard() {
   }, [nerites])
 
   const mobilizacaoTotals = useMemo(() => {
-    if (dirFilter === 'all') return sumMobilizacao(mobilizacaoCadastros, coordenadores, lideres)
+    if (dirFilter === 'all') {
+      return sumMobilizacao(mobilizacaoCadastros, coordenadores, lideres, { totalFichas })
+    }
     const teamIds = new Set(nerites.filter((n) => n.diretoria_id === dirFilter).map((n) => n.id))
+    const scopedMob = mobilizacaoCadastros.filter(
+      (c) => c.diretoria_id === dirFilter || Boolean(c.operator_id && teamIds.has(c.operator_id)),
+    )
     return sumMobilizacao(
-      mobilizacaoCadastros.filter((c) => c.diretoria_id === dirFilter || Boolean(c.operator_id && teamIds.has(c.operator_id))),
+      scopedMob,
       coordenadores.filter((c) => c.diretoria_id === dirFilter),
       lideres.filter((l) => l.diretoria_id === dirFilter),
+      { totalFichas: dirScopedTotalFichas },
     )
-  }, [mobilizacaoCadastros, coordenadores, lideres, nerites, dirFilter])
+  }, [mobilizacaoCadastros, coordenadores, lideres, nerites, dirFilter, totalFichas, dirScopedTotalFichas])
 
   const todayCount = useMemo(() => {
     const start = startOfDay(new Date()).toISOString()
@@ -495,6 +564,7 @@ function AdminDashboard() {
           <h2 className="nd-title">Visão geral da operação</h2>
           <p className="nd-subtitle">
             Exibindo: <strong>{escopoNome}</strong> · {periodLabel} · {atualizadoEm}
+            {chartsLoading ? ' · atualizando fichas…' : ''}
           </p>
         </div>
         <div className="nd-controls">
@@ -1130,42 +1200,90 @@ function AdminDashboard() {
 function DiretoriaDashboard() {
   const { profile } = useAuth()
   const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('30d')
-  const [allCadastros, setAllCadastros] = useState<Cadastro[]>([])
+  const [cadastros, setCadastros] = useState<Cadastro[]>([])
   const [mobilizacaoCadastros, setMobilizacaoCadastros] = useState<MobilizacaoSource[]>([])
   const [nerites, setNerites] = useState<Profile[]>([])
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
   const [lideres, setLideres] = useState<Lider[]>([])
+  const [totalFichas, setTotalFichas] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [chartsLoading, setChartsLoading] = useState(true)
 
   const period = useMemo(() => getPeriodFromPreset(periodPreset), [periodPreset])
   const dirId = profile!.id
-  const cadastros = useMemo(() => filterCadastrosByPeriod(allCadastros, period), [allCadastros, period])
 
   useEffect(() => {
-    async function load() {
+    let cancelled = false
+    async function loadShell() {
       setLoading(true)
       try {
-        const [allRows, ops, coords, lids] = await Promise.all([
-          fetchDashboardCadastros(),
+        const [ops, coords, lids] = await Promise.all([
           supabase.from('profiles').select('id,nome,role,diretoria_id,email,ativo').eq('role', 'operador').eq('diretoria_id', dirId).order('nome'),
           supabase.from('coordenadores').select('id,nome,diretoria_id,carros_adesivados,adesivos_casa,postagens,contato_whatsapp').eq('diretoria_id', dirId),
           supabase.from('lideres').select('id,nome,diretoria_id,coordenador_id,limite_fichas,carros_adesivados,adesivos_casa,postagens,contato_whatsapp').eq('diretoria_id', dirId),
         ])
-        const teamIds = new Set(((ops.data ?? []) as Profile[]).map((n) => n.id))
-        const scoped = allRows.filter(
-          (c) => c.diretoria_id === dirId || Boolean(c.operator_id && teamIds.has(c.operator_id)),
-        )
-        setAllCadastros(scoped)
-        setMobilizacaoCadastros(scoped)
-        setNerites((ops.data ?? []) as Profile[])
+        if (cancelled) return
+        const neriteRows = (ops.data ?? []) as Profile[]
+        setNerites(neriteRows)
         setCoordenadores((coords.data ?? []) as Coordenador[])
         setLideres((lids.data ?? []) as Lider[])
+
+        const teamIds = neriteRows.map((n) => n.id)
+        let countQ = supabase.from('cadastros').select('id', { count: 'exact', head: true })
+        if (teamIds.length) {
+          countQ = countQ.or(`diretoria_id.eq.${dirId},operator_id.in.(${teamIds.join(',')})`)
+        } else {
+          countQ = countQ.eq('diretoria_id', dirId)
+        }
+        const { count } = await countQ
+        if (!cancelled) setTotalFichas(count ?? 0)
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
-    load()
+    void loadShell()
+    return () => { cancelled = true }
   }, [dirId])
+
+  useEffect(() => {
+    if (loading) return
+    let cancelled = false
+    const operatorIds = nerites.map((n) => n.id)
+    async function loadPeriod() {
+      setChartsLoading(true)
+      try {
+        const periodRows = await fetchDashboardCadastros({
+          period,
+          diretoriaId: dirId,
+          operatorIds,
+        })
+        if (!cancelled) setCadastros(periodRows)
+      } finally {
+        if (!cancelled) setChartsLoading(false)
+      }
+    }
+    void loadPeriod()
+    return () => { cancelled = true }
+  }, [loading, period, dirId, nerites])
+
+  useEffect(() => {
+    if (loading) return
+    let cancelled = false
+    const operatorIds = nerites.map((n) => n.id)
+    async function loadMob() {
+      try {
+        const mobRows = await fetchMobilizacaoCadastroRows({
+          diretoriaId: dirId,
+          operatorIds,
+        })
+        if (!cancelled) setMobilizacaoCadastros(mobRows)
+      } catch {
+        if (!cancelled) setMobilizacaoCadastros([])
+      }
+    }
+    void loadMob()
+    return () => { cancelled = true }
+  }, [loading, dirId, nerites])
 
   const todayCount = useMemo(() => {
     const start = startOfDay(new Date()).toISOString()
@@ -1177,8 +1295,8 @@ function DiretoriaDashboard() {
   const zonaData = useMemo(() => buildZonaData(cadastros), [cadastros])
   const mapMarkers = useMemo(() => buildMapMarkers(cadastros), [cadastros])
   const mobilizacaoTotals = useMemo(
-    () => sumMobilizacao(mobilizacaoCadastros, coordenadores, lideres),
-    [mobilizacaoCadastros, coordenadores, lideres],
+    () => sumMobilizacao(mobilizacaoCadastros, coordenadores, lideres, { totalFichas }),
+    [mobilizacaoCadastros, coordenadores, lideres, totalFichas],
   )
 
   const ranking = useMemo(() => {
@@ -1224,6 +1342,7 @@ function DiretoriaDashboard() {
           <h1>{dirNome}</h1>
           <p className="nv-sub">
             Resultados da sua equipe · <strong>{periodLabel}</strong>
+            {chartsLoading ? ' · atualizando fichas…' : ''}
           </p>
         </div>
         <div className="nv-heading-actions">
