@@ -1293,7 +1293,11 @@ a.ranking-row:hover .ranking-person strong { color: #2459c4; }
   box-shadow: 0 1px 2px rgba(15,23,42,.12);
   transition: transform .15s ease, background-color .15s ease;
 }
-.cadastros-table-card .whatsapp-link-inline svg { width: 12px; height: 12px; }
+.cadastros-table-card .whatsapp-link-inline svg,
+.cadastros-table-card .whatsapp-link-inline .whatsapp-brand-icon {
+  width: 16px;
+  height: 16px;
+}
 .cadastros-table-card .whatsapp-link-inline:hover {
   border-color: transparent;
   background: #20bd5a;
@@ -3225,16 +3229,19 @@ button.fichas-count.equipe-drill-count.zero:hover {
   flex-shrink: 0;
   width: 42px;
   min-height: 42px;
-  border-radius: 9px;
-  border: 1px solid #c6e8d4;
-  background: #edfaf2;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
   color: #25d366;
-  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+  padding: 0;
+  transition: transform .15s ease, opacity .15s ease, filter .15s ease;
 }
 .whatsapp-link:hover {
-  background: #d8f5e4;
-  border-color: #25d366;
+  background: transparent;
+  border-color: transparent;
   color: #128c7e;
+  transform: scale(1.06);
+  filter: brightness(1.05);
 }
 .whatsapp-link.is-disabled {
   opacity: .38;
@@ -3244,7 +3251,23 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .whatsapp-link-inline {
   width: 28px;
   min-height: 28px;
-  border-radius: 7px;
+  border-radius: 999px;
+}
+.whatsapp-brand-icon {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  object-fit: contain;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.whatsapp-link .whatsapp-brand-icon {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+.whatsapp-link-inline .whatsapp-brand-icon {
+  width: 1.35rem;
+  height: 1.35rem;
 }
 .phone-cell {
   display: inline-flex;
@@ -4997,7 +5020,25 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .fl-stat-card.tone-blue .fl-stat-icon { background: #eff6ff; color: #2563eb; }
 .fl-stat-card.tone-teal .fl-stat-icon { background: #f0fdfa; color: #0d9488; }
 .fl-stat-card.tone-violet .fl-stat-icon { background: #f5f3ff; color: #7c3aed; }
-.fl-stat-card.tone-wa .fl-stat-icon { background: #dcfce7; color: #16a34a; }
+.fl-icon.tone-wa.is-brand {
+  background: transparent !important;
+  padding: 0;
+  width: 2.1rem;
+  height: 2.1rem;
+}
+.fl-icon.tone-wa.is-brand .whatsapp-brand-icon {
+  width: 1.55rem;
+  height: 1.55rem;
+}
+.fl-stat-card.tone-wa .fl-stat-icon {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+.fl-stat-card.tone-wa .whatsapp-brand-icon {
+  width: 1.55rem;
+  height: 1.55rem;
+}
 .fl-stat-card.tone-amber .fl-stat-icon { background: #fffbeb; color: #d97706; }
 .fl-stat-card.tone-wa:hover .fl-stat-cta { color: #16a34a; }
 .fl-stat span {
@@ -7372,7 +7413,11 @@ button.fichas-count.equipe-drill-count.zero:hover {
   background: transparent;
   transform: none;
 }
-.dm-contacts .whatsapp-link svg { width: 13px; height: 13px; }
+.dm-contacts .whatsapp-link svg,
+.dm-contacts .whatsapp-link .whatsapp-brand-icon {
+  width: 16px;
+  height: 16px;
+}
 .dm-desc-box {
   position: relative;
   margin: .15rem 0 0;
@@ -10540,4 +10585,288 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .tv-dash-side { grid-template-rows: none; }
   .tv-dash-top { padding: 1rem 1.1rem 0; }
   .tv-dash-big { font-size: clamp(4rem, 22vw, 7rem); }
+}
+
+/* ===== Preview ficha Formigas (pop-up Painel) ===== */
+.ffv-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(15, 23, 42, .55);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.ffv-modal {
+  width: min(40rem, 100%);
+  max-height: 88vh;
+  background: #fff;
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, .28);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ffv-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: 1rem 1.15rem;
+  background: #0f172a;
+  color: #fff;
+}
+.ffv-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.ffv-head p {
+  margin: .3rem 0 0;
+  font-size: .75rem;
+  color: #94a3b8;
+}
+.ffv-close {
+  border: 0;
+  background: transparent;
+  color: #94a3b8;
+  width: 2rem;
+  height: 2rem;
+  border-radius: .5rem;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.ffv-close:hover { background: rgba(255,255,255,.1); color: #fff; }
+.ffv-body {
+  padding: 1rem 1.15rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+.ffv-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: .75rem;
+  padding: .85rem;
+}
+.ffv-section-label {
+  display: block;
+  font-size: .65rem;
+  font-weight: 750;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: .55rem;
+}
+.ffv-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .65rem .85rem;
+}
+.ffv-grid em {
+  display: block;
+  font-style: normal;
+  font-size: .68rem;
+  color: #94a3b8;
+  margin-bottom: .15rem;
+}
+.ffv-grid strong {
+  font-size: .85rem;
+  color: #0f172a;
+  font-weight: 650;
+}
+.ffv-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem .75rem;
+}
+.ffv-muted {
+  margin: 0;
+  font-size: .75rem;
+  color: #64748b;
+}
+.ffv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .4rem;
+  margin-bottom: .5rem;
+}
+.ffv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .25rem .55rem;
+  border-radius: .4rem;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  font-size: .75rem;
+  font-weight: 650;
+}
+.ffv-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .2rem .55rem;
+  border-radius: .4rem;
+  font-size: .75rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+.ffv-pill.ok {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+.ffv-pill.warn {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+}
+.ffv-addr {
+  display: flex;
+  align-items: flex-start;
+  gap: .35rem;
+  margin: .55rem 0 0;
+  font-size: .8rem;
+  color: #334155;
+  line-height: 1.4;
+}
+.ffv-map-link {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  margin-top: .55rem;
+  font-size: .78rem;
+  font-weight: 650;
+  color: #2563eb;
+  text-decoration: none;
+}
+.ffv-map-link:hover { text-decoration: underline; }
+.ffv-photos { margin-top: .65rem; }
+.ffv-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+  gap: .45rem;
+}
+.ffv-photo {
+  border: 1px solid #e2e8f0;
+  border-radius: .55rem;
+  overflow: hidden;
+  padding: 0;
+  aspect-ratio: 4 / 3;
+  background: #e2e8f0;
+  cursor: zoom-in;
+}
+.ffv-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ffv-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+.ffv-links li {
+  display: flex;
+  align-items: flex-start;
+  gap: .4rem;
+  font-size: .78rem;
+  color: #64748b;
+  word-break: break-all;
+}
+.ffv-links a { color: #2563eb; }
+.ffv-notes {
+  margin: 0;
+  font-size: .85rem;
+  color: #475569;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+.ffv-foot {
+  padding: .85rem 1.15rem;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .55rem;
+}
+.ffv-foot-right {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+}
+.ffv-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  border-radius: .55rem;
+  font-size: .8rem;
+  font-weight: 650;
+  padding: .5rem .85rem;
+  text-decoration: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.ffv-btn.ghost {
+  background: #fff;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+.ffv-btn.ghost:hover { background: #f1f5f9; }
+.ffv-btn.ghost.whatsapp-link {
+  width: auto;
+  min-height: auto;
+  padding: .5rem .85rem;
+  border-radius: .55rem;
+  gap: .4rem;
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
+}
+.ffv-btn.ghost.whatsapp-link .whatsapp-brand-icon,
+.ffv-btn.ghost.whatsapp-link svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+.ffv-btn.primary {
+  background: #2563eb;
+  color: #fff;
+}
+.ffv-btn.primary:hover { background: #1d4ed8; }
+.ffv-person-btn {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  max-width: 100%;
+}
+.ffv-person-btn strong {
+  display: inline;
+  color: #0f172a;
+  font-weight: 700;
+}
+.ffv-person-btn:hover strong { color: #2563eb; text-decoration: underline; }
+
+@media (max-width: 560px) {
+  .ffv-grid { grid-template-columns: 1fr; }
+  .ffv-foot { flex-direction: column; align-items: stretch; }
+  .ffv-foot-right { justify-content: stretch; }
+  .ffv-foot-right .ffv-btn { flex: 1; justify-content: center; }
 }

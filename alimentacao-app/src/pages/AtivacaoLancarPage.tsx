@@ -14,9 +14,9 @@ import {
   Plus,
   Search,
   X,
-  MessageCircle,
 } from 'lucide-react'
 import { buildWhatsAppUrl } from '../lib/whatsapp'
+import { WhatsAppIcon } from '../components/ui/WhatsAppLink'
 import { useAuth } from '../contexts/AuthContext'
 import { hasRole } from '../lib/roles'
 import { formatCep } from '../lib/normalize'
@@ -148,16 +148,9 @@ export function AtivacaoLancarPage() {
   const editCarros = canEditSection(selected?.formigas_carros_by, profile?.id, canOverride)
   const editCasa = canEditSection(selected?.formigas_casa_by, profile?.id, canOverride)
   const editLinks = canEditSection(selected?.formigas_links_by, profile?.id, canOverride)
-  // Casa já marcada (sim/talvez) sem CEP: qualquer formiga pode completar o endereço
-  const casaNeedsAddress = Boolean(
-    selected
-    && (selected.adesivos_casa_status === 'sim'
-      || selected.adesivos_casa_status === 'talvez'
-      || selected.adesivos_casa > 0)
-    && (selected.cep ?? '').replace(/\D/g, '').length !== 8,
-  )
+  // Endereço opcional (sim/talvez): mostra campos, sem obrigar CEP/rua
   const showCasaAddr = casaStatus === 'sim' || casaStatus === 'talvez'
-  const editCasaAddr = editCasa || casaNeedsAddress
+  const editCasaAddr = editCasa
 
   const isDirty = useMemo(() => {
     if (!selected) return false
@@ -312,21 +305,6 @@ export function AtivacaoLancarPage() {
     if (casaStatus === 'sim' && fotoCasaKeep.length + fotoCasaFiles.length < 1) {
       setError('Adicione pelo menos 1 foto da casa adesivada.')
       return false
-    }
-    if (casaStatus === 'sim' || casaStatus === 'talvez') {
-      const cepDigits = casaCep.replace(/\D/g, '')
-      if (cepDigits.length !== 8) {
-        setError('Informe o CEP da casa (obrigatório para adesivo ou talvez).')
-        return false
-      }
-      if (!casaEndereco.trim()) {
-        setError('Informe o endereço da casa (obrigatório para adesivo ou talvez).')
-        return false
-      }
-      if (!casaNumero.trim()) {
-        setError('Informe o número da casa (obrigatório para adesivo ou talvez).')
-        return false
-      }
     }
     setSaving(true)
     setError(null)
@@ -678,8 +656,8 @@ export function AtivacaoLancarPage() {
           <div className={`fl-block${isFormActive ? ' is-wa' : ''}`}>
             <div className="fl-block-top">
               <div className="fl-block-title">
-                <div className={`fl-icon${isFormActive ? ' tone-wa' : ''}`}>
-                  <MessageCircle size={20} />
+                <div className="fl-icon tone-wa is-brand">
+                  <WhatsAppIcon size={20} />
                 </div>
                 <h3>WhatsApp</h3>
               </div>
@@ -906,13 +884,8 @@ export function AtivacaoLancarPage() {
                   {isFormActive ? casaStatusLabel(casaStatus) : 'Ainda não'}
                 </span>
               </div>
-              {!editCasa && isFormActive && !casaNeedsAddress && (
+              {!editCasa && isFormActive && (
                 <p className="fl-hint fl-lock-hint">Só quem registrou o adesivo pode alterar.</p>
-              )}
-              {!editCasa && isFormActive && casaNeedsAddress && (
-                <p className="fl-hint fl-lock-hint">
-                  Esta casa foi marcada sem endereço. Complete CEP e rua abaixo (obrigatório).
-                </p>
               )}
               {isFormActive && selected && ownerCaption(
                 selected.formigas_casa_by,
@@ -944,20 +917,18 @@ export function AtivacaoLancarPage() {
                 <div className="fl-casa-addr">
                   <p className="fl-hint">
                     {casaStatus === 'talvez'
-                      ? (selected?.tipo === 'eleitor'
-                        ? 'Talvez tenha adesivo: registre o endereço agora. Esse endereço passa a ser o da ficha do eleitor.'
-                        : 'Talvez tenha adesivo: registre CEP e endereço desta liderança/coordenação. Obrigatório para o mapa.')
+                      ? 'Endereço opcional. Se quiser, informe CEP/rua para aparecer no mapa — basta marcar Talvez.'
                       : (selected?.tipo === 'eleitor'
-                        ? `Informe o endereço da casa com adesivo. Esse endereço passa a ser o da ficha do eleitor${
+                        ? `Endereço opcional. Para “Possui adesivo”, a foto já basta${
                             (selected.cep || selected.endereco)
-                              ? ' (pode ajustar o que já estava no cadastro).'
-                              : ' (mesmo que a ficha ainda não tivesse endereço).'
+                              ? ' (pode ajustar o endereço da ficha se quiser).'
+                              : '.'
                           }`
-                        : 'Informe o CEP e o endereço da casa com adesivo desta liderança/coordenação. Obrigatório para aparecer no Painel e no mapa.')}
+                        : 'Endereço opcional. Para “Possui adesivo”, a foto já basta; CEP/rua só se quiser no mapa.')}
                   </p>
                   <div className="fl-casa-addr-grid">
                     <label className="fl-field fl-casa-cep">
-                      <span>CEP *</span>
+                      <span>CEP</span>
                       <input
                         inputMode="numeric"
                         disabled={!editCasaAddr || saving}
@@ -973,7 +944,7 @@ export function AtivacaoLancarPage() {
                       {cepLoading ? <em className="fl-cep-loading">Buscando…</em> : null}
                     </label>
                     <label className="fl-field fl-casa-num">
-                      <span>Nº *</span>
+                      <span>Nº</span>
                       <input
                         disabled={!editCasaAddr || saving}
                         value={casaNumero}
@@ -983,7 +954,7 @@ export function AtivacaoLancarPage() {
                       />
                     </label>
                     <label className="fl-field fl-casa-rua">
-                      <span>Endereço *</span>
+                      <span>Endereço</span>
                       <input
                         disabled={!editCasaAddr || saving}
                         value={casaEndereco}
