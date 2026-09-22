@@ -13,8 +13,8 @@ import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import { EquipeMemberModal } from '../components/equipe/EquipeMemberModal'
 import { formatPhone } from '../lib/normalize'
 import { fetchCadastroFichaStats, fetchOperatorCadastroStats } from '../lib/cadastros'
-import { resolveLimiteFichas } from '../lib/liderFichas'
-import { META_LIDERANCA_FICHAS } from '../lib/meta'
+import { resolveLimiteFichas, resolveLimiteLiderancas } from '../lib/liderFichas'
+import { META_COORDENADOR_LIDERANCAS, META_LIDERANCA_FICHAS } from '../lib/meta'
 import { supabase } from '../lib/supabase'
 import type { Coordenador, Lider, Profile, UserRole } from '../types'
 import { labelRole, normalizeExtraRoles } from '../lib/roles'
@@ -28,7 +28,7 @@ const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
   },
   coordenadores: {
     title: 'Coordenadores',
-    subtitle: 'Cadastre, edite ou exclua os coordenadores da sua diretoria.',
+    subtitle: `Cadastre, edite ou exclua os coordenadores. Meta padrão: ${META_COORDENADOR_LIDERANCAS} lideranças (editável; pode passar da meta).`,
   },
   lideres: {
     title: 'Lideranças',
@@ -167,7 +167,11 @@ export function EquipePage() {
     ativo: true,
     extra_roles: [] as UserRole[],
   })
-  const [coordForm, setCoordForm] = useState({ nome: '', diretoria_id: '' })
+  const [coordForm, setCoordForm] = useState({
+    nome: '',
+    diretoria_id: '',
+    limite_liderancas: String(META_COORDENADOR_LIDERANCAS),
+  })
   const [liderForm, setLiderForm] = useState({
     nome: '',
     telefone: '',
@@ -226,10 +230,12 @@ export function EquipePage() {
           row.diretoria_id === scope || (row.operator_id != null && neriteIds.has(row.operator_id))
         if (!inScope) return
       }
+      const rawTotal = Number((row as { total?: number }).total)
+      const n = Number.isFinite(rawTotal) && rawTotal > 0 ? Math.floor(rawTotal) : 1
       const coord = (row.coordenador ?? '').trim()
       const lider = (row.lider ?? '').trim()
-      if (coord) byCoord[coord] = (byCoord[coord] ?? 0) + 1
-      if (lider) byLider[lider] = (byLider[lider] ?? 0) + 1
+      if (coord) byCoord[coord] = (byCoord[coord] ?? 0) + n
+      if (lider) byLider[lider] = (byLider[lider] ?? 0) + n
     })
 
     setFichasByCoord(byCoord)
@@ -367,14 +373,22 @@ export function EquipePage() {
   function openNewCoord() {
     setError(null)
     setEditingCoordId(null)
-    setCoordForm({ nome: '', diretoria_id: diretoriaId ?? '' })
+    setCoordForm({
+      nome: '',
+      diretoria_id: diretoriaId ?? '',
+      limite_liderancas: String(META_COORDENADOR_LIDERANCAS),
+    })
     setCoordOpen(true)
   }
 
   function openEditCoord(c: Coordenador) {
     setError(null)
     setEditingCoordId(c.id)
-    setCoordForm({ nome: c.nome, diretoria_id: c.diretoria_id })
+    setCoordForm({
+      nome: c.nome,
+      diretoria_id: c.diretoria_id,
+      limite_liderancas: String(resolveLimiteLiderancas(c.limite_liderancas)),
+    })
     setCoordOpen(true)
   }
 
@@ -861,10 +875,12 @@ export function EquipePage() {
       setError('Informe o nome e a diretoria.')
       return
     }
+    const limite = resolveLimiteLiderancas(coordForm.limite_liderancas)
     setSaving(true)
     const payload = {
       nome: coordForm.nome.trim(),
       diretoria_id: targetDir,
+      limite_liderancas: limite,
     }
     const { error: err } = editingCoordId
       ? await supabase.from('coordenadores').update(payload).eq('id', editingCoordId)
@@ -876,7 +892,11 @@ export function EquipePage() {
     }
     setCoordOpen(false)
     setEditingCoordId(null)
-    setCoordForm({ nome: '', diretoria_id: '' })
+    setCoordForm({
+      nome: '',
+      diretoria_id: '',
+      limite_liderancas: String(META_COORDENADOR_LIDERANCAS),
+    })
     await load()
   }
 
@@ -1168,6 +1188,7 @@ export function EquipePage() {
                   {filteredCoords.map((c) => {
                     const fichas = fichasByCoord[c.nome] ?? 0
                     const qtdLiderancas = lideresByCoord[c.id] ?? 0
+                    const limiteLiderancas = resolveLimiteLiderancas(c.limite_liderancas)
                     return (
                     <tr key={c.id}>
                       <td>
@@ -1176,7 +1197,7 @@ export function EquipePage() {
                       <td>
                         <button
                           type="button"
-                          className={`fichas-count equipe-drill-count${qtdLiderancas ? '' : ' zero'}`}
+                          className={`fichas-count equipe-drill-count${qtdLiderancas ? '' : ' zero'}${qtdLiderancas >= limiteLiderancas ? ' done' : ''}`}
                           onClick={() =>
                             patchParams({
                               tab: 'lideres',
@@ -1186,9 +1207,9 @@ export function EquipePage() {
                             })
                           }
                           aria-label={`Ver lideranças de ${c.nome}`}
-                          title="Ver lideranças"
+                          title={`Meta: ${limiteLiderancas} lideranças (pode ultrapassar)`}
                         >
-                          {qtdLiderancas}
+                          {qtdLiderancas}/{limiteLiderancas}
                         </button>
                       </td>
                       {isAdmin && <td>{dirName(c.diretoria_id)}</td>}
@@ -1497,6 +1518,20 @@ export function EquipePage() {
             />
           )}
           <Input label="Nome do coordenador" value={coordForm.nome} onChange={(e) => setCoordForm((f) => ({ ...f, nome: e.target.value }))} placeholder="Nome que aparece na ficha" />
+          <Input
+            label="Meta de lideranças"
+            inputMode="numeric"
+            value={coordForm.limite_liderancas}
+            onChange={(e) => setCoordForm((f) => ({
+              ...f,
+              limite_liderancas: e.target.value.replace(/\D/g, '').slice(0, 4),
+            }))}
+            placeholder={String(META_COORDENADOR_LIDERANCAS)}
+          />
+          <p style={{ margin: '-.35rem 0 0', fontSize: '.75rem', color: '#64748b' }}>
+            Padrão {META_COORDENADOR_LIDERANCAS}. Aparece como <strong>atual/meta</strong> (ex.: 10/20).
+            Não bloqueia novas lideranças — pode passar da meta.
+          </p>
           {error && <div className="alert alert-error">{error}</div>}
         </div>
       </Modal>
