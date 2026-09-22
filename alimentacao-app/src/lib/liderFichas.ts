@@ -1,4 +1,4 @@
-import { META_LIDERANCA_FICHAS } from './meta'
+import { META_COORDENADOR_LIDERANCAS, META_LIDERANCA_FICHAS } from './meta'
 
 /** Chave estável para agrupar fichas por liderança sem misturar homônimos. */
 export function liderNameKey(value: string | null | undefined) {
@@ -19,10 +19,19 @@ export function resolveLimiteFichas(value: unknown): number {
   return Math.min(9999, n)
 }
 
+/** Meta de quantas lideranças o coordenador deve ter. */
+export function resolveLimiteLiderancas(value: unknown): number {
+  const n = Math.floor(Number(value))
+  if (!Number.isFinite(n) || n < 1) return META_COORDENADOR_LIDERANCAS
+  return Math.min(9999, n)
+}
+
 type FichaStatRow = {
   lider?: string | null
   coordenador?: string | null
   diretoria_id?: string | null
+  /** Quando vem de RPC agregada; default 1 (linha individual). */
+  total?: number
 }
 
 /**
@@ -52,10 +61,14 @@ export function countFichasForLider(
   for (const row of rows) {
     if (liderNameKey(row.lider) !== nome) continue
     if (dirWanted && row.diretoria_id && row.diretoria_id !== dirWanted) continue
-    anyInDir += 1
+    const n = (() => {
+      const raw = Number(row.total)
+      return Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : 1
+    })()
+    anyInDir += n
     const rowCoord = liderNameKey(row.coordenador)
     if (!coordWanted || !rowCoord || rowCoord === coordWanted) {
-      withCoord += 1
+      withCoord += n
     }
   }
 

@@ -43,6 +43,8 @@ export interface Coordenador {
   diretoria_id: string
   nome: string
   ativo: boolean
+  /** Meta de lideranças previstas (padrão 20). Não bloqueia acima da meta. */
+  limite_liderancas?: number
   carros_adesivados?: number
   motos_adesivadas?: number
   adesivos_casa?: number
