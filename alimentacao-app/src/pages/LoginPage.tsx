@@ -76,7 +76,7 @@ export function LoginPage() {
           />
           <Input
             label="Senha"
-            type="password"
+            type="text"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required

@@ -62,8 +62,6 @@ export function CadastroFormPage() {
   const [coordenadorId, setCoordenadorId] = useState('')
   const [liderId, setLiderId] = useState('')
 
-  const isStaff = profile?.role === 'admin' || profile?.role === 'diretoria'
-
   const diretoriaId =
     profile?.role === 'diretoria'
       ? profile.id
@@ -73,7 +71,9 @@ export function CadastroFormPage() {
     async function loadOptions() {
       let coordsQuery = supabase.from('coordenadores').select('*').eq('ativo', true).order('nome')
       let lidsQuery = supabase.from('lideres').select('*').eq('ativo', true).order('nome')
-      if (diretoriaId) {
+      // Diretoria edita fichas de qualquer equipe: precisa ver todas as coordenações/lideranças.
+      // Nerite continua limitada à própria diretoria.
+      if (diretoriaId && profile?.role !== 'diretoria' && profile?.role !== 'admin') {
         coordsQuery = coordsQuery.eq('diretoria_id', diretoriaId)
         lidsQuery = lidsQuery.eq('diretoria_id', diretoriaId)
       }
@@ -90,7 +90,7 @@ export function CadastroFormPage() {
     }
 
     loadOptions()
-  }, [diretoriaId, isEdit])
+  }, [diretoriaId, isEdit, profile?.role])
 
   useEffect(() => {
     if (!id) return
@@ -310,11 +310,8 @@ export function CadastroFormPage() {
           : profile?.role === 'diretoria'
             ? profile.id
             : null
-    } else if (isStaff) {
-      if (profile?.role === 'diretoria') {
-        payload.diretoria_id = profile.id
-      }
     }
+    // Em edição, diretoria/admin não alteram operator_id nem diretoria_id da ficha.
 
     if (isEdit && id) {
       const { data: saved, error } = await supabase.from('cadastros').update(payload).eq('id', id)
