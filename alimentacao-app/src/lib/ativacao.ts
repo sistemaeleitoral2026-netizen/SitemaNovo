@@ -361,7 +361,7 @@ export type AtivacaoSaveInput = {
   links: string[]
   notas: string
   contato_whatsapp_status: ContatoWhatsappStatus
-  /** Endereço da casa (obrigatório p/ sim ou talvez) — grava na ficha */
+  /** Endereço da casa (opcional p/ sim ou talvez) — se preenchido, grava na ficha e geocodifica */
   cep?: string
   endereco?: string
   numero?: string
@@ -672,7 +672,6 @@ export async function saveAtivacao(
     input.adesivos_casa_status
     ?? (input.casa ? 'sim' : 'nao')
   const casa = casaStatus === 'sim' ? 1 : 0
-  const needsCasaAddr = casaStatus === 'sim' || casaStatus === 'talvez'
   const notas = input.notas.trim() || null
   const status: ContatoWhatsappStatus = input.contato_whatsapp_status
   const contato = status === 'sim'
@@ -689,17 +688,11 @@ export async function saveAtivacao(
   const cepDigits = (input.cep ?? '').replace(/\D/g, '')
   const endereco = (input.endereco ?? '').trim()
   const numero = (input.numero ?? '').trim()
-
-  if (needsCasaAddr) {
-    if (cepDigits.length !== 8) {
-      return { error: 'Informe um CEP válido da casa (adesivo ou talvez).' }
-    }
-    if (!endereco) {
-      return { error: 'Informe o endereço da casa (adesivo ou talvez).' }
-    }
-    if (!numero) {
-      return { error: 'Informe o número da casa (adesivo ou talvez).' }
-    }
+  const bairroInput = (input.bairro ?? '').trim()
+  // Endereço/CEP são opcionais — só validamos formato se o usuário preencheu CEP
+  const hasAddrInput = cepDigits.length > 0 || Boolean(endereco) || Boolean(numero) || Boolean(bairroInput)
+  if (cepDigits.length > 0 && cepDigits.length !== 8) {
+    return { error: 'CEP inválido: use 8 dígitos (ou deixe em branco).' }
   }
 
   const { data: { session } } = await supabase.auth.getSession()
@@ -756,39 +749,41 @@ export async function saveAtivacao(
     foto_casa_paths,
   }
 
-  if (needsCasaAddr) {
-    payload.cep = cepDigits
-    payload.endereco = endereco
-    payload.numero = numero
+  if (hasAddrInput && (casaStatus === 'sim' || casaStatus === 'talvez')) {
+    if (cepDigits.length === 8) payload.cep = cepDigits
+    if (endereco) payload.endereco = endereco
+    if (numero) payload.numero = numero
 
-    const bairroInput = (input.bairro ?? '').trim()
     let cidade = ''
     let uf = ''
     let bairro = bairroInput
 
     try {
       const { lookupViaCep, geocodeFromAddress, geocodeFromCep, coordsFromZona } = await import('./geocode')
-      const via = await lookupViaCep(cepDigits)
-      if (via) {
-        if (!bairro && via.bairro) bairro = via.bairro
-        cidade = via.localidade || ''
-        uf = via.uf || ''
+      if (cepDigits.length === 8) {
+        const via = await lookupViaCep(cepDigits)
+        if (via) {
+          if (!bairro && via.bairro) bairro = via.bairro
+          cidade = via.localidade || ''
+          uf = via.uf || ''
+        }
       }
       if (bairro) payload.bairro = bairro
       if (cidade) payload.cidade = cidade
       if (uf) payload.uf = uf
 
-      // Prioridade: endereço completo → CEP (BrasilAPI) → zona eleitoral da ficha → coords já existentes
       const coords =
-        (await geocodeFromAddress({
-          endereco,
-          numero,
-          bairro,
-          cidade,
-          uf,
-          cep: cepDigits,
-        }))
-        || (await geocodeFromCep(cepDigits))
+        (endereco
+          ? await geocodeFromAddress({
+              endereco,
+              numero,
+              bairro,
+              cidade,
+              uf,
+              cep: cepDigits.length === 8 ? cepDigits : '',
+            })
+          : null)
+        || (cepDigits.length === 8 ? await geocodeFromCep(cepDigits) : null)
         || (previous?.zona ? coordsFromZona(previous.zona) : null)
         || (previous?.lat != null && previous?.lng != null
           ? { lat: previous.lat, lng: previous.lng }
@@ -800,7 +795,6 @@ export async function saveAtivacao(
       }
     } catch {
       if (bairro) payload.bairro = bairro
-      // endereço textual já fica salvo mesmo se geocode falhar
     }
   }
 
