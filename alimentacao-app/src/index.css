@@ -4930,7 +4930,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .fl-subtitle { margin: 0; color: #64748b; font-size: .95rem; }
 .fl-stats {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 2rem;
 }

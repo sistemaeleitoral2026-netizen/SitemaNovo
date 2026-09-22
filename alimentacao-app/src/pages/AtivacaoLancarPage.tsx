@@ -29,9 +29,11 @@ import { FormigasFotoField } from '../components/FormigasFotoField'
 import {
   claimNextAtivacao,
   fetchAtivacaoPessoa,
+  casaStatusLabel,
   releaseAtivacaoClaim,
   saveAtivacao,
   searchAtivacaoPessoas,
+  type AdesivosCasaStatus,
   type AtivacaoPessoa,
   type ContatoWhatsappStatus,
 } from '../lib/ativacao'
@@ -117,7 +119,7 @@ export function AtivacaoLancarPage() {
   const [motos, setMotos] = useState(0)
   const [veiculoCarro, setVeiculoCarro] = useState(false)
   const [veiculoMoto, setVeiculoMoto] = useState(false)
-  const [casa, setCasa] = useState(false)
+  const [casaStatus, setCasaStatus] = useState<AdesivosCasaStatus>('nao')
   const [casaCep, setCasaCep] = useState('')
   const [casaEndereco, setCasaEndereco] = useState('')
   const [casaNumero, setCasaNumero] = useState('')
@@ -146,12 +148,15 @@ export function AtivacaoLancarPage() {
   const editCarros = canEditSection(selected?.formigas_carros_by, profile?.id, canOverride)
   const editCasa = canEditSection(selected?.formigas_casa_by, profile?.id, canOverride)
   const editLinks = canEditSection(selected?.formigas_links_by, profile?.id, canOverride)
-  // Casa já marcada na versão antiga sem CEP: qualquer formiga pode completar o endereço
+  // Casa já marcada (sim/talvez) sem CEP: qualquer formiga pode completar o endereço
   const casaNeedsAddress = Boolean(
     selected
-    && selected.adesivos_casa > 0
+    && (selected.adesivos_casa_status === 'sim'
+      || selected.adesivos_casa_status === 'talvez'
+      || selected.adesivos_casa > 0)
     && (selected.cep ?? '').replace(/\D/g, '').length !== 8,
   )
+  const showCasaAddr = casaStatus === 'sim' || casaStatus === 'talvez'
   const editCasaAddr = editCasa || casaNeedsAddress
 
   const isDirty = useMemo(() => {
@@ -177,17 +182,17 @@ export function AtivacaoLancarPage() {
     return (
       nextCarrosSave !== selected.carros_adesivados
       || nextMotosSave !== selected.motos_adesivadas
-      || casa !== (selected.adesivos_casa > 0)
+      || casaStatus !== selected.adesivos_casa_status
       || contatoStatus !== selected.contato_whatsapp_status
       || notas.trim() !== (selected.ativacao_notas || '').trim()
       || linksChanged
-      || (casa && addrChanged)
+      || (showCasaAddr && addrChanged)
       || ((veiculoCarro || veiculoMoto) && fotosVeiculoChanged)
-      || (casa && fotosCasaChanged)
+      || (casaStatus === 'sim' && fotosCasaChanged)
     )
   }, [
-    selected, carros, motos, veiculoCarro, veiculoMoto, casa, casaCep, casaEndereco, casaNumero, casaBairro,
-    links, notas, contatoStatus, fotoVeiculoKeep, fotoVeiculoFiles, fotoCasaKeep, fotoCasaFiles,
+    selected, carros, motos, veiculoCarro, veiculoMoto, casaStatus, casaCep, casaEndereco, casaNumero, casaBairro,
+    links, notas, contatoStatus, fotoVeiculoKeep, fotoVeiculoFiles, fotoCasaKeep, fotoCasaFiles, showCasaAddr,
   ])
 
   useEffect(() => {
@@ -256,7 +261,7 @@ export function AtivacaoLancarPage() {
     setMotos(p.motos_adesivadas)
     setVeiculoCarro(p.carros_adesivados > 0)
     setVeiculoMoto(p.motos_adesivadas > 0)
-    setCasa(p.adesivos_casa > 0)
+    setCasaStatus(p.adesivos_casa_status)
     setCasaCep(p.cep ? formatCep(p.cep) : '')
     setCasaEndereco(p.endereco || '')
     setCasaNumero(p.numero || '')
@@ -279,7 +284,7 @@ export function AtivacaoLancarPage() {
     setMotos(0)
     setVeiculoCarro(false)
     setVeiculoMoto(false)
-    setCasa(false)
+    setCasaStatus('nao')
     setCasaCep('')
     setCasaEndereco('')
     setCasaNumero('')
@@ -304,22 +309,22 @@ export function AtivacaoLancarPage() {
       setError('Adicione pelo menos 1 foto do veículo adesivado.')
       return false
     }
-    if (casa && fotoCasaKeep.length + fotoCasaFiles.length < 1) {
+    if (casaStatus === 'sim' && fotoCasaKeep.length + fotoCasaFiles.length < 1) {
       setError('Adicione pelo menos 1 foto da casa adesivada.')
       return false
     }
-    if (casa) {
+    if (casaStatus === 'sim' || casaStatus === 'talvez') {
       const cepDigits = casaCep.replace(/\D/g, '')
       if (cepDigits.length !== 8) {
-        setError('Informe o CEP da casa (obrigatório para adesivo residencial).')
+        setError('Informe o CEP da casa (obrigatório para adesivo ou talvez).')
         return false
       }
       if (!casaEndereco.trim()) {
-        setError('Informe o endereço da casa (obrigatório para adesivo residencial).')
+        setError('Informe o endereço da casa (obrigatório para adesivo ou talvez).')
         return false
       }
       if (!casaNumero.trim()) {
-        setError('Informe o número da casa (obrigatório para adesivo residencial).')
+        setError('Informe o número da casa (obrigatório para adesivo ou talvez).')
         return false
       }
     }
@@ -329,7 +334,7 @@ export function AtivacaoLancarPage() {
     const { error: err } = await saveAtivacao(snapshot.tipo, snapshot.id, {
       carros_adesivados: nextCarros,
       motos_adesivadas: nextMotos,
-      casa,
+      adesivos_casa_status: casaStatus,
       links,
       notas,
       contato_whatsapp_status: contatoStatus,
@@ -339,8 +344,8 @@ export function AtivacaoLancarPage() {
       bairro: casaBairro,
       foto_veiculo_keep: nextCarros > 0 || nextMotos > 0 ? fotoVeiculoKeep : [],
       foto_veiculo_files: nextCarros > 0 || nextMotos > 0 ? fotoVeiculoFiles : [],
-      foto_casa_keep: casa ? fotoCasaKeep : [],
-      foto_casa_files: casa ? fotoCasaFiles : [],
+      foto_casa_keep: casaStatus === 'sim' ? fotoCasaKeep : [],
+      foto_casa_files: casaStatus === 'sim' ? fotoCasaFiles : [],
     }, snapshot)
     setSaving(false)
     if (err) {
@@ -897,8 +902,8 @@ export function AtivacaoLancarPage() {
                   <div className="fl-icon tone-teal"><Home size={20} /></div>
                   <h3>Adesivo residencial</h3>
                 </div>
-                <span className={`fl-pill${casa ? ' teal' : ''}`}>
-                  {casa ? 'Com adesivo' : 'Sem adesivo'}
+                <span className={`fl-pill${casaStatus === 'sim' ? ' teal' : casaStatus === 'talvez' ? ' warn' : ''}`}>
+                  {isFormActive ? casaStatusLabel(casaStatus) : 'Ainda não'}
                 </span>
               </div>
               {!editCasa && isFormActive && !casaNeedsAddress && (
@@ -909,31 +914,46 @@ export function AtivacaoLancarPage() {
                   Esta casa foi marcada sem endereço. Complete CEP e rua abaixo (obrigatório).
                 </p>
               )}
-              {isFormActive && selected && ownerCaption(selected.formigas_casa_by, selected.formigas_casa_by_nome, casa) && (
+              {isFormActive && selected && ownerCaption(
+                selected.formigas_casa_by,
+                selected.formigas_casa_by_nome,
+                casaStatus !== 'nao',
+              ) && (
                 <p className="fl-owner-line">
-                  {ownerCaption(selected.formigas_casa_by, selected.formigas_casa_by_nome, casa)}
+                  {ownerCaption(
+                    selected.formigas_casa_by,
+                    selected.formigas_casa_by_nome,
+                    casaStatus !== 'nao',
+                  )}
                 </p>
               )}
               <label className="fl-label-sm">Confirmação de campo</label>
-              <SegmentedControl
-                disabled={!isFormActive || !editCasa}
-                options={[
-                  { label: 'Não possui', value: 'nao' },
-                  { label: 'Possui adesivo', value: 'sim' },
-                ]}
-                value={casa ? 'sim' : 'nao'}
-                onChange={(v) => setCasa(v === 'sim')}
-              />
-              {isFormActive && casa && (
+              <div className="fl-wa-segment fl-wa-segment-3">
+                <SegmentedControl
+                  disabled={!isFormActive || !editCasa}
+                  options={[
+                    { label: 'Não possui', value: 'nao' },
+                    { label: 'Talvez', value: 'talvez' },
+                    { label: 'Possui adesivo', value: 'sim' },
+                  ]}
+                  value={casaStatus}
+                  onChange={(v) => setCasaStatus(v as AdesivosCasaStatus)}
+                />
+              </div>
+              {isFormActive && showCasaAddr && (
                 <div className="fl-casa-addr">
                   <p className="fl-hint">
-                    {selected?.tipo === 'eleitor'
-                      ? `Informe o endereço da casa com adesivo. Esse endereço passa a ser o da ficha do eleitor${
-                          (selected.cep || selected.endereco)
-                            ? ' (pode ajustar o que já estava no cadastro).'
-                            : ' (mesmo que a ficha ainda não tivesse endereço).'
-                        }`
-                      : 'Informe o CEP e o endereço da casa com adesivo desta liderança/coordenação. Obrigatório para aparecer no Painel e no mapa.'}
+                    {casaStatus === 'talvez'
+                      ? (selected?.tipo === 'eleitor'
+                        ? 'Talvez tenha adesivo: registre o endereço agora. Esse endereço passa a ser o da ficha do eleitor.'
+                        : 'Talvez tenha adesivo: registre CEP e endereço desta liderança/coordenação. Obrigatório para o mapa.')
+                      : (selected?.tipo === 'eleitor'
+                        ? `Informe o endereço da casa com adesivo. Esse endereço passa a ser o da ficha do eleitor${
+                            (selected.cep || selected.endereco)
+                              ? ' (pode ajustar o que já estava no cadastro).'
+                              : ' (mesmo que a ficha ainda não tivesse endereço).'
+                          }`
+                        : 'Informe o CEP e o endereço da casa com adesivo desta liderança/coordenação. Obrigatório para aparecer no Painel e no mapa.')}
                   </p>
                   <div className="fl-casa-addr-grid">
                     <label className="fl-field fl-casa-cep">
@@ -985,7 +1005,7 @@ export function AtivacaoLancarPage() {
                   </div>
                 </div>
               )}
-              {isFormActive && casa && (
+              {isFormActive && casaStatus === 'sim' && (
                 <FormigasFotoField
                   label="Fotos da casa adesivada"
                   keptPaths={fotoCasaKeep}

@@ -5,6 +5,8 @@ import type { Cadastro, Coordenador, Lider, Profile } from '../types'
 
 export type AtivacaoTipo = 'eleitor' | 'lideranca' | 'coordenador'
 export type ContatoWhatsappStatus = 'nao' | 'sim' | 'sem'
+/** Adesivo residencial: confirmado (sim), sem, ou talvez (endereço coletado). */
+export type AdesivosCasaStatus = 'nao' | 'sim' | 'talvez'
 
 export type AtivacaoPessoa = {
   key: string
@@ -24,6 +26,8 @@ export type AtivacaoPessoa = {
   carros_adesivados: number
   motos_adesivadas: number
   adesivos_casa: number
+  /** nao | sim | talvez — legado sem coluna cai em sim se adesivos_casa > 0 */
+  adesivos_casa_status: AdesivosCasaStatus
   foto_veiculo_paths: string[]
   foto_casa_paths: string[]
   postagens: number
@@ -60,6 +64,23 @@ function toContatoStatus(row: {
   return row.contato_whatsapp ? 'sim' : 'nao'
 }
 
+function toCasaStatus(row: {
+  adesivos_casa_status?: unknown
+  adesivos_casa?: unknown
+}): AdesivosCasaStatus {
+  const raw = String(row.adesivos_casa_status ?? '').trim().toLowerCase()
+  if (raw === 'sim' || raw === 'talvez' || raw === 'nao') return raw
+  return toQty(row.adesivos_casa) > 0 ? 'sim' : 'nao'
+}
+
+function casaStatusLabel(status: AdesivosCasaStatus) {
+  if (status === 'sim') return 'Com adesivo'
+  if (status === 'talvez') return 'Talvez'
+  return 'Sem adesivo'
+}
+
+export { casaStatusLabel }
+
 function toQty(value: unknown) {
   const n = Math.floor(Number(value))
   return Number.isFinite(n) && n > 0 ? n : 0
@@ -94,6 +115,7 @@ function fromAtivacaoFields(row: {
   carros_adesivados?: unknown
   motos_adesivadas?: unknown
   adesivos_casa?: unknown
+  adesivos_casa_status?: unknown
   foto_veiculo_paths?: unknown
   foto_casa_paths?: unknown
   postagens?: unknown
@@ -110,10 +132,12 @@ function fromAtivacaoFields(row: {
   const ativacao_em = (row.ativacao_em as string | null | undefined) ?? null
   const launched = Boolean(ativacao_em)
   const status = launched ? toContatoStatus(row) : 'nao'
+  const casaStatus = launched ? toCasaStatus(row) : 'nao'
   return {
     carros_adesivados: launched ? toQty(row.carros_adesivados) : 0,
     motos_adesivadas: launched ? toQty(row.motos_adesivadas) : 0,
-    adesivos_casa: launched ? toQty(row.adesivos_casa) : 0,
+    adesivos_casa: launched ? (casaStatus === 'sim' ? Math.max(1, toQty(row.adesivos_casa)) : toQty(row.adesivos_casa)) : 0,
+    adesivos_casa_status: casaStatus,
     foto_veiculo_paths: launched ? toPaths(row.foto_veiculo_paths) : [],
     foto_casa_paths: launched ? toPaths(row.foto_casa_paths) : [],
     postagens: launched ? toQty(row.postagens) : 0,
@@ -248,13 +272,13 @@ function fromCoord(c: Coordenador): AtivacaoPessoa {
 }
 
 const CADASTRO_SELECT =
-  'id, nome_completo, titulo, zona, bairro, telefone, cep, endereco, numero, lat, lng, carros_adesivados, motos_adesivadas, adesivos_casa, foto_veiculo_paths, foto_casa_paths, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, coordenador, lider, operator_id'
+  'id, nome_completo, titulo, zona, bairro, telefone, cep, endereco, numero, lat, lng, carros_adesivados, motos_adesivadas, adesivos_casa, adesivos_casa_status, foto_veiculo_paths, foto_casa_paths, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, coordenador, lider, operator_id'
 
 const LIDER_SELECT =
-  'id, nome, telefone, carros_adesivados, motos_adesivadas, adesivos_casa, foto_veiculo_paths, foto_casa_paths, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, coordenador_id, cep, endereco, numero, bairro, cidade, uf, lat, lng'
+  'id, nome, telefone, carros_adesivados, motos_adesivadas, adesivos_casa, adesivos_casa_status, foto_veiculo_paths, foto_casa_paths, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, coordenador_id, cep, endereco, numero, bairro, cidade, uf, lat, lng'
 
 const COORD_SELECT =
-  'id, nome, carros_adesivados, motos_adesivadas, adesivos_casa, foto_veiculo_paths, foto_casa_paths, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, cep, endereco, numero, bairro, cidade, uf, lat, lng'
+  'id, nome, carros_adesivados, motos_adesivadas, adesivos_casa, adesivos_casa_status, foto_veiculo_paths, foto_casa_paths, postagens, postagem_links, ativacao_notas, ativacao_em, contato_whatsapp, contato_whatsapp_status, formigas_wa_by, formigas_carros_by, formigas_casa_by, formigas_links_by, diretoria_id, cep, endereco, numero, bairro, cidade, uf, lat, lng'
 
 export async function searchAtivacaoPessoas(term: string, limit = 12, diretoriaId?: string): Promise<AtivacaoPessoa[]> {
   const q = term.trim()
@@ -331,11 +355,13 @@ export async function fetchAtivacaoPessoa(
 export type AtivacaoSaveInput = {
   carros_adesivados: number
   motos_adesivadas: number
-  casa: boolean
+  /** @deprecated use adesivos_casa_status */
+  casa?: boolean
+  adesivos_casa_status: AdesivosCasaStatus
   links: string[]
   notas: string
   contato_whatsapp_status: ContatoWhatsappStatus
-  /** Endereço da casa (obrigatório p/ eleitor com adesivo) — grava na ficha */
+  /** Endereço da casa (obrigatório p/ sim ou talvez) — grava na ficha */
   cep?: string
   endereco?: string
   numero?: string
@@ -487,9 +513,11 @@ async function logFormigasHistorico(
     const nextLinks = input.links.map((l) => l.trim()).filter(Boolean)
     const nextCarros = Math.max(0, Math.floor(Number(input.carros_adesivados) || 0))
     const nextMotos = Math.max(0, Math.floor(Number(input.motos_adesivadas) || 0))
-    const nextCasa = Boolean(input.casa)
+    const nextCasaStatus: AdesivosCasaStatus =
+      input.adesivos_casa_status
+      ?? (input.casa ? 'sim' : 'nao')
     const nextNotas = input.notas.trim()
-    const prevCasa = previous.adesivos_casa > 0
+    const prevCasaStatus = previous.adesivos_casa_status
     const prevLinks = previous.postagem_links
     const prevNotas = (previous.ativacao_notas || '').trim()
 
@@ -559,10 +587,17 @@ async function logFormigasHistorico(
         : '',
     ].filter(Boolean).join(', ')
 
-    if (prevCasa !== nextCasa || (nextCasa && addrKey && addrKey !== prevAddrKey)) {
-      const depois = nextCasa
-        ? (addrKey || 'sim')
-        : 'não'
+    if (
+      prevCasaStatus !== nextCasaStatus
+      || ((nextCasaStatus === 'sim' || nextCasaStatus === 'talvez') && addrKey && addrKey !== prevAddrKey)
+    ) {
+      const label = casaStatusLabel(nextCasaStatus)
+      const depois =
+        nextCasaStatus === 'nao'
+          ? 'não'
+          : addrKey
+            ? `${label} — ${addrKey}`
+            : label
       rows.push({
         actor_id: userId,
         actor_email: actorEmail,
@@ -571,10 +606,13 @@ async function logFormigasHistorico(
         pessoa_id: previous.id,
         pessoa_nome: pessoa,
         secao: 'casa',
-        resumo: nextCasa
-          ? `Marcou adesivo residencial${addrKey ? ` — ${addrKey}` : ''}`
-          : 'Removeu adesivo residencial',
-        valor_antes: prevCasa ? (prevAddrKey || 'sim') : 'não',
+        resumo:
+          nextCasaStatus === 'nao'
+            ? 'Removeu adesivo residencial'
+            : nextCasaStatus === 'talvez'
+              ? `Marcou adesivo residencial como talvez${addrKey ? ` — ${addrKey}` : ''}`
+              : `Marcou adesivo residencial${addrKey ? ` — ${addrKey}` : ''}`,
+        valor_antes: prevCasaStatus === 'nao' ? 'não' : (prevAddrKey || casaStatusLabel(prevCasaStatus)),
         valor_depois: depois,
         diretoria_id: previous.diretoria_id,
       })
@@ -630,26 +668,37 @@ export async function saveAtivacao(
   const links = input.links.map((l) => l.trim()).filter(Boolean)
   const carros = Math.max(0, Math.floor(Number(input.carros_adesivados) || 0))
   const motos = Math.max(0, Math.floor(Number(input.motos_adesivadas) || 0))
-  const casa = input.casa ? 1 : 0
+  const casaStatus: AdesivosCasaStatus =
+    input.adesivos_casa_status
+    ?? (input.casa ? 'sim' : 'nao')
+  const casa = casaStatus === 'sim' ? 1 : 0
+  const needsCasaAddr = casaStatus === 'sim' || casaStatus === 'talvez'
   const notas = input.notas.trim() || null
   const status: ContatoWhatsappStatus = input.contato_whatsapp_status
   const contato = status === 'sim'
   const hasLaunch =
-    carros > 0 || motos > 0 || casa > 0 || links.length > 0 || Boolean(notas) || status === 'sim' || status === 'sem'
+    carros > 0
+    || motos > 0
+    || casa > 0
+    || casaStatus === 'talvez'
+    || links.length > 0
+    || Boolean(notas)
+    || status === 'sim'
+    || status === 'sem'
 
   const cepDigits = (input.cep ?? '').replace(/\D/g, '')
   const endereco = (input.endereco ?? '').trim()
   const numero = (input.numero ?? '').trim()
 
-  if (casa > 0) {
+  if (needsCasaAddr) {
     if (cepDigits.length !== 8) {
-      return { error: 'Informe um CEP válido da casa com adesivo.' }
+      return { error: 'Informe um CEP válido da casa (adesivo ou talvez).' }
     }
     if (!endereco) {
-      return { error: 'Informe o endereço da casa com adesivo.' }
+      return { error: 'Informe o endereço da casa (adesivo ou talvez).' }
     }
     if (!numero) {
-      return { error: 'Informe o número da casa com adesivo.' }
+      return { error: 'Informe o número da casa (adesivo ou talvez).' }
     }
   }
 
@@ -665,7 +714,7 @@ export async function saveAtivacao(
   if ((carros > 0 || motos > 0) && keepVeiculo.length + filesVeiculo.length < 1) {
     return { error: 'Adicione pelo menos 1 foto do veículo adesivado.' }
   }
-  if (casa > 0 && keepCasa.length + filesCasa.length < 1) {
+  if (casaStatus === 'sim' && keepCasa.length + filesCasa.length < 1) {
     return { error: 'Adicione pelo menos 1 foto da casa adesivada.' }
   }
 
@@ -689,12 +738,13 @@ export async function saveAtivacao(
   }
 
   if (!(carros > 0 || motos > 0)) foto_veiculo_paths = []
-  if (!(casa > 0)) foto_casa_paths = []
+  if (casaStatus !== 'sim') foto_casa_paths = []
 
   const payload: Record<string, unknown> = {
     carros_adesivados: carros,
     motos_adesivadas: motos,
     adesivos_casa: casa,
+    adesivos_casa_status: casaStatus,
     postagem_links: links,
     postagens: links.length,
     ativacao_notas: notas,
@@ -706,7 +756,7 @@ export async function saveAtivacao(
     foto_casa_paths,
   }
 
-  if (casa > 0) {
+  if (needsCasaAddr) {
     payload.cep = cepDigits
     payload.endereco = endereco
     payload.numero = numero
@@ -939,6 +989,7 @@ export type AtivacaoListFilters = {
     | 'sem_ativacao'
     | 'com_carro'
     | 'casa_sim'
+    | 'casa_talvez'
     | 'com_links'
     | 'contato_sim'
     | 'contato_nao'
@@ -996,13 +1047,15 @@ function matchesStatus(p: AtivacaoPessoa, status: AtivacaoListFilters['status'])
     p.carros_adesivados > 0
     || p.motos_adesivadas > 0
     || p.adesivos_casa > 0
+    || p.adesivos_casa_status === 'talvez'
     || p.postagem_links.length > 0
     || p.contato_whatsapp_status === 'sim'
     || p.contato_whatsapp_status === 'sem'
   if (status === 'com_ativacao') return hasAny
   if (status === 'sem_ativacao') return !hasAny
   if (status === 'com_carro') return p.carros_adesivados > 0 || p.motos_adesivadas > 0
-  if (status === 'casa_sim') return p.adesivos_casa > 0
+  if (status === 'casa_sim') return p.adesivos_casa_status === 'sim' || p.adesivos_casa > 0
+  if (status === 'casa_talvez') return p.adesivos_casa_status === 'talvez'
   if (status === 'com_links') return p.postagem_links.length > 0
   if (status === 'contato_sim') return p.contato_whatsapp_status === 'sim'
   if (status === 'contato_nao') return p.contato_whatsapp_status === 'nao'
@@ -1174,18 +1227,21 @@ export async function fetchAtivacaoKpis(filters: AtivacaoListFilters = {}) {
   })
   let carros = 0
   let casas = 0
+  let casasTalvez = 0
   let postagens = 0
   let whatsapp = 0
   let comAtivacao = 0
   for (const p of items) {
     if (p.carros_adesivados > 0 || p.motos_adesivadas > 0) carros += 1
-    if (p.adesivos_casa > 0) casas += 1
+    if (p.adesivos_casa_status === 'sim' || p.adesivos_casa > 0) casas += 1
+    if (p.adesivos_casa_status === 'talvez') casasTalvez += 1
     if (p.postagem_links.length > 0) postagens += 1
     if (p.contato_whatsapp_status === 'sim') whatsapp += 1
     if (
       p.carros_adesivados > 0
       || p.motos_adesivadas > 0
       || p.adesivos_casa > 0
+      || p.adesivos_casa_status === 'talvez'
       || p.postagem_links.length > 0
       || p.contato_whatsapp_status === 'sim'
       || p.contato_whatsapp_status === 'sem'
@@ -1197,6 +1253,7 @@ export async function fetchAtivacaoKpis(filters: AtivacaoListFilters = {}) {
     totalPessoas: items.length,
     carros,
     casas,
+    casasTalvez,
     postagens,
     whatsapp,
     comAtivacao,
