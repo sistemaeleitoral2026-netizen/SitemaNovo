@@ -673,13 +673,20 @@ export function AtivacaoPainelPage() {
                     <td>
                       <div className="ativacao-wa-cell">
                         <WhatsAppLink phone={p.telefone} className="whatsapp-link-inline" />
-                        <span>
-                          {p.contato_whatsapp_status === 'sim'
-                            ? 'Já acionada'
-                            : p.contato_whatsapp_status === 'sem'
-                              ? 'Sem WhatsApp'
-                              : 'Não acionada'}
-                        </span>
+                        <div className="ativacao-wa-meta">
+                          <span>
+                            {p.contato_whatsapp_status === 'sim'
+                              ? 'Já acionada'
+                              : p.contato_whatsapp_status === 'sem'
+                                ? 'Sem WhatsApp'
+                                : 'Não acionada'}
+                          </span>
+                          {p.formigas_wa_by ? (
+                            <em className="ativacao-wa-by" title="Formiga que registrou o WhatsApp">
+                              {p.formigas_wa_by_nome?.trim() || 'Formiga'}
+                            </em>
+                          ) : null}
+                        </div>
                       </div>
                     </td>
                     <td>
