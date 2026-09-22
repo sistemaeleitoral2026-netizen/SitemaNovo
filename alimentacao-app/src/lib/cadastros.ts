@@ -184,15 +184,68 @@ export async function fetchCadastroFichaStats(): Promise<
 const DASHBOARD_CADASTRO_SELECT =
   'id,nome_completo,created_at,zona,secao,lider,coordenador,operator_id,diretoria_id,lat,lng,carros_adesivados,adesivos_casa,postagens,contato_whatsapp'
 
-export async function fetchDashboardCadastros(): Promise<Cadastro[]> {
-  const rows = await fetchAllPaged<Cadastro>((from, to) =>
-    supabase
+export type DashboardCadastrosOpts = {
+  period?: PeriodFilter
+  /** Restringe a uma diretoria (diretoria_id OU operator_id da equipe). */
+  diretoriaId?: string | null
+  operatorIds?: string[] | null
+}
+
+function applyDashboardCadastroFilters(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  query: any,
+  options?: DashboardCadastrosOpts,
+) {
+  let q = query
+  const startIso = options?.period?.start?.toISOString()
+  const endIso = options?.period?.end?.toISOString()
+  if (startIso) q = q.gte('created_at', startIso)
+  if (endIso) q = q.lte('created_at', endIso)
+
+  const dirId = options?.diretoriaId || null
+  if (dirId) {
+    const ops = (options?.operatorIds ?? []).filter(Boolean)
+    if (ops.length) {
+      q = q.or(`diretoria_id.eq.${dirId},operator_id.in.(${ops.join(',')})`)
+    } else {
+      q = q.eq('diretoria_id', dirId)
+    }
+  }
+  return q
+}
+
+/** Fichas do dashboard com filtro de período/diretoria no servidor. */
+export async function fetchDashboardCadastros(
+  options?: DashboardCadastrosOpts,
+): Promise<Cadastro[]> {
+  const rows = await fetchAllPaged<Cadastro>((from, to) => {
+    const base = supabase
       .from('cadastros')
       .select(DASHBOARD_CADASTRO_SELECT)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
-      .range(from, to),
-  )
+    return applyDashboardCadastroFilters(base, options).range(from, to)
+  })
+  return rows.map(sanitizeCadastro)
+}
+
+/**
+ * Só fichas com algum sinal de Formigas (bem menor que a tabela inteira).
+ * Usado na mobilização; pendentes = totalFichas − estas linhas.
+ */
+export async function fetchMobilizacaoCadastroRows(
+  options?: Pick<DashboardCadastrosOpts, 'diretoriaId' | 'operatorIds'>,
+): Promise<Cadastro[]> {
+  const rows = await fetchAllPaged<Cadastro>((from, to) => {
+    const base = supabase
+      .from('cadastros')
+      .select(DASHBOARD_CADASTRO_SELECT)
+      .or(
+        'carros_adesivados.gt.0,adesivos_casa.gt.0,postagens.gt.0,contato_whatsapp.eq.true',
+      )
+      .order('id', { ascending: false })
+    return applyDashboardCadastroFilters(base, options).range(from, to)
+  })
   return rows.map(sanitizeCadastro)
 }
 
