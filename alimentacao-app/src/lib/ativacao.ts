@@ -1,3 +1,5 @@
+import { compressImageForUpload } from './imageCompress'
+import { setCachedSignedUrl, takeCachedSignedUrls } from './signedUrlCache'
 import { supabase } from './supabase'
 import type { Cadastro, Coordenador, Lider, Profile } from '../types'
 
@@ -353,29 +355,69 @@ async function uploadFormigasFoto(
   kind: 'veiculo' | 'casa',
   file: File,
 ): Promise<string> {
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
+  const prepared = await compressImageForUpload(file)
+  const ext = prepared.type === 'image/jpeg'
+    ? 'jpg'
+    : (prepared.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
   const path = `${userId}/${tipo}/${pessoaId}/${kind}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext || 'jpg'}`
-  const { error } = await supabase.storage.from(FORMIGAS_FOTOS_BUCKET).upload(path, file, {
-    cacheControl: '3600',
+  const { error } = await supabase.storage.from(FORMIGAS_FOTOS_BUCKET).upload(path, prepared, {
+    cacheControl: '86400',
     upsert: false,
-    contentType: file.type || 'image/jpeg',
+    contentType: prepared.type || 'image/jpeg',
   })
   if (error) throw new Error(error.message)
   return path
 }
 
+/** Assina várias fotos Formigas em 1 request (+ cache de sessão). */
+export async function signFormigasFotoPaths(paths: string[]): Promise<Map<string, string>> {
+  const unique = [...new Set(paths.filter(Boolean))]
+  const out = new Map<string, string>()
+  if (!unique.length) return out
+
+  const { hits, missing } = takeCachedSignedUrls(FORMIGAS_FOTOS_BUCKET, unique)
+  for (const [path, url] of hits) out.set(path, url)
+  if (!missing.length) return out
+
+  const { data, error } = await supabase.storage
+    .from(FORMIGAS_FOTOS_BUCKET)
+    .createSignedUrls(missing, 60 * 60)
+
+  if (!error && data?.length) {
+    for (const row of data) {
+      if (row.path && row.signedUrl && !row.error) {
+        out.set(row.path, row.signedUrl)
+        setCachedSignedUrl(FORMIGAS_FOTOS_BUCKET, row.path, row.signedUrl)
+      }
+    }
+  }
+
+  const stillMissing = missing.filter((p) => !out.has(p))
+  if (stillMissing.length) {
+    await Promise.all(
+      stillMissing.map(async (path) => {
+        const { data: one } = await supabase.storage
+          .from(FORMIGAS_FOTOS_BUCKET)
+          .createSignedUrl(path, 60 * 60)
+        if (one?.signedUrl) {
+          out.set(path, one.signedUrl)
+          setCachedSignedUrl(FORMIGAS_FOTOS_BUCKET, path, one.signedUrl)
+        }
+      }),
+    )
+  }
+  return out
+}
+
 export async function getFormigasFotoUrl(path: string | null | undefined): Promise<string | null> {
   if (!path) return null
-  const { data, error } = await supabase.storage.from(FORMIGAS_FOTOS_BUCKET).createSignedUrl(path, 60 * 60)
-  if (error) return null
-  return data.signedUrl
+  const map = await signFormigasFotoPaths([path])
+  return map.get(path) ?? null
 }
 
 export async function getFormigasFotoUrls(paths: string[]): Promise<string[]> {
-  const unique = [...new Set(paths.filter(Boolean))]
-  if (!unique.length) return []
-  const urls = await Promise.all(unique.map((p) => getFormigasFotoUrl(p)))
-  const map = new Map(unique.map((p, i) => [p, urls[i]]))
+  if (!paths.length) return []
+  const map = await signFormigasFotoPaths(paths)
   return paths.map((p) => map.get(p) ?? null).filter((u): u is string => Boolean(u))
 }
 
