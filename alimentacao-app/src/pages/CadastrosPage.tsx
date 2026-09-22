@@ -367,15 +367,15 @@ export function CadastrosPage() {
     setSearchParams({}, { replace: true })
   }
 
-  const canEdit = (c: Cadastro) =>
-    profile?.role === 'admin' || c.operator_id === profile?.id
+  const canEdit = (_c: Cadastro) =>
+    profile?.role === 'admin' || profile?.role === 'diretoria' || _c.operator_id === profile?.id
 
   const canDelete = (c: Cadastro) => {
     if (profile?.role === 'admin') return true
     if (c.operator_id === profile?.id) return true
     if (profile?.role !== 'diretoria') return false
-    const cadastroDiretoriaId = c.diretoria_id || (c.operator_id ? neriteById.get(c.operator_id)?.diretoria_id : undefined)
-    return cadastroDiretoriaId === profile.id
+    // Diretoria também exclui ficha de qualquer nerite
+    return true
   }
 
   async function handleDelete() {
