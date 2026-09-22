@@ -12,6 +12,7 @@ import { CadastroFormPage } from './pages/CadastroFormPage'
 import { MapaPage } from './pages/MapaPage'
 import { ImportarPage } from './pages/ImportarPage'
 import { RelatoriosPage } from './pages/RelatoriosPage'
+import { RelatorioFichasTxtPage } from './pages/RelatorioFichasTxtPage'
 import { ConfiguracoesPage } from './pages/ConfiguracoesPage'
 import { EquipePage } from './pages/EquipePage'
 import { AtivacaoLancarPage } from './pages/AtivacaoLancarPage'
@@ -131,6 +132,7 @@ function AppRoutes() {
         <Route path="mapa" element={<StaffRoute><MapaPage /></StaffRoute>} />
         <Route path="importar" element={<NeriteRoute><ImportarPage /></NeriteRoute>} />
         <Route path="relatorios" element={<StaffRoute><RelatoriosPage /></StaffRoute>} />
+        <Route path="relatorios/fichas-txt" element={<StaffRoute><RelatorioFichasTxtPage /></StaffRoute>} />
         <Route path="mobilizacao" element={<Navigate to="/ativacao/lancar" replace />} />
         <Route path="ativacao/lancar" element={<AtivacaoRoute><AtivacaoLancarPage /></AtivacaoRoute>} />
         <Route path="ativacao/painel" element={<AtivacaoRoute><AtivacaoPainelPage /></AtivacaoRoute>} />
