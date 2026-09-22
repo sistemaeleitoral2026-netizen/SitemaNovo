@@ -6,6 +6,7 @@ import {
   Clock3,
   Crown,
   Download,
+  HelpCircle,
   History,
   Home,
   MapPin,
@@ -62,6 +63,7 @@ function parseEquipeChip(raw: string | null, status?: AtivacaoListFilters['statu
 function parseStatus(raw: string | null): AtivacaoListFilters['status'] {
   if (raw === 'carros' || raw === 'adesivo') return 'com_carro'
   if (raw === 'casa') return 'casa_sim'
+  if (raw === 'casa_talvez' || raw === 'talvez') return 'casa_talvez'
   if (raw === 'postagens') return 'com_links'
   if (raw === 'pendente') return 'sem_ativacao'
   if (
@@ -72,6 +74,7 @@ function parseStatus(raw: string | null): AtivacaoListFilters['status'] {
       'sem_ativacao',
       'com_carro',
       'casa_sim',
+      'casa_talvez',
       'com_links',
       'contato_sim',
       'contato_nao',
@@ -80,6 +83,20 @@ function parseStatus(raw: string | null): AtivacaoListFilters['status'] {
     return raw as AtivacaoListFilters['status']
   }
   return 'todos'
+}
+
+function casaCsvLabel(p: AtivacaoPessoa) {
+  if (p.adesivos_casa_status === 'talvez') return 'Talvez'
+  if (p.adesivos_casa_status === 'sim' || p.adesivos_casa > 0) return 'Sim'
+  return 'Nao'
+}
+
+function hasCasaAddr(p: AtivacaoPessoa) {
+  return (
+    p.adesivos_casa_status === 'sim'
+    || p.adesivos_casa_status === 'talvez'
+    || p.adesivos_casa > 0
+  )
 }
 
 export function AtivacaoPainelPage() {
@@ -119,7 +136,14 @@ export function AtivacaoPainelPage() {
   const [operatorId, setOperatorId] = useState(searchParams.get('nerite') ?? '')
   const [page, setPage] = useState(Number(searchParams.get('page') || 0) || 0)
   const [pageSize, setPageSize] = useState(25)
-  const [kpis, setKpis] = useState({ carros: 0, casas: 0, postagens: 0, whatsapp: 0, pendentes: 0 })
+  const [kpis, setKpis] = useState({
+    carros: 0,
+    casas: 0,
+    casasTalvez: 0,
+    postagens: 0,
+    whatsapp: 0,
+    pendentes: 0,
+  })
   const [histTarget, setHistTarget] = useState<AtivacaoPessoa | null>(null)
 
   useEffect(() => {
@@ -279,11 +303,11 @@ export function AtivacaoPainelPage() {
       p.lider,
       String(p.carros_adesivados),
       String(p.motos_adesivadas),
-      p.adesivos_casa > 0 ? 'Sim' : 'Nao',
-      p.adesivos_casa > 0 ? p.endereco : '',
-      p.adesivos_casa > 0 ? p.numero : '',
-      p.adesivos_casa > 0 ? p.cep : '',
-      p.adesivos_casa > 0 ? (mapsUrlForPessoa(p) ?? '') : '',
+      casaCsvLabel(p),
+      hasCasaAddr(p) ? p.endereco : '',
+      hasCasaAddr(p) ? p.numero : '',
+      hasCasaAddr(p) ? p.cep : '',
+      hasCasaAddr(p) ? (mapsUrlForPessoa(p) ?? '') : '',
       String(p.postagem_links.length || p.postagens),
       p.contato_whatsapp_status === 'sim'
         ? 'Ja acionada'
@@ -341,6 +365,14 @@ export function AtivacaoPainelPage() {
               Icon: Home,
               tone: 'teal',
               statusKey: 'casa_sim' as const,
+            },
+            {
+              key: 'casasTalvez',
+              label: 'Talvez',
+              value: kpis.casasTalvez,
+              Icon: HelpCircle,
+              tone: 'amber',
+              statusKey: 'casa_talvez' as const,
             },
             {
               key: 'postagens',
@@ -509,6 +541,7 @@ export function AtivacaoPainelPage() {
             { value: 'sem_ativacao', label: 'Sem lançamento' },
             { value: 'com_carro', label: 'Com veículo adesivado' },
             { value: 'casa_sim', label: 'Com casa adesivada' },
+            { value: 'casa_talvez', label: 'Casa: Talvez' },
             { value: 'com_links', label: 'Com links de rede' },
             { value: 'contato_sim', label: 'WhatsApp: Já acionada' },
             { value: 'contato_nao', label: 'WhatsApp: Não acionada' },
@@ -598,8 +631,11 @@ export function AtivacaoPainelPage() {
                       )}
                     </td>
                     <td>
-                      {p.adesivos_casa > 0 ? (
+                      {hasCasaAddr(p) ? (
                         <span className="ativacao-casa-cell">
+                          {p.adesivos_casa_status === 'talvez' && (
+                            <span className="fl-pill warn" style={{ marginRight: 6 }}>Talvez</span>
+                          )}
                           {(() => {
                             const url = mapsUrlForPessoa(p)
                             return url ? (
@@ -621,11 +657,13 @@ export function AtivacaoPainelPage() {
                               </span>
                             )
                           })()}
-                          <FormigasFotoThumbButton
-                            paths={p.foto_casa_paths}
-                            title={`Casa — ${p.nome}`}
-                            subtitle={p.tipoLabel}
-                          />
+                          {p.adesivos_casa_status === 'sim' || p.adesivos_casa > 0 ? (
+                            <FormigasFotoThumbButton
+                              paths={p.foto_casa_paths}
+                              title={`Casa — ${p.nome}`}
+                              subtitle={p.tipoLabel}
+                            />
+                          ) : null}
                         </span>
                       ) : (
                         <span className="ativacao-mapa-empty">—</span>
