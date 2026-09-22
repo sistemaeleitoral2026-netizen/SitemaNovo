@@ -1011,22 +1011,40 @@ export type AtivacaoTeamOptions = {
 
 export async function fetchAtivacaoTeamOptions(scopeDiretoriaId?: string | null): Promise<AtivacaoTeamOptions> {
   const [diretorias, coordenadores, lideres, nerites] = await Promise.all([
-    fetchAllPaged<Profile>((from, to) => {
-      let q = supabase.from('profiles').select('*').eq('role', 'diretoria').eq('ativo', true).order('nome')
-      return q.range(from, to)
-    }),
+    fetchAllPaged<Profile>((from, to) =>
+      supabase
+        .from('profiles')
+        .select('id, nome, role, ativo, diretoria_id')
+        .eq('role', 'diretoria')
+        .eq('ativo', true)
+        .order('nome')
+        .range(from, to),
+    ),
     fetchAllPaged<Coordenador>((from, to) => {
-      let q = supabase.from('coordenadores').select('*').eq('ativo', true).order('nome')
+      let q = supabase
+        .from('coordenadores')
+        .select('id, nome, diretoria_id, ativo')
+        .eq('ativo', true)
+        .order('nome')
       if (scopeDiretoriaId) q = q.eq('diretoria_id', scopeDiretoriaId)
       return q.range(from, to)
     }),
     fetchAllPaged<Lider>((from, to) => {
-      let q = supabase.from('lideres').select('*').eq('ativo', true).order('nome')
+      let q = supabase
+        .from('lideres')
+        .select('id, nome, diretoria_id, coordenador_id, ativo, telefone')
+        .eq('ativo', true)
+        .order('nome')
       if (scopeDiretoriaId) q = q.eq('diretoria_id', scopeDiretoriaId)
       return q.range(from, to)
     }),
     fetchAllPaged<Profile>((from, to) => {
-      let q = supabase.from('profiles').select('*').eq('role', 'operador').eq('ativo', true).order('nome')
+      let q = supabase
+        .from('profiles')
+        .select('id, nome, role, ativo, diretoria_id, coordenador_id, lider_id, email')
+        .eq('role', 'operador')
+        .eq('ativo', true)
+        .order('nome')
       if (scopeDiretoriaId) q = q.eq('diretoria_id', scopeDiretoriaId)
       return q.range(from, to)
     }),
@@ -1035,70 +1053,340 @@ export async function fetchAtivacaoTeamOptions(scopeDiretoriaId?: string | null)
   return { diretorias, coordenadores, lideres, nerites }
 }
 
-function matchesStatus(p: AtivacaoPessoa, status: AtivacaoListFilters['status']) {
-  if (!status || status === 'todos') return true
-  const hasAny =
-    p.carros_adesivados > 0
-    || p.motos_adesivadas > 0
-    || p.adesivos_casa > 0
-    || p.adesivos_casa_status === 'talvez'
-    || p.postagem_links.length > 0
-    || p.contato_whatsapp_status === 'sim'
-    || p.contato_whatsapp_status === 'sem'
-  if (status === 'com_ativacao') return hasAny
-  if (status === 'sem_ativacao') return !hasAny
-  if (status === 'com_carro') return p.carros_adesivados > 0 || p.motos_adesivadas > 0
-  if (status === 'casa_sim') return p.adesivos_casa_status === 'sim' || p.adesivos_casa > 0
-  if (status === 'casa_talvez') return p.adesivos_casa_status === 'talvez'
-  if (status === 'com_links') return p.postagem_links.length > 0
-  if (status === 'contato_sim') return p.contato_whatsapp_status === 'sim'
-  if (status === 'contato_nao') return p.contato_whatsapp_status === 'nao'
-  return true
+/** Contagem rápida de eleitores (chip Eleitores) — sem baixar fichas. */
+export async function countAtivacaoEleitores(diretoriaId?: string | null): Promise<number> {
+  let q = supabase.from('cadastros').select('id', { count: 'exact', head: true })
+  if (diretoriaId) q = q.eq('diretoria_id', diretoriaId)
+  const { count, error } = await q
+  if (error) throw new Error(error.message)
+  return count ?? 0
 }
 
-function matchesTeam(
-  p: AtivacaoPessoa,
+function escapeIlike(value: string) {
+  return value.replace(/[%_,]/g, ' ').trim()
+}
+
+/** Aplica filtros de status Formigas no PostgREST (colunas comuns às 3 tabelas). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyAtivacaoStatusFilter(query: any, status: AtivacaoListFilters['status']) {
+  if (!status || status === 'todos') return query
+  if (status === 'com_carro') {
+    return query.or('carros_adesivados.gt.0,motos_adesivadas.gt.0')
+  }
+  if (status === 'casa_sim') {
+    return query.or('adesivos_casa.gt.0,adesivos_casa_status.eq.sim')
+  }
+  if (status === 'casa_talvez') {
+    return query.eq('adesivos_casa_status', 'talvez')
+  }
+  if (status === 'com_links') {
+    return query.neq('postagem_links', '[]')
+  }
+  if (status === 'contato_sim') {
+    return query.eq('contato_whatsapp_status', 'sim')
+  }
+  if (status === 'contato_nao') {
+    return query.eq('contato_whatsapp_status', 'nao')
+  }
+  if (status === 'com_ativacao') {
+    return query.or(
+      [
+        'carros_adesivados.gt.0',
+        'motos_adesivadas.gt.0',
+        'adesivos_casa.gt.0',
+        'adesivos_casa_status.eq.sim',
+        'adesivos_casa_status.eq.talvez',
+        'contato_whatsapp_status.eq.sim',
+        'contato_whatsapp_status.eq.sem',
+        'postagem_links.neq.[]',
+      ].join(','),
+    )
+  }
+  if (status === 'sem_ativacao') {
+    return query
+      .eq('carros_adesivados', 0)
+      .eq('motos_adesivadas', 0)
+      .eq('adesivos_casa', 0)
+      .eq('adesivos_casa_status', 'nao')
+      .eq('contato_whatsapp_status', 'nao')
+      .eq('postagem_links', '[]')
+  }
+  return query
+}
+
+async function fetchCadastrosPainelPage(
   filters: AtivacaoListFilters,
-  coordById: Map<string, Coordenador>,
-) {
-  if (filters.diretoria_id && p.diretoria_id !== filters.diretoria_id) return false
+  from: number,
+  to: number,
+): Promise<{ items: AtivacaoPessoa[]; total: number }> {
+  const q = escapeIlike((filters.search ?? '').trim())
+  const digits = q.replace(/\D/g, '')
 
-  if (filters.coordenador_id || filters.coordenador) {
-    const nome = (filters.coordenador ?? '').trim().toLowerCase()
-    const id = filters.coordenador_id
-    if (p.tipo === 'coordenador') {
-      if (id && p.id !== id) return false
-      if (!id && nome && p.nome.toLowerCase() !== nome) return false
-    } else {
-      const coordNome = p.coordenador.toLowerCase()
-      const fromId = p.coordenador_id ? (coordById.get(p.coordenador_id)?.nome ?? '').toLowerCase() : ''
-      const ok =
-        (id && (p.coordenador_id === id || coordNome === nome || fromId === nome))
-        || (!id && nome && (coordNome === nome || fromId === nome))
-      if (!ok) return false
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query: any = supabase
+    .from('cadastros')
+    .select(CADASTRO_SELECT, { count: 'exact' })
+    .order('nome_completo')
+
+  if (filters.diretoria_id) query = query.eq('diretoria_id', filters.diretoria_id)
+  if (filters.operator_id) query = query.eq('operator_id', filters.operator_id)
+  if (filters.coordenador) query = query.ilike('coordenador', filters.coordenador.trim())
+  if (filters.lider) query = query.ilike('lider', filters.lider.trim())
+  query = applyAtivacaoStatusFilter(query, filters.status)
+
+  if (q) {
+    const parts = [
+      `nome_completo.ilike.%${q}%`,
+      `bairro.ilike.%${q}%`,
+      `titulo.ilike.%${q}%`,
+    ]
+    if (digits.length >= 3) {
+      parts.push(`titulo.ilike.%${digits}%`)
+      parts.push(`telefone.ilike.%${digits}%`)
+    }
+    query = query.or(parts.join(','))
+  }
+
+  const { data, error, count } = await query.range(from, to)
+  if (error) throw new Error(error.message)
+  return {
+    items: ((data ?? []) as unknown as Cadastro[]).map(fromCadastro),
+    total: count ?? 0,
+  }
+}
+
+async function fetchEquipePainelFiltered(
+  table: 'lideres' | 'coordenadores',
+  filters: AtivacaoListFilters,
+): Promise<AtivacaoPessoa[]> {
+  const select = table === 'lideres' ? LIDER_SELECT : COORD_SELECT
+  const q = escapeIlike((filters.search ?? '').trim())
+  const digits = q.replace(/\D/g, '')
+
+  const rows = await fetchAllPaged<Record<string, unknown>>((from, to) => {
+    // Cast evita TS2589 (select string dinâmico + table union)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query: any = (supabase as any).from(table).select(select).eq('ativo', true).order('nome')
+    if (filters.diretoria_id) query = query.eq('diretoria_id', filters.diretoria_id)
+    if (table === 'lideres' && filters.coordenador_id) {
+      query = query.eq('coordenador_id', filters.coordenador_id)
+    }
+    if (table === 'lideres' && filters.lider_id) {
+      query = query.eq('id', filters.lider_id)
+    }
+    if (table === 'coordenadores' && filters.coordenador_id) {
+      query = query.eq('id', filters.coordenador_id)
+    }
+    query = applyAtivacaoStatusFilter(query, filters.status)
+    if (q) {
+      const parts = [`nome.ilike.%${q}%`]
+      if (table === 'lideres' && digits.length >= 3) parts.push(`telefone.ilike.%${digits}%`)
+      query = query.or(parts.join(','))
+    }
+    return query.range(from, to)
+  })
+
+  if (table === 'lideres') {
+    let items = (rows as unknown as Lider[]).map(fromLider)
+    // Resolve nome do coordenador
+    const coordIds = [...new Set(items.map((p) => p.coordenador_id).filter(Boolean))] as string[]
+    if (coordIds.length) {
+      const { data } = await supabase.from('coordenadores').select('id, nome').in('id', coordIds)
+      const byId = new Map((data ?? []).map((c) => [String(c.id), String(c.nome ?? '')]))
+      items = items.map((p) =>
+        p.coordenador_id ? { ...p, coordenador: byId.get(p.coordenador_id) ?? p.coordenador } : p,
+      )
+    }
+    if (filters.coordenador && !filters.coordenador_id) {
+      const nome = filters.coordenador.trim().toLowerCase()
+      items = items.filter((p) => p.coordenador.toLowerCase() === nome)
+    }
+    if (filters.lider && !filters.lider_id) {
+      const nome = filters.lider.trim().toLowerCase()
+      items = items.filter((p) => p.nome.toLowerCase() === nome)
+    }
+    // Filtro por nerite não se aplica a lideranças
+    if (filters.operator_id) return []
+    return items
+  }
+
+  let items = (rows as unknown as Coordenador[]).map(fromCoord)
+  if (filters.coordenador && !filters.coordenador_id) {
+    const nome = filters.coordenador.trim().toLowerCase()
+    items = items.filter((p) => p.nome.toLowerCase() === nome)
+  }
+  if (filters.lider_id || filters.lider || filters.operator_id) return []
+  return items
+}
+
+/**
+ * Lista do Painel Formigas.
+ * Eleitores: pagina no servidor (não baixa o dump).
+ * Lideranças/coordenadores: tabelas pequenas.
+ * "Todos": prefixo equipe + página de eleitores com offset ajustado.
+ */
+export async function fetchAtivacaoPainel(filters: AtivacaoListFilters = {}): Promise<AtivacaoListResult> {
+  const page = filters.page ?? 0
+  const pageSize = filters.pageSize ?? 25
+  const tipo = filters.tipo ?? 'todos'
+
+  // Atalho legado (não usado pelo painel/KPIs atuais)
+  if (pageSize > 500) {
+    const [eleitores, lideres, coords] = await Promise.all([
+      tipo === 'coordenador'
+        ? Promise.resolve({ items: [] as AtivacaoPessoa[], total: 0 })
+        : fetchCadastrosPainelPage(filters, 0, Math.min(pageSize, 2000) - 1),
+      tipo === 'eleitor' ? Promise.resolve([] as AtivacaoPessoa[]) : fetchEquipePainelFiltered('lideres', filters),
+      tipo === 'eleitor' || tipo === 'lideranca'
+        ? Promise.resolve([] as AtivacaoPessoa[])
+        : fetchEquipePainelFiltered('coordenadores', filters),
+    ])
+    const items = [...coords, ...lideres, ...eleitores.items]
+    return { items, total: items.length }
+  }
+
+  if (tipo === 'eleitor') {
+    const from = page * pageSize
+    const to = from + pageSize - 1
+    const { items, total } = await fetchCadastrosPainelPage(filters, from, to)
+    return { items: await enrichOwnerNames(items), total }
+  }
+
+  if (tipo === 'lideranca') {
+    const all = await fetchEquipePainelFiltered('lideres', filters)
+    all.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+    const total = all.length
+    const pageItems = all.slice(page * pageSize, page * pageSize + pageSize)
+    return { items: await enrichOwnerNames(pageItems), total }
+  }
+
+  if (tipo === 'coordenador') {
+    const all = await fetchEquipePainelFiltered('coordenadores', filters)
+    all.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+    const total = all.length
+    const pageItems = all.slice(page * pageSize, page * pageSize + pageSize)
+    return { items: await enrichOwnerNames(pageItems), total }
+  }
+
+  // tipo === 'todos'
+  const [coords, lideres] = await Promise.all([
+    fetchEquipePainelFiltered('coordenadores', filters),
+    fetchEquipePainelFiltered('lideres', filters),
+  ])
+  const prefix = [...coords, ...lideres].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  const prefixLen = prefix.length
+  const start = page * pageSize
+  const end = start + pageSize
+
+  if (end <= prefixLen) {
+    const { total: eleitoresTotal } = await fetchCadastrosPainelPage(filters, 0, 0)
+    return {
+      items: await enrichOwnerNames(prefix.slice(start, end)),
+      total: prefixLen + eleitoresTotal,
     }
   }
 
-  if (filters.lider_id || filters.lider) {
-    const nome = (filters.lider ?? '').trim().toLowerCase()
-    const id = filters.lider_id
-    if (p.tipo === 'lideranca') {
-      if (id && p.id !== id) return false
-      if (!id && nome && p.nome.toLowerCase() !== nome) return false
-    } else if (p.tipo === 'coordenador') {
-      return false
-    } else {
-      // Cadastros só guardam o nome da liderança — precisa do nome resolvido.
-      if (!nome) return true
-      if (p.lider.toLowerCase() !== nome) return false
+  // Precisa de eleitores nesta página
+  const cadStart = Math.max(0, start - prefixLen)
+  const cadNeed = end - Math.max(start, prefixLen)
+  const { items: eleitores, total: eleitoresTotal } = await fetchCadastrosPainelPage(
+    filters,
+    cadStart,
+    cadStart + Math.max(cadNeed, 1) - 1,
+  )
+  const total = prefixLen + eleitoresTotal
+
+  if (start >= prefixLen) {
+    return { items: await enrichOwnerNames(eleitores.slice(0, pageSize)), total }
+  }
+
+  const fromPrefix = prefix.slice(start)
+  const mixed = [...fromPrefix, ...eleitores].slice(0, pageSize)
+  return { items: await enrichOwnerNames(mixed), total }
+}
+
+const KPI_SELECT =
+  'carros_adesivados, motos_adesivadas, adesivos_casa, adesivos_casa_status, postagem_links, contato_whatsapp_status'
+
+type KpiRow = {
+  carros_adesivados: number | null
+  motos_adesivadas: number | null
+  adesivos_casa: number | null
+  adesivos_casa_status: string | null
+  postagem_links: unknown
+  contato_whatsapp_status: string | null
+}
+
+async function fetchKpiRows(table: 'cadastros' | 'lideres' | 'coordenadores', diretoriaId?: string) {
+  return fetchAllPaged<KpiRow>((from, to) => {
+    let q = supabase.from(table).select(KPI_SELECT)
+    if (diretoriaId) q = q.eq('diretoria_id', diretoriaId)
+    if (table !== 'cadastros') q = q.eq('ativo', true)
+    return q.range(from, to)
+  })
+}
+
+function accumulateKpis(rows: KpiRow[]) {
+  let carros = 0
+  let casas = 0
+  let casasTalvez = 0
+  let postagens = 0
+  let whatsapp = 0
+  let comAtivacao = 0
+  for (const p of rows) {
+    const carrosN = Number(p.carros_adesivados) || 0
+    const motosN = Number(p.motos_adesivadas) || 0
+    const casaN = Number(p.adesivos_casa) || 0
+    const casaStatus = p.adesivos_casa_status ?? (casaN > 0 ? 'sim' : 'nao')
+    const links = Array.isArray(p.postagem_links) ? p.postagem_links : []
+    const wa = p.contato_whatsapp_status ?? 'nao'
+    if (carrosN > 0 || motosN > 0) carros += 1
+    if (casaStatus === 'sim' || casaN > 0) casas += 1
+    if (casaStatus === 'talvez') casasTalvez += 1
+    if (links.length > 0) postagens += 1
+    if (wa === 'sim') whatsapp += 1
+    if (
+      carrosN > 0
+      || motosN > 0
+      || casaN > 0
+      || casaStatus === 'talvez'
+      || links.length > 0
+      || wa === 'sim'
+      || wa === 'sem'
+    ) {
+      comAtivacao += 1
     }
   }
+  return { carros, casas, casasTalvez, postagens, whatsapp, comAtivacao, total: rows.length }
+}
 
-  if (filters.operator_id) {
-    if (p.tipo !== 'eleitor' || p.operator_id !== filters.operator_id) return false
+export async function fetchAtivacaoKpis(filters: AtivacaoListFilters = {}) {
+  const dir = filters.diretoria_id
+  const [cad, lid, coord] = await Promise.all([
+    fetchKpiRows('cadastros', dir),
+    fetchKpiRows('lideres', dir),
+    fetchKpiRows('coordenadores', dir),
+  ])
+  const a = accumulateKpis(cad)
+  const b = accumulateKpis(lid)
+  const c = accumulateKpis(coord)
+  const totalPessoas = a.total + b.total + c.total
+  const carros = a.carros + b.carros + c.carros
+  const casas = a.casas + b.casas + c.casas
+  const casasTalvez = a.casasTalvez + b.casasTalvez + c.casasTalvez
+  const postagens = a.postagens + b.postagens + c.postagens
+  const whatsapp = a.whatsapp + b.whatsapp + c.whatsapp
+  const comAtivacao = a.comAtivacao + b.comAtivacao + c.comAtivacao
+  return {
+    totalPessoas,
+    carros,
+    casas,
+    casasTalvez,
+    postagens,
+    whatsapp,
+    comAtivacao,
+    pendentes: Math.max(0, totalPessoas - comAtivacao),
   }
-
-  return true
 }
 
 /** Supabase/PostgREST limita ~1000 linhas por request — pagina até esgotar. */
@@ -1117,140 +1405,4 @@ async function fetchAllPaged<T>(
     from += pageSize
   }
   return all
-}
-
-/** Lista unificada para o Painel (eleitores + equipe). Filtra em memória após fetch completo (paginado). */
-export async function fetchAtivacaoPainel(filters: AtivacaoListFilters = {}): Promise<AtivacaoListResult> {
-  const page = filters.page ?? 0
-  const pageSize = filters.pageSize ?? 25
-  const tipo = filters.tipo ?? 'todos'
-  const q = (filters.search ?? '').trim().toLowerCase()
-  const digits = q.replace(/\D/g, '')
-
-  const loads: Promise<AtivacaoPessoa[]>[] = []
-
-  if (tipo === 'todos' || tipo === 'eleitor') {
-    loads.push(
-      (async () => {
-        const rows = await fetchAllPaged<Cadastro>((from, to) => {
-          let query = supabase.from('cadastros').select(CADASTRO_SELECT).order('nome_completo')
-          if (filters.diretoria_id) query = query.eq('diretoria_id', filters.diretoria_id)
-          if (filters.operator_id) query = query.eq('operator_id', filters.operator_id)
-          return query.range(from, to)
-        })
-        return rows.map(fromCadastro)
-      })(),
-    )
-  }
-  if (tipo === 'todos' || tipo === 'lideranca') {
-    loads.push(
-      (async () => {
-        const rows = await fetchAllPaged<Lider>((from, to) => {
-          let query = supabase.from('lideres').select(LIDER_SELECT).eq('ativo', true).order('nome')
-          if (filters.diretoria_id) query = query.eq('diretoria_id', filters.diretoria_id)
-          return query.range(from, to)
-        })
-        return rows.map(fromLider)
-      })(),
-    )
-  }
-  if (tipo === 'todos' || tipo === 'coordenador') {
-    loads.push(
-      (async () => {
-        const rows = await fetchAllPaged<Coordenador>((from, to) => {
-          let query = supabase.from('coordenadores').select(COORD_SELECT).eq('ativo', true).order('nome')
-          if (filters.diretoria_id) query = query.eq('diretoria_id', filters.diretoria_id)
-          return query.range(from, to)
-        })
-        return rows.map(fromCoord)
-      })(),
-    )
-  }
-
-  const [chunks, coordsAll] = await Promise.all([
-    Promise.all(loads),
-    fetchAllPaged<Coordenador>((from, to) =>
-      supabase.from('coordenadores').select('id, nome, diretoria_id, ativo').range(from, to),
-    ),
-  ])
-  let items = chunks.flat()
-  const coordById = new Map(coordsAll.map((c) => [c.id, c]))
-
-  items = items.map((p) => {
-    if (p.tipo !== 'lideranca' || !p.coordenador_id) return p
-    const coord = coordById.get(p.coordenador_id)
-    if (!coord) return p
-    return { ...p, coordenador: coord.nome }
-  })
-
-  if (q) {
-    items = items.filter((p) => {
-      const nome = p.nome.toLowerCase()
-      const titulo = p.titulo.toLowerCase()
-      const bairro = p.bairro.toLowerCase()
-      const telefone = (p.telefone ?? '').replace(/\D/g, '')
-      return (
-        nome.includes(q)
-        || bairro.includes(q)
-        || (digits && titulo.includes(digits))
-        || titulo.includes(q)
-        || (digits && telefone.includes(digits))
-      )
-    })
-  }
-
-  items = items.filter((p) => matchesStatus(p, filters.status))
-  items = items.filter((p) => matchesTeam(p, filters, coordById))
-  items.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-
-  const total = items.length
-  const start = page * pageSize
-  const pageItems = items.slice(start, start + pageSize)
-  // KPIs pedem pageSize enorme — não resolve nomes de owners nesse caminho.
-  if (pageSize > 500) return { items: pageItems, total }
-  return { items: await enrichOwnerNames(pageItems), total }
-}
-
-export async function fetchAtivacaoKpis(filters: AtivacaoListFilters = {}) {
-  // Conta pessoas (não soma quantidades) para bater com os filtros do Painel.
-  const { items } = await fetchAtivacaoPainel({
-    ...filters,
-    status: 'todos',
-    page: 0,
-    pageSize: 1_000_000,
-  })
-  let carros = 0
-  let casas = 0
-  let casasTalvez = 0
-  let postagens = 0
-  let whatsapp = 0
-  let comAtivacao = 0
-  for (const p of items) {
-    if (p.carros_adesivados > 0 || p.motos_adesivadas > 0) carros += 1
-    if (p.adesivos_casa_status === 'sim' || p.adesivos_casa > 0) casas += 1
-    if (p.adesivos_casa_status === 'talvez') casasTalvez += 1
-    if (p.postagem_links.length > 0) postagens += 1
-    if (p.contato_whatsapp_status === 'sim') whatsapp += 1
-    if (
-      p.carros_adesivados > 0
-      || p.motos_adesivadas > 0
-      || p.adesivos_casa > 0
-      || p.adesivos_casa_status === 'talvez'
-      || p.postagem_links.length > 0
-      || p.contato_whatsapp_status === 'sim'
-      || p.contato_whatsapp_status === 'sem'
-    ) {
-      comAtivacao += 1
-    }
-  }
-  return {
-    totalPessoas: items.length,
-    carros,
-    casas,
-    casasTalvez,
-    postagens,
-    whatsapp,
-    comAtivacao,
-    pendentes: Math.max(0, items.length - comAtivacao),
-  }
 }
