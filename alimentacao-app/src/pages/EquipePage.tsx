@@ -276,7 +276,11 @@ export function EquipePage() {
   const filteredLideres = useMemo(
     () =>
       lideres.filter((l) => {
-        if (coordenadorFromUrl && l.coordenador_id !== coordenadorFromUrl) return false
+        // Sem coordenador_id: aparece para a nerite em qualquer coordenação —
+        // no admin também precisa listar (senão “some” ao filtrar por coordenador).
+        if (coordenadorFromUrl && l.coordenador_id && l.coordenador_id !== coordenadorFromUrl) {
+          return false
+        }
         if (!q) return true
         return l.nome.toLowerCase().includes(q)
       }),
@@ -302,7 +306,7 @@ export function EquipePage() {
   const lideresCount = useMemo(
     () =>
       coordenadorFromUrl
-        ? lideres.filter((l) => l.coordenador_id === coordenadorFromUrl).length
+        ? lideres.filter((l) => !l.coordenador_id || l.coordenador_id === coordenadorFromUrl).length
         : lideres.length,
     [lideres, coordenadorFromUrl],
   )

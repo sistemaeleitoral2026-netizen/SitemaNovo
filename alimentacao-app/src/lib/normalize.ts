@@ -12,7 +12,7 @@ export function normalizeName(value: unknown): string {
 }
 
 export function normalizeTitulo(value: unknown): string {
-  return collapseSpaces(value)
+  return digitsOnly(value).slice(0, 12)
 }
 
 export function digitsOnly(value: unknown): string {
