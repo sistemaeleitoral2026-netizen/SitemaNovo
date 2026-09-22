@@ -1,5 +1,9 @@
+import { compressImageForUpload } from './imageCompress'
+import { setCachedSignedUrl, takeCachedSignedUrls } from './signedUrlCache'
 import { supabase } from './supabase'
 import type { Cadastro, Demanda, DemandaStatus, DemandaUrgencia } from '../types'
+
+const DEMANDAS_FOTOS_BUCKET = 'demandas-fotos'
 
 export const DEMANDA_MAX_FOTOS = 6
 
@@ -130,12 +134,13 @@ export async function searchCadastrosDemanda(term: string, limit = 12): Promise<
 }
 
 async function uploadFoto(userId: string, file: File): Promise<string> {
-  const prepared = await compressDemandaFoto(file)
+  // Qualidade alta: só reprocessa arquivos muito grandes (~2 MB+).
+  const prepared = await compressImageForUpload(file)
   const ext = prepared.type === 'image/jpeg'
     ? 'jpg'
     : (prepared.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
   const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext || 'jpg'}`
-  const { error } = await supabase.storage.from('demandas-fotos').upload(path, prepared, {
+  const { error } = await supabase.storage.from(DEMANDAS_FOTOS_BUCKET).upload(path, prepared, {
     cacheControl: '86400',
     upsert: false,
     contentType: prepared.type || 'image/jpeg',
@@ -150,34 +155,43 @@ export async function getDemandaFotoUrl(path: string | null | undefined): Promis
   return map.get(path) ?? null
 }
 
-/** Assina várias fotos em 1 request (em vez de N createSignedUrl). */
+/** Assina várias fotos em 1 request (em vez de N createSignedUrl) + cache de sessão. */
 export async function signDemandaFotoPaths(paths: string[]): Promise<Map<string, string>> {
   const unique = [...new Set(paths.filter(Boolean))]
   const out = new Map<string, string>()
   if (!unique.length) return out
 
+  const { hits, missing } = takeCachedSignedUrls(DEMANDAS_FOTOS_BUCKET, unique)
+  for (const [path, url] of hits) out.set(path, url)
+  if (!missing.length) return out
+
   const { data, error } = await supabase.storage
-    .from('demandas-fotos')
-    .createSignedUrls(unique, 60 * 60)
+    .from(DEMANDAS_FOTOS_BUCKET)
+    .createSignedUrls(missing, 60 * 60)
 
   if (!error && data?.length) {
     for (const row of data) {
-      if (row.path && row.signedUrl && !row.error) out.set(row.path, row.signedUrl)
+      if (row.path && row.signedUrl && !row.error) {
+        out.set(row.path, row.signedUrl)
+        setCachedSignedUrl(DEMANDAS_FOTOS_BUCKET, row.path, row.signedUrl)
+      }
     }
-    if (out.size === unique.length) return out
   }
 
-  // Fallback: paths que falharam no lote
-  await Promise.all(
-    unique
-      .filter((p) => !out.has(p))
-      .map(async (path) => {
+  const stillMissing = missing.filter((p) => !out.has(p))
+  if (stillMissing.length) {
+    await Promise.all(
+      stillMissing.map(async (path) => {
         const { data: one } = await supabase.storage
-          .from('demandas-fotos')
+          .from(DEMANDAS_FOTOS_BUCKET)
           .createSignedUrl(path, 60 * 60)
-        if (one?.signedUrl) out.set(path, one.signedUrl)
+        if (one?.signedUrl) {
+          out.set(path, one.signedUrl)
+          setCachedSignedUrl(DEMANDAS_FOTOS_BUCKET, path, one.signedUrl)
+        }
       }),
-  )
+    )
+  }
   return out
 }
 
@@ -191,40 +205,6 @@ export async function attachDemandaFotoUrls(items: DemandaComAutor[]): Promise<D
     const foto_urls = paths.map((p) => map.get(p)).filter((u): u is string => Boolean(u))
     return { ...r, foto_paths: paths, foto_urls, foto_url: foto_urls[0] ?? null }
   })
-}
-
-/** Reduz foto de celular antes do upload (thumbnail do painel fica bem mais rápido). */
-async function compressDemandaFoto(file: File): Promise<File> {
-  if (!file.type.startsWith('image/') || file.type === 'image/gif') return file
-  // Já pequena — não reprocessa
-  if (file.size <= 350_000) return file
-
-  try {
-    const bitmap = await createImageBitmap(file)
-    const maxSide = 1600
-    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height))
-    const w = Math.max(1, Math.round(bitmap.width * scale))
-    const h = Math.max(1, Math.round(bitmap.height * scale))
-    const canvas = document.createElement('canvas')
-    canvas.width = w
-    canvas.height = h
-    const ctx = canvas.getContext('2d')
-    if (!ctx) {
-      bitmap.close()
-      return file
-    }
-    ctx.drawImage(bitmap, 0, 0, w, h)
-    bitmap.close()
-
-    const blob: Blob | null = await new Promise((resolve) => {
-      canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.72)
-    })
-    if (!blob || blob.size >= file.size) return file
-    const base = file.name.replace(/\.[^.]+$/, '') || 'demanda'
-    return new File([blob], `${base}.jpg`, { type: 'image/jpeg', lastModified: Date.now() })
-  } catch {
-    return file
-  }
 }
 
 export async function createDemanda(userId: string, input: DemandaCreateInput): Promise<{ error: string | null; id?: string }> {

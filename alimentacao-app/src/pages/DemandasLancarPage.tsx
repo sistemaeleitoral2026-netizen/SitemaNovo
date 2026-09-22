@@ -25,6 +25,7 @@ import {
   protocoloDemanda,
   resolveDemandaFotoPaths,
   searchCadastrosDemanda,
+  signDemandaFotoPaths,
   updateDemanda,
   type DemandaCadastroHit,
   type DemandaComAutor,
@@ -95,7 +96,13 @@ export function DemandasLancarPage() {
   async function loadHistorico(search = histSearch) {
     setHistLoading(true)
     try {
-      const { items } = await fetchDemandas({ status: 'todas', search, page: 0, pageSize: 50 })
+      const { items } = await fetchDemandas({
+        status: 'todas',
+        search,
+        page: 0,
+        pageSize: 50,
+        skipFotos: true,
+      })
       setHistorico(items)
       setError(null)
     } catch (err) {
@@ -230,7 +237,7 @@ export function DemandasLancarPage() {
     setKeptFotos((prev) => prev.filter((f) => f.path !== path))
   }
 
-  function startEdit(d: DemandaComAutor) {
+  async function startEdit(d: DemandaComAutor) {
     if (!canManageDemanda(d, profile?.id, profile?.role)) return
     setEditingId(d.id)
     setMode('historico')
@@ -242,12 +249,16 @@ export function DemandasLancarPage() {
     setDescricao(d.descricao)
     clearNewFotos()
     const paths = resolveDemandaFotoPaths(d)
-    const urls = d.foto_urls ?? (d.foto_url ? [d.foto_url] : [])
+    const existing = d.foto_urls ?? (d.foto_url ? [d.foto_url] : [])
+    const urlByPath = new Map(paths.map((path, i) => [path, existing[i] ?? '']))
+    if (paths.some((p) => !urlByPath.get(p))) {
+      const map = await signDemandaFotoPaths(paths)
+      for (const [path, url] of map) urlByPath.set(path, url)
+    }
     setKeptFotos(
-      paths.map((path, i) => ({
-        path,
-        url: urls[i] ?? '',
-      })).filter((f) => f.url),
+      paths
+        .map((path) => ({ path, url: urlByPath.get(path) ?? '' }))
+        .filter((f) => f.url),
     )
     setSelected(null)
     setError(null)
@@ -676,7 +687,7 @@ export function DemandasLancarPage() {
                         </span>
                       ) : (
                         <div className="dm-hist-actions">
-                          <button type="button" className="dm-btn-edit" onClick={() => startEdit(d)}>
+                          <button type="button" className="dm-btn-edit" onClick={() => void startEdit(d)}>
                             <Pencil size={14} /> Editar
                           </button>
                           <button
