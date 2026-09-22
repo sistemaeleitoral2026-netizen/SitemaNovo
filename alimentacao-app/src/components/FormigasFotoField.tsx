@@ -98,7 +98,7 @@ export function FormigasFotoField({
         {kept.map((f) => (
           <div key={f.path} className="fl-foto-tile">
             <button type="button" className="fl-foto-open" onClick={() => setLightbox(f.url)} aria-label="Ampliar foto">
-              <img src={f.url} alt="" />
+              <img src={f.url} alt="" loading="lazy" decoding="async" />
             </button>
             {!disabled && (
               <button type="button" className="fl-foto-remove" onClick={() => removeKept(f.path)} aria-label="Remover foto">
@@ -110,7 +110,7 @@ export function FormigasFotoField({
         {news.map((f, idx) => (
           <div key={`${f.file.name}-${idx}`} className="fl-foto-tile is-new">
             <button type="button" className="fl-foto-open" onClick={() => setLightbox(f.preview)} aria-label="Ampliar preview">
-              <img src={f.preview} alt="" />
+              <img src={f.preview} alt="" loading="lazy" decoding="async" />
             </button>
             {!disabled && (
               <button type="button" className="fl-foto-remove" onClick={() => removeNew(idx)} aria-label="Remover foto">
@@ -149,7 +149,7 @@ export function FormigasFotoField({
                 </button>
               </header>
               <div className="fl-foto-lightbox-body">
-                <img src={lightbox} alt={label} />
+                <img src={lightbox} alt={label} decoding="async" />
               </div>
             </div>
           </div>,
@@ -232,7 +232,7 @@ export function FormigasFotoThumbButton({
               </header>
               <div className="fl-foto-lightbox-body">
                 {loading && <p className="fl-foto-lightbox-loading">Carregando…</p>}
-                {!loading && current && <img src={current} alt={title} />}
+                {!loading && current && <img src={current} alt={title} decoding="async" />}
                 {!loading && !current && <p className="fl-foto-lightbox-loading">Não foi possível abrir a foto.</p>}
               </div>
               {urls.length > 1 && (
