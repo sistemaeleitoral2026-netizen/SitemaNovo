@@ -30,7 +30,7 @@ import { MetaGoalPopup } from '../components/ui/MetaGoalPopup'
 import { EvolutionChart } from '../components/charts/EvolutionChart'
 import { CadastrosMap } from '../components/map/CadastrosMap'
 import { getPeriodFromPreset, type PeriodPreset } from '../lib/period'
-import { buildEvolutionData, buildMapMarkers, buildZonaData, fetchCadastros } from '../lib/cadastros'
+import { buildEvolutionData, buildMapMarkers, buildZonaData, fetchDashboardCadastros, filterCadastrosByPeriod } from '../lib/cadastros'
 import {
   getMetaFichas,
   markMetaPopupSeen,
@@ -134,7 +134,7 @@ function AdminDashboard() {
   const [dirFilter, setDirFilter] = useState<DirFilter>('all')
   const [viewMode, setViewMode] = useState<ViewMode>('geral')
   const [reloadKey, setReloadKey] = useState(0)
-  const [cadastros, setCadastros] = useState<Cadastro[]>([])
+  const [allCadastros, setAllCadastros] = useState<Cadastro[]>([])
   const [mobilizacaoCadastros, setMobilizacaoCadastros] = useState<MobilizacaoSource[]>([])
   const [totalFichas, setTotalFichas] = useState(0)
   const [diretorias, setDiretorias] = useState<Profile[]>([])
@@ -154,6 +154,7 @@ function AdminDashboard() {
   const refDesempenho = useRef<HTMLElement>(null)
 
   const period = useMemo(() => getPeriodFromPreset(periodPreset), [periodPreset])
+  const cadastros = useMemo(() => filterCadastrosByPeriod(allCadastros, period), [allCadastros, period])
 
   useEffect(() => { setMeta(getMetaFichas()) }, [])
 
@@ -161,20 +162,19 @@ function AdminDashboard() {
     async function load() {
       setLoading(true)
       try {
-        const [cData, totalRes, mobCadastros, dirs, ops, coords, lids, demCounts, urgRes] = await Promise.all([
-          fetchCadastros({ period }),
+        const [allRows, totalRes, dirs, ops, coords, lids, demCounts, urgRes] = await Promise.all([
+          fetchDashboardCadastros(),
           supabase.from('cadastros').select('*', { count: 'exact', head: true }),
-          fetchCadastros(),
-          supabase.from('profiles').select('*').eq('role', 'diretoria').order('nome'),
-          supabase.from('profiles').select('*').eq('role', 'operador').order('nome'),
-          supabase.from('coordenadores').select('*'),
-          supabase.from('lideres').select('*'),
+          supabase.from('profiles').select('id,nome,role,diretoria_id,email,ativo').eq('role', 'diretoria').order('nome'),
+          supabase.from('profiles').select('id,nome,role,diretoria_id,email,ativo').eq('role', 'operador').order('nome'),
+          supabase.from('coordenadores').select('id,nome,diretoria_id,carros_adesivados,adesivos_casa,postagens,contato_whatsapp'),
+          supabase.from('lideres').select('id,nome,diretoria_id,coordenador_id,limite_fichas,carros_adesivados,adesivos_casa,postagens,contato_whatsapp'),
           fetchDemandaCounts(),
           supabase.from('demandas').select('urgencia').eq('status', 'aberta'),
         ])
-        setCadastros(cData)
-        setMobilizacaoCadastros(mobCadastros)
-        setTotalFichas(totalRes.count ?? 0)
+        setAllCadastros(allRows)
+        setMobilizacaoCadastros(allRows)
+        setTotalFichas(totalRes.count ?? allRows.length)
         setDiretorias((dirs.data ?? []) as Profile[])
         setNerites((ops.data ?? []) as Profile[])
         setCoordenadores((coords.data ?? []) as Coordenador[])
@@ -192,7 +192,7 @@ function AdminDashboard() {
       }
     }
     load()
-  }, [period, reloadKey])
+  }, [reloadKey])
 
   useEffect(() => {
     if (loading || !profile?.id) return
@@ -1130,7 +1130,7 @@ function AdminDashboard() {
 function DiretoriaDashboard() {
   const { profile } = useAuth()
   const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('30d')
-  const [cadastros, setCadastros] = useState<Cadastro[]>([])
+  const [allCadastros, setAllCadastros] = useState<Cadastro[]>([])
   const [mobilizacaoCadastros, setMobilizacaoCadastros] = useState<MobilizacaoSource[]>([])
   const [nerites, setNerites] = useState<Profile[]>([])
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
@@ -1139,27 +1139,24 @@ function DiretoriaDashboard() {
 
   const period = useMemo(() => getPeriodFromPreset(periodPreset), [periodPreset])
   const dirId = profile!.id
+  const cadastros = useMemo(() => filterCadastrosByPeriod(allCadastros, period), [allCadastros, period])
 
   useEffect(() => {
     async function load() {
       setLoading(true)
       try {
-        const [cData, allCadastros, ops, coords, lids] = await Promise.all([
-          fetchCadastros({ period }),
-          fetchCadastros(),
-          supabase.from('profiles').select('*').eq('role', 'operador').eq('diretoria_id', dirId).order('nome'),
-          supabase.from('coordenadores').select('*').eq('diretoria_id', dirId),
-          supabase.from('lideres').select('*').eq('diretoria_id', dirId),
+        const [allRows, ops, coords, lids] = await Promise.all([
+          fetchDashboardCadastros(),
+          supabase.from('profiles').select('id,nome,role,diretoria_id,email,ativo').eq('role', 'operador').eq('diretoria_id', dirId).order('nome'),
+          supabase.from('coordenadores').select('id,nome,diretoria_id,carros_adesivados,adesivos_casa,postagens,contato_whatsapp').eq('diretoria_id', dirId),
+          supabase.from('lideres').select('id,nome,diretoria_id,coordenador_id,limite_fichas,carros_adesivados,adesivos_casa,postagens,contato_whatsapp').eq('diretoria_id', dirId),
         ])
-        const teamIds = new Set((ops.data ?? []).map((n: Profile) => n.id))
-        setCadastros(
-          cData.filter((c) => c.diretoria_id === dirId || Boolean(c.operator_id && teamIds.has(c.operator_id))),
+        const teamIds = new Set(((ops.data ?? []) as Profile[]).map((n) => n.id))
+        const scoped = allRows.filter(
+          (c) => c.diretoria_id === dirId || Boolean(c.operator_id && teamIds.has(c.operator_id)),
         )
-        setMobilizacaoCadastros(
-          allCadastros.filter(
-            (c) => c.diretoria_id === dirId || Boolean(c.operator_id && teamIds.has(c.operator_id)),
-          ),
-        )
+        setAllCadastros(scoped)
+        setMobilizacaoCadastros(scoped)
         setNerites((ops.data ?? []) as Profile[])
         setCoordenadores((coords.data ?? []) as Coordenador[])
         setLideres((lids.data ?? []) as Lider[])
@@ -1168,7 +1165,7 @@ function DiretoriaDashboard() {
       }
     }
     load()
-  }, [period, dirId])
+  }, [dirId])
 
   const todayCount = useMemo(() => {
     const start = startOfDay(new Date()).toISOString()

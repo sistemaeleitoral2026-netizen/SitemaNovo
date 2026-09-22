@@ -90,49 +90,29 @@ export async function fetchCadastros(options?: {
 }
 
 /**
- * Totais de fichas por nerite via COUNT exact do Postgres (não depende do limite de 1000 linhas).
+ * Totais de fichas por nerite via RPC agregada (1 query GROUP BY).
  * Esta é a fonte da verdade para a lista de Nerites / Equipe.
  */
 export async function fetchOperatorCadastroStats(operatorIds?: string[]): Promise<{
   counts: Record<string, number>
   ultima: Record<string, string>
 }> {
-  let ids = operatorIds
-  if (!ids?.length) {
-    const { data, error } = await supabase.from('profiles').select('id').eq('role', 'operador')
-    if (error) throw new Error(error.message)
-    ids = ((data ?? []) as { id: string }[]).map((r) => r.id)
-  }
+  const ids = operatorIds?.length ? operatorIds : null
+  const { data, error } = await supabase.rpc('operator_cadastro_stats', {
+    p_ids: ids,
+  })
+  if (error) throw new Error(error.message)
 
   const counts: Record<string, number> = {}
   const ultima: Record<string, string> = {}
-  const chunkSize = 25
-
-  for (let i = 0; i < ids.length; i += chunkSize) {
-    const chunk = ids.slice(i, i + chunkSize)
-    await Promise.all(
-      chunk.map(async (id) => {
-        const [countRes, lastRes] = await Promise.all([
-          supabase
-            .from('cadastros')
-            .select('id', { count: 'exact', head: true })
-            .eq('operator_id', id),
-          supabase
-            .from('cadastros')
-            .select('created_at')
-            .eq('operator_id', id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-        ])
-        if (countRes.error) throw new Error(countRes.error.message)
-        counts[id] = countRes.count ?? 0
-        const createdAt = (lastRes.data as { created_at?: string } | null)?.created_at
-        if (createdAt) ultima[id] = createdAt
-      }),
-    )
+  if (ids) {
+    for (const id of ids) counts[id] = 0
   }
-
+  for (const row of (data ?? []) as { operator_id: string; total: number; ultima: string | null }[]) {
+    if (!row.operator_id) continue
+    counts[row.operator_id] = row.total ?? 0
+    if (row.ultima) ultima[row.operator_id] = row.ultima
+  }
   return { counts, ultima }
 }
 
@@ -173,17 +153,58 @@ export async function verifyNeriteFichaCounts(operatorIds: string[]): Promise<
   return mismatches
 }
 
-/** Metadados leves para totais da Equipe (paginado). */
+/** Contagens agrupadas para Equipe / Liderança (RPC — sem dump linha a linha). */
 export async function fetchCadastroFichaStats(): Promise<
-  { operator_id: string | null; coordenador: string | null; lider: string | null; diretoria_id: string | null }[]
+  {
+    operator_id: string | null
+    coordenador: string | null
+    lider: string | null
+    diretoria_id: string | null
+    total: number
+  }[]
 > {
-  return fetchAllPaged((from, to) =>
+  const { data, error } = await supabase.rpc('cadastro_ficha_stats')
+  if (error) throw new Error(error.message)
+  return ((data ?? []) as {
+    operator_id: string | null
+    coordenador: string | null
+    lider: string | null
+    diretoria_id: string | null
+    total: number
+  }[]).map((row) => ({
+    operator_id: row.operator_id ?? null,
+    coordenador: row.coordenador ?? null,
+    lider: row.lider ?? null,
+    diretoria_id: row.diretoria_id ?? null,
+    total: Math.max(0, Math.floor(Number(row.total) || 0)),
+  }))
+}
+
+/** Colunas mínimas do dashboard (evita SELECT * e 2º fetch completo). */
+const DASHBOARD_CADASTRO_SELECT =
+  'id,nome_completo,created_at,zona,secao,lider,coordenador,operator_id,diretoria_id,lat,lng,carros_adesivados,adesivos_casa,postagens,contato_whatsapp'
+
+export async function fetchDashboardCadastros(): Promise<Cadastro[]> {
+  const rows = await fetchAllPaged<Cadastro>((from, to) =>
     supabase
       .from('cadastros')
-      .select('operator_id, coordenador, lider, diretoria_id')
-      .order('id', { ascending: true })
+      .select(DASHBOARD_CADASTRO_SELECT)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
       .range(from, to),
   )
+  return rows.map(sanitizeCadastro)
+}
+
+export function filterCadastrosByPeriod(rows: Cadastro[], period?: PeriodFilter): Cadastro[] {
+  if (!period?.start && !period?.end) return rows
+  const startIso = period.start?.toISOString()
+  const endIso = period.end?.toISOString()
+  return rows.filter((c) => {
+    if (startIso && c.created_at < startIso) return false
+    if (endIso && c.created_at > endIso) return false
+    return true
+  })
 }
 
 export async function countCadastrosForOperator(operatorId: string): Promise<number> {
