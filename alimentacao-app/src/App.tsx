@@ -132,7 +132,7 @@ function AppRoutes() {
         <Route path="mapa" element={<StaffRoute><MapaPage /></StaffRoute>} />
         <Route path="importar" element={<NeriteRoute><ImportarPage /></NeriteRoute>} />
         <Route path="relatorios" element={<StaffRoute><RelatoriosPage /></StaffRoute>} />
-        <Route path="relatorios/fichas-txt" element={<StaffRoute><RelatorioFichasTxtPage /></StaffRoute>} />
+        <Route path="relatorios/fichas-txt" element={<AdminOnlyRoute><RelatorioFichasTxtPage /></AdminOnlyRoute>} />
         <Route path="mobilizacao" element={<Navigate to="/ativacao/lancar" replace />} />
         <Route path="ativacao/lancar" element={<AtivacaoRoute><AtivacaoLancarPage /></AtivacaoRoute>} />
         <Route path="ativacao/painel" element={<AtivacaoRoute><AtivacaoPainelPage /></AtivacaoRoute>} />

@@ -103,7 +103,7 @@ const navGroups: NavGroup[] = [
       { to: '/lideranca', label: 'Liderança', icon: ListChecks, roles: ['admin', 'diretoria'] },
       { to: '/mapa', label: 'Mapa por zona', icon: Map, roles: ['admin', 'diretoria'] },
       { to: '/relatorios', label: 'Relatórios', icon: BarChart3, roles: ['admin', 'diretoria'] },
-      { to: '/relatorios/fichas-txt', label: 'Relatório TXT', icon: FileText, roles: ['admin', 'diretoria'] },
+      { to: '/relatorios/fichas-txt', label: 'Relatório TXT', icon: FileText, roles: ['admin'] },
       { to: '/configuracoes', label: 'Configurações', icon: Settings, roles: ['admin', 'diretoria'] },
     ],
   },

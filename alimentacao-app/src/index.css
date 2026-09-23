@@ -1519,7 +1519,7 @@ a.ranking-row:hover .ranking-person strong { color: #2459c4; }
 .rel-txt-table td:last-child { white-space: normal; }
 .rel-txt-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: .75rem;
 }
 .rel-txt-stat {
