@@ -1,16 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Download, FileText, ListChecks } from 'lucide-react'
+import { AlertTriangle, Download, FileText, ListChecks, Save } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/Spinner'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { formatDate } from '../lib/format'
-import { hasRole } from '../lib/roles'
+import {
+  fetchRelatorioTxtLinhas,
+  parseRelatorioTxtLines,
+  saveRelatorioTxtLinhas,
+  tituloKey,
+  type RelatorioTxtLinha,
+  type RelatorioTxtStatus,
+} from '../lib/relatorioFichasTxt'
 
 const HEADER = 'Titulo de eleitor;Data de nascimento;Nome completo da mãe'
-const OK_STORAGE_KEY = 'relatorio-fichas-txt-usados'
-const ERR_STORAGE_KEY = 'relatorio-fichas-txt-erros'
 
 type Tab = 'gerar' | 'testados' | 'erros'
 
@@ -19,49 +24,6 @@ type FichaRow = {
   titulo: string | null
   data_nascimento: string | null
   nome_mae: string | null
-  diretoria_id: string | null
-}
-
-type UsedLine = {
-  titulo: string
-  nascimento: string
-  mae: string
-  raw: string
-}
-
-function tituloKey(value: string | null | undefined): string {
-  return String(value ?? '').replace(/\D/g, '')
-}
-
-function parseUsedLines(text: string): UsedLine[] {
-  const out: UsedLine[] = []
-  const seen = new Set<string>()
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.trim()
-    if (!line) continue
-    if (line.toLowerCase().startsWith('titulo de eleitor')) continue
-    const parts = line.split(';')
-    const titulo = (parts[0] ?? '').trim()
-    const key = tituloKey(titulo)
-    if (!key || seen.has(key)) continue
-    seen.add(key)
-    out.push({
-      titulo,
-      nascimento: (parts[1] ?? '').trim(),
-      mae: (parts[2] ?? '').trim(),
-      raw: line,
-    })
-  }
-  return out
-}
-
-function parseUsedTitulos(text: string): Set<string> {
-  const out = new Set<string>()
-  for (const line of parseUsedLines(text)) {
-    const key = tituloKey(line.titulo)
-    if (key) out.add(key)
-  }
-  return out
 }
 
 function formatLine(row: FichaRow): string {
@@ -71,7 +33,6 @@ function formatLine(row: FichaRow): string {
   return `${titulo};${nasc};${mae}`
 }
 
-/** Embaralha e devolve os N primeiros (aleatório sem repetir na mesma leva). */
 function pickRandom<T>(list: T[], n: number): T[] {
   const copy = [...list]
   for (let i = copy.length - 1; i > 0; i -= 1) {
@@ -93,23 +54,7 @@ function downloadTxt(content: string, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-function readStorage(key: string) {
-  try {
-    return localStorage.getItem(key) ?? ''
-  } catch {
-    return ''
-  }
-}
-
-function writeStorage(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value)
-  } catch {
-    /* ignore */
-  }
-}
-
-function UsedTable({ lines }: { lines: UsedLine[] }) {
+function UsedTable({ lines }: { lines: RelatorioTxtLinha[] }) {
   if (!lines.length) return null
   return (
     <div className="table-wrapper">
@@ -124,11 +69,11 @@ function UsedTable({ lines }: { lines: UsedLine[] }) {
         </thead>
         <tbody>
           {lines.map((line, i) => (
-            <tr key={`${line.titulo}-${i}`}>
+            <tr key={line.titulo_key}>
               <td className="mono-cell">{i + 1}</td>
               <td className="mono-cell">{line.titulo}</td>
-              <td>{line.nascimento || '—'}</td>
-              <td>{line.mae || '—'}</td>
+              <td>{line.data_nascimento || '—'}</td>
+              <td>{line.nome_mae || '—'}</td>
             </tr>
           ))}
         </tbody>
@@ -137,123 +82,77 @@ function UsedTable({ lines }: { lines: UsedLine[] }) {
   )
 }
 
-function PasteCard({
-  title,
-  subtitle,
-  value,
-  onChange,
-  onClear,
-  placeholder,
-}: {
-  title: string
-  subtitle: string
-  value: string
-  onChange: (v: string) => void
-  onClear: () => void
-  placeholder: string
-}) {
-  return (
-    <Card
-      title={title}
-      subtitle={subtitle}
-      action={(
-        <Button variant="secondary" size="sm" type="button" onClick={onClear}>
-          Limpar
-        </Button>
-      )}
-    >
-      <label className="rel-txt-paste">
-        <span className="rel-txt-paste-label">
-          <FileText size={14} /> Colar aqui
-        </span>
-        <textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          rows={12}
-          placeholder={placeholder}
-          spellCheck={false}
-        />
-      </label>
-    </Card>
-  )
-}
-
 export function RelatorioFichasTxtPage() {
   const { profile } = useAuth()
-  const isAdmin = hasRole(profile, 'admin')
-  const diretoriaScope = hasRole(profile, 'diretoria') && !isAdmin ? profile?.id ?? null : null
 
   const [tab, setTab] = useState<Tab>('gerar')
   const [rows, setRows] = useState<FichaRow[]>([])
+  const [saved, setSaved] = useState<RelatorioTxtLinha[]>([])
   const [loading, setLoading] = useState(true)
   const [quantidade, setQuantidade] = useState('100')
-  const [okText, setOkText] = useState(() => readStorage(OK_STORAGE_KEY))
-  const [errText, setErrText] = useState(() => readStorage(ERR_STORAGE_KEY))
+  const [okDraft, setOkDraft] = useState('')
+  const [errDraft, setErrDraft] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  async function reloadSaved() {
+    const lines = await fetchRelatorioTxtLinhas()
+    setSaved(lines)
+  }
 
   useEffect(() => {
     let cancelled = false
     async function load() {
       setLoading(true)
       setError(null)
-      const pageSize = 1000
-      const all: FichaRow[] = []
-      let from = 0
-      for (;;) {
-        let query = supabase
-          .from('cadastros')
-          .select('id, titulo, data_nascimento, nome_mae, diretoria_id')
-          .order('created_at', { ascending: false })
-          .order('id', { ascending: false })
-          .range(from, from + pageSize - 1)
-        if (diretoriaScope) {
-          query = query.eq('diretoria_id', diretoriaScope)
+      try {
+        const pageSize = 1000
+        const all: FichaRow[] = []
+        let from = 0
+        for (;;) {
+          const { data, error: err } = await supabase
+            .from('cadastros')
+            .select('id, titulo, data_nascimento, nome_mae')
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: false })
+            .range(from, from + pageSize - 1)
+          if (err) throw new Error(err.message)
+          const chunk = (data ?? []) as FichaRow[]
+          all.push(...chunk)
+          if (chunk.length < pageSize) break
+          from += pageSize
         }
-        const { data, error: err } = await query
-        if (err) {
-          if (!cancelled) {
-            setError(err.message)
-            setLoading(false)
-          }
-          return
+        const lines = await fetchRelatorioTxtLinhas()
+        if (!cancelled) {
+          setRows(all)
+          setSaved(lines)
         }
-        const chunk = (data ?? []) as FichaRow[]
-        all.push(...chunk)
-        if (chunk.length < pageSize) break
-        from += pageSize
-      }
-      if (!cancelled) {
-        setRows(all)
-        setLoading(false)
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Falha ao carregar o relatório.')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
       }
     }
     void load()
     return () => {
       cancelled = true
     }
-  }, [diretoriaScope])
+  }, [])
 
-  useEffect(() => { writeStorage(OK_STORAGE_KEY, okText) }, [okText])
-  useEffect(() => { writeStorage(ERR_STORAGE_KEY, errText) }, [errText])
-
-  const okLines = useMemo(() => parseUsedLines(okText), [okText])
-  const errLines = useMemo(() => parseUsedLines(errText), [errText])
-  const blockedKeys = useMemo(() => {
-    const set = new Set<string>()
-    for (const k of parseUsedTitulos(okText)) set.add(k)
-    for (const k of parseUsedTitulos(errText)) set.add(k)
-    return set
-  }, [okText, errText])
+  const okLines = useMemo(() => saved.filter((l) => l.status === 'ok'), [saved])
+  const errLines = useMemo(() => saved.filter((l) => l.status === 'erro'), [saved])
+  const blockedKeys = useMemo(() => new Set(saved.map((l) => l.titulo_key)), [saved])
 
   const elegiveis = useMemo(() => {
     const seen = new Set<string>()
     const list: FichaRow[] = []
     for (const row of rows) {
       const key = tituloKey(row.titulo)
-      const mae = String(row.nome_mae ?? '').trim()
-      if (!key || !row.data_nascimento || !mae) continue
+      if (!key) continue
       if (blockedKeys.has(key) || seen.has(key)) continue
       seen.add(key)
       list.push(row)
@@ -270,24 +169,48 @@ export function RelatorioFichasTxtPage() {
       return
     }
     if (!elegiveis.length) {
-      setError('Não há fichas novas (todas já estão em “Já testados” ou “Com erro”, ou incompletas).')
+      setError('Não há fichas novas com título (todas já estão em “Já testados” ou “Com erro”).')
       return
     }
 
     setGenerating(true)
     const picked = pickRandom(elegiveis, n)
     const bodyLines = picked.map(formatLine)
-    const content = [HEADER, ...bodyLines].join('\n')
-    const stamp = new Date().toISOString().slice(0, 10)
-    downloadTxt(`${content}\n`, `relatorio-fichas-${stamp}.txt`)
-
+    downloadTxt(`${[HEADER, ...bodyLines].join('\n')}\n`, `relatorio-fichas-${new Date().toISOString().slice(0, 10)}.txt`)
     const shortfall = n - picked.length
     setMessage(
       shortfall > 0
-        ? `Arquivo aleatório com ${picked.length} linhas (pediu ${n}). Cole em “Já testados” ou “Com erro” conforme o resultado.`
-        : `Arquivo aleatório com ${picked.length} linhas. Depois cole em “Já testados” ou “Com erro” o que testou.`,
+        ? `Arquivo aleatório com ${picked.length} linhas (pediu ${n}). Depois cole o resultado e clique em Salvar.`
+        : `Arquivo aleatório com ${picked.length} linhas. Depois cole o resultado e clique em Salvar.`,
     )
     setGenerating(false)
+  }
+
+  async function handleSalvar(status: RelatorioTxtStatus) {
+    setMessage(null)
+    setError(null)
+    const draft = status === 'ok' ? okDraft : errDraft
+    const parsed = parseRelatorioTxtLines(draft)
+    if (!parsed.length) {
+      setError('Cole pelo menos uma linha (título;nascimento;mãe) antes de salvar.')
+      return
+    }
+    setSaving(true)
+    try {
+      const n = await saveRelatorioTxtLinhas(draft, status, profile?.id ?? null)
+      await reloadSaved()
+      if (status === 'ok') setOkDraft('')
+      else setErrDraft('')
+      setMessage(
+        status === 'ok'
+          ? `Salvas ${n} linha(s) em Já testados. Elas não entram mais no gerar.`
+          : `Salvas ${n} linha(s) em Com erro. Elas não entram mais no gerar.`,
+      )
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível salvar no banco.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) {
@@ -304,7 +227,7 @@ export function RelatorioFichasTxtPage() {
         <div>
           <h1 className="page-title">Relatório fichas (TXT)</h1>
           <p className="page-subtitle">
-            Gera linhas aleatórias do que ainda sobrou. Você cola o que passou e o que deu erro.
+            Gera linhas aleatórias do que ainda sobrou. Salvar grava no banco e alimenta as listas.
           </p>
         </div>
       </div>
@@ -343,6 +266,10 @@ export function RelatorioFichasTxtPage() {
 
       <div className="rel-txt-stats">
         <div className="rel-txt-stat">
+          <span>Fichas no sistema</span>
+          <strong>{rows.length.toLocaleString('pt-BR')}</strong>
+        </div>
+        <div className="rel-txt-stat">
           <span>Disponíveis p/ gerar</span>
           <strong>{elegiveis.length.toLocaleString('pt-BR')}</strong>
         </div>
@@ -356,10 +283,13 @@ export function RelatorioFichasTxtPage() {
         </div>
       </div>
 
+      {error ? <p className="rel-txt-error">{error}</p> : null}
+      {message ? <p className="rel-txt-ok">{message}</p> : null}
+
       {tab === 'gerar' ? (
         <Card
           title="Gerar arquivo (aleatório)"
-          subtitle="Sorteia entre as fichas que ainda não estão em “Já testados” nem em “Com erro”."
+          subtitle="Sorteia o que ainda não foi salvo. Se já gerou e não está em Já testados nem Com erro, pode sair de novo."
         >
           <div className="rel-txt-form">
             <label className="rel-txt-field">
@@ -377,8 +307,6 @@ export function RelatorioFichasTxtPage() {
               <Download size={16} /> Gerar TXT
             </Button>
           </div>
-          {error ? <p className="rel-txt-error">{error}</p> : null}
-          {message ? <p className="rel-txt-ok">{message}</p> : null}
           <p className="rel-txt-hint">
             Formato: <code>{HEADER}</code>
           </p>
@@ -387,20 +315,37 @@ export function RelatorioFichasTxtPage() {
 
       {tab === 'testados' ? (
         <>
-          <PasteCard
-            title="Já testados (ok)"
-            subtitle="Cole manualmente o que testou e passou. Esses títulos não entram de novo no gerar."
-            value={okText}
-            onChange={setOkText}
-            onClear={() => {
-              setOkText('')
-              setMessage('Lista de testados limpa.')
-            }}
-            placeholder={`${HEADER}\n123456789012;01/01/1990;NOME DA MAE\n...`}
-          />
-          <Card title={`Lista (${okLines.length})`}>
+          <Card
+            title="Colar e salvar (ok)"
+            subtitle="Cole o que testou e passou. Salvar alimenta a lista no banco — não some ao sair da página."
+            action={(
+              <Button
+                size="sm"
+                type="button"
+                loading={saving}
+                disabled={saving}
+                onClick={() => void handleSalvar('ok')}
+              >
+                <Save size={14} /> Salvar
+              </Button>
+            )}
+          >
+            <label className="rel-txt-paste">
+              <span className="rel-txt-paste-label">
+                <FileText size={14} /> Colar aqui
+              </span>
+              <textarea
+                value={okDraft}
+                onChange={(e) => setOkDraft(e.target.value)}
+                rows={10}
+                placeholder={`${HEADER}\n123456789012;01/01/1990;NOME DA MAE\n...`}
+                spellCheck={false}
+              />
+            </label>
+          </Card>
+          <Card title={`Já gravados (${okLines.length})`}>
             {!okLines.length ? (
-              <p className="rel-txt-empty">Nada colado ainda. Cole no quadro acima o TXT que passou no teste.</p>
+              <p className="rel-txt-empty">Nada salvo ainda. Cole acima e clique em Salvar.</p>
             ) : (
               <UsedTable lines={okLines} />
             )}
@@ -410,20 +355,37 @@ export function RelatorioFichasTxtPage() {
 
       {tab === 'erros' ? (
         <>
-          <PasteCard
-            title="Com erro"
-            subtitle="Cole o que testou e deu erro. Também fica de fora na próxima geração (não fica sorteando de novo)."
-            value={errText}
-            onChange={setErrText}
-            onClear={() => {
-              setErrText('')
-              setMessage('Lista de erros limpa.')
-            }}
-            placeholder={`${HEADER}\n123456789012;01/01/1990;NOME DA MAE\n...`}
-          />
-          <Card title={`Lista (${errLines.length})`}>
+          <Card
+            title="Colar e salvar (erro)"
+            subtitle="Cole o que testou e deu erro. Salvar alimenta a lista no banco e tira do sorteio."
+            action={(
+              <Button
+                size="sm"
+                type="button"
+                loading={saving}
+                disabled={saving}
+                onClick={() => void handleSalvar('erro')}
+              >
+                <Save size={14} /> Salvar
+              </Button>
+            )}
+          >
+            <label className="rel-txt-paste">
+              <span className="rel-txt-paste-label">
+                <FileText size={14} /> Colar aqui
+              </span>
+              <textarea
+                value={errDraft}
+                onChange={(e) => setErrDraft(e.target.value)}
+                rows={10}
+                placeholder={`${HEADER}\n123456789012;01/01/1990;NOME DA MAE\n...`}
+                spellCheck={false}
+              />
+            </label>
+          </Card>
+          <Card title={`Já gravados (${errLines.length})`}>
             {!errLines.length ? (
-              <p className="rel-txt-empty">Nada colado ainda. Cole no quadro acima o que deu erro no teste.</p>
+              <p className="rel-txt-empty">Nada salvo ainda. Cole acima e clique em Salvar.</p>
             ) : (
               <UsedTable lines={errLines} />
             )}
