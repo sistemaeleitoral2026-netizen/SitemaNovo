@@ -214,11 +214,25 @@ export function CadastrosPage() {
       .sort((a, b) => a.localeCompare(b, 'pt-BR')),
     [cadastros],
   )
-  const lideresOpts = useMemo(
-    () => [...new Set(cadastros.map((c) => (c.lider ?? '').trim()).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b, 'pt-BR')),
-    [cadastros],
-  )
+  const lideresOpts = useMemo(() => {
+    const seen = new Set<string>()
+    const opts: { value: string; label: string; lider: string; coordenador: string }[] = []
+    cadastros.forEach((c) => {
+      const lider = (c.lider ?? '').trim()
+      if (!lider) return
+      const coordenador = (c.coordenador ?? '').trim()
+      const value = `${lider}\u001f${coordenador}`
+      if (seen.has(value)) return
+      seen.add(value)
+      opts.push({
+        value,
+        lider,
+        coordenador,
+        label: coordenador ? `${lider} · ${coordenador}` : lider,
+      })
+    })
+    return opts.sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'))
+  }, [cadastros])
 
   const period = useMemo(() => getPeriodFromPreset(periodPreset), [periodPreset])
   const weekAgo = useMemo(() => Date.now() - 7 * 24 * 60 * 60 * 1000, [])
@@ -542,9 +556,18 @@ export function CadastrosPage() {
             )}
             {!isOwnOnly && (
               <Select
-                value={liderFilter}
-                onChange={(e) => setLiderFilter(e.target.value)}
-                options={lideresOpts.map((nome) => ({ value: nome, label: nome }))}
+                value={liderFilter ? `${liderFilter}\u001f${coordenadorFilter}` : ''}
+                onChange={(e) => {
+                  const raw = e.target.value
+                  if (!raw) {
+                    setLiderFilter('')
+                    return
+                  }
+                  const [lider, coord = ''] = raw.split('\u001f')
+                  setLiderFilter(lider)
+                  if (coord) setCoordenadorFilter(coord)
+                }}
+                options={lideresOpts.map((opt) => ({ value: opt.value, label: opt.label }))}
                 placeholder="Todas as lideranças"
                 aria-label="Liderança"
               />

@@ -35,10 +35,10 @@ type FichaStatRow = {
 }
 
 /**
- * Conta fichas de uma liderança de forma tolerante:
- * - exige nome da liderança
- * - restringe à diretoria quando informada (aceita ficha sem diretoria_id)
- * - se houver coordenador, preferimos match; fichas sem coordenador ainda entram
+ * Conta fichas de uma liderança sem misturar homônimos:
+ * - nome da liderança
+ * - mesmo coordenador (obrigatório quando a liderança tem coordenador)
+ * - mesma diretoria, se informada
  */
 export function countFichasForLider(
   rows: FichaStatRow[],
@@ -55,27 +55,20 @@ export function countFichasForLider(
     opts.coordenadorNome && opts.coordenadorNome !== '—' ? opts.coordenadorNome : '',
   )
 
-  let withCoord = 0
-  let anyInDir = 0
-
+  let total = 0
   for (const row of rows) {
     if (liderNameKey(row.lider) !== nome) continue
     if (dirWanted && row.diretoria_id && row.diretoria_id !== dirWanted) continue
-    const n = (() => {
-      const raw = Number(row.total)
-      return Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : 1
-    })()
-    anyInDir += n
     const rowCoord = liderNameKey(row.coordenador)
-    if (!coordWanted || !rowCoord || rowCoord === coordWanted) {
-      withCoord += n
+    if (coordWanted) {
+      if (rowCoord !== coordWanted) continue
+    } else if (rowCoord) {
+      continue
     }
+    const raw = Number(row.total)
+    total += Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : 1
   }
-
-  // Se há coordenador definido e encontramos matches, usa withCoord;
-  // senão (ou coordenador vazio), conta todas da diretoria/nome.
-  if (coordWanted && withCoord > 0) return withCoord
-  return anyInDir
+  return total
 }
 
 export function cadastrosLinkForLider(opts: {
