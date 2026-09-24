@@ -9,6 +9,7 @@ import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { getPeriodFromPreset, type PeriodPreset } from '../lib/period'
 import { fetchCadastros } from '../lib/cadastros'
+import { cadastrosLinkForLider, liderFichaKey } from '../lib/liderFichas'
 import { supabase } from '../lib/supabase'
 import type { Cadastro, Profile } from '../types'
 
@@ -106,14 +107,22 @@ export function RelatoriosPage() {
   }, [cadastros])
 
   const porLider = useMemo(() => {
-    const map = new Map<string, number>()
+    const map = new Map<string, { nome: string; coordenador: string; diretoriaId: string; total: number }>()
     cadastros.forEach((c) => {
       const nome = (c.lider ?? '').trim()
       if (!nome) return
-      map.set(nome, (map.get(nome) ?? 0) + 1)
+      const coordenador = (c.coordenador ?? '').trim()
+      const diretoriaId = c.diretoria_id ?? ''
+      const key = liderFichaKey(nome, coordenador, diretoriaId)
+      const prev = map.get(key)
+      if (prev) {
+        prev.total += 1
+        return
+      }
+      map.set(key, { nome, coordenador, diretoriaId, total: 1 })
     })
     return Array.from(map.entries())
-      .map(([nome, total]) => ({ nome, total }))
+      .map(([key, row]) => ({ key, ...row }))
       .sort((a, b) => b.total - a.total)
   }, [cadastros])
 
@@ -136,10 +145,14 @@ export function RelatoriosPage() {
     }
     if (groupBy === 'lider') {
       return porLider.map((row) => ({
-        key: row.nome,
-        label: row.nome,
+        key: row.key,
+        label: row.coordenador ? `${row.nome} · ${row.coordenador}` : row.nome,
         total: row.total,
-        to: `/cadastros?lider=${encodeURIComponent(row.nome)}`,
+        to: cadastrosLinkForLider({
+          nome: row.nome,
+          coordenador: row.coordenador,
+          diretoriaId: row.diretoriaId || null,
+        }),
       }))
     }
     return porZona.map((row) => ({

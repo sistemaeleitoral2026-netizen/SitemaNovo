@@ -54,7 +54,26 @@ function comparableName(value: unknown): string {
 function findCanonicalMember(value: string, members: ImportTeamMember[]): ImportTeamMember | null {
   const key = comparableName(value)
   if (!key) return null
-  return members.find((member) => comparableName(member.nome) === key) ?? null
+  const hits = members.filter((member) => comparableName(member.nome) === key)
+  return hits.length === 1 ? hits[0] : null
+}
+
+function findCanonicalLeader(
+  value: string,
+  coordinator: ImportTeamMember | null,
+  members: ImportTeamMember[],
+): ImportTeamMember | null {
+  const key = comparableName(value)
+  if (!key) return null
+  const pool = coordinator
+    ? members.filter((member) => !member.coordenador_id || member.coordenador_id === coordinator.id)
+    : members
+  const hits = pool.filter((member) => comparableName(member.nome) === key)
+  if (coordinator) {
+    return hits.find((member) => member.coordenador_id === coordinator.id)
+      ?? (hits.length === 1 ? hits[0] : null)
+  }
+  return hits.length === 1 ? hits[0] : null
 }
 
 function assignedMember(id: string | null | undefined, members: ImportTeamMember[]) {
@@ -86,7 +105,7 @@ export function canonicalizeTeam(
     ? findCanonicalMember(coordenador, team.coordenadores)
     : fixedCoordinator
   const leader = leaderWasProvided
-    ? findCanonicalMember(lider, team.lideres)
+    ? findCanonicalLeader(lider, coordinator, team.lideres)
     : fixedLeader
 
   if (leader?.coordenador_id && !coordinatorWasProvided) {
