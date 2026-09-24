@@ -127,15 +127,21 @@ export function CadastroFormPage() {
     if (!coordenadores.length && !lideres.length) return
 
     // Só sincroniza o select com o texto já salvo na ficha (edição) — sem preencher automático.
-    if (!coordenadorId && form.coordenador) {
-      const match = coordenadores.find(
-        (c) => c.nome.toLowerCase() === form.coordenador.toLowerCase(),
-      )
-      if (match) setCoordenadorId(match.id)
+    const resolvedCoordId =
+      coordenadorId
+      || coordenadores.find((c) => c.nome.toLowerCase() === form.coordenador.toLowerCase())?.id
+      || ''
+
+    if (!coordenadorId && resolvedCoordId) {
+      setCoordenadorId(resolvedCoordId)
     }
 
     if (!liderId && form.lider) {
-      const match = lideres.find((l) => l.nome.toLowerCase() === form.lider.toLowerCase())
+      const match = lideres.find((l) => {
+        if (l.nome.toLowerCase() !== form.lider.toLowerCase()) return false
+        if (resolvedCoordId) return l.coordenador_id === resolvedCoordId
+        return !l.coordenador_id
+      })
       if (match) setLiderId(match.id)
     }
   }, [

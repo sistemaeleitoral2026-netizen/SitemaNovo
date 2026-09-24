@@ -13,7 +13,7 @@ import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import { EquipeMemberModal } from '../components/equipe/EquipeMemberModal'
 import { formatPhone } from '../lib/normalize'
 import { fetchCadastroFichaStats, fetchOperatorCadastroStats } from '../lib/cadastros'
-import { resolveLimiteFichas, resolveLimiteLiderancas } from '../lib/liderFichas'
+import { cadastrosLinkForLider, countFichasForLider, resolveLimiteFichas, resolveLimiteLiderancas } from '../lib/liderFichas'
 import { META_COORDENADOR_LIDERANCAS, META_LIDERANCA_FICHAS } from '../lib/meta'
 import { supabase } from '../lib/supabase'
 import type { Coordenador, Lider, Profile, UserRole } from '../types'
@@ -106,7 +106,12 @@ export function EquipePage() {
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
   const [lideres, setLideres] = useState<Lider[]>([])
   const [fichasByCoord, setFichasByCoord] = useState<Record<string, number>>({})
-  const [fichasByLider, setFichasByLider] = useState<Record<string, number>>({})
+  const [fichaStats, setFichaStats] = useState<{
+    lider: string | null
+    coordenador: string | null
+    diretoria_id: string | null
+    total: number
+  }[]>([])
   const [fichasByNerite, setFichasByNerite] = useState<Record<string, number>>({})
   const [filterDiretoria, setFilterDiretoria] = useState(diretoriaFromUrl)
   const [search, setSearch] = useState('')
@@ -222,7 +227,12 @@ export function EquipePage() {
 
     const neriteIds = new Set(neriteRows.map((row) => row.id))
     const byCoord: Record<string, number> = {}
-    const byLider: Record<string, number> = {}
+    const stats: {
+      lider: string | null
+      coordenador: string | null
+      diretoria_id: string | null
+      total: number
+    }[] = []
 
     fRows.forEach((row) => {
       if (scope) {
@@ -233,13 +243,17 @@ export function EquipePage() {
       const rawTotal = Number((row as { total?: number }).total)
       const n = Number.isFinite(rawTotal) && rawTotal > 0 ? Math.floor(rawTotal) : 1
       const coord = (row.coordenador ?? '').trim()
-      const lider = (row.lider ?? '').trim()
       if (coord) byCoord[coord] = (byCoord[coord] ?? 0) + n
-      if (lider) byLider[lider] = (byLider[lider] ?? 0) + n
+      stats.push({
+        lider: row.lider ?? null,
+        coordenador: row.coordenador ?? null,
+        diretoria_id: row.diretoria_id ?? null,
+        total: n,
+      })
     })
 
     setFichasByCoord(byCoord)
-    setFichasByLider(byLider)
+    setFichaStats(stats)
     setFichasByNerite(byNeriteExact)
     setLoading(false)
   }
@@ -1345,14 +1359,23 @@ export function EquipePage() {
                 </thead>
                 <tbody>
                   {filteredLideres.map((l) => {
-                    const fichas = fichasByLider[l.nome] ?? 0
+                    const coordNome = coordenadores.find((c) => c.id === l.coordenador_id)?.nome ?? ''
+                    const fichas = countFichasForLider(fichaStats, {
+                      nome: l.nome,
+                      coordenadorNome: coordNome,
+                      diretoriaId: l.diretoria_id,
+                    })
                     const limite = resolveLimiteFichas(l.limite_fichas)
                     return (
                     <tr key={l.id}>
                       <td>
                         {fichas > 0 ? (
                           <Link
-                            to={`/cadastros?lider=${encodeURIComponent(l.nome)}`}
+                            to={cadastrosLinkForLider({
+                              nome: l.nome,
+                              coordenador: coordNome,
+                              diretoriaId: l.diretoria_id,
+                            })}
                             className="equipe-drill-link"
                           >
                             <strong>{l.nome}</strong>
@@ -1381,7 +1404,13 @@ export function EquipePage() {
                         <td>
                           <div style={{ display: 'flex', gap: '0.35rem' }}>
                             {fichas > 0 ? (
-                              <Link to={`/cadastros?lider=${encodeURIComponent(l.nome)}`}>
+                              <Link
+                                to={cadastrosLinkForLider({
+                                  nome: l.nome,
+                                  coordenador: coordNome,
+                                  diretoriaId: l.diretoria_id,
+                                })}
+                              >
                                 <Button variant="ghost" size="sm" aria-label="Ver fichas">
                                   <ClipboardList size={16} />
                                 </Button>
