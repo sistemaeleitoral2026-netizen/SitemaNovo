@@ -124,7 +124,7 @@ export async function fetchRelatorioTxtLinhas(): Promise<RelatorioTxtLinha[]> {
         .select('titulo_key, titulo, data_nascimento, nome_mae, status')
         .order('updated_at', { ascending: false })
         .range(from, from + pageSize - 1)
-      data = fallback.data
+      data = (fallback.data ?? []) as typeof data
       error = fallback.error
     }
     if (error) throw new Error(error.message)
