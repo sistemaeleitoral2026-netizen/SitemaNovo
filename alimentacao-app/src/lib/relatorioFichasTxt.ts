@@ -7,6 +7,7 @@ export type RelatorioTxtLinha = {
   titulo_key: string
   titulo: string
   cadastro_id: string | null
+  nome: string
   cpf: string
   data_nascimento: string
   nome_mae: string
@@ -15,7 +16,7 @@ export type RelatorioTxtLinha = {
   status: RelatorioTxtStatus
 }
 
-export const RELATORIO_TXT_HEADER = 'id;CPF;Titulo de eleitor;Data de nascimento;Nome completo da mãe;zona;sessao'
+export const RELATORIO_TXT_HEADER = 'Nome;id;CPF;Titulo de eleitor;Data de nascimento;Nome completo da mãe;zona;sessao'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -24,6 +25,7 @@ export type RelatorioTxtGerado = {
   lines: string[]
   rows: Array<{
     id: string
+    nome: string
     cpf: string
     titulo: string
     data_nascimento: string
@@ -45,7 +47,7 @@ export function rowKey(id: string | null | undefined, titulo: string | null | un
 
 function isHeaderLine(line: string): boolean {
   const low = line.toLowerCase()
-  return low.startsWith('id;') || low.startsWith('titulo de eleitor')
+  return low.startsWith('nome;') || low.startsWith('id;') || low.startsWith('titulo de eleitor')
 }
 
 export function parseRelatorioTxtLines(text: string): RelatorioTxtLinha[] {
@@ -56,8 +58,10 @@ export function parseRelatorioTxtLines(text: string): RelatorioTxtLinha[] {
     if (!line || isHeaderLine(line)) continue
     const parts = line.split(';')
     const first = (parts[0] ?? '').trim()
+    const second = (parts[1] ?? '').trim()
 
     let cadastro_id: string | null = null
+    let nome = ''
     let cpf = ''
     let titulo = ''
     let data_nascimento = ''
@@ -65,7 +69,16 @@ export function parseRelatorioTxtLines(text: string): RelatorioTxtLinha[] {
     let zona = ''
     let secao = ''
 
-    if (UUID_RE.test(first)) {
+    if (UUID_RE.test(second)) {
+      nome = first
+      cadastro_id = second
+      cpf = digitsOnly(parts[2] ?? '')
+      titulo = (parts[3] ?? '').trim()
+      data_nascimento = (parts[4] ?? '').trim()
+      nome_mae = (parts[5] ?? '').trim()
+      zona = (parts[6] ?? '').trim()
+      secao = (parts[7] ?? '').trim()
+    } else if (UUID_RE.test(first)) {
       cadastro_id = first
       cpf = digitsOnly(parts[1] ?? '')
       titulo = (parts[2] ?? '').trim()
@@ -88,6 +101,7 @@ export function parseRelatorioTxtLines(text: string): RelatorioTxtLinha[] {
       titulo_key: key,
       titulo,
       cadastro_id,
+      nome,
       cpf,
       data_nascimento,
       nome_mae,
@@ -106,10 +120,10 @@ export async function fetchRelatorioTxtLinhas(): Promise<RelatorioTxtLinha[]> {
   for (;;) {
     let { data, error } = await supabase
       .from('relatorio_fichas_txt')
-      .select('titulo_key, titulo, cadastro_id, cpf, data_nascimento, nome_mae, zona, secao, status')
+      .select('titulo_key, titulo, cadastro_id, nome, cpf, data_nascimento, nome_mae, zona, secao, status')
       .order('updated_at', { ascending: false })
       .range(from, from + pageSize - 1)
-    if (error && /cadastro_id|cpf|zona|secao/i.test(error.message)) {
+    if (error && /cadastro_id|cpf|zona|secao|nome/i.test(error.message)) {
       const fallback = await supabase
         .from('relatorio_fichas_txt')
         .select('titulo_key, titulo, data_nascimento, nome_mae, status')
@@ -122,6 +136,7 @@ export async function fetchRelatorioTxtLinhas(): Promise<RelatorioTxtLinha[]> {
     const chunk = ((data ?? []) as RelatorioTxtLinha[]).map((row) => ({
       ...row,
       cadastro_id: row.cadastro_id ?? null,
+      nome: row.nome ?? '',
       cpf: row.cpf ?? '',
       zona: row.zona ?? '',
       secao: row.secao ?? '',

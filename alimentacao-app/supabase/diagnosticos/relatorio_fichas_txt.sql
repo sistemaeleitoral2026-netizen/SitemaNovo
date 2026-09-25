@@ -5,6 +5,7 @@ create table if not exists public.relatorio_fichas_txt (
   titulo_key text primary key,
   titulo text not null,
   cadastro_id uuid references public.cadastros(id) on delete set null,
+  nome text not null default '',
   cpf text not null default '',
   data_nascimento text not null default '',
   nome_mae text not null default '',
@@ -21,6 +22,9 @@ create index if not exists relatorio_fichas_txt_status_idx
 
 alter table public.relatorio_fichas_txt
   add column if not exists cadastro_id uuid references public.cadastros(id) on delete set null;
+
+alter table public.relatorio_fichas_txt
+  add column if not exists nome text not null default '';
 
 alter table public.relatorio_fichas_txt
   add column if not exists cpf text not null default '';
