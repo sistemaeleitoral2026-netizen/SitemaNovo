@@ -4,6 +4,8 @@
 create table if not exists public.relatorio_fichas_txt (
   titulo_key text primary key,
   titulo text not null,
+  cadastro_id uuid references public.cadastros(id) on delete set null,
+  cpf text not null default '',
   data_nascimento text not null default '',
   nome_mae text not null default '',
   status text not null check (status in ('ok', 'erro')),
@@ -14,6 +16,16 @@ create table if not exists public.relatorio_fichas_txt (
 
 create index if not exists relatorio_fichas_txt_status_idx
   on public.relatorio_fichas_txt (status, updated_at desc);
+
+alter table public.relatorio_fichas_txt
+  add column if not exists cadastro_id uuid references public.cadastros(id) on delete set null;
+
+alter table public.relatorio_fichas_txt
+  add column if not exists cpf text not null default '';
+
+create unique index if not exists relatorio_fichas_txt_cadastro_id_uidx
+  on public.relatorio_fichas_txt (cadastro_id)
+  where cadastro_id is not null;
 
 alter table public.relatorio_fichas_txt enable row level security;
 
