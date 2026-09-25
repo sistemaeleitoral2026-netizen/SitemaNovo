@@ -10,13 +10,14 @@ export type RelatorioTxtLinha = {
   cpf: string
   data_nascimento: string
   nome_mae: string
+  zona: string
+  secao: string
   status: RelatorioTxtStatus
 }
 
-export const RELATORIO_TXT_HEADER = 'id;CPF;Titulo de eleitor;Data de nascimento;Nome completo da mãe'
+export const RELATORIO_TXT_HEADER = 'id;CPF;Titulo de eleitor;Data de nascimento;Nome completo da mãe;zona;sessao'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const GERADO_KEY = 'relatorio-fichas-txt-ultimo-gerado'
 
 export type RelatorioTxtGerado = {
   at: string
@@ -27,6 +28,8 @@ export type RelatorioTxtGerado = {
     titulo: string
     data_nascimento: string
     nome_mae: string
+    zona: string
+    secao: string
   }>
 }
 
@@ -59,6 +62,8 @@ export function parseRelatorioTxtLines(text: string): RelatorioTxtLinha[] {
     let titulo = ''
     let data_nascimento = ''
     let nome_mae = ''
+    let zona = ''
+    let secao = ''
 
     if (UUID_RE.test(first)) {
       cadastro_id = first
@@ -66,10 +71,14 @@ export function parseRelatorioTxtLines(text: string): RelatorioTxtLinha[] {
       titulo = (parts[2] ?? '').trim()
       data_nascimento = (parts[3] ?? '').trim()
       nome_mae = (parts[4] ?? '').trim()
+      zona = (parts[5] ?? '').trim()
+      secao = (parts[6] ?? '').trim()
     } else {
       titulo = first
       data_nascimento = (parts[1] ?? '').trim()
       nome_mae = (parts[2] ?? '').trim()
+      zona = (parts[3] ?? '').trim()
+      secao = (parts[4] ?? '').trim()
     }
 
     const key = rowKey(cadastro_id, titulo)
@@ -82,30 +91,12 @@ export function parseRelatorioTxtLines(text: string): RelatorioTxtLinha[] {
       cpf,
       data_nascimento,
       nome_mae,
+      zona,
+      secao,
       status: 'ok',
     })
   }
   return out
-}
-
-export function readUltimoGerado(): RelatorioTxtGerado | null {
-  try {
-    const raw = localStorage.getItem(GERADO_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as RelatorioTxtGerado
-    if (!parsed?.rows?.length) return null
-    return parsed
-  } catch {
-    return null
-  }
-}
-
-export function writeUltimoGerado(value: RelatorioTxtGerado | null) {
-  if (!value) {
-    localStorage.removeItem(GERADO_KEY)
-    return
-  }
-  localStorage.setItem(GERADO_KEY, JSON.stringify(value))
 }
 
 export async function fetchRelatorioTxtLinhas(): Promise<RelatorioTxtLinha[]> {
@@ -115,10 +106,10 @@ export async function fetchRelatorioTxtLinhas(): Promise<RelatorioTxtLinha[]> {
   for (;;) {
     let { data, error } = await supabase
       .from('relatorio_fichas_txt')
-      .select('titulo_key, titulo, cadastro_id, cpf, data_nascimento, nome_mae, status')
+      .select('titulo_key, titulo, cadastro_id, cpf, data_nascimento, nome_mae, zona, secao, status')
       .order('updated_at', { ascending: false })
       .range(from, from + pageSize - 1)
-    if (error && /cadastro_id|cpf/i.test(error.message)) {
+    if (error && /cadastro_id|cpf|zona|secao/i.test(error.message)) {
       const fallback = await supabase
         .from('relatorio_fichas_txt')
         .select('titulo_key, titulo, data_nascimento, nome_mae, status')
@@ -132,6 +123,8 @@ export async function fetchRelatorioTxtLinhas(): Promise<RelatorioTxtLinha[]> {
       ...row,
       cadastro_id: row.cadastro_id ?? null,
       cpf: row.cpf ?? '',
+      zona: row.zona ?? '',
+      secao: row.secao ?? '',
     }))
     all.push(...chunk)
     if (chunk.length < pageSize) break
