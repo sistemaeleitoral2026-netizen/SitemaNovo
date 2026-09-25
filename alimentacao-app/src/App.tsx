@@ -21,6 +21,8 @@ import { AtivacaoHistoricoPage } from './pages/AtivacaoHistoricoPage'
 import { DemandasLancarPage } from './pages/DemandasLancarPage'
 import { DemandasPainelPage } from './pages/DemandasPainelPage'
 import { LiderancaPage } from './pages/LiderancaPage'
+import { GaragemLancarPage } from './pages/GaragemLancarPage'
+import { GaragemHistoricoPage } from './pages/GaragemHistoricoPage'
 import { TvDashboardPage } from './pages/TvDashboardPage'
 import { hasRole } from './lib/roles'
 import type { Profile } from './types'
@@ -140,6 +142,9 @@ function AppRoutes() {
         <Route path="demandas/lancar" element={<DemandasRoute><DemandasLancarPage /></DemandasRoute>} />
         <Route path="demandas/painel" element={<DemandasRoute><DemandasPainelPage /></DemandasRoute>} />
         <Route path="lideranca" element={<StaffRoute><LiderancaPage /></StaffRoute>} />
+        <Route path="garagem" element={<Navigate to="/garagem/lancar" replace />} />
+        <Route path="garagem/lancar" element={<StaffRoute><GaragemLancarPage /></StaffRoute>} />
+        <Route path="garagem/historico" element={<StaffRoute><GaragemHistoricoPage /></StaffRoute>} />
         <Route path="configuracoes" element={<StaffRoute><ConfiguracoesPage /></StaffRoute>} />
         <Route path="admin-only" element={<AdminOnlyRoute><DashboardPage /></AdminOnlyRoute>} />
       </Route>

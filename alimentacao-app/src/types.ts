@@ -270,3 +270,20 @@ export interface OperadorStats {
   periodo: number
   ultima_atividade: string | null
 }
+
+export interface GaragemCarro {
+  id: string
+  created_by: string | null
+  diretoria_id: string | null
+  coordenador_id: string
+  coordenador_nome: string
+  lider_id: string | null
+  lider_nome: string
+  pessoa_nome: string
+  placa: string
+  cor: string
+  modelo: string
+  telefone: string
+  created_at: string
+  updated_at: string
+}
