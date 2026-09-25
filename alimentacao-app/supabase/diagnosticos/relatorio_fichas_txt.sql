@@ -8,6 +8,8 @@ create table if not exists public.relatorio_fichas_txt (
   cpf text not null default '',
   data_nascimento text not null default '',
   nome_mae text not null default '',
+  zona text not null default '',
+  secao text not null default '',
   status text not null check (status in ('ok', 'erro')),
   created_by uuid references public.profiles(id) on delete set null,
   created_at timestamptz not null default now(),
@@ -22,6 +24,12 @@ alter table public.relatorio_fichas_txt
 
 alter table public.relatorio_fichas_txt
   add column if not exists cpf text not null default '';
+
+alter table public.relatorio_fichas_txt
+  add column if not exists zona text not null default '';
+
+alter table public.relatorio_fichas_txt
+  add column if not exists secao text not null default '';
 
 create unique index if not exists relatorio_fichas_txt_cadastro_id_uidx
   on public.relatorio_fichas_txt (cadastro_id)

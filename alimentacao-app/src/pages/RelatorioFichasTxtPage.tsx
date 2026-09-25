@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Download, Eye, FileText, ListChecks, Pencil, Save } from 'lucide-react'
+import { AlertTriangle, Download, FileText, ListChecks, Pencil, Save } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/Spinner'
@@ -11,17 +11,15 @@ import { digitsOnly } from '../lib/normalize'
 import {
   fetchRelatorioTxtLinhas,
   parseRelatorioTxtLines,
-  readUltimoGerado,
   RELATORIO_TXT_HEADER,
   rowKey,
   saveRelatorioTxtLinhas,
-  writeUltimoGerado,
   type RelatorioTxtGerado,
   type RelatorioTxtLinha,
   type RelatorioTxtStatus,
 } from '../lib/relatorioFichasTxt'
 
-type Tab = 'gerar' | 'gerado' | 'testados' | 'erros'
+type Tab = 'gerar' | 'testados' | 'erros'
 
 type FichaRow = {
   id: string
@@ -29,6 +27,8 @@ type FichaRow = {
   titulo: string | null
   data_nascimento: string | null
   nome_mae: string | null
+  zona: string | null
+  secao: string | null
 }
 
 function formatLine(row: FichaRow): string {
@@ -36,7 +36,9 @@ function formatLine(row: FichaRow): string {
   const titulo = String(row.titulo ?? '').trim()
   const nasc = row.data_nascimento ? formatDate(row.data_nascimento) : ''
   const mae = String(row.nome_mae ?? '').trim()
-  return `${row.id};${cpf};${titulo};${nasc};${mae}`
+  const zona = String(row.zona ?? '').trim()
+  const secao = String(row.secao ?? '').trim()
+  return `${row.id};${cpf};${titulo};${nasc};${mae};${zona};${secao}`
 }
 
 function pickRandom<T>(list: T[], n: number): T[] {
@@ -80,6 +82,8 @@ function ResultTable({
     titulo: string
     data_nascimento: string
     nome_mae: string
+    zona?: string
+    secao?: string
   }>
 }) {
   if (!rows.length) return null
@@ -94,6 +98,8 @@ function ResultTable({
             <th>Título de eleitor</th>
             <th>Data de nascimento</th>
             <th>Nome completo da mãe</th>
+            <th>Zona</th>
+            <th>Seção</th>
           </tr>
         </thead>
         <tbody>
@@ -107,6 +113,8 @@ function ResultTable({
                 <td className="mono-cell">{row.titulo || '—'}</td>
                 <td>{row.data_nascimento || '—'}</td>
                 <td>{row.nome_mae || '—'}</td>
+                <td>{row.zona || '—'}</td>
+                <td>{row.secao || '—'}</td>
               </tr>
             )
           })}
@@ -137,7 +145,11 @@ export function RelatorioFichasTxtPage() {
   }
 
   useEffect(() => {
-    setGerado(readUltimoGerado())
+    try {
+      localStorage.removeItem('relatorio-fichas-txt-ultimo-gerado')
+    } catch {
+      /* ignore */
+    }
   }, [])
 
   useEffect(() => {
@@ -152,7 +164,7 @@ export function RelatorioFichasTxtPage() {
         for (;;) {
           const { data, error: err } = await supabase
             .from('cadastros')
-            .select('id, cpf, titulo, data_nascimento, nome_mae')
+            .select('id, cpf, titulo, data_nascimento, nome_mae, zona, secao')
             .order('created_at', { ascending: false })
             .order('id', { ascending: false })
             .range(from, from + pageSize - 1)
@@ -208,6 +220,24 @@ export function RelatorioFichasTxtPage() {
     return list
   }, [rows, blockedKeys])
 
+  const geradoAberto = useMemo(() => {
+    if (!gerado) return null
+    const rowsAbertas = gerado.rows.filter((row) => {
+      const key = rowKey(row.id, row.titulo)
+      const t = tituloDigits(row.titulo)
+      if (key && blockedKeys.has(key)) return false
+      if (t && blockedKeys.has(t)) return false
+      return true
+    })
+    if (!rowsAbertas.length) return null
+    const ids = new Set(rowsAbertas.map((r) => r.id))
+    return {
+      ...gerado,
+      rows: rowsAbertas,
+      lines: gerado.lines.filter((line) => ids.has(line.split(';')[0] ?? '')),
+    }
+  }, [gerado, blockedKeys])
+
   function handleGerar() {
     setMessage(null)
     setError(null)
@@ -233,26 +263,26 @@ export function RelatorioFichasTxtPage() {
         titulo: String(row.titulo ?? '').trim(),
         data_nascimento: row.data_nascimento ? formatDate(row.data_nascimento) : '',
         nome_mae: String(row.nome_mae ?? '').trim(),
+        zona: String(row.zona ?? '').trim(),
+        secao: String(row.secao ?? '').trim(),
       })),
     }
-    writeUltimoGerado(next)
     setGerado(next)
     downloadTxt(`${[RELATORIO_TXT_HEADER, ...bodyLines].join('\n')}\n`, `relatorio-fichas-${new Date().toISOString().slice(0, 10)}.txt`)
     const shortfall = n - picked.length
     setMessage(
       shortfall > 0
-        ? `Arquivo com ${picked.length} linhas (pediu ${n}). Veja a aba “O que gerou” — o id aponta a ficha certa.`
-        : `Arquivo com ${picked.length} linhas. Veja a aba “O que gerou” para conferir e corrigir pelo id.`,
+        ? `Arquivo com ${picked.length} linhas (pediu ${n}). Teste e salve em Já testados ou Com erro. O que não salvar pode sair de novo.`
+        : `Arquivo com ${picked.length} linhas. Teste e salve em Já testados ou Com erro. O que não salvar pode sair de novo.`,
     )
-    setTab('gerado')
     setGenerating(false)
   }
 
   function handleBaixarGerado() {
-    if (!gerado?.lines.length) return
+    if (!geradoAberto?.lines.length) return
     downloadTxt(
-      `${[RELATORIO_TXT_HEADER, ...gerado.lines].join('\n')}\n`,
-      `relatorio-fichas-${gerado.at.slice(0, 10)}.txt`,
+      `${[RELATORIO_TXT_HEADER, ...geradoAberto.lines].join('\n')}\n`,
+      `relatorio-fichas-${geradoAberto.at.slice(0, 10)}.txt`,
     )
   }
 
@@ -291,17 +321,13 @@ export function RelatorioFichasTxtPage() {
     )
   }
 
-  const geradoQuando = gerado?.at
-    ? new Date(gerado.at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : ''
-
   return (
     <div className="rel-txt-page">
       <div className="page-header">
         <div>
           <h1 className="page-title">Relatório fichas (TXT)</h1>
           <p className="page-subtitle">
-            Gera linhas com o id da ficha. Abra “O que gerou” para conferir e corrigir a ficha certa.
+            Gera com o id da ficha. Só some do sorteio depois de salvar em Já testados ou Com erro.
           </p>
         </div>
       </div>
@@ -315,16 +341,6 @@ export function RelatorioFichasTxtPage() {
           onClick={() => setTab('gerar')}
         >
           <Download size={15} /> Gerar arquivo
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'gerado'}
-          className={`rel-txt-tab${tab === 'gerado' ? ' is-active' : ''}`}
-          onClick={() => setTab('gerado')}
-        >
-          <Eye size={15} /> O que gerou
-          <em>{gerado?.rows.length ?? 0}</em>
         </button>
         <button
           type="button"
@@ -371,54 +387,45 @@ export function RelatorioFichasTxtPage() {
       {message ? <p className="rel-txt-ok">{message}</p> : null}
 
       {tab === 'gerar' ? (
-        <Card
-          title="Gerar arquivo (aleatório)"
-          subtitle="Sorteia o que ainda não foi salvo. O TXT leva o id da ficha para você corrigir a certa."
-        >
-          <div className="rel-txt-form">
-            <label className="rel-txt-field">
-              <span>Quantidade de linhas</span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                inputMode="numeric"
-                value={quantidade}
-                onChange={(e) => setQuantidade(e.target.value)}
-              />
-            </label>
-            <Button onClick={handleGerar} loading={generating} disabled={generating}>
-              <Download size={16} /> Gerar TXT
-            </Button>
-          </div>
-          <p className="rel-txt-hint">
-            Formato: <code>{RELATORIO_TXT_HEADER}</code>
-          </p>
-        </Card>
-      ) : null}
-
-      {tab === 'gerado' ? (
-        <Card
-          title={gerado ? `Último gerado (${gerado.rows.length})` : 'Último gerado'}
-          subtitle={
-            gerado
-              ? `Gerado em ${geradoQuando}. Clique no id para abrir a ficha e corrigir.`
-              : 'Ainda não gerou nesta sessão. Use Gerar arquivo.'
-          }
-          action={
-            gerado?.lines.length ? (
-              <Button size="sm" type="button" onClick={handleBaixarGerado}>
-                <Download size={14} /> Baixar de novo
+        <>
+          <Card
+            title="Gerar arquivo (aleatório)"
+            subtitle="Sorteia só o que ainda não está em Já testados nem Com erro. O que você só gerou e não salvou pode sair de novo."
+          >
+            <div className="rel-txt-form">
+              <label className="rel-txt-field">
+                <span>Quantidade de linhas</span>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  value={quantidade}
+                  onChange={(e) => setQuantidade(e.target.value)}
+                />
+              </label>
+              <Button onClick={handleGerar} loading={generating} disabled={generating}>
+                <Download size={16} /> Gerar TXT
               </Button>
-            ) : undefined
-          }
-        >
-          {!gerado?.rows.length ? (
-            <p className="rel-txt-empty">Nada gerado ainda. Vá em Gerar arquivo.</p>
-          ) : (
-            <ResultTable rows={gerado.rows} />
-          )}
-        </Card>
+            </div>
+            <p className="rel-txt-hint">
+              Formato: <code>{RELATORIO_TXT_HEADER}</code>
+            </p>
+          </Card>
+          {geradoAberto ? (
+            <Card
+              title={`Deste sorteio (${geradoAberto.rows.length})`}
+              subtitle="Ainda não está em Já testados nem Com erro. Clique no id para corrigir a ficha. Some daqui quando salvar."
+              action={(
+                <Button size="sm" type="button" onClick={handleBaixarGerado}>
+                  <Download size={14} /> Baixar de novo
+                </Button>
+              )}
+            >
+              <ResultTable rows={geradoAberto.rows} />
+            </Card>
+          ) : null}
+        </>
       ) : null}
 
       {tab === 'testados' ? (
@@ -446,7 +453,7 @@ export function RelatorioFichasTxtPage() {
                 value={okDraft}
                 onChange={(e) => setOkDraft(e.target.value)}
                 rows={10}
-                placeholder={`${RELATORIO_TXT_HEADER}\n00000000-0000-0000-0000-000000000000;00000000000;123456789012;01/01/1990;NOME DA MAE\n...`}
+                placeholder={`${RELATORIO_TXT_HEADER}\n00000000-0000-0000-0000-000000000000;00000000000;123456789012;01/01/1990;NOME DA MAE;123;456\n...`}
                 spellCheck={false}
               />
             </label>
@@ -486,7 +493,7 @@ export function RelatorioFichasTxtPage() {
                 value={errDraft}
                 onChange={(e) => setErrDraft(e.target.value)}
                 rows={10}
-                placeholder={`${RELATORIO_TXT_HEADER}\n00000000-0000-0000-0000-000000000000;00000000000;123456789012;01/01/1990;NOME DA MAE\n...`}
+                placeholder={`${RELATORIO_TXT_HEADER}\n00000000-0000-0000-0000-000000000000;00000000000;123456789012;01/01/1990;NOME DA MAE;123;456\n...`}
                 spellCheck={false}
               />
             </label>
