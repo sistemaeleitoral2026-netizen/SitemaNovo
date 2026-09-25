@@ -1517,6 +1517,16 @@ a.ranking-row:hover .ranking-person strong { color: #2459c4; }
 .rel-txt-table td,
 .rel-txt-table th { white-space: nowrap; }
 .rel-txt-table td:last-child { white-space: normal; }
+.rel-txt-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  color: #1e3a5f;
+  text-decoration: none;
+  font-size: .72rem;
+}
+.rel-txt-edit:hover { color: #0f172a; text-decoration: underline; }
+.rel-txt-edit .mono-cell { font-size: .68rem; }
 .rel-txt-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
