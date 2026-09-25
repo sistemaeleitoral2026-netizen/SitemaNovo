@@ -23,6 +23,7 @@ type Tab = 'gerar' | 'testados' | 'erros'
 
 type FichaRow = {
   id: string
+  nome_completo: string | null
   cpf: string | null
   titulo: string | null
   data_nascimento: string | null
@@ -32,13 +33,14 @@ type FichaRow = {
 }
 
 function formatLine(row: FichaRow): string {
+  const nome = String(row.nome_completo ?? '').trim()
   const cpf = digitsOnly(row.cpf ?? '')
   const titulo = String(row.titulo ?? '').trim()
   const nasc = row.data_nascimento ? formatDate(row.data_nascimento) : ''
   const mae = String(row.nome_mae ?? '').trim()
   const zona = String(row.zona ?? '').trim()
   const secao = String(row.secao ?? '').trim()
-  return `${row.id};${cpf};${titulo};${nasc};${mae};${zona};${secao}`
+  return `${nome};${row.id};${cpf};${titulo};${nasc};${mae};${zona};${secao}`
 }
 
 function pickRandom<T>(list: T[], n: number): T[] {
@@ -78,6 +80,7 @@ function ResultTable({
   rows: Array<{
     id?: string | null
     cadastro_id?: string | null
+    nome?: string
     cpf?: string
     titulo: string
     data_nascimento: string
@@ -93,6 +96,7 @@ function ResultTable({
         <thead>
           <tr>
             <th>#</th>
+            <th>Nome</th>
             <th>id</th>
             <th>CPF</th>
             <th>Título de eleitor</th>
@@ -108,6 +112,7 @@ function ResultTable({
             return (
               <tr key={id || `${row.titulo}-${i}`}>
                 <td className="mono-cell">{i + 1}</td>
+                <td><strong style={{ fontWeight: 600 }}>{row.nome || '—'}</strong></td>
                 <td><FichaLink id={id} /></td>
                 <td className="mono-cell">{formatCpf(row.cpf) || row.cpf || '—'}</td>
                 <td className="mono-cell">{row.titulo || '—'}</td>
@@ -164,7 +169,7 @@ export function RelatorioFichasTxtPage() {
         for (;;) {
           const { data, error: err } = await supabase
             .from('cadastros')
-            .select('id, cpf, titulo, data_nascimento, nome_mae, zona, secao')
+            .select('id, nome_completo, cpf, titulo, data_nascimento, nome_mae, zona, secao')
             .order('created_at', { ascending: false })
             .order('id', { ascending: false })
             .range(from, from + pageSize - 1)
@@ -234,7 +239,7 @@ export function RelatorioFichasTxtPage() {
     return {
       ...gerado,
       rows: rowsAbertas,
-      lines: gerado.lines.filter((line) => ids.has(line.split(';')[0] ?? '')),
+      lines: gerado.lines.filter((line) => ids.has(line.split(';')[1] ?? '')),
     }
   }, [gerado, blockedKeys])
 
@@ -259,6 +264,7 @@ export function RelatorioFichasTxtPage() {
       lines: bodyLines,
       rows: picked.map((row) => ({
         id: row.id,
+        nome: String(row.nome_completo ?? '').trim(),
         cpf: digitsOnly(row.cpf ?? ''),
         titulo: String(row.titulo ?? '').trim(),
         data_nascimento: row.data_nascimento ? formatDate(row.data_nascimento) : '',
@@ -453,7 +459,7 @@ export function RelatorioFichasTxtPage() {
                 value={okDraft}
                 onChange={(e) => setOkDraft(e.target.value)}
                 rows={10}
-                placeholder={`${RELATORIO_TXT_HEADER}\n00000000-0000-0000-0000-000000000000;00000000000;123456789012;01/01/1990;NOME DA MAE;123;456\n...`}
+                placeholder={`${RELATORIO_TXT_HEADER}\nNOME COMPLETO;00000000-0000-0000-0000-000000000000;00000000000;123456789012;01/01/1990;NOME DA MAE;123;456\n...`}
                 spellCheck={false}
               />
             </label>
@@ -493,7 +499,7 @@ export function RelatorioFichasTxtPage() {
                 value={errDraft}
                 onChange={(e) => setErrDraft(e.target.value)}
                 rows={10}
-                placeholder={`${RELATORIO_TXT_HEADER}\n00000000-0000-0000-0000-000000000000;00000000000;123456789012;01/01/1990;NOME DA MAE;123;456\n...`}
+                placeholder={`${RELATORIO_TXT_HEADER}\nNOME COMPLETO;00000000-0000-0000-0000-000000000000;00000000000;123456789012;01/01/1990;NOME DA MAE;123;456\n...`}
                 spellCheck={false}
               />
             </label>
