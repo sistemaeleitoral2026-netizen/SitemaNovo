@@ -19,6 +19,7 @@ import {
   ClipboardPen,
   History,
   FileText,
+  Car,
 } from 'lucide-react'
 import type { UserRole } from '../../types'
 import { fetchDemandaCounts } from '../../lib/demandas'
@@ -94,6 +95,14 @@ const navGroups: NavGroup[] = [
     items: [
       { to: '/demandas/lancar', label: 'Lançar', icon: ClipboardPen, roles: ['admin', 'diretoria'] },
       { to: '/demandas/painel', label: 'Visualizar', icon: Inbox, roles: ['admin', 'diretoria'], badgeKey: 'demandas-abertas' },
+    ],
+  },
+  {
+    label: 'Garagem',
+    roles: ['admin', 'diretoria'],
+    items: [
+      { to: '/garagem/lancar', label: 'Lançar', icon: Car, roles: ['admin', 'diretoria'] },
+      { to: '/garagem/historico', label: 'Histórico', icon: History, roles: ['admin', 'diretoria'] },
     ],
   },
   {
