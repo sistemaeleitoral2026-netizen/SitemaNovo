@@ -11553,6 +11553,14 @@ button.fichas-count.equipe-drill-count.zero:hover {
 }
 .ch-meta span { display: block; }
 .ch-block { margin-bottom: .55rem; }
+.ch-block-keep {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.ch-block-keep .ch-lider-banner {
+  break-after: avoid;
+  page-break-after: avoid;
+}
 .ch-block .ch-lider-banner {
   margin: 0 0 .35rem;
   padding: .3rem .55rem;
@@ -11637,6 +11645,14 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .ch-lider-banner { padding: 1.6mm 2.4mm; }
   .ch-lider-banner span { font-size: 7pt; }
   .ch-lider-banner strong { font-size: 14pt; }
+  .ch-block-keep {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .ch-block-keep .ch-lider-banner {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
   .ch-block .ch-lider-banner { margin-bottom: 1.4mm; }
   .ch-block .ch-lider-banner strong { font-size: 10pt; }
   .ch-list { column-gap: 5mm; }

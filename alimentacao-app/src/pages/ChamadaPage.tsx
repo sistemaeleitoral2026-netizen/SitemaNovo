@@ -217,7 +217,7 @@ export function ChamadaPage() {
             <p className="ch-empty">Nenhuma ficha nesta seleção.</p>
           ) : (
             grupos.map(([liderNome, rows]) => (
-              <div key={liderNome} className="ch-block">
+              <div key={liderNome} className={`ch-block${!lider ? ' ch-block-keep' : ''}`}>
                 {!lider ? (
                   <h3 className="ch-lider-banner">
                     <span>Liderança</span>
