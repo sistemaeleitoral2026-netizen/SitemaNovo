@@ -11474,3 +11474,174 @@ button.fichas-count.equipe-drill-count.zero:hover {
 @media (max-width: 640px) {
   .gg-grid { grid-template-columns: 1fr; }
 }
+
+/* —— Chamada (folha A4) —— */
+.ch-page { width: 100%; max-width: 1180px; margin: 0 auto; }
+.ch-print-side {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+.ch-pages {
+  color: #111827;
+  font-size: .85rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.ch-sheet {
+  margin-top: 1rem;
+  padding: 1rem 1.1rem 1.1rem;
+  border: 1px solid #d1d5db;
+  background: #fff;
+}
+.ch-sheet-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: .55rem;
+  margin-bottom: .65rem;
+  border-bottom: 2px solid #111827;
+}
+.ch-kicker {
+  margin: 0 0 .1rem;
+  color: #6b7280;
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.ch-sheet-head h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 1.15rem;
+  font-weight: 750;
+  letter-spacing: -.02em;
+}
+.ch-lider-banner {
+  display: flex;
+  flex-direction: column;
+  gap: .12rem;
+  min-width: 0;
+  padding: .45rem .7rem;
+  background: #111827;
+  color: #fff;
+}
+.ch-lider-banner span {
+  color: #cbd5e1;
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.ch-lider-banner strong {
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 750;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+}
+.ch-sheet-head p {
+  margin: .15rem 0 0;
+  color: #4b5563;
+  font-size: .75rem;
+}
+.ch-meta {
+  text-align: right;
+  color: #4b5563;
+  font-size: .72rem;
+  line-height: 1.45;
+}
+.ch-meta span { display: block; }
+.ch-block { margin-bottom: .55rem; }
+.ch-block .ch-lider-banner {
+  margin: 0 0 .35rem;
+  padding: .3rem .55rem;
+}
+.ch-block .ch-lider-banner strong { font-size: .92rem; }
+.ch-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  columns: 2;
+  column-gap: 1.1rem;
+}
+.ch-list li {
+  display: grid;
+  grid-template-columns: 11px minmax(0, 1fr) 92px;
+  align-items: center;
+  gap: .35rem;
+  break-inside: avoid;
+  min-height: 18px;
+  padding: .12rem 0;
+  border-bottom: 1px dotted #d1d5db;
+}
+.ch-list li em { display: none; }
+.ch-box {
+  width: 10px;
+  height: 10px;
+  border: 1px solid #111827;
+  background: #fff;
+}
+.ch-list strong {
+  overflow: hidden;
+  color: #111827;
+  font-size: .72rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ch-list span {
+  color: #374151;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .64rem;
+  letter-spacing: .01em;
+  text-align: right;
+}
+.ch-empty {
+  margin: 1.5rem 0;
+  color: #6b7280;
+  font-size: .8rem;
+}
+.ch-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem 1.25rem;
+  margin-top: .7rem;
+  padding-top: .5rem;
+  border-top: 1px solid #111827;
+  color: #111827;
+  font-size: .7rem;
+  font-weight: 650;
+}
+
+@media print {
+  @page { size: A4 portrait; margin: 8mm 8mm 7mm; }
+  .ch-no-print { display: none !important; }
+  .app-sidebar,
+  .app-header,
+  .sidebar-overlay,
+  .ch-screen { display: none !important; }
+  .app-shell,
+  .main-content,
+  .main-content-body { display: block !important; padding: 0 !important; margin: 0 !important; background: #fff !important; }
+  .ch-page { max-width: none; }
+  .ch-sheet {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .ch-sheet-head { margin-bottom: 4mm; padding-bottom: 2mm; }
+  .ch-sheet-head h2 { font-size: 13pt; }
+  .ch-sheet-head p,
+  .ch-meta { font-size: 8pt; }
+  .ch-lider-banner { padding: 1.6mm 2.4mm; }
+  .ch-lider-banner span { font-size: 7pt; }
+  .ch-lider-banner strong { font-size: 14pt; }
+  .ch-block .ch-lider-banner { margin-bottom: 1.4mm; }
+  .ch-block .ch-lider-banner strong { font-size: 10pt; }
+  .ch-list { column-gap: 5mm; }
+  .ch-list li { min-height: 0; padding: .4mm 0; }
+  .ch-list strong { font-size: 7.4pt; }
+  .ch-list span { font-size: 7pt; }
+  .ch-foot { font-size: 8pt; margin-top: 3mm; }
+}

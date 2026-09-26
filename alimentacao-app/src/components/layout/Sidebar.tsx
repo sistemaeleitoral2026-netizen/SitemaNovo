@@ -20,6 +20,7 @@ import {
   History,
   FileText,
   Car,
+  ClipboardCheck,
 } from 'lucide-react'
 import type { UserRole } from '../../types'
 import { fetchDemandaCounts } from '../../lib/demandas'
@@ -113,6 +114,7 @@ const navGroups: NavGroup[] = [
       { to: '/mapa', label: 'Mapa por zona', icon: Map, roles: ['admin', 'diretoria'] },
       { to: '/relatorios', label: 'Relatórios', icon: BarChart3, roles: ['admin', 'diretoria'] },
       { to: '/relatorios/fichas-txt', label: 'Relatório TXT', icon: FileText, roles: ['admin'] },
+      { to: '/chamada', label: 'Chamada', icon: ClipboardCheck, roles: ['admin', 'diretoria'] },
       { to: '/configuracoes', label: 'Configurações', icon: Settings, roles: ['admin', 'diretoria'] },
     ],
   },
