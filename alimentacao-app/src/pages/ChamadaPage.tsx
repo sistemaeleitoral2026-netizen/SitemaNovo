@@ -3,8 +3,7 @@ import { Printer } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Select } from '../components/ui/Select'
 import { Spinner } from '../components/ui/Spinner'
-import { fetchChamadaFichas, formatTituloChamada, type ChamadaFicha } from '../lib/chamada'
-import { supabase } from '../lib/supabase'
+import { fetchEquipeChamada, type ChamadaPessoa } from '../lib/chamada'
 import type { Coordenador, Lider } from '../types'
 
 function todayLabel() {
@@ -16,29 +15,9 @@ function todayLabel() {
   })
 }
 
-function estimateA4Pages(grupos: [string, ChamadaFicha[]][], soUmaLideranca: boolean) {
-  if (!grupos.length) return 0
-  const alturaUtil = 282
-  const cabecalho = soUmaLideranca ? 26 : 20
-  const rodape = 12
-  const linha = 4.5
-  const faixaLider = soUmaLideranca ? 0 : 8
-  let altura = cabecalho + rodape
-  for (const [, rows] of grupos) {
-    altura += faixaLider + Math.ceil(rows.length / 2) * linha
-  }
-  return Math.max(1, Math.ceil(altura / alturaUtil))
-}
-
-function groupByLider(rows: ChamadaFicha[]) {
-  const map = new Map<string, ChamadaFicha[]>()
-  for (const row of rows) {
-    const key = row.lider.trim() || 'Sem liderança'
-    const list = map.get(key)
-    if (list) list.push(row)
-    else map.set(key, [row])
-  }
-  return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { sensitivity: 'base' }))
+function estimateA4Pages(total: number) {
+  if (total <= 0) return 0
+  return Math.max(1, Math.ceil(total / 40))
 }
 
 export function ChamadaPage() {
@@ -48,10 +27,8 @@ export function ChamadaPage() {
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
   const [lideres, setLideres] = useState<Lider[]>([])
   const [coordenadorId, setCoordenadorId] = useState('')
-  const [liderId, setLiderId] = useState('')
-  const [fichas, setFichas] = useState<ChamadaFicha[]>([])
+  const [liderIds, setLiderIds] = useState<Set<string>>(new Set())
   const [loadingOpts, setLoadingOpts] = useState(true)
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -59,18 +36,10 @@ export function ChamadaPage() {
     async function load() {
       setLoadingOpts(true)
       try {
-        let coordsQuery = supabase.from('coordenadores').select('*').eq('ativo', true).order('nome')
-        let lidsQuery = supabase.from('lideres').select('*').eq('ativo', true).order('nome')
-        if (diretoriaScope) {
-          coordsQuery = coordsQuery.eq('diretoria_id', diretoriaScope)
-          lidsQuery = lidsQuery.eq('diretoria_id', diretoriaScope)
-        }
-        const [coords, lids] = await Promise.all([coordsQuery, lidsQuery])
-        if (coords.error) throw new Error(coords.error.message)
-        if (lids.error) throw new Error(lids.error.message)
+        const equipe = await fetchEquipeChamada(diretoriaScope)
         if (cancelled) return
-        setCoordenadores((coords.data ?? []) as Coordenador[])
-        setLideres((lids.data ?? []) as Lider[])
+        setCoordenadores(equipe.coordenadores)
+        setLideres(equipe.lideres)
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Não foi possível carregar a equipe.')
       } finally {
@@ -84,43 +53,53 @@ export function ChamadaPage() {
   }, [diretoriaScope])
 
   const coordenador = coordenadores.find((c) => c.id === coordenadorId) ?? null
-  const lideresFiltrados = useMemo(() => {
+  const lideresDaCoord = useMemo(() => {
     if (!coordenadorId) return []
     return lideres.filter((l) => l.coordenador_id === coordenadorId)
   }, [lideres, coordenadorId])
-  const lider = lideresFiltrados.find((l) => l.id === liderId) ?? null
 
-  useEffect(() => {
-    if (!coordenador) {
-      setFichas([])
-      return
-    }
-    let cancelled = false
-    async function load() {
-      setLoading(true)
-      setError(null)
-      try {
-        const rows = await fetchChamadaFichas(coordenador!.nome, lider?.nome)
-        if (!cancelled) setFichas(rows)
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Não foi possível puxar as fichas.')
-          setFichas([])
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [coordenador?.id, coordenador?.nome, lider?.id, lider?.nome])
+  const lideresSel = useMemo(
+    () => lideresDaCoord.filter((l) => liderIds.has(l.id)),
+    [lideresDaCoord, liderIds],
+  )
 
-  const grupos = useMemo(() => groupByLider(fichas), [fichas])
-  const folhas = useMemo(() => estimateA4Pages(grupos, Boolean(lider)), [grupos, lider])
-  const dataHoje = todayLabel()
+  const todosMarcados = lideresDaCoord.length > 0 && lideresSel.length === lideresDaCoord.length
+
+  const lista = useMemo(() => {
+    if (!coordenador) return []
+    const pessoas: ChamadaPessoa[] = [
+      { id: coordenador.id, nome: coordenador.nome, cargo: 'coordenador' },
+    ]
+    for (const item of lideresSel) {
+      pessoas.push({ id: item.id, nome: item.nome, cargo: 'lideranca' })
+    }
+    return pessoas
+  }, [coordenador, lideresSel])
+
+  const coordenadoresLista = lista.filter((p) => p.cargo === 'coordenador')
+  const liderancasLista = lista.filter((p) => p.cargo === 'lideranca')
+  const folhas = estimateA4Pages(lista.length)
   const folhasLabel = folhas === 1 ? '1 folha A4' : `${folhas} folhas A4`
+  const dataHoje = todayLabel()
+
+  function escolherCoord(id: string) {
+    setCoordenadorId(id)
+    const lids = lideres.filter((l) => l.coordenador_id === id)
+    setLiderIds(new Set(lids.map((l) => l.id)))
+  }
+
+  function toggleLider(id: string) {
+    setLiderIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleTodos(checked: boolean) {
+    setLiderIds(checked ? new Set(lideresDaCoord.map((l) => l.id)) : new Set())
+  }
 
   return (
     <div className="ch-page">
@@ -130,17 +109,17 @@ export function ChamadaPage() {
             <p className="gg-kicker">Chamada</p>
             <h1>Lista de presença</h1>
             <p className="gg-sub">
-              Escolha a coordenação — e a liderança, se quiser. A folha cabe no A4 para assinalar quem está presente.
+              Só coordenador e lideranças. Escolha a coordenação e marque no checkbox quem entra na folha.
             </p>
           </div>
           <div className="ch-print-side">
-            {coordenador && !loading && fichas.length > 0 ? (
+            {coordenador && lista.length > 0 ? (
               <strong className="ch-pages">{folhasLabel}</strong>
             ) : null}
             <button
               type="button"
               className="gg-btn primary"
-              disabled={!coordenador || !fichas.length}
+              disabled={!coordenador || !lista.length}
               onClick={() => window.print()}
             >
               <Printer size={15} />
@@ -153,100 +132,138 @@ export function ChamadaPage() {
           <div className="filters-grid filters-grid-cadastros gg-filters-quick">
             <Select
               value={coordenadorId}
-              onChange={(e) => {
-                setCoordenadorId(e.target.value)
-                setLiderId('')
-              }}
+              onChange={(e) => escolherCoord(e.target.value)}
               options={coordenadores.map((c) => ({ value: c.id, label: c.nome }))}
               placeholder={loadingOpts ? 'Carregando…' : 'Selecione a coordenação'}
               aria-label="Coordenação"
-            />
-            <Select
-              value={liderId}
-              onChange={(e) => setLiderId(e.target.value)}
-              options={lideresFiltrados.map((l) => ({ value: l.id, label: l.nome }))}
-              placeholder={coordenadorId ? 'Todas as lideranças' : 'Selecione a coordenação'}
-              aria-label="Liderança"
-              disabled={!coordenadorId}
             />
           </div>
           <div className="filter-results">
             {coordenador ? (
               <span>
-                <strong>{fichas.length}</strong> ficha{fichas.length === 1 ? '' : 's'}
-                {lider ? ` · ${lider.nome}` : ' · todas as lideranças'}
-                {fichas.length ? ` · ${folhasLabel}` : ''}
+                <strong>{lista.length}</strong> {lista.length === 1 ? 'pessoa' : 'pessoas'}
+                {' · coordenador e '}
+                {lideresSel.length} {lideresSel.length === 1 ? 'liderança' : 'lideranças'}
+                {lista.length ? ` · ${folhasLabel}` : ''}
               </span>
             ) : (
-              <span>Selecione a coordenação para puxar a lista.</span>
+              <span>Selecione a coordenação para montar a chamada.</span>
             )}
           </div>
         </div>
 
+        {coordenador && !loadingOpts ? (
+          <div className="ch-checks">
+            <label className="ch-check ch-check-all">
+              <input
+                type="checkbox"
+                checked={todosMarcados}
+                onChange={(e) => toggleTodos(e.target.checked)}
+                disabled={!lideresDaCoord.length}
+              />
+              <span>Selecionar todas as lideranças</span>
+            </label>
+            {lideresDaCoord.length ? (
+              <ul className="ch-check-list">
+                {lideresDaCoord.map((l) => (
+                  <li key={l.id}>
+                    <label className="ch-check">
+                      <input
+                        type="checkbox"
+                        checked={liderIds.has(l.id)}
+                        onChange={() => toggleLider(l.id)}
+                      />
+                      <span>{l.nome}</span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="ch-empty">Nenhuma liderança nesta coordenação.</p>
+            )}
+          </div>
+        ) : null}
+
         {error ? <p className="rel-txt-error">{error}</p> : null}
-        {loading ? (
+        {loadingOpts ? (
           <div className="gg-loading">
             <Spinner size={32} />
           </div>
         ) : null}
       </header>
 
-      {coordenador && !loading ? (
-        <section className="ch-sheet" aria-label="Folha de chamada">
-          <div className="ch-sheet-head">
-            {lider ? (
-              <div className="ch-lider-banner">
-                <span>Liderança</span>
-                <strong>{lider.nome}</strong>
+      {coordenador && !loadingOpts ? (
+        <div className="ch-a4">
+          <section className="ch-sheet" aria-label="Folha de chamada">
+            <div className="ch-sheet-head">
+              <div className="ch-banners">
+                <div className="ch-lider-banner">
+                  <span>Coordenador</span>
+                  <strong>{coordenador.nome}</strong>
+                </div>
+                <div className="ch-lider-banner">
+                  <span>Liderança</span>
+                  <strong>
+                    {lideresSel.length === 0
+                      ? 'Nenhuma selecionada'
+                      : lideresSel.length === 1
+                        ? lideresSel[0].nome
+                        : todosMarcados
+                          ? 'Todas desta coordenação'
+                          : `${lideresSel.length} selecionadas`}
+                  </strong>
+                </div>
               </div>
-            ) : (
-              <div>
-                <p className="ch-kicker">Chamada do evento</p>
-                <h2>Todas as lideranças</h2>
+              <div className="ch-meta">
+                <span>{dataHoje}</span>
+                <span className="ch-no-print">{lista.length} pessoas · {folhasLabel}</span>
+                <span className="ch-no-print">Marque o quadrado de quem está presente.</span>
               </div>
-            )}
-            <div className="ch-meta">
-              <span>Coordenação {coordenador.nome}</span>
-              <span>{dataHoje}</span>
-              <span className="ch-no-print">{fichas.length} nomes · {folhasLabel}</span>
-              <span className="ch-no-print">Marque o quadrado de quem está presente.</span>
             </div>
-          </div>
 
-          {!fichas.length ? (
-            <p className="ch-empty">Nenhuma ficha nesta seleção.</p>
-          ) : (
-            grupos.map(([liderNome, rows]) => (
-              <div key={liderNome} className={`ch-block${!lider ? ' ch-block-keep' : ''}`}>
-                {!lider ? (
-                  <h3 className="ch-lider-banner">
-                    <span>Liderança</span>
-                    <strong>{liderNome}</strong>
-                  </h3>
-                ) : null}
-                <ol className="ch-list">
-                  {rows.map((row) => (
-                    <li key={row.id}>
+            <div className="ch-block ch-block-keep">
+              <h3 className="ch-lider-banner">
+                <span>Presença</span>
+                <strong>Coordenador</strong>
+              </h3>
+              <ol className="ch-list">
+                {coordenadoresLista.map((p) => (
+                  <li key={p.id}>
+                    <i className="ch-box" aria-hidden />
+                    <strong>{p.nome}</strong>
+                    <em>Coordenador</em>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            <div className="ch-block">
+              <h3 className="ch-lider-banner">
+                <span>Presença</span>
+                <strong>Lideranças</strong>
+              </h3>
+              {liderancasLista.length ? (
+                <ol className={`ch-list${liderancasLista.length > 8 ? ' ch-list-cols' : ''}`}>
+                  {liderancasLista.map((p) => (
+                    <li key={p.id}>
                       <i className="ch-box" aria-hidden />
-                      <strong>{row.nome_completo || '—'}</strong>
-                      <em>{row.lider || '—'}</em>
-                      <span>{formatTituloChamada(row.titulo)}</span>
+                      <strong>{p.nome}</strong>
+                      <em>Liderança</em>
                     </li>
                   ))}
                 </ol>
-              </div>
-            ))
-          )}
+              ) : (
+                <p className="ch-empty">Nenhuma liderança selecionada.</p>
+              )}
+            </div>
 
-          {fichas.length > 0 ? (
             <footer className="ch-foot">
               <span>Presentes ________</span>
               <span>Faltas ________</span>
-              <span>Total {fichas.length}</span>
-              <span>Coordenador {coordenador.nome}</span>
+              <span>Total {lista.length}</span>
             </footer>
-          ) : null}
-        </section>
+          </section>
+        </div>
       ) : null}
     </div>
   )

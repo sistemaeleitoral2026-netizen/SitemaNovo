@@ -1,45 +1,38 @@
-import { digitsOnly } from './normalize'
 import { supabase } from './supabase'
+import type { Coordenador, Lider } from '../types'
 
-export type ChamadaFicha = {
+export type ChamadaPessoa = {
   id: string
-  nome_completo: string
-  titulo: string
-  coordenador: string
-  lider: string
+  nome: string
+  cargo: 'coordenador' | 'lideranca'
 }
 
-export function formatTituloChamada(value: string | null | undefined): string {
-  const d = digitsOnly(value)
-  return d || '—'
-}
+const PAGE = 1000
 
-export async function fetchChamadaFichas(coordenador: string, lider?: string): Promise<ChamadaFicha[]> {
-  const coord = coordenador.trim()
-  if (!coord) return []
-
-  const pageSize = 1000
-  const all: ChamadaFicha[] = []
+async function fetchAllRows<T>(
+  table: 'coordenadores' | 'lideres',
+  diretoriaId?: string | null,
+): Promise<T[]> {
+  const rows: T[] = []
   let from = 0
-
   for (;;) {
-    let query = supabase
-      .from('cadastros')
-      .select('id, nome_completo, titulo, coordenador, lider')
-      .ilike('coordenador', coord)
-      .order('lider', { ascending: true })
-      .order('nome_completo', { ascending: true })
-      .range(from, from + pageSize - 1)
-
-    if (lider?.trim()) query = query.ilike('lider', lider.trim())
-
-    const { data, error } = await query
+    let query = supabase.from(table).select('*').order('nome')
+    if (diretoriaId) query = query.eq('diretoria_id', diretoriaId)
+    const { data, error } = await query.range(from, from + PAGE - 1)
     if (error) throw new Error(error.message)
-    const chunk = (data ?? []) as ChamadaFicha[]
-    all.push(...chunk)
-    if (chunk.length < pageSize) break
-    from += pageSize
+    const chunk = (data ?? []) as T[]
+    rows.push(...chunk)
+    if (chunk.length < PAGE) break
+    from += PAGE
   }
+  return rows
+}
 
-  return all
+/** Todos os coordenadores e lideranças (paginado — PostgREST corta em ~1000). */
+export async function fetchEquipeChamada(diretoriaId?: string | null) {
+  const [coordenadores, lideres] = await Promise.all([
+    fetchAllRows<Coordenador>('coordenadores', diretoriaId),
+    fetchAllRows<Lider>('lideres', diretoriaId),
+  ])
+  return { coordenadores, lideres }
 }
