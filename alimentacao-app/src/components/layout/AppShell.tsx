@@ -34,7 +34,12 @@ export function AppShell({ children }: { children?: ReactNode }) {
 
   return (
     <div className="app-shell">
-      <Sidebar roles={profileRoles(profile)} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar
+        roles={profileRoles(profile)}
+        email={profile.email}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
       <div className="main-content">
         <Header onMenuClick={() => setSidebarOpen(true)} online={online} />
         <main className="main-content-body">

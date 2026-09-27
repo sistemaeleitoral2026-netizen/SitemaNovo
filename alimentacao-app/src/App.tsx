@@ -27,6 +27,8 @@ import { GaragemLancarPage } from './pages/GaragemLancarPage'
 import { GaragemHistoricoPage } from './pages/GaragemHistoricoPage'
 import { TvDashboardPage } from './pages/TvDashboardPage'
 import { hasRole } from './lib/roles'
+import { canSeeFormigasWhatsapp } from './lib/formigasWhatsapp'
+import { FormigasWhatsappPage } from './pages/FormigasWhatsappPage'
 import type { Profile } from './types'
 
 function homeForProfile(profile: Profile | null | undefined) {
@@ -85,6 +87,15 @@ function FerramentasTituloRoute({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
   if (loading) return <Spinner />
   if (!hasRole(profile, ['admin', 'diretoria', 'operador'])) {
+    return <Navigate to={homeForProfile(profile)} replace />
+  }
+  return children
+}
+
+function FormigasWhatsappRoute({ children }: { children: React.ReactNode }) {
+  const { profile, loading } = useAuth()
+  if (loading) return <Spinner />
+  if (!canSeeFormigasWhatsapp(profile)) {
     return <Navigate to={homeForProfile(profile)} replace />
   }
   return children
@@ -153,6 +164,7 @@ function AppRoutes() {
         <Route path="ativacao/lancar" element={<AtivacaoRoute><AtivacaoLancarPage /></AtivacaoRoute>} />
         <Route path="ativacao/painel" element={<AtivacaoRoute><AtivacaoPainelPage /></AtivacaoRoute>} />
         <Route path="ativacao/historico" element={<AtivacaoRoute><AtivacaoHistoricoPage /></AtivacaoRoute>} />
+        <Route path="formigas/whatsapp" element={<FormigasWhatsappRoute><FormigasWhatsappPage /></FormigasWhatsappRoute>} />
         <Route path="demandas/lancar" element={<DemandasRoute><DemandasLancarPage /></DemandasRoute>} />
         <Route path="demandas/painel" element={<DemandasRoute><DemandasPainelPage /></DemandasRoute>} />
         <Route path="lideranca" element={<StaffRoute><LiderancaPage /></StaffRoute>} />
