@@ -1052,13 +1052,22 @@ export function EquipePage() {
     await load()
   }
 
+  const somaLiderancasCoords = useMemo(
+    () => filteredCoords.reduce((n, c) => n + (lideresByCoord[c.id] ?? 0), 0),
+    [filteredCoords, lideresByCoord],
+  )
+
   const metasDiretoria = useMemo(() => {
     const scoped = filterDiretoria
       ? diretorias.filter((d) => d.id === filterDiretoria)
       : diretorias
     return META_DIRETORIA_LIDERANCAS.map((meta) => {
       const dir = scoped.find((d) => meta.keys.some((k) => d.nome.toLowerCase().includes(k)))
-      const atual = dir ? lideres.filter((l) => l.diretoria_id === dir.id).length : 0
+      const atual = dir
+        ? coordenadores
+          .filter((c) => c.diretoria_id === dir.id)
+          .reduce((n, c) => n + (lideresByCoord[c.id] ?? 0), 0)
+        : 0
       return {
         key: meta.label,
         label: meta.label,
@@ -1070,7 +1079,7 @@ export function EquipePage() {
         found: Boolean(dir),
       }
     }).filter((m) => (isAdmin && !filterDiretoria ? true : m.found))
-  }, [diretorias, lideres, filterDiretoria, isAdmin])
+  }, [diretorias, coordenadores, lideresByCoord, filterDiretoria, isAdmin])
 
   const dirName = (id: string | null | undefined) => diretorias.find((d) => d.id === id)?.nome ?? '—'
   const meta = TAB_META[tab]
@@ -1353,6 +1362,33 @@ export function EquipePage() {
           )
         )}
 
+        {tab === 'coordenadores' && (
+          <div className="equipe-lider-resumo">
+            <div className="equipe-lider-soma">
+              Soma: <strong>{somaLiderancasCoords}</strong> liderança{somaLiderancasCoords === 1 ? '' : 's'}
+              {q ? ' (filtro atual)' : ''}
+            </div>
+            {metasDiretoria.length > 0 && (
+              <div className="equipe-dir-metas">
+                {metasDiretoria.map((m) => (
+                  <div key={m.key} className={`equipe-dir-meta${m.atual >= m.meta ? ' done' : ''}`}>
+                    <span className="equipe-dir-meta-label">{m.label}</span>
+                    <strong>{m.atual}/{m.meta}</strong>
+                    <em>
+                      {m.atual >= m.meta
+                        ? 'Meta batida'
+                        : `faltam ${m.restante}`}
+                    </em>
+                    <div className="equipe-dir-meta-bar" aria-hidden>
+                      <i style={{ width: `${m.pct}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {tab === 'lideres' && (
           !filteredLideres.length ? (
             <EmptyState
@@ -1458,33 +1494,6 @@ export function EquipePage() {
             </div>
             </>
           )
-        )}
-
-        {tab === 'lideres' && (
-          <div className="equipe-lider-resumo">
-            <div className="equipe-lider-soma">
-              Soma: <strong>{filteredLideres.length}</strong> liderança{filteredLideres.length === 1 ? '' : 's'}
-              {q ? ' (filtro atual)' : ''}
-            </div>
-            {metasDiretoria.length > 0 && (
-              <div className="equipe-dir-metas">
-                {metasDiretoria.map((m) => (
-                  <div key={m.key} className={`equipe-dir-meta${m.atual >= m.meta ? ' done' : ''}`}>
-                    <span className="equipe-dir-meta-label">{m.label}</span>
-                    <strong>{m.atual}/{m.meta}</strong>
-                    <em>
-                      {m.atual >= m.meta
-                        ? 'Meta batida'
-                        : `faltam ${m.restante}`}
-                    </em>
-                    <div className="equipe-dir-meta-bar" aria-hidden>
-                      <i style={{ width: `${m.pct}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         )}
 
         {tab === 'mobilizadores' && canManageTeam && (
