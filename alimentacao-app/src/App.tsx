@@ -14,6 +14,7 @@ import { ImportarPage } from './pages/ImportarPage'
 import { RelatoriosPage } from './pages/RelatoriosPage'
 import { RelatorioFichasTxtPage } from './pages/RelatorioFichasTxtPage'
 import { ChamadaPage } from './pages/ChamadaPage'
+import { FerramentasTituloPage } from './pages/FerramentasTituloPage'
 import { ConfiguracoesPage } from './pages/ConfiguracoesPage'
 import { EquipePage } from './pages/EquipePage'
 import { AtivacaoLancarPage } from './pages/AtivacaoLancarPage'
@@ -80,6 +81,15 @@ function AdminOnlyRoute({ children }: { children: React.ReactNode }) {
   return children
 }
 
+function FerramentasTituloRoute({ children }: { children: React.ReactNode }) {
+  const { profile, loading } = useAuth()
+  if (loading) return <Spinner />
+  if (!hasRole(profile, ['admin', 'diretoria', 'operador'])) {
+    return <Navigate to={homeForProfile(profile)} replace />
+  }
+  return children
+}
+
 function NeriteRoute({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
   if (loading) return <Spinner />
@@ -137,6 +147,8 @@ function AppRoutes() {
         <Route path="relatorios" element={<StaffRoute><RelatoriosPage /></StaffRoute>} />
         <Route path="relatorios/fichas-txt" element={<AdminOnlyRoute><RelatorioFichasTxtPage /></AdminOnlyRoute>} />
         <Route path="chamada" element={<StaffRoute><ChamadaPage /></StaffRoute>} />
+        <Route path="ferramentas/titulo" element={<FerramentasTituloRoute><FerramentasTituloPage /></FerramentasTituloRoute>} />
+        <Route path="ferramentas/titulo/historico" element={<FerramentasTituloRoute><FerramentasTituloPage /></FerramentasTituloRoute>} />
         <Route path="mobilizacao" element={<Navigate to="/ativacao/lancar" replace />} />
         <Route path="ativacao/lancar" element={<AtivacaoRoute><AtivacaoLancarPage /></AtivacaoRoute>} />
         <Route path="ativacao/painel" element={<AtivacaoRoute><AtivacaoPainelPage /></AtivacaoRoute>} />
