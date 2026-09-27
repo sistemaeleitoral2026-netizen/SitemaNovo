@@ -34,6 +34,11 @@ export type TituloFicha = {
   coordenador: string
   operator_id: string | null
   diretoria_id: string | null
+  endereco: string
+  numero: string
+  bairro: string
+  cidade: string
+  cep: string
   lat: number | null
   lng: number | null
   created_at: string
@@ -63,7 +68,7 @@ export function posseTravaOutros(posse: TituloPosse | null, userId?: string) {
 const PAGE = 1000
 
 const FICHA_COLS =
-  'id,nome_completo,nome_mae,data_nascimento,titulo,cpf,zona,secao,coordenador,operator_id,diretoria_id,lat,lng,created_at'
+  'id,nome_completo,nome_mae,data_nascimento,titulo,cpf,zona,secao,coordenador,operator_id,diretoria_id,endereco,numero,bairro,cidade,cep,lat,lng,created_at'
 
 async function fetchAllPaged<T>(
   run: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
@@ -92,9 +97,24 @@ function sanitizeFicha(row: TituloFicha): TituloFicha {
     secao: row.secao ?? '',
     coordenador: row.coordenador ?? '',
     data_nascimento: row.data_nascimento || null,
+    endereco: row.endereco ?? '',
+    numero: row.numero ?? '',
+    bairro: row.bairro ?? '',
+    cidade: row.cidade ?? '',
+    cep: row.cep ?? '',
     lat: row.lat ?? null,
     lng: row.lng ?? null,
   }
+}
+
+export function enderecoTitulo(row: Pick<TituloFicha, 'endereco' | 'numero' | 'bairro' | 'cidade' | 'cep'>) {
+  return [
+    row.endereco,
+    row.numero ? `nº ${row.numero}` : '',
+    row.bairro,
+    row.cidade,
+    row.cep,
+  ].filter(Boolean).join(', ')
 }
 
 export function documentoTitulo(row: Pick<TituloFicha, 'titulo' | 'cpf'>): { valor: string; tipo: 'Título' | 'CPF' | '' } {

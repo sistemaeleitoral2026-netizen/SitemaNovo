@@ -11,6 +11,7 @@ import {
   Layers,
   MapPin,
   Pencil,
+  Save,
   ShieldCheck,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
@@ -34,6 +35,7 @@ import {
   canEditarTitulo,
   documentoTitulo,
   editarFichaTitulo,
+  enderecoTitulo,
   fetchTituloLinhas,
   labelTituloStatus,
   manterFichaTitulo,
@@ -175,6 +177,7 @@ export function FerramentasTituloPage() {
         row.secao,
         row.coordenador,
         row.nerite,
+        enderecoTitulo(row),
         doc.valor,
         row.consulta?.consultado_por_nome,
       ]
@@ -204,6 +207,32 @@ export function FerramentasTituloPage() {
   function proximo() {
     setOk(null)
     void load(null, atual?.id)
+  }
+
+  async function salvarLocalizacao() {
+    if (!atual) return
+    const err = mapsLinkError(mapsLink)
+    if (err) {
+      setMapsErr(err)
+      return
+    }
+    const ponto = parseGoogleMapsUrl(mapsLink)
+    if (!ponto) {
+      setMapsErr('Cole o link do Google Maps.')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    setOk(null)
+    try {
+      await salvarMapaTitulo(atual.id, ponto.lat, ponto.lng)
+      setOk('Localização gravada na ficha.')
+      await load(atual.id)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível gravar a localização.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   useEffect(() => {
@@ -412,6 +441,7 @@ export function FerramentasTituloPage() {
             setConfirm({ kind: 'com_problema', row: atual })
           }}
           onProximo={proximo}
+          onSalvarMapa={() => void salvarLocalizacao()}
         />
       )}
 
@@ -508,6 +538,7 @@ function FichaCard({
   onValidado,
   onProblema,
   onProximo,
+  onSalvarMapa,
 }: {
   row: TituloLinha
   restantes: number
@@ -519,6 +550,7 @@ function FichaCard({
   onValidado: () => void
   onProblema: () => void
   onProximo: () => void
+  onSalvarMapa: () => void
 }) {
   const ponto = parseGoogleMapsUrl(mapsLink)
   const nome = (row.nome_completo || '—').toUpperCase()
@@ -529,6 +561,7 @@ function FichaCard({
   const secao = row.secao || '—'
   const nerite = (row.nerite || '—').toUpperCase()
   const coord = (row.coordenador || '—').toUpperCase()
+  const endereco = enderecoTitulo(row)
 
   return (
     <section className="ft-sheet" aria-label="Ficha cadastral">
@@ -599,9 +632,9 @@ function FichaCard({
           </div>
         </div>
 
-        <div className="ft-maps">
+        <div className="ft-field ft-local">
           <div className="ft-maps-head">
-            <span>Link do mapa *</span>
+            <span>Localização *</span>
             <a
               className="ft-edit-btn"
               href={TITULO_MAPEAR_URL}
@@ -612,17 +645,31 @@ function FichaCard({
               Mapear
             </a>
           </div>
-          <Input
-            value={mapsLink}
-            onChange={(e) => onMapsLink(e.target.value)}
-            placeholder="Cole aqui o link do Google Maps"
-            error={mapsErr ?? undefined}
-            required
-            aria-label="Link do mapa"
-          />
+          {endereco ? (
+            <div>
+              <strong>{endereco}</strong>
+              <CopyBtn value={endereco} label="endereço" />
+            </div>
+          ) : (
+            <strong className="ft-local-empty">Sem endereço na ficha. Cole o link do mapa.</strong>
+          )}
+          <div className="ft-local-save">
+            <Input
+              value={mapsLink}
+              onChange={(e) => onMapsLink(e.target.value)}
+              placeholder="Cole aqui o link do Google Maps"
+              error={mapsErr ?? undefined}
+              required
+              aria-label="Localização"
+            />
+            <button type="button" className="ft-save-map" onClick={onSalvarMapa} disabled={busy}>
+              <Save size={16} />
+              Salvar
+            </button>
+          </div>
           {ponto ? (
             <p className="ft-maps-ok">
-              Ponto: {ponto.lat}, {ponto.lng}
+              Ponto gravado: {ponto.lat}, {ponto.lng}
             </p>
           ) : null}
         </div>
@@ -630,8 +677,8 @@ function FichaCard({
         <div className="ft-info">
           <Info size={16} />
           <span>
-            Clique em <strong>Mapear</strong>, copie o link do Google Maps e cole no campo. Sem esse link não dá para
-            validar. <strong>Próximo Registro</strong> só troca a ficha.
+            Em <strong>Localização</strong>, clique em Mapear, cole o link e aperte <strong>Salvar</strong> para gravar
+            no banco. Sem esse link não dá para validar.
           </span>
         </div>
 
@@ -741,6 +788,7 @@ function HistoricoView({
                   <th>Cidadão / Nome</th>
                   <th>Título / Zona / Seção</th>
                   <th>Mãe / Nascimento</th>
+                  <th>Localização</th>
                   <th>Operador (Nerite)</th>
                   <th>Status</th>
                   <th>Ação</th>
@@ -761,6 +809,21 @@ function HistoricoView({
                       <td>
                         {row.nome_mae || '—'}
                         <small className="ft-sub">{formatDate(row.data_nascimento)}</small>
+                      </td>
+                      <td>
+                        {row.lat != null && row.lng != null ? (
+                          <a
+                            className="ft-local-link"
+                            href={formatMapsUrl(row.lat, row.lng)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <MapPin size={13} />
+                            {enderecoTitulo(row) || `${row.lat}, ${row.lng}`}
+                          </a>
+                        ) : (
+                          enderecoTitulo(row) || '—'
+                        )}
                       </td>
                       <td>{row.nerite}</td>
                       <td>
