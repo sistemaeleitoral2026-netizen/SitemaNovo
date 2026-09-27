@@ -1529,7 +1529,7 @@ a.ranking-row:hover .ranking-person strong { color: #2459c4; }
 .rel-txt-edit .mono-cell { font-size: .68rem; }
 .rel-txt-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: .75rem;
 }
 .rel-txt-stat {
@@ -11989,6 +11989,35 @@ button.fichas-count.equipe-drill-count.zero:hover {
   letter-spacing: .04em;
   text-transform: none;
 }
+.ft-maps {
+  margin-top: 1.35rem;
+  padding: 1rem 1.05rem 1.05rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.ft-maps-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .7rem;
+  margin-bottom: .55rem;
+}
+.ft-maps-head span {
+  color: #64748b;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.ft-maps .ui-field { margin: 0; }
+.ft-maps .ui-field-label { display: none; }
+.ft-maps-ok {
+  margin: .45rem 0 0;
+  color: #166534;
+  font-size: .75rem;
+  font-weight: 700;
+}
 .ft-info {
   display: flex;
   align-items: flex-start;
@@ -12030,7 +12059,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .ft-btn-bad:hover:not(:disabled) { background: #be123c; }
 .ft-btn-next { background: #0f172a; }
 .ft-btn-next:hover:not(:disabled) { background: #1e293b; }
-.ft-aux { margin-top: .9rem; }
+.ft-aux { margin-top: .9rem; display: flex; flex-wrap: wrap; gap: .5rem; }
 .ft-edit-btn {
   display: inline-flex;
   align-items: center;
@@ -12043,6 +12072,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   cursor: pointer;
   font-size: .75rem;
   font-weight: 700;
+  text-decoration: none;
 }
 .ft-edit-btn:hover:not(:disabled) { background: #e2e8f0; }
 .ft-edit-btn:disabled { opacity: .5; cursor: not-allowed; }
