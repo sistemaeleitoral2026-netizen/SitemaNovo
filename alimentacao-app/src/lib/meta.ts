@@ -6,6 +6,17 @@ export const META_LIDERANCA_FICHAS = 20
 /** Meta padrão de lideranças vinculadas a um coordenador. */
 export const META_COORDENADOR_LIDERANCAS = 20
 
+/** Meta geral de lideranças por diretoria (Maria / Nicole). */
+export const META_DIRETORIA_LIDERANCAS: { keys: string[]; label: string; meta: number }[] = [
+  { keys: ['maria', 'carol'], label: 'Diretora Maria', meta: 137 },
+  { keys: ['nicole'], label: 'Diretora Nicole', meta: 138 },
+]
+
+export function metaLiderancasDiretoria(nome: string): { label: string; meta: number } | null {
+  const n = (nome || '').toLowerCase()
+  return META_DIRETORIA_LIDERANCAS.find((m) => m.keys.some((k) => n.includes(k))) ?? null
+}
+
 export function getMetaFichas(): number {
   try {
     const raw = localStorage.getItem(META_KEY)
