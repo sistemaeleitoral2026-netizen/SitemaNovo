@@ -13,6 +13,7 @@ import { MapaPage } from './pages/MapaPage'
 import { ImportarPage } from './pages/ImportarPage'
 import { RelatoriosPage } from './pages/RelatoriosPage'
 import { RelatorioFichasTxtPage } from './pages/RelatorioFichasTxtPage'
+import { RelatorioBackupPage } from './pages/RelatorioBackupPage'
 import { ChamadaPage } from './pages/ChamadaPage'
 import { FerramentasTituloPage } from './pages/FerramentasTituloPage'
 import { ConfiguracoesPage } from './pages/ConfiguracoesPage'
@@ -156,7 +157,8 @@ function AppRoutes() {
         <Route path="mapa" element={<StaffRoute><MapaPage /></StaffRoute>} />
         <Route path="importar" element={<NeriteRoute><ImportarPage /></NeriteRoute>} />
         <Route path="relatorios" element={<StaffRoute><RelatoriosPage /></StaffRoute>} />
-        <Route path="relatorios/fichas-txt" element={<AdminOnlyRoute><RelatorioFichasTxtPage /></AdminOnlyRoute>} />
+        <Route path="relatorios/fichas-txt" element={<StaffRoute><RelatorioFichasTxtPage /></StaffRoute>} />
+        <Route path="relatorios/backup" element={<StaffRoute><RelatorioBackupPage /></StaffRoute>} />
         <Route path="chamada" element={<StaffRoute><ChamadaPage /></StaffRoute>} />
         <Route path="ferramentas/titulo" element={<FerramentasTituloRoute><FerramentasTituloPage /></FerramentasTituloRoute>} />
         <Route path="ferramentas/titulo/historico" element={<FerramentasTituloRoute><FerramentasTituloPage /></FerramentasTituloRoute>} />
