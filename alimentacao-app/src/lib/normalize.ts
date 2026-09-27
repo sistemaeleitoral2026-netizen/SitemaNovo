@@ -40,6 +40,11 @@ export function normalizePhone(value: unknown): string {
   return d.slice(0, 11)
 }
 
+/** Telefone com DDD suficiente para acionar no WhatsApp. */
+export function hasWhatsappPhone(value: string | null | undefined): boolean {
+  return normalizePhone(value).length >= 10
+}
+
 export function formatPhone(value: string | null | undefined): string {
   if (!value) return ''
   const d = normalizePhone(value)

@@ -12084,3 +12084,285 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .ft-edit-3 { grid-template-columns: 1fr; }
   .ft-sheet-body { padding: 1.15rem; }
 }
+
+.wa-page { display: flex; flex-direction: column; gap: 1rem; }
+.wa-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .75rem;
+}
+.wa-kpi {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .15rem;
+  margin: 0;
+  padding: 1rem 1.05rem .9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow: var(--shadow-card);
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.wa-kpi:hover { border-color: #c5d0e0; }
+.wa-kpi.is-on { box-shadow: inset 0 0 0 1px currentColor; }
+.wa-kpi.is-ok { color: #0f8a5f; }
+.wa-kpi.is-warn { color: #c2410c; }
+.wa-kpi.is-blue { color: #1d4ed8; }
+.wa-kpi-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-bottom: .35rem;
+  border-radius: 8px;
+  background: currentColor;
+  color: inherit;
+}
+.wa-kpi-icon svg { color: #fff; }
+.wa-kpi.is-ok .wa-kpi-icon { background: #12a06a; }
+.wa-kpi.is-warn .wa-kpi-icon { background: #f59e0b; }
+.wa-kpi.is-blue .wa-kpi-icon { background: #1f4fd8; }
+.wa-kpi em {
+  font-style: normal;
+  font-size: .73rem;
+  font-weight: 650;
+  color: var(--muted);
+}
+.wa-kpi strong {
+  font-size: 1.55rem;
+  font-weight: 750;
+  letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.wa-kpi small {
+  font-size: .66rem;
+  color: #94a3b8;
+}
+.wa-kpi.is-on.is-ok { background: #f3faf6; border-color: #86c8aa; }
+.wa-kpi.is-on.is-warn { background: #fff8ee; border-color: #e4c48a; }
+.wa-kpi.is-on.is-blue { background: #f2f6fd; border-color: #7c9ad0; }
+.wa-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .65rem 1rem;
+}
+.wa-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .72rem;
+  font-weight: 650;
+  color: #64748b;
+}
+.wa-legend-item i {
+  width: 10px;
+  height: 10px;
+  border-radius: 99px;
+}
+.wa-legend-item i.ok,
+.wa-rank-track i.ok { background: #12a06a; }
+.wa-legend-item i.sem,
+.wa-rank-track i.sem { background: #f59e0b; }
+.wa-rank {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+}
+.wa-rank-row {
+  display: grid;
+  grid-template-columns: 1.4rem 2.15rem minmax(0, 1fr) 3.1rem;
+  align-items: center;
+  gap: .7rem;
+  width: 100%;
+  margin: 0;
+  padding: .62rem .7rem;
+  border: 1px solid #e8edf4;
+  border-radius: 10px;
+  background: #fbfcfe;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.wa-rank-row:hover {
+  background: #fff;
+  border-color: #cdd8ea;
+}
+.wa-rank-row.is-active {
+  background: #eef6ff;
+  border-color: #93c5fd;
+}
+.wa-rank-n {
+  font-size: .72rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.wa-rank-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 8px;
+  background: #e8f1ff;
+  color: #1d4ed8;
+  font-size: .68rem;
+  font-weight: 800;
+}
+.wa-rank-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .22rem;
+}
+.wa-rank-meta strong {
+  font-size: .84rem;
+  color: #1e2a3b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wa-rank-meta em {
+  font-style: normal;
+  font-size: .7rem;
+  color: #64748b;
+}
+.wa-rank-track {
+  display: flex;
+  height: 8px;
+  border-radius: 99px;
+  background: #e8edf4;
+  overflow: hidden;
+}
+.wa-rank-track i {
+  display: block;
+  height: 100%;
+  min-width: 0;
+}
+.wa-rank-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.15;
+}
+.wa-rank-total b {
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  color: #1e2a3b;
+}
+.wa-rank-total small {
+  font-size: .64rem;
+  font-weight: 650;
+  color: #94a3b8;
+}
+.wa-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, .8fr);
+  gap: .65rem;
+  margin-bottom: .85rem;
+}
+.wa-count {
+  font-size: .75rem;
+  font-weight: 600;
+  color: #64748b;
+}
+.wa-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: .14rem .45rem;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 700;
+}
+.wa-pill.ok { background: #d1fae5; color: #047857; }
+.wa-pill.sem { background: #ffedd5; color: #c2410c; }
+.wa-edit-wa {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  margin: .45rem 0 0;
+  font-size: .75rem;
+  color: #64748b;
+}
+.wa-edit-hint {
+  margin: .7rem 0 0;
+  font-size: .72rem;
+  color: #64748b;
+}
+@media (max-width: 720px) {
+  .wa-kpis,
+  .wa-filters,
+  .equipe-dir-metas { grid-template-columns: 1fr; }
+}
+.equipe-lider-resumo {
+  margin-top: .85rem;
+  padding: .9rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: #fff;
+}
+.equipe-lider-soma {
+  font-size: .9rem;
+  color: #344055;
+}
+.equipe-lider-soma strong {
+  font-variant-numeric: tabular-nums;
+}
+.equipe-dir-metas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .75rem;
+  margin-top: .8rem;
+}
+.equipe-dir-meta {
+  padding: .7rem .8rem;
+  border-radius: 8px;
+  background: #f7f9fc;
+  border: 1px solid #e8edf4;
+}
+.equipe-dir-meta.done { background: #ecfdf5; border-color: #a7f3d0; }
+.equipe-dir-meta-label {
+  display: block;
+  font-size: .72rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+.equipe-dir-meta strong {
+  display: block;
+  margin-top: .2rem;
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  color: #1e2a3b;
+}
+.equipe-dir-meta em {
+  display: block;
+  margin-top: .1rem;
+  font-style: normal;
+  font-size: .72rem;
+  color: #64748b;
+}
+.equipe-dir-meta-bar {
+  margin-top: .45rem;
+  height: 5px;
+  border-radius: 99px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+.equipe-dir-meta-bar i {
+  display: block;
+  height: 100%;
+  background: #1f4fd8;
+}
+.equipe-dir-meta.done .equipe-dir-meta-bar i { background: #047857; }
+@media (max-width: 720px) {
+  .equipe-dir-metas { grid-template-columns: 1fr; }
+}

@@ -14,7 +14,7 @@ import { EquipeMemberModal } from '../components/equipe/EquipeMemberModal'
 import { formatPhone } from '../lib/normalize'
 import { fetchCadastroFichaStats, fetchOperatorCadastroStats } from '../lib/cadastros'
 import { cadastrosLinkForLider, countFichasForLider, resolveLimiteFichas, resolveLimiteLiderancas } from '../lib/liderFichas'
-import { META_COORDENADOR_LIDERANCAS, META_LIDERANCA_FICHAS } from '../lib/meta'
+import { META_COORDENADOR_LIDERANCAS, META_DIRETORIA_LIDERANCAS, META_LIDERANCA_FICHAS } from '../lib/meta'
 import { supabase } from '../lib/supabase'
 import type { Coordenador, Lider, Profile, UserRole } from '../types'
 import { labelRole, normalizeExtraRoles } from '../lib/roles'
@@ -1052,6 +1052,26 @@ export function EquipePage() {
     await load()
   }
 
+  const metasDiretoria = useMemo(() => {
+    const scoped = filterDiretoria
+      ? diretorias.filter((d) => d.id === filterDiretoria)
+      : diretorias
+    return META_DIRETORIA_LIDERANCAS.map((meta) => {
+      const dir = scoped.find((d) => meta.keys.some((k) => d.nome.toLowerCase().includes(k)))
+      const atual = dir ? lideres.filter((l) => l.diretoria_id === dir.id).length : 0
+      return {
+        key: meta.label,
+        label: meta.label,
+        nome: dir?.nome ?? meta.label,
+        meta: meta.meta,
+        atual,
+        restante: Math.max(0, meta.meta - atual),
+        pct: Math.min(100, Math.round((atual / Math.max(1, meta.meta)) * 100)),
+        found: Boolean(dir),
+      }
+    }).filter((m) => (isAdmin && !filterDiretoria ? true : m.found))
+  }, [diretorias, lideres, filterDiretoria, isAdmin])
+
   const dirName = (id: string | null | undefined) => diretorias.find((d) => d.id === id)?.nome ?? '—'
   const meta = TAB_META[tab]
   const deleteNeriteName = nerites.find((n) => n.id === deleteNeriteId)?.nome
@@ -1345,6 +1365,7 @@ export function EquipePage() {
               action={<Button onClick={openNewLider}><Plus size={16} /> Nova liderança</Button>}
             />
           ) : (
+            <>
             <div className="table-wrapper">
               <table className="data-table">
                 <thead>
@@ -1435,7 +1456,35 @@ export function EquipePage() {
                 </tbody>
               </table>
             </div>
+            </>
           )
+        )}
+
+        {tab === 'lideres' && (
+          <div className="equipe-lider-resumo">
+            <div className="equipe-lider-soma">
+              Soma: <strong>{filteredLideres.length}</strong> liderança{filteredLideres.length === 1 ? '' : 's'}
+              {q ? ' (filtro atual)' : ''}
+            </div>
+            {metasDiretoria.length > 0 && (
+              <div className="equipe-dir-metas">
+                {metasDiretoria.map((m) => (
+                  <div key={m.key} className={`equipe-dir-meta${m.atual >= m.meta ? ' done' : ''}`}>
+                    <span className="equipe-dir-meta-label">{m.label}</span>
+                    <strong>{m.atual}/{m.meta}</strong>
+                    <em>
+                      {m.atual >= m.meta
+                        ? 'Meta batida'
+                        : `faltam ${m.restante}`}
+                    </em>
+                    <div className="equipe-dir-meta-bar" aria-hidden>
+                      <i style={{ width: `${m.pct}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         {tab === 'mobilizadores' && canManageTeam && (

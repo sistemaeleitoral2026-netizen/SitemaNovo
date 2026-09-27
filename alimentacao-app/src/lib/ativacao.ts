@@ -1,4 +1,5 @@
 import { compressImageForUpload } from './imageCompress'
+import { hasWhatsappPhone } from './normalize'
 import { setCachedSignedUrl, takeCachedSignedUrls } from './signedUrlCache'
 import { supabase } from './supabase'
 import type { Cadastro, Coordenador, Lider, Profile } from '../types'
@@ -674,6 +675,9 @@ export async function saveAtivacao(
   const casa = casaStatus === 'sim' ? 1 : 0
   const notas = input.notas.trim() || null
   const status: ContatoWhatsappStatus = input.contato_whatsapp_status
+  if (status === 'sim' && !hasWhatsappPhone(previous?.telefone)) {
+    return { error: 'Não dá para marcar como acionada sem telefone cadastrado. Coloque o número na ficha ou marque Sem WhatsApp.' }
+  }
   const contato = status === 'sim'
   const hasLaunch =
     carros > 0

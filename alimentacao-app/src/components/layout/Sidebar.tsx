@@ -22,12 +22,15 @@ import {
   Car,
   ClipboardCheck,
   CreditCard,
+  MessageCircle,
 } from 'lucide-react'
 import type { UserRole } from '../../types'
 import { fetchDemandaCounts } from '../../lib/demandas'
+import { FORMIGAS_WHATSAPP_EMAILS } from '../../lib/formigasWhatsapp'
 
 interface SidebarProps {
   roles: UserRole[]
+  email?: string | null
   open: boolean
   onClose: () => void
 }
@@ -39,12 +42,14 @@ interface NavItem {
   roles: UserRole[]
   end?: boolean
   badgeKey?: 'demandas-abertas'
+  emails?: string[]
 }
 
 interface NavGroup {
   label: string
   roles: UserRole[]
   items: NavItem[]
+  emails?: string[]
 }
 
 const navGroups: NavGroup[] = [
@@ -97,6 +102,20 @@ const navGroups: NavGroup[] = [
       { to: '/ativacao/lancar', label: 'Lançar', icon: Megaphone, roles: ['admin', 'diretoria'] },
       { to: '/ativacao/painel', label: 'Painel', icon: ClipboardList, roles: ['admin', 'diretoria'] },
       { to: '/ativacao/historico', label: 'Histórico', icon: History, roles: ['admin', 'diretoria'] },
+    ],
+  },
+  {
+    label: 'WhatsApp',
+    roles: ['administrativo'],
+    emails: FORMIGAS_WHATSAPP_EMAILS,
+    items: [
+      {
+        to: '/formigas/whatsapp',
+        label: 'WhatsApp',
+        icon: MessageCircle,
+        roles: ['administrativo'],
+        emails: FORMIGAS_WHATSAPP_EMAILS,
+      },
     ],
   },
   {
@@ -157,10 +176,16 @@ function intersects(a: UserRole[] | undefined, b: UserRole[] | undefined) {
   return a.some((r) => b.includes(r))
 }
 
-export function Sidebar({ roles = [], open, onClose }: SidebarProps) {
+function canSeeByEmail(emails: string[] | undefined, email: string) {
+  if (!emails?.length) return true
+  return emails.includes(email)
+}
+
+export function Sidebar({ roles = [], email, open, onClose }: SidebarProps) {
   const location = useLocation()
   const [abertas, setAbertas] = useState(0)
   const safeRoles = roles ?? []
+  const safeEmail = (email ?? '').trim().toLowerCase()
 
   const canSeeDemandas = intersects(safeRoles, ['admin', 'diretoria', 'administrativo'])
 
@@ -191,9 +216,16 @@ export function Sidebar({ roles = [], open, onClose }: SidebarProps) {
   const groups = navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => intersects(item.roles, safeRoles)),
+      items: group.items.filter(
+        (item) => intersects(item.roles, safeRoles) && canSeeByEmail(item.emails, safeEmail),
+      ),
     }))
-    .filter((group) => intersects(group.roles, safeRoles) && group.items.length > 0)
+    .filter(
+      (group) =>
+        intersects(group.roles, safeRoles)
+        && canSeeByEmail(group.emails, safeEmail)
+        && group.items.length > 0,
+    )
 
   const primaryHint = safeRoles.includes('administrativo') && !safeRoles.includes('admin') && !safeRoles.includes('diretoria')
     ? 'Registro e acompanhamento de demandas'
