@@ -12121,13 +12121,50 @@ button.fichas-count.equipe-drill-count.zero:hover {
   letter-spacing: .04em;
   text-transform: none;
 }
-.ft-maps {
+.ft-local {
   margin-top: 1.35rem;
-  padding: 1rem 1.05rem 1.05rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #f8fafc;
+  padding-top: 1.15rem;
+  border-top: 1px solid #f1f5f9;
 }
+.ft-local-empty {
+  text-transform: none;
+  font-weight: 650;
+  color: #64748b;
+}
+.ft-local .ui-field { margin: 0; flex: 1; min-width: 0; }
+.ft-local-save {
+  display: flex;
+  align-items: flex-start;
+  gap: .55rem;
+  margin-top: .55rem;
+}
+.ft-save-map {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  flex-shrink: 0;
+  min-height: 42px;
+  padding: .5rem .95rem;
+  border: 0;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+  font-size: .75rem;
+  font-weight: 800;
+}
+.ft-save-map:hover:not(:disabled) { background: #1d4ed8; }
+.ft-save-map:disabled { opacity: .5; cursor: not-allowed; }
+.ft-local-link {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  color: #1d4ed8;
+  text-decoration: none;
+  font-weight: 650;
+}
+.ft-local-link:hover { text-decoration: underline; }
 .ft-maps-head {
   display: flex;
   align-items: center;
