@@ -9,6 +9,7 @@ import {
   History,
   Info,
   Layers,
+  MapPin,
   Pencil,
   ShieldCheck,
 } from 'lucide-react'
@@ -24,6 +25,12 @@ import { formatDate, formatDateTime } from '../lib/format'
 import { formatCpf, normalizeCpf, normalizeSecao, normalizeTitulo } from '../lib/normalize'
 import { hasRole } from '../lib/roles'
 import {
+  formatMapsUrl,
+  mapsLinkError,
+  parseGoogleMapsUrl,
+  TITULO_MAPEAR_URL,
+} from '../lib/mapsLink'
+import {
   canEditarTitulo,
   documentoTitulo,
   editarFichaTitulo,
@@ -33,6 +40,7 @@ import {
   marcarTitulo,
   pegarFichaTitulo,
   posseTravaOutros,
+  salvarMapaTitulo,
   soltarFichaTitulo,
   type TituloLinha,
 } from '../lib/tituloFerramentas'
@@ -104,6 +112,8 @@ export function FerramentasTituloPage() {
     secao: '',
   })
   const [confirm, setConfirm] = useState<{ kind: ConfirmKind; row: TituloLinha } | null>(null)
+  const [mapsLink, setMapsLink] = useState('')
+  const [mapsErr, setMapsErr] = useState<string | null>(null)
 
   const load = useCallback(async (keepId?: string | null, soltarId?: string | null) => {
     setLoading(true)
@@ -197,6 +207,20 @@ export function FerramentasTituloPage() {
   }
 
   useEffect(() => {
+    if (!atual) {
+      setMapsLink('')
+      setMapsErr(null)
+      return
+    }
+    if (atual.lat != null && atual.lng != null) {
+      setMapsLink(formatMapsUrl(atual.lat, atual.lng))
+    } else {
+      setMapsLink('')
+    }
+    setMapsErr(null)
+  }, [atual?.id])
+
+  useEffect(() => {
     if (historico || !atual) return
     void manterFichaTitulo(atual.id)
     const timer = window.setInterval(() => {
@@ -233,6 +257,13 @@ export function FerramentasTituloPage() {
         await load(confirm.row.id)
         return
       }
+      const ponto = parseGoogleMapsUrl(mapsLink)
+      if (!ponto) {
+        setMapsErr(mapsLinkError(mapsLink) ?? 'Cole o link do Google Maps.')
+        setConfirm(null)
+        return
+      }
+      await salvarMapaTitulo(confirm.row.id, ponto.lat, ponto.lng)
       await marcarTitulo(confirm.row.id, confirm.kind === 'com_problema' ? 'nao_validado' : confirm.kind)
       setOk(
         confirm.kind === 'validado'
@@ -357,9 +388,29 @@ export function FerramentasTituloPage() {
           row={atual}
           restantes={fila.length}
           busy={busy}
+          mapsLink={mapsLink}
+          mapsErr={mapsErr}
+          onMapsLink={(value) => {
+            setMapsLink(value)
+            setMapsErr(value.trim() ? mapsLinkError(value) : null)
+          }}
           onEdit={() => abrirEdicao(atual)}
-          onValidado={() => setConfirm({ kind: 'validado', row: atual })}
-          onProblema={() => setConfirm({ kind: 'com_problema', row: atual })}
+          onValidado={() => {
+            const err = mapsLinkError(mapsLink)
+            if (err) {
+              setMapsErr(err)
+              return
+            }
+            setConfirm({ kind: 'validado', row: atual })
+          }}
+          onProblema={() => {
+            const err = mapsLinkError(mapsLink)
+            if (err) {
+              setMapsErr(err)
+              return
+            }
+            setConfirm({ kind: 'com_problema', row: atual })
+          }}
           onProximo={proximo}
         />
       )}
@@ -450,6 +501,9 @@ function FichaCard({
   row,
   restantes,
   busy,
+  mapsLink,
+  mapsErr,
+  onMapsLink,
   onEdit,
   onValidado,
   onProblema,
@@ -458,11 +512,15 @@ function FichaCard({
   row: TituloLinha
   restantes: number
   busy: boolean
+  mapsLink: string
+  mapsErr: string | null
+  onMapsLink: (value: string) => void
   onEdit: () => void
   onValidado: () => void
   onProblema: () => void
   onProximo: () => void
 }) {
+  const ponto = parseGoogleMapsUrl(mapsLink)
   const nome = (row.nome_completo || '—').toUpperCase()
   const mae = (row.nome_mae || '—').toUpperCase()
   const titulo = row.titulo.trim() || '—'
@@ -541,11 +599,39 @@ function FichaCard({
           </div>
         </div>
 
+        <div className="ft-maps">
+          <div className="ft-maps-head">
+            <span>Link do mapa *</span>
+            <a
+              className="ft-edit-btn"
+              href={TITULO_MAPEAR_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <MapPin size={16} />
+              Mapear
+            </a>
+          </div>
+          <Input
+            value={mapsLink}
+            onChange={(e) => onMapsLink(e.target.value)}
+            placeholder="Cole aqui o link do Google Maps"
+            error={mapsErr ?? undefined}
+            required
+            aria-label="Link do mapa"
+          />
+          {ponto ? (
+            <p className="ft-maps-ok">
+              Ponto: {ponto.lat}, {ponto.lng}
+            </p>
+          ) : null}
+        </div>
+
         <div className="ft-info">
           <Info size={16} />
           <span>
-            Selecione uma das opções para registrar a avaliação ou clique em <strong>Próximo Registro</strong> para
-            alternar a ficha.
+            Clique em <strong>Mapear</strong>, copie o link do Google Maps e cole no campo. Sem esse link não dá para
+            validar. <strong>Próximo Registro</strong> só troca a ficha.
           </span>
         </div>
 

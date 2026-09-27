@@ -34,6 +34,8 @@ export type TituloFicha = {
   coordenador: string
   operator_id: string | null
   diretoria_id: string | null
+  lat: number | null
+  lng: number | null
   created_at: string
 }
 
@@ -61,7 +63,7 @@ export function posseTravaOutros(posse: TituloPosse | null, userId?: string) {
 const PAGE = 1000
 
 const FICHA_COLS =
-  'id,nome_completo,nome_mae,data_nascimento,titulo,cpf,zona,secao,coordenador,operator_id,diretoria_id,created_at'
+  'id,nome_completo,nome_mae,data_nascimento,titulo,cpf,zona,secao,coordenador,operator_id,diretoria_id,lat,lng,created_at'
 
 async function fetchAllPaged<T>(
   run: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
@@ -90,6 +92,8 @@ function sanitizeFicha(row: TituloFicha): TituloFicha {
     secao: row.secao ?? '',
     coordenador: row.coordenador ?? '',
     data_nascimento: row.data_nascimento || null,
+    lat: row.lat ?? null,
+    lng: row.lng ?? null,
   }
 }
 
@@ -181,6 +185,21 @@ export async function manterFichaTitulo(cadastroId: string): Promise<void> {
 
 export async function soltarFichaTitulo(cadastroId: string): Promise<void> {
   await supabase.rpc('titulo_soltar', { p_cadastro_id: cadastroId })
+}
+
+export async function salvarMapaTitulo(cadastroId: string, lat: number, lng: number): Promise<void> {
+  const { error } = await supabase.rpc('titulo_salvar_mapa', {
+    p_cadastro_id: cadastroId,
+    p_lat: lat,
+    p_lng: lng,
+  })
+  if (error) {
+    throw new Error(
+      /titulo_salvar_mapa|schema cache|does not exist/i.test(error.message)
+        ? 'Falta aplicar o SQL do mapa no Título (arquivo titulo_mapa_run.sql).'
+        : error.message,
+    )
+  }
 }
 
 export async function marcarTitulo(cadastroId: string, status: TituloStatus): Promise<void> {
