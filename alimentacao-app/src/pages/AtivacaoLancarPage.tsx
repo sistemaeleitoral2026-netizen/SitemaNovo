@@ -25,7 +25,7 @@ import {
   FormigasFichaHistoricoDrawer,
 } from '../components/FormigasFichaHistoricoDrawer'
 import { FormigasFotoField } from '../components/FormigasFotoField'
-import { canEditFormigasSection, FormigasSectionLock } from '../components/FormigasSectionLock'
+import { canEditFormigasSection, FormigasLockChip, FormigasSectionLock } from '../components/FormigasSectionLock'
 import {
   claimNextAtivacao,
   fetchAtivacaoPessoa,
@@ -149,6 +149,10 @@ export function AtivacaoLancarPage() {
   // Endereço opcional (sim/talvez): mostra campos, sem obrigar CEP/rua
   const showCasaAddr = casaStatus === 'sim' || casaStatus === 'talvez'
   const editCasaAddr = editCasa
+  const lockChipProps = {
+    userId: profile?.id,
+    canOverride,
+  }
 
   const isDirty = useMemo(() => {
     if (!selected) return false
@@ -718,9 +722,16 @@ export function AtivacaoLancarPage() {
                 </div>
                 <h3>WhatsApp</h3>
               </div>
-              <span className={`fl-pill${contatoStatus === 'sim' ? ' ok' : contatoStatus === 'sem' ? ' warn' : ''}`}>
-                {isFormActive ? waStatusLabel(contatoStatus) : 'Ainda não'}
-              </span>
+              <div className="fl-block-meta">
+                <FormigasLockChip
+                  ownerId={selected?.formigas_wa_by}
+                  ownerNome={selected?.formigas_wa_by_nome}
+                  {...lockChipProps}
+                />
+                <span className={`fl-pill${contatoStatus === 'sim' ? ' ok' : contatoStatus === 'sem' ? ' warn' : ''}`}>
+                  {isFormActive ? waStatusLabel(contatoStatus) : 'Ainda não'}
+                </span>
+              </div>
             </div>
 
             {!isFormActive ? (
@@ -792,10 +803,17 @@ export function AtivacaoLancarPage() {
                   <div className="fl-icon tone-blue"><Car size={20} /></div>
                   <h3>Veículos adesivados</h3>
                 </div>
-                <span className="fl-pill">
-                  {(veiculoCarro ? carros : 0) + (veiculoMoto ? motos : 0)} veículo
-                  {(veiculoCarro ? carros : 0) + (veiculoMoto ? motos : 0) === 1 ? '' : 's'}
-                </span>
+                <div className="fl-block-meta">
+                  <FormigasLockChip
+                    ownerId={selected?.formigas_carros_by}
+                    ownerNome={selected?.formigas_carros_by_nome}
+                    {...lockChipProps}
+                  />
+                  <span className="fl-pill">
+                    {(veiculoCarro ? carros : 0) + (veiculoMoto ? motos : 0)} veículo
+                    {(veiculoCarro ? carros : 0) + (veiculoMoto ? motos : 0) === 1 ? '' : 's'}
+                  </span>
+                </div>
               </div>
               {isFormActive && selected?.formigas_carros_by ? (
                 <FormigasSectionLock
@@ -936,9 +954,16 @@ export function AtivacaoLancarPage() {
                   <div className="fl-icon tone-teal"><Home size={20} /></div>
                   <h3>Adesivo residencial</h3>
                 </div>
-                <span className={`fl-pill${casaStatus === 'sim' ? ' teal' : casaStatus === 'talvez' ? ' warn' : ''}`}>
-                  {isFormActive ? casaStatusLabel(casaStatus) : 'Ainda não'}
-                </span>
+                <div className="fl-block-meta">
+                  <FormigasLockChip
+                    ownerId={selected?.formigas_casa_by}
+                    ownerNome={selected?.formigas_casa_by_nome}
+                    {...lockChipProps}
+                  />
+                  <span className={`fl-pill${casaStatus === 'sim' ? ' teal' : casaStatus === 'talvez' ? ' warn' : ''}`}>
+                    {isFormActive ? casaStatusLabel(casaStatus) : 'Ainda não'}
+                  </span>
+                </div>
               </div>
               {isFormActive && selected?.formigas_casa_by ? (
                 <FormigasSectionLock
@@ -1045,7 +1070,14 @@ export function AtivacaoLancarPage() {
                 <div className="fl-icon tone-violet"><Link2 size={20} /></div>
                 <h3>Links de postagem</h3>
               </div>
-              <span className="fl-pill">{links.length} postagem{links.length === 1 ? '' : 's'}</span>
+              <div className="fl-block-meta">
+                <FormigasLockChip
+                  ownerId={selected?.formigas_links_by}
+                  ownerNome={selected?.formigas_links_by_nome}
+                  {...lockChipProps}
+                />
+                <span className="fl-pill">{links.length} postagem{links.length === 1 ? '' : 's'}</span>
+              </div>
             </div>
             {isFormActive && selected?.formigas_links_by ? (
               <FormigasSectionLock
