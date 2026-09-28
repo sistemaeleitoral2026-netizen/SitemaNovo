@@ -46,6 +46,10 @@ export type AtivacaoPessoa = {
   formigas_carros_by_nome: string | null
   formigas_casa_by_nome: string | null
   formigas_links_by_nome: string | null
+  formigas_wa_em: string | null
+  formigas_carros_em: string | null
+  formigas_casa_em: string | null
+  formigas_links_em: string | null
   diretoria_id: string | null
   coordenador: string
   lider: string
@@ -155,6 +159,10 @@ function fromAtivacaoFields(row: {
     formigas_carros_by_nome: null as string | null,
     formigas_casa_by_nome: null as string | null,
     formigas_links_by_nome: null as string | null,
+    formigas_wa_em: launched ? ((row as { formigas_wa_em?: string | null }).formigas_wa_em ?? null) : null,
+    formigas_carros_em: launched ? ((row as { formigas_carros_em?: string | null }).formigas_carros_em ?? null) : null,
+    formigas_casa_em: launched ? ((row as { formigas_casa_em?: string | null }).formigas_casa_em ?? null) : null,
+    formigas_links_em: launched ? ((row as { formigas_links_em?: string | null }).formigas_links_em ?? null) : null,
   }
 }
 
@@ -350,7 +358,30 @@ export async function fetchAtivacaoPessoa(
   }
   if (!pessoa) return null
   const [enriched] = await enrichOwnerNames([pessoa])
-  return enriched
+  return hydrateFormigasSectionDates(enriched)
+}
+
+/** Primeiro dia em que cada parte da ficha foi lançada (histórico da formiga). */
+export async function hydrateFormigasSectionDates(pessoa: AtivacaoPessoa): Promise<AtivacaoPessoa> {
+  const needs =
+    pessoa.formigas_wa_by
+    || pessoa.formigas_carros_by
+    || pessoa.formigas_casa_by
+    || pessoa.formigas_links_by
+  if (!needs) return pessoa
+  const { items } = await fetchFormigasHistoricoPorPessoa(pessoa.tipo, pessoa.id, 80)
+  const first: Partial<Record<FormigasHistoricoItem['secao'], string>> = {}
+  for (const item of [...items].reverse()) {
+    if (!first[item.secao]) first[item.secao] = item.created_at
+  }
+  const fallback = pessoa.ativacao_em
+  return {
+    ...pessoa,
+    formigas_wa_em: pessoa.formigas_wa_em || first.whatsapp || (pessoa.formigas_wa_by ? fallback : null),
+    formigas_carros_em: pessoa.formigas_carros_em || first.carros || (pessoa.formigas_carros_by ? fallback : null),
+    formigas_casa_em: pessoa.formigas_casa_em || first.casa || (pessoa.formigas_casa_by ? fallback : null),
+    formigas_links_em: pessoa.formigas_links_em || first.links || (pessoa.formigas_links_by ? fallback : null),
+  }
 }
 
 export type AtivacaoSaveInput = {
