@@ -1,14 +1,12 @@
-import { Lock } from 'lucide-react'
 import { formatDate } from '../lib/format'
 
+/** Qualquer formiga pode editar qualquer parte; o aviso só mostra quem preencheu. */
 export function canEditFormigasSection(
-  ownerId: string | null | undefined,
-  userId: string | null | undefined,
-  canOverride: boolean,
+  _ownerId?: string | null,
+  _userId?: string | null,
+  _canOverride?: boolean,
 ) {
-  if (!ownerId) return true
-  if (canOverride) return true
-  return Boolean(userId && ownerId === userId)
+  return true
 }
 
 function ownerLabel(ownerNome?: string | null) {
@@ -19,7 +17,6 @@ export function FormigasLockChip({
   ownerId,
   ownerNome,
   userId,
-  canOverride,
 }: {
   ownerId?: string | null
   ownerNome?: string | null
@@ -28,13 +25,13 @@ export function FormigasLockChip({
 }) {
   if (!ownerId) return null
   const mine = Boolean(userId && ownerId === userId)
-  const locked = !mine && !canOverride
-  if (!locked) return null
   const nome = ownerLabel(ownerNome)
   return (
-    <span className="fl-lock-chip" title={`${nome} preencheu esta parte`}>
-      <Lock size={12} strokeWidth={2.4} aria-hidden />
-      {nome}
+    <span
+      className={`fl-lock-chip${mine ? ' is-mine' : ''}`}
+      title={mine ? 'Você editou esta parte' : `Já editado por ${nome}`}
+    >
+      {mine ? 'Você' : nome}
     </span>
   )
 }
@@ -44,7 +41,6 @@ export function FormigasSectionLock({
   ownerNome,
   at,
   userId,
-  canOverride,
 }: {
   ownerId?: string | null
   ownerNome?: string | null
@@ -54,24 +50,16 @@ export function FormigasSectionLock({
 }) {
   if (!ownerId) return null
   const mine = Boolean(userId && ownerId === userId)
-  const locked = !mine && !canOverride
   const nome = ownerLabel(ownerNome)
   const dia = at ? formatDate(at) : null
   return (
-    <p className={`fl-stamp${locked ? ' is-locked' : ''}`}>
-      {locked ? <Lock size={13} strokeWidth={2.25} aria-hidden /> : null}
+    <p className={`fl-stamp${mine ? '' : ' is-prior'}`}>
       <span>
-        {locked ? (
-          <>
-            <strong>{nome}</strong>
-            {' '}
-            preencheu esta parte
-          </>
-        ) : mine ? (
-          'Você preencheu esta parte'
+        {mine ? (
+          'Você editou esta parte'
         ) : (
           <>
-            Preenchido por
+            Já editado por
             {' '}
             <strong>{nome}</strong>
           </>
