@@ -22,6 +22,31 @@ export type RelatorioTxtLinha = {
 }
 
 export const RELATORIO_TXT_HEADER = 'Nome;id;CPF;Titulo de eleitor;Data de nascimento;Nome completo da mãe;zona;sessao'
+export const RELATORIO_TXT_LIMITE = 200
+
+export type ProgressoCorrecao = {
+  etapa: 'conferindo' | 'subindo' | 'gravando' | 'concluido'
+  atual: number
+  total: number
+  nome: string
+  aplicadas: number
+  inalteradas: number
+  falhas: number
+}
+
+function erroLimite(n: number): Error {
+  return new Error(
+    `São ${n} linhas. O limite é ${RELATORIO_TXT_LIMITE} por vez — não dá para subir mais. Tire o restante e faça outro lote.`,
+  )
+}
+
+function assertLimiteLinhas(n: number) {
+  if (n > RELATORIO_TXT_LIMITE) throw erroLimite(n)
+}
+
+async function yieldUi() {
+  await new Promise((resolve) => setTimeout(resolve, 0))
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -344,6 +369,7 @@ export async function previsualizarCorrecoesTxt(
   diretoriaId?: string | null,
 ): Promise<CorrecaoPreview[]> {
   const parsed = parseRelatorioTxtLines(text)
+  assertLimiteLinhas(parsed.length)
   if (!parsed.length) return []
 
   const ids = parsed.map((p) => p.cadastro_id).filter((id): id is string => Boolean(id))
@@ -429,17 +455,49 @@ export async function aplicarCorrecoesTxt(
   user: { id: string; nome: string } | null,
   diretoriaId?: string | null,
   selecionadas?: Set<string> | null,
+  onProgress?: (info: ProgressoCorrecao) => void,
 ): Promise<AplicarCorrecoesResult> {
+  const parsed = parseRelatorioTxtLines(text)
+  assertLimiteLinhas(parsed.length)
+  onProgress?.({
+    etapa: 'conferindo',
+    atual: 0,
+    total: parsed.length,
+    nome: '',
+    aplicadas: 0,
+    inalteradas: 0,
+    falhas: 0,
+  })
   const previews = await previsualizarCorrecoesTxt(text, diretoriaId)
   const escolhidas = previews.filter((item) => !selecionadas || selecionadas.has(item.key))
   if (!escolhidas.length) return { aplicadas: 0, inalteradas: 0, falhas: [] }
+  assertLimiteLinhas(escolhidas.length)
 
   const falhas: RelatorioTxtLinha[] = []
   const okRows: RelatorioTxtLinha[] = []
   let aplicadas = 0
   let inalteradas = 0
 
-  for (const item of escolhidas) {
+  for (let i = 0; i < escolhidas.length; i += 1) {
+    const item = escolhidas[i]
+    if (!item) continue
+    const nome = (
+      item.depois?.nome_completo
+      || item.antes?.nome_completo
+      || item.line.nome
+      || 'ficha'
+    ).trim()
+    onProgress?.({
+      etapa: 'subindo',
+      atual: i + 1,
+      total: escolhidas.length,
+      nome,
+      aplicadas,
+      inalteradas,
+      falhas: falhas.length,
+    })
+    await yieldUi()
+
     const extra = item.extra
     if (item.status === 'falha' || !item.depois) {
       falhas.push(toFalha(item.line, item.motivo || 'Não foi possível aplicar', extra))
@@ -488,6 +546,16 @@ export async function aplicarCorrecoesTxt(
     okRows.push({ ...item.line, status: 'ok', ...extra, linha_txt: linha, nome: item.depois.nome_completo })
   }
 
+  onProgress?.({
+    etapa: 'gravando',
+    atual: escolhidas.length,
+    total: escolhidas.length,
+    nome: '',
+    aplicadas,
+    inalteradas,
+    falhas: falhas.length,
+  })
+
   if (okRows.length) {
     const { error } = await supabase.from('relatorio_fichas_txt').upsert(
       okRows.map((row) => ({
@@ -516,6 +584,15 @@ export async function aplicarCorrecoesTxt(
     }
   }
 
+  onProgress?.({
+    etapa: 'concluido',
+    atual: escolhidas.length,
+    total: escolhidas.length,
+    nome: '',
+    aplicadas,
+    inalteradas,
+    falhas: falhas.length,
+  })
   return { aplicadas, inalteradas, falhas }
 }
 
@@ -525,6 +602,7 @@ export async function saveFalhasTxt(
 ): Promise<number> {
   const parsed = parseRelatorioTxtLines(text)
   if (!parsed.length) return 0
+  assertLimiteLinhas(parsed.length)
   const ids = parsed.map((p) => p.cadastro_id).filter((id): id is string => Boolean(id))
   const cadastros = await fetchCadastrosByIds(ids)
   const operadores = await fetchNomesOperadores(

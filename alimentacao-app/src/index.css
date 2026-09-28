@@ -1563,6 +1563,60 @@ a.ranking-row:hover .ranking-person strong { color: #2459c4; }
 }
 .rel-txt-error { margin: .85rem 0 0; color: #b42318; font-size: .875rem; }
 .rel-txt-ok { margin: .85rem 0 0; color: #067647; font-size: .875rem; }
+.rel-txt-count {
+  margin: 0;
+  font-size: .8rem;
+  color: #445066;
+}
+.rel-txt-count.is-over { color: #b42318; font-weight: 700; }
+.rel-txt-progress {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  border-radius: 14px;
+  padding: .9rem 1.05rem 1rem;
+}
+.rel-txt-progress header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .75rem;
+}
+.rel-txt-progress header strong {
+  font-size: .95rem;
+  font-weight: 750;
+  color: #1e3a8a;
+}
+.rel-txt-progress header span {
+  font-size: .8rem;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+.rel-txt-progress-track {
+  height: 8px;
+  margin: .65rem 0 .45rem;
+  background: #dbeafe;
+  border-radius: 99px;
+  overflow: hidden;
+}
+.rel-txt-progress-track i {
+  display: block;
+  height: 100%;
+  background: #2563eb;
+  border-radius: 99px;
+  transition: width .18s ease;
+}
+.rel-txt-progress-nome {
+  margin: .15rem 0 0;
+  font-size: .92rem;
+  font-weight: 700;
+  color: #0f172a;
+  word-break: break-word;
+}
+.rel-txt-progress-meta {
+  margin: .25rem 0 0;
+  font-size: .78rem;
+  color: #334155;
+}
 .rel-txt-paste { display: grid; gap: .5rem; }
 .rel-txt-paste-label {
   display: inline-flex;
@@ -1588,6 +1642,10 @@ a.ranking-row:hover .ranking-person strong { color: #2459c4; }
   outline: none;
   border-color: #93b4f5;
   box-shadow: 0 0 0 3px rgba(47, 111, 237, .12);
+}
+.rel-txt-paste textarea.is-over {
+  border-color: #fca5a5;
+  background: #fff7f7;
 }
 .rel-prev-actions {
   display: flex;
