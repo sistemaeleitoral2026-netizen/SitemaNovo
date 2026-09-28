@@ -127,6 +127,8 @@ export function AtivacaoLancarPage() {
   const [cepLoading, setCepLoading] = useState(false)
   const [links, setLinks] = useState<string[]>([])
   const [linkDraft, setLinkDraft] = useState('')
+  const [linkJustSaved, setLinkJustSaved] = useState<string | null>(null)
+  const [savingLink, setSavingLink] = useState(false)
   const [notas, setNotas] = useState('')
   const [contatoStatus, setContatoStatus] = useState<ContatoWhatsappStatus>('nao')
   const [saving, setSaving] = useState(false)
@@ -260,6 +262,8 @@ export function AtivacaoLancarPage() {
     setFotoCasaKeep([...(p.foto_casa_paths || [])])
     setFotoCasaFiles([])
     setLinks(p.postagem_links.length ? [...p.postagem_links] : [])
+    setLinkDraft('')
+    setLinkJustSaved(null)
     setNotas(p.ativacao_notas || '')
     setContatoStatus(p.contato_whatsapp_status)
     setError(null)
@@ -286,9 +290,10 @@ export function AtivacaoLancarPage() {
     setFotoCasaKeep([])
     setFotoCasaFiles([])
     setLinks([])
+    setLinkDraft('')
+    setLinkJustSaved(null)
     setNotas('')
     setContatoStatus('nao')
-    setLinkDraft('')
     setHistOpen(false)
   }
 
@@ -469,8 +474,12 @@ export function AtivacaoLancarPage() {
     if (e.key === 'Enter') e.preventDefault()
   }
 
-  function addLink() {
-    if (!isFormActive) return
+  async function handleSaveLink() {
+    if (!isFormActive || !editLinks || saving || savingLink) return
+    if (!selected) {
+      setError('Selecione uma pessoa para lançar Formigas.')
+      return
+    }
     const url = normalizePostUrl(linkDraft)
     if (!url) {
       setError('Informe um link válido, como instagram.com/publicacao.')
@@ -478,12 +487,49 @@ export function AtivacaoLancarPage() {
     }
     if (links.some((item) => item.toLowerCase() === url.toLowerCase())) {
       setLinkDraft('')
-      setError('Este link já foi adicionado.')
+      setError('Este link já foi salvo.')
       return
     }
-    setLinks((prev) => [...prev, url])
+    const nextLinks = [...links, url]
+    const snapshot = selected
+    setLinks(nextLinks)
     setLinkDraft('')
     setError(null)
+    setOk(null)
+    setSavingLink(true)
+    const { error: err } = await saveAtivacao(snapshot.tipo, snapshot.id, {
+      carros_adesivados: snapshot.carros_adesivados,
+      motos_adesivadas: snapshot.motos_adesivadas,
+      adesivos_casa_status: snapshot.adesivos_casa_status,
+      links: nextLinks,
+      notas: snapshot.ativacao_notas || '',
+      contato_whatsapp_status: snapshot.contato_whatsapp_status,
+      canOverride,
+      onlySections: 'links',
+    }, snapshot)
+    setSavingLink(false)
+    if (err) {
+      setError(err)
+      return
+    }
+    const refreshed = await fetchAtivacaoPessoa(snapshot.tipo, snapshot.id)
+    setSelected((cur) => {
+      if (!cur || cur.id !== snapshot.id) return cur
+      const fromDb = refreshed && refreshed.id === snapshot.id ? refreshed : null
+      return {
+        ...cur,
+        postagem_links: fromDb?.postagem_links ?? nextLinks,
+        postagens: fromDb?.postagens ?? nextLinks.length,
+        formigas_links_by: fromDb?.formigas_links_by ?? cur.formigas_links_by ?? profile?.id ?? null,
+        formigas_links_by_nome: fromDb?.formigas_links_by_nome ?? cur.formigas_links_by_nome ?? profile?.nome ?? null,
+        formigas_links_em: fromDb?.formigas_links_em ?? cur.formigas_links_em ?? new Date().toISOString(),
+        ativacao_em: fromDb?.ativacao_em ?? cur.ativacao_em ?? new Date().toISOString(),
+      }
+    })
+    if (refreshed?.id === snapshot.id) setLinks([...refreshed.postagem_links])
+    setLinkJustSaved(url)
+    setOk('Link salvo.')
+    window.setTimeout(() => setLinkJustSaved((cur) => (cur === url ? null : cur)), 4000)
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -532,7 +578,7 @@ export function AtivacaoLancarPage() {
   }, [selected])
 
   const saveLabel = saving ? 'Salvando…' : 'Salvar lançamento'
-  const proximoBusy = claiming || saving || dirtyPrompt !== null
+  const proximoBusy = claiming || saving || savingLink || dirtyPrompt !== null
   const proximoLabel = claiming
     ? '…'
     : <>Próximo <ArrowRight size={16} strokeWidth={2.5} /></>
@@ -1010,38 +1056,39 @@ export function AtivacaoLancarPage() {
                 canOverride={canOverride}
               />
             ) : null}
-            <p className="fl-hint">Cada link válido conta como 1 postagem.</p>
+            <p className="fl-hint">Cole o link da rede social e toque em Salvar link. Cada um conta como 1 postagem.</p>
             <div className="fl-link-row">
               <input
                 type="url"
                 placeholder="https://instagram.com/…"
                 value={linkDraft}
-                disabled={!isFormActive || !editLinks}
+                disabled={!isFormActive || !editLinks || savingLink}
                 onChange={(e) => setLinkDraft(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault()
-                    if (editLinks) addLink()
+                    if (editLinks) void handleSaveLink()
                   }
                 }}
               />
               <button
                 type="button"
-                className="fl-btn-dark"
-                disabled={!isFormActive || !editLinks || !linkDraft.trim()}
-                onClick={addLink}
+                className="fl-btn-dark fl-btn-save-link"
+                disabled={!isFormActive || !editLinks || savingLink || !linkDraft.trim()}
+                onClick={() => void handleSaveLink()}
               >
-                <Plus size={16} /> Adicionar
+                <CheckCircle2 size={16} /> {savingLink ? 'Salvando…' : 'Salvar link'}
               </button>
             </div>
             {links.length > 0 && (
               <ul className="fl-links">
                 {links.map((url) => (
-                  <li key={url}>
+                  <li key={url} className={url === linkJustSaved ? 'is-just-saved' : undefined}>
                     <a href={url} target="_blank" rel="noopener noreferrer">{url}</a>
+                    {url === linkJustSaved ? <span className="fl-link-saved">Salvo</span> : null}
                     <button
                       type="button"
-                      disabled={!editLinks}
+                      disabled={!editLinks || savingLink}
                       onClick={() => setLinks((prev) => prev.filter((l) => l !== url))}
                     >
                       Remover
@@ -1071,7 +1118,7 @@ export function AtivacaoLancarPage() {
           <button
             type="submit"
             className={`fl-btn-primary${isDirty ? ' is-dirty' : ''}`}
-            disabled={!isFormActive || saving || !isDirty}
+            disabled={!isFormActive || saving || savingLink || !isDirty}
           >
             <CheckCircle2 size={20} />
             {saveLabel}
@@ -1079,7 +1126,7 @@ export function AtivacaoLancarPage() {
           <button
             type="button"
             className="fl-btn-secondary"
-            disabled={!isFormActive || saving}
+            disabled={!isFormActive || saving || savingLink}
             onClick={() => void clearPerson()}
           >
             Limpar
@@ -1092,7 +1139,7 @@ export function AtivacaoLancarPage() {
           type="submit"
           form="fl-lancar-form"
           className={`fl-btn-primary fl-btn-save-full${isDirty ? ' is-dirty' : ''}`}
-          disabled={!isFormActive || saving || !isDirty}
+          disabled={!isFormActive || saving || savingLink || !isDirty}
         >
           <CheckCircle2 size={20} />
           {saveLabel}

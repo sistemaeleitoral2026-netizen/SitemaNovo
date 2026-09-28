@@ -406,6 +406,8 @@ export type AtivacaoSaveInput = {
   foto_casa_files?: File[]
   /** Admin/diretoria podem sobrescrever seção já lançada por outra formiga. */
   canOverride?: boolean
+  /** Grava só os links, sem mexer nas outras partes da ficha. */
+  onlySections?: 'links'
 }
 
 function canTouchFormigasSection(
@@ -727,6 +729,34 @@ export async function saveAtivacao(
   const editCarros = canTouchFormigasSection(previous?.formigas_carros_by, userId, canOverride)
   const editCasa = canTouchFormigasSection(previous?.formigas_casa_by, userId, canOverride)
   const editLinks = canTouchFormigasSection(previous?.formigas_links_by, userId, canOverride)
+
+  if (input.onlySections === 'links') {
+    if (!editLinks) {
+      return { error: 'As postagens já lançadas ficam com quem registrou.' }
+    }
+    const table = tipo === 'eleitor' ? 'cadastros' : tipo === 'lideranca' ? 'lideres' : 'coordenadores'
+    const payload = {
+      postagem_links: links,
+      postagens: links.length,
+      ativacao_em: previous?.ativacao_em ?? (links.length > 0 ? new Date().toISOString() : null),
+    }
+    const { data: updated, error } = await supabase.from(table).update(payload).eq('id', id).select('id').maybeSingle()
+    if (error) return { error: error.message }
+    if (!updated) {
+      return { error: 'O registro não foi atualizado. Recarregue a ficha e tente novamente.' }
+    }
+    if (previous && previous.id === id && previous.tipo === tipo) {
+      await logFormigasHistorico(previous, {
+        carros_adesivados: previous.carros_adesivados,
+        motos_adesivadas: previous.motos_adesivadas,
+        adesivos_casa_status: previous.adesivos_casa_status,
+        links,
+        notas: previous.ativacao_notas || '',
+        contato_whatsapp_status: previous.contato_whatsapp_status,
+      })
+    }
+    return { error: null }
+  }
 
   if (editWa && status === 'sim' && !hasWhatsappPhone(previous?.telefone)) {
     return { error: 'Não dá para marcar como acionada sem telefone cadastrado. Coloque o número na ficha ou marque Sem WhatsApp.' }
