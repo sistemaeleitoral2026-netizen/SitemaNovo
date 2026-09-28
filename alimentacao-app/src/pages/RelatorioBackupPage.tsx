@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { RotateCcw, Search } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -18,19 +18,28 @@ export function RelatorioBackupPage() {
   const [reverting, setReverting] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [buscou, setBuscou] = useState(false)
 
-  async function buscar() {
+  async function buscar(filtros?: { nome?: string; data?: string; hora?: string }) {
+    const q = filtros ?? { nome, data, hora }
     setLoading(true)
     setError(null)
     setMessage(null)
     try {
-      setRows(await fetchCorrecaoBackups({ nome, data, hora }))
+      setRows(await fetchCorrecaoBackups(q))
+      setBuscou(true)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível buscar o backup.')
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    void buscar({ nome: '', data: '', hora: '' })
+    // Abre já com as últimas correções.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function reverter(id: string) {
     setReverting(id)
@@ -53,7 +62,7 @@ export function RelatorioBackupPage() {
         <div>
           <h1 className="page-title">Backup</h1>
           <p className="page-subtitle">
-            Toda correção fica aqui. Pesquise pelo nome, dia e hora para desfazer.
+            Toda correção que mudou a ficha fica aqui. A lista já abre com as últimas; use a busca para filtrar e desfazer.
           </p>
         </div>
       </div>
@@ -87,7 +96,11 @@ export function RelatorioBackupPage() {
             <Spinner />
           </div>
         ) : !rows.length ? (
-          <p className="rel-txt-empty">Nada nesta busca. Informe o nome ou a data e clique em Buscar.</p>
+          <p className="rel-txt-empty">
+            {buscou
+              ? 'Nada nesta busca. Limpe o nome e a data e clique em Buscar de novo.'
+              : 'Carregando as últimas correções…'}
+          </p>
         ) : (
           <div className="table-wrapper">
             <table className="data-table rel-txt-table">
