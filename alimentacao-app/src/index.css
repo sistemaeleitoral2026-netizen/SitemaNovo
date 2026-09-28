@@ -6092,13 +6092,13 @@ button.fichas-count.equipe-drill-count.zero:hover {
   font-weight: 650;
   line-height: 1.3;
 }
-.fl-stamp.is-locked {
+.fl-stamp.is-prior {
   background: #fff7ed;
   border: 1px solid #fdba74;
   color: #9a3412;
   font-size: .8rem;
 }
-.fl-stamp.is-locked strong {
+.fl-stamp.is-prior strong {
   font-weight: 800;
 }
 .fl-stamp svg { flex-shrink: 0; }
@@ -6125,6 +6125,11 @@ button.fichas-count.equipe-drill-count.zero:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.fl-lock-chip.is-mine {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
 }
 .fl-lock-chip svg { flex-shrink: 0; }
 .fl-block.is-locked {

@@ -429,14 +429,13 @@ export type AtivacaoSaveInput = {
   onlySections?: 'links'
 }
 
+/** Qualquer formiga pode editar qualquer parte; o banco grava o nome de quem salvou. */
 function canTouchFormigasSection(
-  ownerId: string | null | undefined,
-  userId: string,
-  canOverride: boolean,
+  _ownerId: string | null | undefined,
+  _userId: string,
+  _canOverride: boolean,
 ) {
-  if (!ownerId) return true
-  if (canOverride) return true
-  return ownerId === userId
+  return true
 }
 
 async function uploadFormigasFoto(
@@ -750,9 +749,6 @@ export async function saveAtivacao(
   const editLinks = canTouchFormigasSection(previous?.formigas_links_by, userId, canOverride)
 
   if (input.onlySections === 'links') {
-    if (!editLinks) {
-      return { error: 'As postagens já lançadas ficam com quem registrou.' }
-    }
     const table = tipo === 'eleitor' ? 'cadastros' : tipo === 'lideranca' ? 'lideres' : 'coordenadores'
     const payload = {
       postagem_links: links,
