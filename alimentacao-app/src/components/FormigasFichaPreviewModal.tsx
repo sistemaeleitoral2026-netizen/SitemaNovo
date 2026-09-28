@@ -13,9 +13,13 @@ import {
 } from 'lucide-react'
 import { WhatsAppLink } from './ui/WhatsAppLink'
 import { formatPhone } from '../lib/format'
+import { useAuth } from '../contexts/AuthContext'
+import { hasRole } from '../lib/roles'
+import { FormigasSectionLock } from './FormigasSectionLock'
 import {
   casaStatusLabel,
   getFormigasFotoUrls,
+  hydrateFormigasSectionDates,
   mapsUrlForPessoa,
   type AtivacaoPessoa,
 } from '../lib/ativacao'
@@ -104,18 +108,30 @@ export function FormigasFichaPreviewModal({
   pessoa: AtivacaoPessoa
   onClose: () => void
 }) {
-  const mapUrl = mapsUrlForPessoa(pessoa)
+  const { profile } = useAuth()
+  const canOverride = hasRole(profile, ['admin', 'diretoria'])
+  const [ficha, setFicha] = useState(pessoa)
+
+  useEffect(() => {
+    setFicha(pessoa)
+    void hydrateFormigasSectionDates(pessoa).then(setFicha)
+  }, [pessoa.id, pessoa.tipo])
+  const mapUrl = mapsUrlForPessoa(ficha)
   const enderecoLinha = [
-    pessoa.endereco,
-    pessoa.numero && `nº ${pessoa.numero}`,
-    pessoa.bairro,
-    pessoa.cep,
+    ficha.endereco,
+    ficha.numero && `nº ${ficha.numero}`,
+    ficha.bairro,
+    ficha.cep,
   ].filter(Boolean).join(', ')
-  const hasVeiculo = pessoa.carros_adesivados > 0 || pessoa.motos_adesivadas > 0
+  const hasVeiculo = ficha.carros_adesivados > 0 || ficha.motos_adesivadas > 0
   const hasCasa =
-    pessoa.adesivos_casa_status === 'sim'
-    || pessoa.adesivos_casa_status === 'talvez'
-    || pessoa.adesivos_casa > 0
+    ficha.adesivos_casa_status === 'sim'
+    || ficha.adesivos_casa_status === 'talvez'
+    || ficha.adesivos_casa > 0
+  const lockProps = {
+    userId: profile?.id,
+    canOverride,
+  }
 
   useEffect(() => {
     const prev = document.body.style.overflow
@@ -181,11 +197,14 @@ export function FormigasFichaPreviewModal({
           <section className="ffv-card">
             <span className="ffv-section-label">WhatsApp</span>
             <div className="ffv-row">
-              <strong>{waLabel(pessoa.contato_whatsapp_status)}</strong>
-              {pessoa.formigas_wa_by_nome && (
-                <span className="ffv-muted">por {pessoa.formigas_wa_by_nome}</span>
-              )}
+              <strong>{waLabel(ficha.contato_whatsapp_status)}</strong>
             </div>
+            <FormigasSectionLock
+              ownerId={ficha.formigas_wa_by}
+              ownerNome={ficha.formigas_wa_by_nome}
+              at={ficha.formigas_wa_em}
+              {...lockProps}
+            />
           </section>
 
           <section className="ffv-card">
@@ -193,29 +212,32 @@ export function FormigasFichaPreviewModal({
             {hasVeiculo ? (
               <>
                 <div className="ffv-chips">
-                  {pessoa.carros_adesivados > 0 && (
+                  {ficha.carros_adesivados > 0 && (
                     <span className="ffv-chip">
                       <Car size={13} />
-                      {pessoa.carros_adesivados}
+                      {ficha.carros_adesivados}
                       {' '}
                       carro
-                      {pessoa.carros_adesivados === 1 ? '' : 's'}
+                      {ficha.carros_adesivados === 1 ? '' : 's'}
                     </span>
                   )}
-                  {pessoa.motos_adesivadas > 0 && (
+                  {ficha.motos_adesivadas > 0 && (
                     <span className="ffv-chip">
                       <Bike size={13} />
-                      {pessoa.motos_adesivadas}
+                      {ficha.motos_adesivadas}
                       {' '}
                       moto
-                      {pessoa.motos_adesivadas === 1 ? '' : 's'}
+                      {ficha.motos_adesivadas === 1 ? '' : 's'}
                     </span>
                   )}
-                  {pessoa.formigas_carros_by_nome && (
-                    <span className="ffv-muted">Resp: {pessoa.formigas_carros_by_nome}</span>
-                  )}
                 </div>
-                <FotoGrid paths={pessoa.foto_veiculo_paths} label="Fotos do veículo" />
+                <FormigasSectionLock
+                  ownerId={ficha.formigas_carros_by}
+                  ownerNome={ficha.formigas_carros_by_nome}
+                  at={ficha.formigas_carros_em}
+                  {...lockProps}
+                />
+                <FotoGrid paths={ficha.foto_veiculo_paths} label="Fotos do veículo" />
               </>
             ) : (
               <p className="ffv-muted">Nenhum veículo registrado.</p>
@@ -227,14 +249,17 @@ export function FormigasFichaPreviewModal({
             {hasCasa ? (
               <>
                 <div className="ffv-row">
-                  <span className={`ffv-pill${pessoa.adesivos_casa_status === 'talvez' ? ' warn' : ' ok'}`}>
+                  <span className={`ffv-pill${ficha.adesivos_casa_status === 'talvez' ? ' warn' : ' ok'}`}>
                     <Home size={12} />
-                    {casaStatusLabel(pessoa.adesivos_casa_status)}
+                    {casaStatusLabel(ficha.adesivos_casa_status)}
                   </span>
-                  {pessoa.formigas_casa_by_nome && (
-                    <span className="ffv-muted">Resp: {pessoa.formigas_casa_by_nome}</span>
-                  )}
                 </div>
+                <FormigasSectionLock
+                  ownerId={ficha.formigas_casa_by}
+                  ownerNome={ficha.formigas_casa_by_nome}
+                  at={ficha.formigas_casa_em}
+                  {...lockProps}
+                />
                 {enderecoLinha && (
                   <p className="ffv-addr">
                     <MapPin size={13} />
@@ -252,7 +277,7 @@ export function FormigasFichaPreviewModal({
                     Abrir localização no mapa
                   </a>
                 )}
-                <FotoGrid paths={pessoa.foto_casa_paths} label="Fotos da casa" />
+                <FotoGrid paths={ficha.foto_casa_paths} label="Fotos da casa" />
               </>
             ) : (
               <p className="ffv-muted">Sem adesivo residencial.</p>
@@ -261,9 +286,9 @@ export function FormigasFichaPreviewModal({
 
           <section className="ffv-card">
             <span className="ffv-section-label">Links de postagem</span>
-            {pessoa.postagem_links.length ? (
+            {ficha.postagem_links.length ? (
               <ul className="ffv-links">
-                {pessoa.postagem_links.map((link) => (
+                {ficha.postagem_links.map((link) => (
                   <li key={link}>
                     <Link2 size={12} />
                     <a href={link} target="_blank" rel="noopener noreferrer">{link}</a>
@@ -273,15 +298,18 @@ export function FormigasFichaPreviewModal({
             ) : (
               <p className="ffv-muted">Nenhum link registrado.</p>
             )}
-            {pessoa.formigas_links_by_nome && (
-              <p className="ffv-muted" style={{ marginTop: 6 }}>Resp: {pessoa.formigas_links_by_nome}</p>
-            )}
+            <FormigasSectionLock
+              ownerId={ficha.formigas_links_by}
+              ownerNome={ficha.formigas_links_by_nome}
+              at={ficha.formigas_links_em}
+              {...lockProps}
+            />
           </section>
 
           <section className="ffv-card">
             <span className="ffv-section-label">Observações</span>
             <p className="ffv-notes">
-              {pessoa.ativacao_notas?.trim() || 'Nenhuma observação registrada.'}
+              {ficha.ativacao_notas?.trim() || 'Nenhuma observação registrada.'}
             </p>
           </section>
         </div>
