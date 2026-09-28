@@ -17,9 +17,11 @@ import {
   parseRelatorioTxtLines,
   previsualizarCorrecoesTxt,
   RELATORIO_TXT_HEADER,
+  RELATORIO_TXT_LIMITE,
   rowKey,
   saveFalhasTxt,
   type CorrecaoPreview,
+  type ProgressoCorrecao,
   type RelatorioTxtGerado,
   type RelatorioTxtLinha,
 } from '../lib/relatorioFichasTxt'
@@ -66,6 +68,32 @@ function FichaLink({ id }: { id: string | null | undefined }) {
       <span className="mono-cell">{id}</span>
       <Pencil size={13} />
     </Link>
+  )
+}
+
+function ProgressoSubida({ info }: { info: ProgressoCorrecao }) {
+  const pct = info.total ? Math.min(100, Math.round((info.atual / info.total) * 100)) : 0
+  const titulo =
+    info.etapa === 'conferindo' ? `Conferindo ${info.total} ficha(s)…`
+      : info.etapa === 'subindo' ? `Subindo ${info.atual} de ${info.total}`
+        : info.etapa === 'gravando' ? 'Gravando no relatório…'
+          : 'Pronto'
+  return (
+    <div className="rel-txt-progress" role="status" aria-live="polite">
+      <header>
+        <strong>{titulo}</strong>
+        <span>{pct}%</span>
+      </header>
+      <div className="rel-txt-progress-track">
+        <i style={{ width: `${info.etapa === 'conferindo' ? 18 : pct}%` }} />
+      </div>
+      {info.nome ? <p className="rel-txt-progress-nome">{info.nome}</p> : null}
+      {info.etapa === 'subindo' || info.etapa === 'gravando' || info.etapa === 'concluido' ? (
+        <p className="rel-txt-progress-meta">
+          Corrigidas {info.aplicadas} · Sem mudança {info.inalteradas} · Falhas {info.falhas}
+        </p>
+      ) : null}
+    </div>
   )
 }
 
@@ -144,6 +172,7 @@ export function RelatorioFichasTxtPage() {
   const [error, setError] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [progresso, setProgresso] = useState<ProgressoCorrecao | null>(null)
 
   async function reloadSaved() {
     setSaved(await fetchRelatorioTxtLinhas())
@@ -240,6 +269,14 @@ export function RelatorioFichasTxtPage() {
     () => falhaLines.map((row) => linhaTxtDe(row)).join('\n'),
     [falhaLines],
   )
+  const correcaoCount = useMemo(() => parseRelatorioTxtLines(correcaoDraft).length, [correcaoDraft])
+  const falhaCount = useMemo(() => parseRelatorioTxtLines(falhaDraft).length, [falhaDraft])
+  const correcaoAcima = correcaoCount > RELATORIO_TXT_LIMITE
+  const falhaAcima = falhaCount > RELATORIO_TXT_LIMITE
+
+  function mensagemLimite(n: number) {
+    return `São ${n} linhas. O limite é ${RELATORIO_TXT_LIMITE} por vez — não dá para subir mais. Tire o restante e faça outro lote.`
+  }
 
   function handleGerar() {
     setMessage(null)
@@ -247,6 +284,10 @@ export function RelatorioFichasTxtPage() {
     const n = Math.floor(Number(quantidade))
     if (!Number.isFinite(n) || n < 1) {
       setError('Informe a quantidade de linhas (número maior que zero).')
+      return
+    }
+    if (n > RELATORIO_TXT_LIMITE) {
+      setError(`Máximo ${RELATORIO_TXT_LIMITE} linhas por vez. Não dá para gerar mais que isso de uma vez.`)
       return
     }
     if (!elegiveis.length) {
@@ -296,11 +337,24 @@ export function RelatorioFichasTxtPage() {
   async function handleConferir() {
     setMessage(null)
     setError(null)
-    if (!parseRelatorioTxtLines(correcaoDraft).length) {
+    if (!correcaoCount) {
       setError('Cole pelo menos uma linha (Nome;id;CPF;título;nascimento;mãe;zona;seção).')
       return
     }
+    if (correcaoAcima) {
+      setError(mensagemLimite(correcaoCount))
+      return
+    }
     setPreviewing(true)
+    setProgresso({
+      etapa: 'conferindo',
+      atual: 0,
+      total: correcaoCount,
+      nome: '',
+      aplicadas: 0,
+      inalteradas: 0,
+      falhas: 0,
+    })
     try {
       const next = await previsualizarCorrecoesTxt(correcaoDraft, diretoriaId)
       setPreviews(next)
@@ -310,6 +364,7 @@ export function RelatorioFichasTxtPage() {
       setError(e instanceof Error ? e.message : 'Não foi possível montar as fichas.')
     } finally {
       setPreviewing(false)
+      setProgresso(null)
     }
   }
 
@@ -325,8 +380,12 @@ export function RelatorioFichasTxtPage() {
   async function handleAplicar() {
     setMessage(null)
     setError(null)
-    if (!parseRelatorioTxtLines(correcaoDraft).length) {
+    if (!correcaoCount) {
       setError('Cole pelo menos uma linha (Nome;id;CPF;título;nascimento;mãe;zona;seção).')
+      return
+    }
+    if (correcaoAcima) {
+      setError(mensagemLimite(correcaoCount))
       return
     }
     if (!previews?.length) {
@@ -338,13 +397,27 @@ export function RelatorioFichasTxtPage() {
       setError('Todas as fichas foram canceladas. Deixe pelo menos uma ou cole de novo.')
       return
     }
+    if (selecionadas.size > RELATORIO_TXT_LIMITE) {
+      setError(mensagemLimite(selecionadas.size))
+      return
+    }
     setSaving(true)
+    setProgresso({
+      etapa: 'subindo',
+      atual: 0,
+      total: selecionadas.size,
+      nome: '',
+      aplicadas: 0,
+      inalteradas: 0,
+      falhas: 0,
+    })
     try {
       const result = await aplicarCorrecoesTxt(
         correcaoDraft,
         profile ? { id: profile.id, nome: profile.nome } : null,
         diretoriaId,
         selecionadas,
+        setProgresso,
       )
       await reloadSaved()
       setCorrecaoDraft('')
@@ -358,17 +431,31 @@ export function RelatorioFichasTxtPage() {
       setError(e instanceof Error ? e.message : 'Não foi possível aplicar as correções.')
     } finally {
       setSaving(false)
+      setProgresso(null)
     }
   }
 
   async function handleSalvarFalhas() {
     setMessage(null)
     setError(null)
-    if (!parseRelatorioTxtLines(falhaDraft).length) {
+    if (!falhaCount) {
       setError('Cole pelo menos uma linha antes de salvar em Falhas.')
       return
     }
+    if (falhaAcima) {
+      setError(mensagemLimite(falhaCount))
+      return
+    }
     setSaving(true)
+    setProgresso({
+      etapa: 'gravando',
+      atual: falhaCount,
+      total: falhaCount,
+      nome: '',
+      aplicadas: 0,
+      inalteradas: 0,
+      falhas: falhaCount,
+    })
     try {
       const n = await saveFalhasTxt(falhaDraft, profile?.id ?? null)
       await reloadSaved()
@@ -378,6 +465,7 @@ export function RelatorioFichasTxtPage() {
       setError(e instanceof Error ? e.message : 'Não foi possível salvar as falhas.')
     } finally {
       setSaving(false)
+      setProgresso(null)
     }
   }
 
@@ -448,12 +536,13 @@ export function RelatorioFichasTxtPage() {
 
       {error ? <p className="rel-txt-error">{error}</p> : null}
       {message ? <p className="rel-txt-ok">{message}</p> : null}
+      {progresso ? <ProgressoSubida info={progresso} /> : null}
 
       {tab === 'gerar' ? (
         <>
           <Card
             title="Gerar arquivo"
-            subtitle="Sorteia o que ainda não está em Falhas e o que ainda não foi corrigido."
+            subtitle="Sorteia o que ainda não está em Falhas e o que ainda não foi corrigido. Máximo 200 por vez."
           >
             <div className="rel-txt-form">
               <label className="rel-txt-field">
@@ -461,6 +550,7 @@ export function RelatorioFichasTxtPage() {
                 <input
                   type="number"
                   min={1}
+                  max={RELATORIO_TXT_LIMITE}
                   step={1}
                   inputMode="numeric"
                   value={quantidade}
@@ -472,7 +562,7 @@ export function RelatorioFichasTxtPage() {
               </Button>
             </div>
             <p className="rel-txt-hint">
-              Formato: <code>{RELATORIO_TXT_HEADER}</code>
+              Máximo {RELATORIO_TXT_LIMITE} linhas. Formato: <code>{RELATORIO_TXT_HEADER}</code>
             </p>
           </Card>
           {geradoAberto ? (
@@ -494,13 +584,13 @@ export function RelatorioFichasTxtPage() {
         <>
           <Card
             title="Colar correções"
-            subtitle="Cole o retorno do outro app. Confira a ficha montada (antes e depois) e cancele as que não quiser gravar."
+            subtitle={`Cole o retorno do outro app. Conferência e gravação: no máximo ${RELATORIO_TXT_LIMITE} linhas por vez.`}
             action={(
               <div className="rel-prev-actions">
-                <Button size="sm" type="button" variant="secondary" loading={previewing} disabled={previewing || saving} onClick={() => void handleConferir()}>
+                <Button size="sm" type="button" variant="secondary" loading={previewing} disabled={previewing || saving || correcaoAcima} onClick={() => void handleConferir()}>
                   <Eye size={14} /> Conferir fichas
                 </Button>
-                <Button size="sm" type="button" loading={saving} disabled={saving || previewing} onClick={() => void handleAplicar()}>
+                <Button size="sm" type="button" loading={saving} disabled={saving || previewing || correcaoAcima} onClick={() => void handleAplicar()}>
                   <Save size={14} /> Aplicar na ficha
                 </Button>
               </div>
@@ -511,6 +601,7 @@ export function RelatorioFichasTxtPage() {
                 <FileText size={14} /> Colar aqui
               </span>
               <textarea
+                className={correcaoAcima ? 'is-over' : undefined}
                 value={correcaoDraft}
                 onChange={(e) => {
                   setCorrecaoDraft(e.target.value)
@@ -521,9 +612,15 @@ export function RelatorioFichasTxtPage() {
                 placeholder={`${RELATORIO_TXT_HEADER}\nClairton Sidney Carvalho França;96956dc1-4ab4-40df-bdd0-1354e9c7a349;409.400.123-91;017359631155;20/11/1968;Maria das graças Pereira de Carvalho;089;0364`}
                 spellCheck={false}
               />
+              <p className={`rel-txt-count${correcaoAcima ? ' is-over' : ''}`}>
+                {correcaoCount} / {RELATORIO_TXT_LIMITE} linhas
+                {correcaoAcima
+                  ? ' — não dá para subir mais. Apague o restante e faça outro lote.'
+                  : ' · máximo 200 por vez'}
+              </p>
             </label>
           </Card>
-          {previewing ? (
+          {previewing && !progresso ? (
             <div className="gg-loading">
               <Spinner size={32} />
             </div>
@@ -541,9 +638,9 @@ export function RelatorioFichasTxtPage() {
         <>
           <Card
             title="Colar falhas"
-            subtitle="Cole as linhas que não passaram. Fica gravado com nerite, coordenador e liderança da ficha."
+            subtitle={`Cole as linhas que não passaram. Máximo ${RELATORIO_TXT_LIMITE} por vez. Fica gravado com nerite, coordenador e liderança da ficha.`}
             action={(
-              <Button size="sm" type="button" loading={saving} disabled={saving} onClick={() => void handleSalvarFalhas()}>
+              <Button size="sm" type="button" loading={saving} disabled={saving || falhaAcima} onClick={() => void handleSalvarFalhas()}>
                 <Save size={14} /> Salvar falhas
               </Button>
             )}
@@ -553,12 +650,19 @@ export function RelatorioFichasTxtPage() {
                 <FileText size={14} /> Colar aqui
               </span>
               <textarea
+                className={falhaAcima ? 'is-over' : undefined}
                 value={falhaDraft}
                 onChange={(e) => setFalhaDraft(e.target.value)}
                 rows={8}
                 placeholder={`${RELATORIO_TXT_HEADER}\nClairton Sidney Carvalho França;96956dc1-4ab4-40df-bdd0-1354e9c7a349;409.400.123-91;017359631155;20/11/1968;Maria das graças Pereira de Carvalho;089;0364`}
                 spellCheck={false}
               />
+              <p className={`rel-txt-count${falhaAcima ? ' is-over' : ''}`}>
+                {falhaCount} / {RELATORIO_TXT_LIMITE} linhas
+                {falhaAcima
+                  ? ' — não dá para subir mais. Apague o restante e faça outro lote.'
+                  : ' · máximo 200 por vez'}
+              </p>
             </label>
           </Card>
           <Card title={`Falhas gravadas (${falhaLines.length})`}>
