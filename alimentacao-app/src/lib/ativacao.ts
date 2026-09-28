@@ -177,13 +177,16 @@ async function enrichOwnerNames(items: AtivacaoPessoa[]): Promise<AtivacaoPessoa
   }
   if (ids.size === 0) return items
 
-  const { data } = await supabase
-    .from('profiles')
-    .select('id, nome')
-    .in('id', [...ids])
-
   const nomeById = new Map<string, string>()
-  for (const row of data ?? []) {
+  const idList = [...ids]
+  const { data: rpcData, error: rpcError } = await supabase.rpc('formigas_nomes', { p_ids: idList })
+  let rows = (!rpcError && Array.isArray(rpcData) && rpcData.length > 0) ? rpcData : null
+  if (!rows) {
+    const { data } = await supabase.from('profiles').select('id, nome').in('id', idList)
+    rows = data ?? []
+  }
+
+  for (const row of rows) {
     const id = String(row.id ?? '')
     if (!id) continue
     nomeById.set(id, String(row.nome ?? '').trim() || 'Formiga')
@@ -371,8 +374,20 @@ export async function hydrateFormigasSectionDates(pessoa: AtivacaoPessoa): Promi
   if (!needs) return pessoa
   const { items } = await fetchFormigasHistoricoPorPessoa(pessoa.tipo, pessoa.id, 80)
   const first: Partial<Record<FormigasHistoricoItem['secao'], string>> = {}
+  const nomeBySecao: Partial<Record<FormigasHistoricoItem['secao'], string>> = {}
   for (const item of [...items].reverse()) {
     if (!first[item.secao]) first[item.secao] = item.created_at
+    const actorNome = item.actor_nome?.trim()
+    if (actorNome && !nomeBySecao[item.secao]) {
+      if (
+        (item.secao === 'whatsapp' && item.actor_id === pessoa.formigas_wa_by)
+        || (item.secao === 'carros' && item.actor_id === pessoa.formigas_carros_by)
+        || (item.secao === 'casa' && item.actor_id === pessoa.formigas_casa_by)
+        || (item.secao === 'links' && item.actor_id === pessoa.formigas_links_by)
+      ) {
+        nomeBySecao[item.secao] = actorNome
+      }
+    }
   }
   const fallback = pessoa.ativacao_em
   return {
@@ -381,6 +396,10 @@ export async function hydrateFormigasSectionDates(pessoa: AtivacaoPessoa): Promi
     formigas_carros_em: pessoa.formigas_carros_em || first.carros || (pessoa.formigas_carros_by ? fallback : null),
     formigas_casa_em: pessoa.formigas_casa_em || first.casa || (pessoa.formigas_casa_by ? fallback : null),
     formigas_links_em: pessoa.formigas_links_em || first.links || (pessoa.formigas_links_by ? fallback : null),
+    formigas_wa_by_nome: pessoa.formigas_wa_by_nome || nomeBySecao.whatsapp || null,
+    formigas_carros_by_nome: pessoa.formigas_carros_by_nome || nomeBySecao.carros || null,
+    formigas_casa_by_nome: pessoa.formigas_casa_by_nome || nomeBySecao.casa || null,
+    formigas_links_by_nome: pessoa.formigas_links_by_nome || nomeBySecao.links || null,
   }
 }
 
