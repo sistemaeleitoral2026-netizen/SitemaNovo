@@ -11,6 +11,34 @@ export function canEditFormigasSection(
   return Boolean(userId && ownerId === userId)
 }
 
+function ownerLabel(ownerNome?: string | null) {
+  return ownerNome?.trim() || 'Formiga'
+}
+
+export function FormigasLockChip({
+  ownerId,
+  ownerNome,
+  userId,
+  canOverride,
+}: {
+  ownerId?: string | null
+  ownerNome?: string | null
+  userId?: string | null
+  canOverride?: boolean
+}) {
+  if (!ownerId) return null
+  const mine = Boolean(userId && ownerId === userId)
+  const locked = !mine && !canOverride
+  if (!locked) return null
+  const nome = ownerLabel(ownerNome)
+  return (
+    <span className="fl-lock-chip" title={`${nome} preencheu esta parte`}>
+      <Lock size={12} strokeWidth={2.4} aria-hidden />
+      {nome}
+    </span>
+  )
+}
+
 export function FormigasSectionLock({
   ownerId,
   ownerNome,
@@ -27,17 +55,27 @@ export function FormigasSectionLock({
   if (!ownerId) return null
   const mine = Boolean(userId && ownerId === userId)
   const locked = !mine && !canOverride
-  const nome = ownerNome?.trim() || 'Formiga'
+  const nome = ownerLabel(ownerNome)
   const dia = at ? formatDate(at) : null
   return (
     <p className={`fl-stamp${locked ? ' is-locked' : ''}`}>
       {locked ? <Lock size={13} strokeWidth={2.25} aria-hidden /> : null}
       <span>
-        {locked
-          ? `${nome} já registrou esta parte`
-          : mine
-            ? 'Você registrou esta parte'
-            : `Registrado por ${nome}`}
+        {locked ? (
+          <>
+            <strong>{nome}</strong>
+            {' '}
+            preencheu esta parte
+          </>
+        ) : mine ? (
+          'Você preencheu esta parte'
+        ) : (
+          <>
+            Preenchido por
+            {' '}
+            <strong>{nome}</strong>
+          </>
+        )}
         {dia ? ` · ${dia}` : ''}
       </span>
     </p>

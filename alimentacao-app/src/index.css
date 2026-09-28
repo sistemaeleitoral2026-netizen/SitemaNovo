@@ -6096,8 +6096,37 @@ button.fichas-count.equipe-drill-count.zero:hover {
   background: #fff7ed;
   border: 1px solid #fdba74;
   color: #9a3412;
+  font-size: .8rem;
+}
+.fl-stamp.is-locked strong {
+  font-weight: 800;
 }
 .fl-stamp svg { flex-shrink: 0; }
+.fl-block-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: .28rem;
+  min-width: 0;
+}
+.fl-lock-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .28rem;
+  max-width: 12rem;
+  padding: .22rem .55rem;
+  border-radius: 999px;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #9a3412;
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fl-lock-chip svg { flex-shrink: 0; }
 .fl-block.is-locked {
   border-color: #fdba74;
   background: linear-gradient(180deg, #fffbeb 0%, #fff 42%);
