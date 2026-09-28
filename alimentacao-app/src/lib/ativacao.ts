@@ -404,6 +404,18 @@ export type AtivacaoSaveInput = {
   /** Novos arquivos a enviar */
   foto_veiculo_files?: File[]
   foto_casa_files?: File[]
+  /** Admin/diretoria podem sobrescrever seção já lançada por outra formiga. */
+  canOverride?: boolean
+}
+
+function canTouchFormigasSection(
+  ownerId: string | null | undefined,
+  userId: string,
+  canOverride: boolean,
+) {
+  if (!ownerId) return true
+  if (canOverride) return true
+  return ownerId === userId
 }
 
 async function uploadFormigasFoto(
@@ -706,43 +718,50 @@ export async function saveAtivacao(
   const casa = casaStatus === 'sim' ? 1 : 0
   const notas = input.notas.trim() || null
   const status: ContatoWhatsappStatus = input.contato_whatsapp_status
-  if (status === 'sim' && !hasWhatsappPhone(previous?.telefone)) {
+  const { data: { session } } = await supabase.auth.getSession()
+  const userId = session?.user?.id
+  if (!userId) return { error: 'Sessão expirada. Entre novamente.' }
+
+  const canOverride = Boolean(input.canOverride)
+  const editWa = canTouchFormigasSection(previous?.formigas_wa_by, userId, canOverride)
+  const editCarros = canTouchFormigasSection(previous?.formigas_carros_by, userId, canOverride)
+  const editCasa = canTouchFormigasSection(previous?.formigas_casa_by, userId, canOverride)
+  const editLinks = canTouchFormigasSection(previous?.formigas_links_by, userId, canOverride)
+
+  if (editWa && status === 'sim' && !hasWhatsappPhone(previous?.telefone)) {
     return { error: 'Não dá para marcar como acionada sem telefone cadastrado. Coloque o número na ficha ou marque Sem WhatsApp.' }
   }
   const contato = status === 'sim'
   const hasLaunch =
-    carros > 0
-    || motos > 0
-    || casa > 0
-    || casaStatus === 'talvez'
-    || links.length > 0
+    (editCarros && (carros > 0 || motos > 0))
+    || (editCasa && (casa > 0 || casaStatus === 'talvez'))
+    || (editLinks && links.length > 0)
     || Boolean(notas)
-    || status === 'sim'
-    || status === 'sem'
+    || (editWa && (status === 'sim' || status === 'sem'))
+    || Boolean(previous?.ativacao_em)
 
   const cepDigits = (input.cep ?? '').replace(/\D/g, '')
   const endereco = (input.endereco ?? '').trim()
   const numero = (input.numero ?? '').trim()
   const bairroInput = (input.bairro ?? '').trim()
-  // Endereço/CEP são opcionais — só validamos formato se o usuário preencheu CEP
   const hasAddrInput = cepDigits.length > 0 || Boolean(endereco) || Boolean(numero) || Boolean(bairroInput)
-  if (cepDigits.length > 0 && cepDigits.length !== 8) {
+  if (editCasa && cepDigits.length > 0 && cepDigits.length !== 8) {
     return { error: 'CEP inválido: use 8 dígitos (ou deixe em branco).' }
   }
 
-  const { data: { session } } = await supabase.auth.getSession()
-  const userId = session?.user?.id
-  if (!userId) return { error: 'Sessão expirada. Entre novamente.' }
-
   const keepVeiculo = [...new Set((input.foto_veiculo_keep ?? []).filter(Boolean))].slice(0, FORMIGAS_MAX_FOTOS)
   const keepCasa = [...new Set((input.foto_casa_keep ?? []).filter(Boolean))].slice(0, FORMIGAS_MAX_FOTOS)
-  const filesVeiculo = (input.foto_veiculo_files ?? []).slice(0, Math.max(0, FORMIGAS_MAX_FOTOS - keepVeiculo.length))
-  const filesCasa = (input.foto_casa_files ?? []).slice(0, Math.max(0, FORMIGAS_MAX_FOTOS - keepCasa.length))
+  const filesVeiculo = editCarros
+    ? (input.foto_veiculo_files ?? []).slice(0, Math.max(0, FORMIGAS_MAX_FOTOS - keepVeiculo.length))
+    : []
+  const filesCasa = editCasa
+    ? (input.foto_casa_files ?? []).slice(0, Math.max(0, FORMIGAS_MAX_FOTOS - keepCasa.length))
+    : []
 
-  if ((carros > 0 || motos > 0) && keepVeiculo.length + filesVeiculo.length < 1) {
+  if (editCarros && (carros > 0 || motos > 0) && keepVeiculo.length + filesVeiculo.length < 1) {
     return { error: 'Adicione pelo menos 1 foto do veículo adesivado.' }
   }
-  if (casaStatus === 'sim' && keepCasa.length + filesCasa.length < 1) {
+  if (editCasa && casaStatus === 'sim' && keepCasa.length + filesCasa.length < 1) {
     return { error: 'Adicione pelo menos 1 foto da casa adesivada.' }
   }
 
@@ -765,26 +784,33 @@ export async function saveAtivacao(
     return { error: err instanceof Error ? err.message : 'Falha ao enviar as fotos.' }
   }
 
-  if (!(carros > 0 || motos > 0)) foto_veiculo_paths = []
-  if (casaStatus !== 'sim') foto_casa_paths = []
+  if (editCarros && !(carros > 0 || motos > 0)) foto_veiculo_paths = []
+  if (editCasa && casaStatus !== 'sim') foto_casa_paths = []
 
   const payload: Record<string, unknown> = {
-    carros_adesivados: carros,
-    motos_adesivadas: motos,
-    adesivos_casa: casa,
-    adesivos_casa_status: casaStatus,
-    postagem_links: links,
-    postagens: links.length,
     ativacao_notas: notas,
-    // Mantém a data do primeiro lançamento; editar uma ficha não altera sua antiguidade.
-    ativacao_em: hasLaunch ? (previous?.ativacao_em ?? new Date().toISOString()) : null,
-    contato_whatsapp: contato,
-    contato_whatsapp_status: status,
-    foto_veiculo_paths,
-    foto_casa_paths,
+    ativacao_em: hasLaunch ? (previous?.ativacao_em ?? new Date().toISOString()) : previous?.ativacao_em ?? null,
+  }
+  if (editWa) {
+    payload.contato_whatsapp = contato
+    payload.contato_whatsapp_status = status
+  }
+  if (editCarros) {
+    payload.carros_adesivados = carros
+    payload.motos_adesivadas = motos
+    payload.foto_veiculo_paths = foto_veiculo_paths
+  }
+  if (editCasa) {
+    payload.adesivos_casa = casa
+    payload.adesivos_casa_status = casaStatus
+    payload.foto_casa_paths = foto_casa_paths
+  }
+  if (editLinks) {
+    payload.postagem_links = links
+    payload.postagens = links.length
   }
 
-  if (hasAddrInput && (casaStatus === 'sim' || casaStatus === 'talvez')) {
+  if (editCasa && hasAddrInput && (casaStatus === 'sim' || casaStatus === 'talvez')) {
     if (cepDigits.length === 8) payload.cep = cepDigits
     if (endereco) payload.endereco = endereco
     if (numero) payload.numero = numero
@@ -847,8 +873,8 @@ export async function saveAtivacao(
   // Remove do storage paths que saíram da ficha
   if (previous) {
     const dropped = [
-      ...previous.foto_veiculo_paths.filter((p) => !foto_veiculo_paths.includes(p)),
-      ...previous.foto_casa_paths.filter((p) => !foto_casa_paths.includes(p)),
+      ...(editCarros ? previous.foto_veiculo_paths.filter((p) => !foto_veiculo_paths.includes(p)) : []),
+      ...(editCasa ? previous.foto_casa_paths.filter((p) => !foto_casa_paths.includes(p)) : []),
     ]
     if (dropped.length) void supabase.storage.from(FORMIGAS_FOTOS_BUCKET).remove(dropped)
   }

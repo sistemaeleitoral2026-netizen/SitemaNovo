@@ -261,11 +261,7 @@ export function AtivacaoLancarPage() {
     setFotoCasaFiles([])
     setLinks(p.postagem_links.length ? [...p.postagem_links] : [])
     setNotas(p.ativacao_notas || '')
-    setContatoStatus(
-      p.contato_whatsapp_status === 'sim' && !hasWhatsappPhone(p.telefone)
-        ? 'nao'
-        : p.contato_whatsapp_status,
-    )
+    setContatoStatus(p.contato_whatsapp_status)
     setError(null)
     setOk(null)
     void hydrateFormigasSectionDates(p).then((next) => {
@@ -299,17 +295,21 @@ export function AtivacaoLancarPage() {
   async function persistCurrent(): Promise<boolean> {
     if (!selected) return false
     if (skipSaveRef.current) return false
+    if (!editWa && !editCarros && !editCasa && !editLinks) {
+      setError('As partes já lançadas ficam com quem registrou. Busque a ficha e complete só o que ainda está livre.')
+      return false
+    }
     const nextCarros = veiculoCarro ? carros : 0
     const nextMotos = veiculoMoto ? motos : 0
-    if ((nextCarros > 0 || nextMotos > 0) && fotoVeiculoKeep.length + fotoVeiculoFiles.length < 1) {
+    if (editCarros && (nextCarros > 0 || nextMotos > 0) && fotoVeiculoKeep.length + fotoVeiculoFiles.length < 1) {
       setError('Adicione pelo menos 1 foto do veículo adesivado.')
       return false
     }
-    if (casaStatus === 'sim' && fotoCasaKeep.length + fotoCasaFiles.length < 1) {
+    if (editCasa && casaStatus === 'sim' && fotoCasaKeep.length + fotoCasaFiles.length < 1) {
       setError('Adicione pelo menos 1 foto da casa adesivada.')
       return false
     }
-    if (contatoStatus === 'sim' && !hasWhatsappPhone(selected.telefone)) {
+    if (editWa && contatoStatus === 'sim' && !hasWhatsappPhone(selected.telefone)) {
       setError('Não dá para marcar como acionada sem telefone cadastrado. Coloque o número na ficha ou marque Sem WhatsApp.')
       return false
     }
@@ -331,6 +331,7 @@ export function AtivacaoLancarPage() {
       foto_veiculo_files: nextCarros > 0 || nextMotos > 0 ? fotoVeiculoFiles : [],
       foto_casa_keep: casaStatus === 'sim' ? fotoCasaKeep : [],
       foto_casa_files: casaStatus === 'sim' ? fotoCasaFiles : [],
+      canOverride,
     }, snapshot)
     setSaving(false)
     if (err) {
@@ -555,6 +556,9 @@ export function AtivacaoLancarPage() {
       <div className="fl-page-head fl-page-head-compact">
         <div>
           <h1 className="fl-title">Lançar Formigas</h1>
+          <p className="fl-subtitle">
+            Qualquer formiga busca qualquer ficha. Se o Jurandy já lançou a casa, o Henrique completa só o resto.
+          </p>
         </div>
         <button type="button" className="fl-btn-secondary fl-btn-painel-desktop" onClick={() => navigate('/ativacao/painel')}>
           Ver Painel
