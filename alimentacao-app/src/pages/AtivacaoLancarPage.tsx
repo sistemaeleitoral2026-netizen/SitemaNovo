@@ -23,13 +23,14 @@ import { formatCep, hasWhatsappPhone } from '../lib/normalize'
 import { lookupViaCep } from '../lib/geocode'
 import {
   FormigasFichaHistoricoDrawer,
-  ownerCaption,
 } from '../components/FormigasFichaHistoricoDrawer'
 import { FormigasFotoField } from '../components/FormigasFotoField'
+import { canEditFormigasSection, FormigasSectionLock } from '../components/FormigasSectionLock'
 import {
   claimNextAtivacao,
   fetchAtivacaoPessoa,
   casaStatusLabel,
+  hydrateFormigasSectionDates,
   releaseAtivacaoClaim,
   saveAtivacao,
   searchAtivacaoPessoas,
@@ -37,16 +38,6 @@ import {
   type AtivacaoPessoa,
   type ContatoWhatsappStatus,
 } from '../lib/ativacao'
-
-function canEditSection(
-  ownerId: string | null | undefined,
-  userId: string | null | undefined,
-  canOverride: boolean,
-) {
-  if (!ownerId) return true
-  if (canOverride) return true
-  return Boolean(userId && ownerId === userId)
-}
 
 function waStatusLabel(status: ContatoWhatsappStatus) {
   if (status === 'sim') return 'Já acionada'
@@ -149,10 +140,10 @@ export function AtivacaoLancarPage() {
   const isFormActive = selected !== null
   const waUrl = buildWhatsAppUrl(selected?.telefone)
   const canOverride = hasRole(profile, 'admin') || hasRole(profile, 'diretoria')
-  const editWa = canEditSection(selected?.formigas_wa_by, profile?.id, canOverride)
-  const editCarros = canEditSection(selected?.formigas_carros_by, profile?.id, canOverride)
-  const editCasa = canEditSection(selected?.formigas_casa_by, profile?.id, canOverride)
-  const editLinks = canEditSection(selected?.formigas_links_by, profile?.id, canOverride)
+  const editWa = canEditFormigasSection(selected?.formigas_wa_by, profile?.id, canOverride)
+  const editCarros = canEditFormigasSection(selected?.formigas_carros_by, profile?.id, canOverride)
+  const editCasa = canEditFormigasSection(selected?.formigas_casa_by, profile?.id, canOverride)
+  const editLinks = canEditFormigasSection(selected?.formigas_links_by, profile?.id, canOverride)
   // Endereço opcional (sim/talvez): mostra campos, sem obrigar CEP/rua
   const showCasaAddr = casaStatus === 'sim' || casaStatus === 'talvez'
   const editCasaAddr = editCasa
@@ -277,6 +268,9 @@ export function AtivacaoLancarPage() {
     )
     setError(null)
     setOk(null)
+    void hydrateFormigasSectionDates(p).then((next) => {
+      setSelected((cur) => (cur?.id === next.id && cur.tipo === next.tipo ? { ...cur, ...next } : cur))
+    })
   }
 
   function resetForm() {
@@ -666,7 +660,7 @@ export function AtivacaoLancarPage() {
             )}
           </div>
 
-          <div className={`fl-block${isFormActive ? ' is-wa' : ''}`}>
+          <div className={`fl-block${isFormActive ? ' is-wa' : ''}${isFormActive && !editWa ? ' is-locked' : ''}`}>
             <div className="fl-block-top">
               <div className="fl-block-title">
                 <div className="fl-icon tone-wa is-brand">
@@ -693,18 +687,15 @@ export function AtivacaoLancarPage() {
                     Sem telefone na ficha não dá para marcar como acionada. Cadastre o número ou marque Sem WhatsApp.
                   </p>
                 )}
-                {!editWa && (
-                  <p className="fl-hint fl-lock-hint">
-                    Só a formiga que registrou este status pode alterá-lo.
-                  </p>
-                )}
-                {(selected.formigas_wa_by || selected.contato_whatsapp_status !== 'nao') && (
-                  <p className="fl-owner-line">
-                    {selected.formigas_wa_by
-                      ? `Registrado por ${selected.formigas_wa_by_nome?.trim() || 'Formiga'}`
-                      : 'Sem registro de autor'}
-                  </p>
-                )}
+                {selected.formigas_wa_by ? (
+                  <FormigasSectionLock
+                    ownerId={selected.formigas_wa_by}
+                    ownerNome={selected.formigas_wa_by_nome}
+                    at={selected.formigas_wa_em}
+                    userId={profile?.id}
+                    canOverride={canOverride}
+                  />
+                ) : null}
                 {waUrl ? (
                   <a
                     href={waUrl}
@@ -745,7 +736,7 @@ export function AtivacaoLancarPage() {
           </div>
 
           <div className="fl-grid-2">
-            <div className={`fl-block${isFormActive ? ' is-active' : ''}`}>
+            <div className={`fl-block${isFormActive ? ' is-active' : ''}${isFormActive && !editCarros ? ' is-locked' : ''}`}>
               <div className="fl-block-top">
                 <div className="fl-block-title">
                   <div className="fl-icon tone-blue"><Car size={20} /></div>
@@ -756,22 +747,15 @@ export function AtivacaoLancarPage() {
                   {(veiculoCarro ? carros : 0) + (veiculoMoto ? motos : 0) === 1 ? '' : 's'}
                 </span>
               </div>
-              {!editCarros && isFormActive && (
-                <p className="fl-hint fl-lock-hint">Só quem registrou os veículos pode alterar.</p>
-              )}
-              {isFormActive && selected && ownerCaption(
-                selected.formigas_carros_by,
-                selected.formigas_carros_by_nome,
-                selected.carros_adesivados > 0 || selected.motos_adesivadas > 0,
-              ) && (
-                <p className="fl-owner-line">
-                  {ownerCaption(
-                    selected.formigas_carros_by,
-                    selected.formigas_carros_by_nome,
-                    true,
-                  )}
-                </p>
-              )}
+              {isFormActive && selected?.formigas_carros_by ? (
+                <FormigasSectionLock
+                  ownerId={selected.formigas_carros_by}
+                  ownerNome={selected.formigas_carros_by_nome}
+                  at={selected.formigas_carros_em}
+                  userId={profile?.id}
+                  canOverride={canOverride}
+                />
+              ) : null}
               <label className="fl-label-sm">Tipo de veículo</label>
               <div className="fl-veiculo-tipos" role="group" aria-label="Tipo de veículo">
                 <button
@@ -896,7 +880,7 @@ export function AtivacaoLancarPage() {
               )}
             </div>
 
-            <div className={`fl-block${isFormActive ? ' is-active' : ''}`}>
+            <div className={`fl-block${isFormActive ? ' is-active' : ''}${isFormActive && !editCasa ? ' is-locked' : ''}`}>
               <div className="fl-block-top">
                 <div className="fl-block-title">
                   <div className="fl-icon tone-teal"><Home size={20} /></div>
@@ -906,22 +890,15 @@ export function AtivacaoLancarPage() {
                   {isFormActive ? casaStatusLabel(casaStatus) : 'Ainda não'}
                 </span>
               </div>
-              {!editCasa && isFormActive && (
-                <p className="fl-hint fl-lock-hint">Só quem registrou o adesivo pode alterar.</p>
-              )}
-              {isFormActive && selected && ownerCaption(
-                selected.formigas_casa_by,
-                selected.formigas_casa_by_nome,
-                casaStatus !== 'nao',
-              ) && (
-                <p className="fl-owner-line">
-                  {ownerCaption(
-                    selected.formigas_casa_by,
-                    selected.formigas_casa_by_nome,
-                    casaStatus !== 'nao',
-                  )}
-                </p>
-              )}
+              {isFormActive && selected?.formigas_casa_by ? (
+                <FormigasSectionLock
+                  ownerId={selected.formigas_casa_by}
+                  ownerNome={selected.formigas_casa_by_nome}
+                  at={selected.formigas_casa_em}
+                  userId={profile?.id}
+                  canOverride={canOverride}
+                />
+              ) : null}
               <label className="fl-label-sm">Confirmação de campo</label>
               <div className="fl-wa-segment fl-wa-segment-3">
                 <SegmentedControl
@@ -1012,7 +989,7 @@ export function AtivacaoLancarPage() {
             </div>
           </div>
 
-          <div className={`fl-block${isFormActive ? ' is-active' : ''}`}>
+          <div className={`fl-block${isFormActive ? ' is-active' : ''}${isFormActive && !editLinks ? ' is-locked' : ''}`}>
             <div className="fl-block-top">
               <div className="fl-block-title">
                 <div className="fl-icon tone-violet"><Link2 size={20} /></div>
@@ -1020,14 +997,15 @@ export function AtivacaoLancarPage() {
               </div>
               <span className="fl-pill">{links.length} postagem{links.length === 1 ? '' : 's'}</span>
             </div>
-            {!editLinks && isFormActive && (
-              <p className="fl-hint fl-lock-hint">Só quem registrou as postagens pode alterar os links.</p>
-            )}
-            {isFormActive && selected && ownerCaption(selected.formigas_links_by, selected.formigas_links_by_nome, links.length > 0) && (
-              <p className="fl-owner-line">
-                {ownerCaption(selected.formigas_links_by, selected.formigas_links_by_nome, links.length > 0)}
-              </p>
-            )}
+            {isFormActive && selected?.formigas_links_by ? (
+              <FormigasSectionLock
+                ownerId={selected.formigas_links_by}
+                ownerNome={selected.formigas_links_by_nome}
+                at={selected.formigas_links_em}
+                userId={profile?.id}
+                canOverride={canOverride}
+              />
+            ) : null}
             <p className="fl-hint">Cada link válido conta como 1 postagem.</p>
             <div className="fl-link-row">
               <input
