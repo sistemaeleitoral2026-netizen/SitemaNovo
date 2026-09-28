@@ -142,16 +142,15 @@ export function AtivacaoLancarPage() {
   const isFormActive = selected !== null
   const waUrl = buildWhatsAppUrl(selected?.telefone)
   const canOverride = hasRole(profile, 'admin') || hasRole(profile, 'diretoria')
-  const editWa = canEditFormigasSection(selected?.formigas_wa_by, profile?.id, canOverride)
-  const editCarros = canEditFormigasSection(selected?.formigas_carros_by, profile?.id, canOverride)
-  const editCasa = canEditFormigasSection(selected?.formigas_casa_by, profile?.id, canOverride)
-  const editLinks = canEditFormigasSection(selected?.formigas_links_by, profile?.id, canOverride)
+  const editWa = canEditFormigasSection()
+  const editCarros = canEditFormigasSection()
+  const editCasa = canEditFormigasSection()
+  const editLinks = canEditFormigasSection()
   // Endereço opcional (sim/talvez): mostra campos, sem obrigar CEP/rua
   const showCasaAddr = casaStatus === 'sim' || casaStatus === 'talvez'
   const editCasaAddr = editCasa
   const lockChipProps = {
     userId: profile?.id,
-    canOverride,
   }
 
   const isDirty = useMemo(() => {
@@ -304,10 +303,6 @@ export function AtivacaoLancarPage() {
   async function persistCurrent(): Promise<boolean> {
     if (!selected) return false
     if (skipSaveRef.current) return false
-    if (!editWa && !editCarros && !editCasa && !editLinks) {
-      setError('As partes já lançadas ficam com quem registrou. Busque a ficha e complete só o que ainda está livre.')
-      return false
-    }
     const nextCarros = veiculoCarro ? carros : 0
     const nextMotos = veiculoMoto ? motos : 0
     if (editCarros && (nextCarros > 0 || nextMotos > 0) && fotoVeiculoKeep.length + fotoVeiculoFiles.length < 1) {
@@ -607,7 +602,7 @@ export function AtivacaoLancarPage() {
         <div>
           <h1 className="fl-title">Lançar Formigas</h1>
           <p className="fl-subtitle">
-            Qualquer formiga busca qualquer ficha. Se o Jurandy já lançou a casa, o Henrique completa só o resto.
+            Qualquer formiga edita qualquer parte. O aviso mostra quem preencheu; ao salvar, o nome passa a ser o seu.
           </p>
         </div>
         <button type="button" className="fl-btn-secondary fl-btn-painel-desktop" onClick={() => navigate('/ativacao/painel')}>
@@ -714,7 +709,7 @@ export function AtivacaoLancarPage() {
             )}
           </div>
 
-          <div className={`fl-block${isFormActive ? ' is-wa' : ''}${isFormActive && !editWa ? ' is-locked' : ''}`}>
+          <div className={`fl-block${isFormActive ? ' is-wa' : ''}`}>
             <div className="fl-block-top">
               <div className="fl-block-title">
                 <div className="fl-icon tone-wa is-brand">
@@ -797,7 +792,7 @@ export function AtivacaoLancarPage() {
           </div>
 
           <div className="fl-grid-2">
-            <div className={`fl-block${isFormActive ? ' is-active' : ''}${isFormActive && !editCarros ? ' is-locked' : ''}`}>
+            <div className={`fl-block${isFormActive ? ' is-active' : ''}`}>
               <div className="fl-block-top">
                 <div className="fl-block-title">
                   <div className="fl-icon tone-blue"><Car size={20} /></div>
@@ -948,7 +943,7 @@ export function AtivacaoLancarPage() {
               )}
             </div>
 
-            <div className={`fl-block${isFormActive ? ' is-active' : ''}${isFormActive && !editCasa ? ' is-locked' : ''}`}>
+            <div className={`fl-block${isFormActive ? ' is-active' : ''}`}>
               <div className="fl-block-top">
                 <div className="fl-block-title">
                   <div className="fl-icon tone-teal"><Home size={20} /></div>
@@ -1064,7 +1059,7 @@ export function AtivacaoLancarPage() {
             </div>
           </div>
 
-          <div className={`fl-block${isFormActive ? ' is-active' : ''}${isFormActive && !editLinks ? ' is-locked' : ''}`}>
+          <div className={`fl-block${isFormActive ? ' is-active' : ''}`}>
             <div className="fl-block-top">
               <div className="fl-block-title">
                 <div className="fl-icon tone-violet"><Link2 size={20} /></div>
