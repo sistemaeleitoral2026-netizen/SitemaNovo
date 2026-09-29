@@ -14,7 +14,6 @@ import {
 import { WhatsAppLink } from './ui/WhatsAppLink'
 import { formatPhone } from '../lib/format'
 import { useAuth } from '../contexts/AuthContext'
-import { hasRole } from '../lib/roles'
 import { FormigasSectionLock } from './FormigasSectionLock'
 import {
   casaStatusLabel,
@@ -109,7 +108,6 @@ export function FormigasFichaPreviewModal({
   onClose: () => void
 }) {
   const { profile } = useAuth()
-  const canOverride = hasRole(profile, ['admin', 'diretoria'])
   const [ficha, setFicha] = useState(pessoa)
 
   useEffect(() => {
@@ -130,7 +128,6 @@ export function FormigasFichaPreviewModal({
     || ficha.adesivos_casa > 0
   const lockProps = {
     userId: profile?.id,
-    canOverride,
   }
 
   useEffect(() => {

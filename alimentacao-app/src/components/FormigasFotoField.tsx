@@ -129,7 +129,7 @@ export function FormigasFotoField({
               id={inputId}
               ref={inputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
+              accept="image/*,image/jpeg,image/png,image/webp,image/gif"
               multiple
               disabled={disabled}
               onChange={(e) => addFiles(e.target.files)}
