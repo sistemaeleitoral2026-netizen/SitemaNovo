@@ -83,6 +83,7 @@ const navGroups: NavGroup[] = [
       { to: '/equipe?tab=mobilizadores', label: 'Formigas', icon: Megaphone, roles: ['diretoria'] },
       { to: '/nerites', label: 'Nerites', icon: Users, roles: ['admin'] },
       { to: '/cadastros', label: 'Todos os cadastros', icon: ClipboardList, roles: ['admin', 'diretoria', 'operador'] },
+      { to: '/mapa', label: 'Mapa Eleitoral', icon: Map, roles: ['admin', 'diretoria'] },
       { to: '/meus-cadastros', label: 'Meus Cadastros', icon: ClipboardList, roles: ['operador'] },
       { to: '/cadastros/novo', label: 'Novo Cadastro', icon: UserPlus, roles: ['operador'] },
       { to: '/importar', label: 'Importar Planilha', icon: Upload, roles: ['operador'] },
@@ -140,7 +141,6 @@ const navGroups: NavGroup[] = [
     roles: ['admin', 'diretoria'],
     items: [
       { to: '/lideranca', label: 'Liderança', icon: ListChecks, roles: ['admin', 'diretoria'] },
-      { to: '/mapa', label: 'Mapa por zona', icon: Map, roles: ['admin', 'diretoria'] },
       { to: '/relatorios', label: 'Relatórios', icon: BarChart3, roles: ['admin', 'diretoria'] },
       { to: '/relatorios/fichas-txt', label: 'Relatório/Correção', icon: FileText, roles: ['admin', 'diretoria'] },
       { to: '/relatorios/backup', label: 'Backup', icon: Archive, roles: ['admin', 'diretoria'] },
