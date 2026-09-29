@@ -1517,6 +1517,18 @@ a.ranking-row:hover .ranking-person strong { color: #2459c4; }
 .rel-txt-table td,
 .rel-txt-table th { white-space: nowrap; }
 .rel-txt-table td:last-child { white-space: normal; }
+.rel-txt-falhas-table th {
+  font-size: .68rem;
+}
+.rel-txt-falhas-table td.rel-txt-motivo {
+  white-space: normal;
+  min-width: 11rem;
+  max-width: 18rem;
+  font-size: .78rem;
+  font-weight: 650;
+  color: #be123c;
+  line-height: 1.35;
+}
 .rel-txt-edit {
   display: inline-flex;
   align-items: center;
