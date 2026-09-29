@@ -107,14 +107,33 @@ async function fetchNomesPorIds(ids: string[]): Promise<Map<string, string>> {
   const map = new Map<string, string>()
   const unique = [...new Set(ids.filter(Boolean))]
   if (!unique.length) return map
+
   try {
-    const { data, error } = await supabase.from('profiles').select('id,nome').in('id', unique)
-    if (error || !data) return map
-    for (const p of data as { id: string; nome: string | null }[]) {
-      if (p.id) map.set(p.id, (p.nome || '').trim() || 'Formiga')
+    const { data: rpcData, error: rpcError } = await supabase.rpc('formigas_nomes', { p_ids: unique })
+    if (!rpcError && Array.isArray(rpcData)) {
+      for (const row of rpcData as { id: string; nome: string | null }[]) {
+        if (row.id) map.set(String(row.id), (row.nome || '').trim() || 'Formiga')
+      }
     }
   } catch {
-    /* RLS pode bloquear administrativo */
+    /* RPC pode não existir ainda */
+  }
+
+  const missing = unique.filter((id) => !map.has(id))
+  if (!missing.length) return map
+
+  try {
+    // PostgREST .in() quebra com listas enormes — fatia.
+    for (let i = 0; i < missing.length; i += 80) {
+      const chunk = missing.slice(i, i + 80)
+      const { data, error } = await supabase.from('profiles').select('id,nome').in('id', chunk)
+      if (error || !data) continue
+      for (const p of data as { id: string; nome: string | null }[]) {
+        if (p.id) map.set(p.id, (p.nome || '').trim() || 'Formiga')
+      }
+    }
+  } catch {
+    /* RLS pode bloquear — fica "Formiga" até aplicar formigas_nomes */
   }
   return map
 }
@@ -131,7 +150,7 @@ async function fetchFormigaNomes(): Promise<Map<string, string>> {
       if (p.id && p.nome) map.set(p.id, p.nome)
     }
   } catch {
-    /* RLS pode bloquear administrativo */
+    /* RLS pode bloquear administrativo / Aianka — nomes vêm dos IDs lançados */
   }
   return map
 }

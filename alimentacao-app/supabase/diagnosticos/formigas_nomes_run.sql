@@ -1,5 +1,5 @@
 -- Rode no SQL Editor do Supabase.
--- Libera o nome da formiga que preencheu cada parte bloqueada no Lançar.
+-- Libera o nome da formiga que preencheu cada parte + Dashboard WhatsApp da Aianka.
 
 create or replace function public.formigas_nomes(p_ids uuid[])
 returns table (id uuid, nome text)
@@ -12,7 +12,20 @@ as $$
   from public.profiles p
   where p.id = any (coalesce(p_ids, array[]::uuid[]))
     and auth.uid() is not null
-    and (public.is_mobilizador() or public.is_admin() or public.is_diretoria());
+    and (
+      public.is_mobilizador()
+      or public.is_admin()
+      or public.is_diretoria()
+      or public.is_administrativo()
+      or (
+        exists (
+          select 1
+          from public.profiles me
+          where me.id = auth.uid()
+            and lower(trim(coalesce(me.email, ''))) = 'aiankacecilia01@gmail.com'
+        )
+      )
+    );
 $$;
 
 revoke all on function public.formigas_nomes(uuid[]) from public;
