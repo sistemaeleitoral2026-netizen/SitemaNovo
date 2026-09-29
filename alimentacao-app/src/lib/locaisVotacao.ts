@@ -4,6 +4,8 @@ import type { Cadastro } from '../types'
 
 export type LocalVotacaoRef = {
   local: string
+  /** NR_LOCAL_VOTACAO_ORIGINAL — identifica o colégio dentro da zona */
+  nrLocal?: string
   bairro?: string
   endereco?: string
   municipio?: string
@@ -13,6 +15,7 @@ export type LocalVotacaoRef = {
 
 type CompactRow = {
   l: string
+  n?: string
   b?: string
   e?: string
   m?: string
@@ -26,6 +29,7 @@ let loadPromise: Promise<Map<string, LocalVotacaoRef>> | null = null
 function fromCompact(row: CompactRow): LocalVotacaoRef {
   return {
     local: row.l,
+    nrLocal: row.n,
     bairro: row.b,
     endereco: row.e,
     municipio: row.m,
@@ -77,8 +81,8 @@ export function lookupLocalVotacao(
 }
 
 /**
- * Preenche NM_LOCAL_VOTACAO_ORIGINAL (+ coords/bairro do TSE) quando a ficha
- * só tem zona/seção. Não persiste — só enriquece a visão do mapa.
+ * Enriquecimento só para o mapa: nome + coords oficiais do par zona|seção na planilha TSE.
+ * Par que não existe no TSE fica sem local (ficha inconsistente).
  */
 export function enrichCadastrosComLocalTse(
   cadastros: Cadastro[],
@@ -87,17 +91,35 @@ export function enrichCadastrosComLocalTse(
   if (!lookup.size) return cadastros
   return cadastros.map((c) => {
     const ref = lookupLocalVotacao(lookup, c.zona, c.secao)
-    if (!ref) return c
-    const hasLocal = Boolean((c.local_votacao ?? '').trim())
+    if (!ref) {
+      return {
+        ...c,
+        local_votacao: '',
+      }
+    }
     const hasBairro = Boolean((c.bairro ?? '').trim())
-    const hasCoords = c.lat != null && c.lng != null
-    if (hasLocal && hasBairro && hasCoords) return c
     return {
       ...c,
-      local_votacao: hasLocal ? c.local_votacao : ref.local,
+      local_votacao: ref.local,
       bairro: hasBairro ? c.bairro : (ref.bairro ?? c.bairro),
-      lat: hasCoords ? c.lat : (ref.lat ?? c.lat),
-      lng: hasCoords ? c.lng : (ref.lng ?? c.lng),
+      lat: ref.lat ?? c.lat,
+      lng: ref.lng ?? c.lng,
     }
   })
+}
+
+/** Conta fichas com zona+seção que não existem na planilha TSE. */
+export function countParesForaDoTse(
+  cadastros: Cadastro[],
+  lookup: Map<string, LocalVotacaoRef>,
+): number {
+  if (!lookup.size) return 0
+  let n = 0
+  for (const c of cadastros) {
+    const z = normalizeZona(c.zona)
+    const s = normalizeSecao(c.secao)
+    if (!z || !s) continue
+    if (!lookup.has(`${z}|${s}`)) n += 1
+  }
+  return n
 }

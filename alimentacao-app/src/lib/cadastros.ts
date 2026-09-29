@@ -4,6 +4,7 @@ import { coordsFromZona } from './geocode'
 import type { Cadastro, ImportExistingKeys, MapMarkerData, PeriodFilter } from '../types'
 import { digitsOnly, normalizeName, normalizeSecao, normalizeZona } from './normalize'
 import { sanitizeSearchTerm } from './search'
+import { lookupLocalVotacao, type LocalVotacaoRef } from './locaisVotacao'
 
 /** Garante strings vazias em vez de null (evita crash em .trim() na UI). */
 function sanitizeCadastro(row: Cadastro): Cadastro {
@@ -739,63 +740,89 @@ function offsetAroundZona(zonaLat: number, zonaLng: number, seed: string) {
 
 export type MapGroupBy = 'zona' | 'secao' | 'bairro'
 
+/** Mesma chave usada em buildMapMarkers — para filtrar fichas do local clicado. */
+export function cadastroMapGroupId(
+  c: Pick<Cadastro, 'zona' | 'secao' | 'bairro' | 'local_votacao'>,
+  groupBy: MapGroupBy,
+  locais?: Map<string, LocalVotacaoRef>,
+): string {
+  const zona = normalizeZona(c.zona) || (c.zona ?? '').trim()
+  const secao = normalizeSecao(c.secao) || (c.secao ?? '').trim()
+  const ref = locais?.size ? lookupLocalVotacao(locais, zona, secao) : null
+  const local = (ref?.local ?? (c.local_votacao ?? '').trim()).trim()
+  const bairro = (c.bairro ?? '').trim() || (ref?.bairro ?? '').trim()
+
+  if (groupBy === 'bairro') {
+    return bairro ? `bairro:${bairro.toLocaleLowerCase('pt-BR')}` : ''
+  }
+  if (groupBy === 'zona') {
+    return zona ? `zona:${zona}` : ''
+  }
+  if (!zona || !secao) return ''
+  if (ref) {
+    return ref.nrLocal
+      ? `local:${zona}|n${ref.nrLocal}`
+      : `local:${zona}|${local.toLocaleLowerCase('pt-BR')}`
+  }
+  return `fora:${zona}|${secao}`
+}
+
 /**
- * Agrupa marcadores por zona, seção/local ou bairro.
- * Em modo seção: junta fichas do mesmo NM_LOCAL_VOTACAO_ORIGINAL (mesmo colégio).
+ * Agrupa marcadores por zona, local de votação (TSE) ou bairro.
+ *
+ * Na planilha a verdade é o par zona|seção → um local (NR_LOCAL).
+ * Várias seções do mesmo colégio (mesmo NR_LOCAL na mesma zona) somam juntas.
+ * Par que não existe no TSE fica separado como "fora do TSE".
  */
 export function buildMapMarkers(
   cadastros: Cadastro[],
   groupBy: MapGroupBy = 'zona',
+  locais?: Map<string, LocalVotacaoRef>,
 ): MapMarkerData[] {
   const groups = new Map<string, {
+    id: string
     zona: string
     secao: string
+    secoes: Set<string>
     bairro: string
     local_votacao: string
     count: number
-    lats: number[]
-    lngs: number[]
+    tseLats: number[]
+    tseLngs: number[]
   }>()
 
   cadastros.forEach((c) => {
     const zona = normalizeZona(c.zona) || (c.zona ?? '').trim()
     const secao = normalizeSecao(c.secao) || (c.secao ?? '').trim()
-    const bairro = (c.bairro ?? '').trim()
-    const local = (c.local_votacao ?? '').trim()
-    if (groupBy === 'zona' && !zona) return
-    if (groupBy === 'secao' && (!zona || !secao)) return
-    if (groupBy === 'bairro' && !bairro) return
+    const ref = locais?.size ? lookupLocalVotacao(locais, zona, secao) : null
+    const local = (ref?.local ?? (c.local_votacao ?? '').trim()).trim()
+    const bairro = (c.bairro ?? '').trim() || (ref?.bairro ?? '').trim()
+    const id = cadastroMapGroupId(c, groupBy, locais)
+    if (!id) return
 
-    // Seção: preferir o local TSE — várias seções no mesmo colégio somam juntas
-    const key =
-      groupBy === 'secao'
-        ? (local
-          ? `local:${local.toLocaleLowerCase('pt-BR')}`
-          : `${zona}::${secao}`)
-        : groupBy === 'bairro'
-          ? bairro.toLocaleLowerCase('pt-BR')
-          : zona
-
-    const existing = groups.get(key)
+    const tseLat = ref?.lat
+    const tseLng = ref?.lng
+    const existing = groups.get(id)
     if (existing) {
       existing.count += 1
-      if (c.lat != null && c.lng != null) {
-        existing.lats.push(c.lat)
-        existing.lngs.push(c.lng)
+      if (secao) existing.secoes.add(secao)
+      if (tseLat != null && tseLng != null) {
+        existing.tseLats.push(tseLat)
+        existing.tseLngs.push(tseLng)
       }
-      if (!existing.secao && secao) existing.secao = secao
-      if (!existing.zona && zona) existing.zona = zona
       if (!existing.bairro && bairro) existing.bairro = bairro
       if (!existing.local_votacao && local) existing.local_votacao = local
     } else {
-      groups.set(key, {
+      groups.set(id, {
+        id,
         zona,
         secao,
+        secoes: new Set(secao ? [secao] : []),
         bairro,
-        local_votacao: local,
+        local_votacao: local || (ref ? '' : `Par fora do TSE · Z${zona} S${secao}`),
         count: 1,
-        lats: c.lat != null ? [c.lat] : [],
-        lngs: c.lng != null ? [c.lng] : [],
+        tseLats: tseLat != null ? [tseLat] : [],
+        tseLngs: tseLng != null ? [tseLng] : [],
       })
     }
   })
@@ -803,32 +830,40 @@ export function buildMapMarkers(
   return Array.from(groups.values())
     .map((g): MapMarkerData | null => {
       const fromZona = g.zona ? coordsFromZona(g.zona) : null
-      const avgLat = g.lats.length
-        ? g.lats.reduce((a, b) => a + b, 0) / g.lats.length
-        : null
-      const avgLng = g.lngs.length
-        ? g.lngs.reduce((a, b) => a + b, 0) / g.lngs.length
-        : null
+      const secoes = [...g.secoes].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }))
 
-      let lat = avgLat ?? fromZona?.lat ?? null
-      let lng = avgLng ?? fromZona?.lng ?? null
-      if (lat == null || lng == null) return null
-
-      // Só espalha quando não há coordenada real (ficha ou TSE)
-      if ((groupBy === 'secao' || groupBy === 'bairro') && fromZona && avgLat == null) {
-        const seed = groupBy === 'secao' ? (g.local_votacao || g.secao) : g.bairro
-        if (seed) {
-          const off = offsetAroundZona(fromZona.lat, fromZona.lng, seed)
-          lat = off.lat
-          lng = off.lng
+      let lat: number | null = null
+      let lng: number | null = null
+      if (g.tseLats.length && g.tseLngs.length) {
+        const mid = Math.floor(g.tseLats.length / 2)
+        lat = [...g.tseLats].sort((a, b) => a - b)[mid]
+        lng = [...g.tseLngs].sort((a, b) => a - b)[mid]
+      } else if (fromZona) {
+        if (groupBy === 'secao' || groupBy === 'bairro') {
+          const seed = groupBy === 'secao' ? (g.local_votacao || g.secao) : g.bairro
+          if (seed) {
+            const off = offsetAroundZona(fromZona.lat, fromZona.lng, seed)
+            lat = off.lat
+            lng = off.lng
+          } else {
+            lat = fromZona.lat
+            lng = fromZona.lng
+          }
+        } else {
+          lat = fromZona.lat
+          lng = fromZona.lng
         }
       }
 
+      if (lat == null || lng == null) return null
+
       return {
+        id: g.id,
         lat,
         lng,
         zona: g.zona,
-        secao: g.secao,
+        secao: secoes[0] || g.secao,
+        secoes,
         bairro: g.bairro || undefined,
         local_votacao: g.local_votacao || undefined,
         count: g.count,

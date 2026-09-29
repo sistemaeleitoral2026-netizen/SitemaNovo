@@ -1,5 +1,5 @@
 /**
- * Gera lookup compacto zona|seção → NM_LOCAL_VOTACAO_ORIGINAL
+ * Gera lookup compacto zona|seção → NM_LOCAL_VOTACAO_ORIGINAL + coords + nº do local
  * a partir do CSV oficial TSE eleitorado_local_votacao_2026_MA.csv
  */
 const fs = require('fs')
@@ -33,7 +33,6 @@ function parseLatLng(v) {
   return Number.isFinite(n) ? n : null
 }
 
-// TSE exports this file in Windows-1252 / Latin-1
 const raw = fs.readFileSync(csvPath, 'latin1')
 const lines = raw.split(/\r?\n/).filter(Boolean)
 const header = lines[0].split(';').map(stripQuotes)
@@ -52,6 +51,7 @@ for (let i = 1; i < lines.length; i++) {
     (p[idx.NM_LOCAL_VOTACAO_ORIGINAL] || p[idx.NM_LOCAL_VOTACAO] || '').trim().replace(/\s+/g, ' ')
   if (!local) continue
 
+  const nrLocal = String(p[idx.NR_LOCAL_VOTACAO_ORIGINAL] || p[idx.NR_LOCAL_VOTACAO] || '').replace(/\D/g, '')
   const bairro = (p[idx.NM_BAIRRO] || '').trim().replace(/\s+/g, ' ')
   const endereco = (p[idx.DS_ENDERECO_LOCVT_ORIGINAL] || p[idx.DS_ENDERECO] || '').trim().replace(/\s+/g, ' ')
   const municipio = (p[idx.NM_MUNICIPIO] || '').trim().replace(/\s+/g, ' ')
@@ -63,8 +63,8 @@ for (let i = 1; i < lines.length; i++) {
   const prev = byKey.get(key)
   if (prev && situ !== 'ATIVO') continue
 
-  // Compacto: só campos usados no mapa/ranking
   const row = { l: local }
+  if (nrLocal) row.n = nrLocal
   if (bairro) row.b = bairro
   if (endereco) row.e = endereco
   if (municipio) row.m = municipio
@@ -92,5 +92,4 @@ fs.writeFileSync(
 const gz = zlib.gzipSync(Buffer.from(json))
 console.log('keys', byKey.size)
 console.log('json bytes', Buffer.byteLength(json), 'gzip ~', gz.length)
-console.log('top municipios', topMun)
-console.log('sample SL zona 001', byKey.get('001|0635'))
+console.log('sample', byKey.get('001|0635'))

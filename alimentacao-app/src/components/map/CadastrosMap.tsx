@@ -10,7 +10,7 @@ const MA_BOUNDS: L.LatLngBoundsExpression = [[-1.05, -48.9], [-10.35, -41.65]]
 interface CadastrosMapProps {
   markers: MapMarkerData[]
   height?: number
-  focus?: { lat: number; lng: number } | null
+  focus?: { lat: number; lng: number; id?: string; nonce?: number } | null
   resetKey?: number
   showLegend?: boolean
   layerMode?: 'markers' | 'density'
@@ -20,6 +20,8 @@ interface CadastrosMapProps {
   compact?: boolean
   /** Enquadra só os centros dos marcadores (melhor no dashboard; evita oceano vazio). */
   fitToMarkers?: boolean
+  /** Clique na bola / mancha — abre lista de fichas do local */
+  onMarkerSelect?: (marker: MapMarkerData) => void
 }
 
 function zoneStyle(count: number, maxCount: number) {
@@ -142,10 +144,12 @@ export function CadastrosMap({
   groupMode = 'zona',
   compact = false,
   fitToMarkers = false,
+  onMarkerSelect,
 }: CadastrosMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
   const overlayRef = useRef<L.LayerGroup | null>(null)
+  const markerByIdRef = useRef<Map<string, L.CircleMarker>>(new Map())
 
   useEffect(() => {
     const el = containerRef.current
@@ -186,6 +190,7 @@ export function CadastrosMap({
     if (!map || !overlay) return
 
     overlay.clearLayers()
+    markerByIdRef.current.clear()
 
     if (!markers.length) {
       whenMapReady(map, () => map.fitBounds(MA_BOUNDS))
@@ -196,7 +201,7 @@ export function CadastrosMap({
     const allBounds: L.LatLngExpression[] = []
 
     if (groupMode === 'secao' || groupMode === 'bairro') {
-      markers.forEach((m) => {
+      markers.forEach((m, idx) => {
         const colors = zoneStyle(m.count, maxCount)
         const intensity = Math.sqrt(m.count / maxCount)
         const baseR = compact ? 5 : 7
@@ -208,8 +213,13 @@ export function CadastrosMap({
         const metaBits = [
           m.zona ? `Zona <b>${m.zona}</b>` : null,
           groupMode === 'bairro' && m.secao ? `Seção <b>${m.secao}</b>` : null,
-          groupMode === 'secao' && m.secao ? `Seção <b>${m.secao}</b>` : null,
+          groupMode === 'secao' && (m.secoes?.length || m.secao)
+            ? (m.secoes && m.secoes.length > 1
+              ? `<b>${m.secoes.length} seções</b>: ${m.secoes.slice(0, 8).join(', ')}${m.secoes.length > 8 ? '…' : ''}`
+              : `Seção <b>${m.secoes?.[0] || m.secao}</b>`)
+            : null,
           groupMode === 'secao' && m.bairro ? `Bairro <b>${m.bairro}</b>` : null,
+          groupMode === 'secao' && m.id?.startsWith('fora:') ? `<span style="color:#b91c1c">Par zona+seção fora da planilha TSE</span>` : null,
         ].filter(Boolean).join(' · ')
         const popupHtml = `
           <div class="cm-popup">
@@ -238,7 +248,12 @@ export function CadastrosMap({
           fillOpacity: 0.82 + intensity * 0.14,
         })
         circle.bindPopup(popupHtml, { className: 'cm-popup-wrap', maxWidth: m.local_votacao ? 280 : 220 })
+        if (onMarkerSelect) {
+          circle.on('click', () => onMarkerSelect(m))
+        }
         overlay.addLayer(circle)
+        const mid = m.id || `${groupMode}:${idx}:${m.zona}:${m.secao}:${m.bairro || ''}`
+        markerByIdRef.current.set(mid, circle)
         allBounds.push([m.lat, m.lng])
 
         if (layerMode === 'markers' && !compact) {
@@ -291,6 +306,7 @@ export function CadastrosMap({
             },
           )
           polygon.bindPopup(popupHtml)
+          if (onMarkerSelect) polygon.on('click', () => onMarkerSelect(m))
           overlay.addLayer(polygon)
           hull.forEach((p) => allBounds.push([p.lat, p.lng]))
         } else {
@@ -303,6 +319,7 @@ export function CadastrosMap({
             fillOpacity,
           })
           circle.bindPopup(popupHtml)
+          if (onMarkerSelect) circle.on('click', () => onMarkerSelect(m))
           overlay.addLayer(circle)
           allBounds.push([m.lat, m.lng])
         }
@@ -337,6 +354,7 @@ export function CadastrosMap({
             fillOpacity: 0.95,
           })
           marker.bindPopup(popupHtml)
+          if (onMarkerSelect) marker.on('click', () => onMarkerSelect(m))
           overlay.addLayer(marker)
         }
       })
@@ -378,15 +396,27 @@ export function CadastrosMap({
       cancelled = true
       cancelFit?.()
     }
-  }, [markers, layerMode, groupMode, compact, fitToMarkers])
+  }, [markers, layerMode, groupMode, compact, fitToMarkers, onMarkerSelect])
 
   useEffect(() => {
     const map = mapRef.current
     if (!map || !focus) return
     whenMapReady(map, () => {
-      map.flyTo([focus.lat, focus.lng], 13, { duration: 0.55 })
+      const zoom = groupMode === 'zona' ? 13 : 17
+      map.flyTo([focus.lat, focus.lng], zoom, { duration: 0.55 })
+      const target = focus.id ? markerByIdRef.current.get(focus.id) : null
+      if (target) {
+        window.setTimeout(() => {
+          if (!mapAlive(map)) return
+          try {
+            target.openPopup()
+          } catch {
+            /* ignore */
+          }
+        }, 580)
+      }
     })
-  }, [focus])
+  }, [focus, groupMode])
 
   useEffect(() => {
     const map = mapRef.current
