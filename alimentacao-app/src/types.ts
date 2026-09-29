@@ -259,8 +259,12 @@ export interface MapMarkerData {
   lng: number
   zona: string
   secao: string
+  /** Todas as seções deste local (par zona+seção da planilha) */
+  secoes?: string[]
   bairro?: string
   local_votacao?: string
+  /** Chave estável para foco/ranking (ex.: local:001|2526) */
+  id?: string
   count: number
   cep?: string
 }
