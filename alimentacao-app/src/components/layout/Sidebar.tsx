@@ -112,7 +112,7 @@ const navGroups: NavGroup[] = [
     items: [
       {
         to: '/formigas/whatsapp',
-        label: 'WhatsApp',
+        label: 'Dashboard',
         icon: MessageCircle,
         roles: ['administrativo'],
         emails: FORMIGAS_WHATSAPP_EMAILS,
@@ -183,6 +183,16 @@ function canSeeByEmail(emails: string[] | undefined, email: string) {
   return emails.includes(email)
 }
 
+/** Item/grupo com lista de e-mails: só esses e-mails veem (qualquer cargo). Sem lista: só por role. */
+function canSeeNav(
+  entry: { roles: UserRole[]; emails?: string[] },
+  roles: UserRole[],
+  email: string,
+) {
+  if (entry.emails?.length) return canSeeByEmail(entry.emails, email)
+  return intersects(entry.roles, roles)
+}
+
 export function Sidebar({ roles = [], email, open, onClose }: SidebarProps) {
   const location = useLocation()
   const [abertas, setAbertas] = useState(0)
@@ -218,16 +228,9 @@ export function Sidebar({ roles = [], email, open, onClose }: SidebarProps) {
   const groups = navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter(
-        (item) => intersects(item.roles, safeRoles) && canSeeByEmail(item.emails, safeEmail),
-      ),
+      items: group.items.filter((item) => canSeeNav(item, safeRoles, safeEmail)),
     }))
-    .filter(
-      (group) =>
-        intersects(group.roles, safeRoles)
-        && canSeeByEmail(group.emails, safeEmail)
-        && group.items.length > 0,
-    )
+    .filter((group) => canSeeNav(group, safeRoles, safeEmail) && group.items.length > 0)
 
   const primaryHint = safeRoles.includes('administrativo') && !safeRoles.includes('admin') && !safeRoles.includes('diretoria')
     ? 'Registro e acompanhamento de demandas'
