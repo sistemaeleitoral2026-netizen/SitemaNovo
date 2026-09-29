@@ -90,7 +90,7 @@ function ProgressoSubida({ info }: { info: ProgressoCorrecao }) {
       {info.nome ? <p className="rel-txt-progress-nome">{info.nome}</p> : null}
       {info.etapa === 'subindo' || info.etapa === 'gravando' || info.etapa === 'concluido' ? (
         <p className="rel-txt-progress-meta">
-          Corrigidas {info.aplicadas} · Sem mudança {info.inalteradas} · Falhas {info.falhas}
+          Corrigidas {info.aplicadas} · Sem mudança {info.inalteradas} · Já feitas {info.duplicadas} · Falhas {info.falhas}
         </p>
       ) : null}
     </div>
@@ -222,6 +222,7 @@ export function RelatorioFichasTxtPage() {
   }, [diretoriaId])
 
   const falhaLines = useMemo(() => saved.filter((l) => l.status === 'erro'), [saved])
+  const ajustadosLines = useMemo(() => saved.filter((l) => l.status === 'ok'), [saved])
   const blockedKeys = useMemo(() => {
     const keys = new Set<string>()
     for (const line of saved) {
@@ -354,12 +355,19 @@ export function RelatorioFichasTxtPage() {
       aplicadas: 0,
       inalteradas: 0,
       falhas: 0,
+      duplicadas: 0,
     })
     try {
       const next = await previsualizarCorrecoesTxt(correcaoDraft, diretoriaId)
       setPreviews(next)
-      setCanceladas(new Set())
-      setMessage(`Conferência: ${next.length} ficha(s). Cancele as que não quiser aplicar.`)
+      setCanceladas(new Set(next.filter((item) => item.status === 'ja_feita').map((item) => item.key)))
+      const jaFeitas = next.filter((item) => item.status === 'ja_feita').length
+      const prontas = next.filter((item) => item.status === 'aplicar').length
+      setMessage(
+        jaFeitas
+          ? `Conferência: ${next.length} ficha(s). ${prontas} novas · ${jaFeitas} já corrigida(s) (não sobem).`
+          : `Conferência: ${next.length} ficha(s). Cancele as que não quiser aplicar.`,
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível montar as fichas.')
     } finally {
@@ -392,9 +400,20 @@ export function RelatorioFichasTxtPage() {
       await handleConferir()
       return
     }
-    const selecionadas = new Set(previews.filter((item) => !canceladas.has(item.key)).map((item) => item.key))
+    const selecionadas = new Set(
+      previews
+        .filter((item) => !canceladas.has(item.key) && item.status !== 'ja_feita')
+        .map((item) => item.key),
+    )
     if (!selecionadas.size) {
-      setError('Todas as fichas foram canceladas. Deixe pelo menos uma ou cole de novo.')
+      const soDuplicadas = previews.every(
+        (item) => canceladas.has(item.key) || item.status === 'ja_feita' || item.status === 'inalterada',
+      )
+      setError(
+        soDuplicadas
+          ? 'Nada novo para subir — essas fichas já foram corrigidas ou não mudam.'
+          : 'Todas as fichas foram canceladas. Deixe pelo menos uma ou cole de novo.',
+      )
       return
     }
     if (selecionadas.size > RELATORIO_TXT_LIMITE) {
@@ -410,6 +429,7 @@ export function RelatorioFichasTxtPage() {
       aplicadas: 0,
       inalteradas: 0,
       falhas: 0,
+      duplicadas: 0,
     })
     try {
       const result = await aplicarCorrecoesTxt(
@@ -425,7 +445,7 @@ export function RelatorioFichasTxtPage() {
       setCanceladas(new Set())
       setTab(result.falhas.length ? 'falhas' : 'correcoes')
       setMessage(
-        `Corrigidas ${result.aplicadas}. Sem mudança ${result.inalteradas}. Falhas ${result.falhas.length}.`,
+        `Corrigidas ${result.aplicadas}. Sem mudança ${result.inalteradas}. Já feitas ${result.duplicadas}. Falhas ${result.falhas.length}.`,
       )
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível aplicar as correções.')
@@ -455,6 +475,7 @@ export function RelatorioFichasTxtPage() {
       aplicadas: 0,
       inalteradas: 0,
       falhas: falhaCount,
+      duplicadas: 0,
     })
     try {
       const n = await saveFalhasTxt(falhaDraft, profile?.id ?? null)
@@ -506,6 +527,7 @@ export function RelatorioFichasTxtPage() {
           onClick={() => setTab('correcoes')}
         >
           <Wrench size={15} /> Correções
+          <em>{ajustadosLines.length}</em>
         </button>
         <button
           type="button"
@@ -527,6 +549,10 @@ export function RelatorioFichasTxtPage() {
         <div className="rel-txt-stat">
           <span>Disponíveis p/ gerar</span>
           <strong>{elegiveis.length.toLocaleString('pt-BR')}</strong>
+        </div>
+        <div className="rel-txt-stat is-ok">
+          <span>Já ajustados</span>
+          <strong>{ajustadosLines.length.toLocaleString('pt-BR')}</strong>
         </div>
         <div className="rel-txt-stat">
           <span>Falhas</span>
@@ -584,7 +610,7 @@ export function RelatorioFichasTxtPage() {
         <>
           <Card
             title="Colar correções"
-            subtitle={`Cole o retorno do outro app. Conferência e gravação: no máximo ${RELATORIO_TXT_LIMITE} linhas por vez.`}
+            subtitle={`Cole o retorno do outro app. O que já foi corrigido no sistema não sobe de novo. Máximo ${RELATORIO_TXT_LIMITE} linhas por vez.`}
             action={(
               <div className="rel-prev-actions">
                 <Button size="sm" type="button" variant="secondary" loading={previewing} disabled={previewing || saving || correcaoAcima} onClick={() => void handleConferir()}>
@@ -735,16 +761,17 @@ function PreviewFichas({
   canceladas: Set<string>
   onToggle: (key: string) => void
 }) {
-  const ativas = items.filter((item) => !canceladas.has(item.key))
+  const ativas = items.filter((item) => !canceladas.has(item.key) && item.status !== 'ja_feita')
   const prontas = ativas.filter((item) => item.status === 'aplicar').length
+  const jaFeitas = items.filter((item) => item.status === 'ja_feita').length
   return (
     <Card
       title={`Fichas conferidas (${items.length})`}
-      subtitle={`${prontas} prontas para gravar. ${canceladas.size} cancelada(s). O que estiver amarelo é o que muda.`}
+      subtitle={`${prontas} prontas para gravar · ${jaFeitas} já corrigida(s) · ${canceladas.size} cancelada(s). O amarelo é o que muda.`}
     >
       <div className="rel-prev-list">
         {items.map((item, index) => {
-          const off = canceladas.has(item.key)
+          const off = canceladas.has(item.key) || item.status === 'ja_feita'
           const changed = new Set(
             FICHA_CAMPOS
               .map((campo) => campo.key)
@@ -753,7 +780,7 @@ function PreviewFichas({
           return (
             <article
               key={item.key}
-              className={`rel-prev-card${off ? ' is-off' : ''}${item.status === 'falha' ? ' is-fail' : ''}`}
+              className={`rel-prev-card${off ? ' is-off' : ''}${item.status === 'falha' ? ' is-fail' : ''}${item.status === 'ja_feita' ? ' is-dup' : ''}`}
             >
               <header className="rel-prev-top">
                 <div>
@@ -763,13 +790,22 @@ function PreviewFichas({
                     <small>{[item.extra.coordenador, item.extra.lider].filter(Boolean).join(' · ')}</small>
                   ) : null}
                   {item.status === 'inalterada' ? <span className="rel-prev-tag">Sem mudança</span> : null}
+                  {item.status === 'ja_feita' ? (
+                    <span className="rel-prev-tag is-dup">Já corrigida — não sobe</span>
+                  ) : null}
                   {item.status === 'falha' ? <span className="rel-prev-tag is-bad">{item.motivo || 'Não aplica'}</span> : null}
-                  {off ? <span className="rel-prev-tag">Cancelada</span> : null}
+                  {canceladas.has(item.key) && item.status !== 'ja_feita' ? (
+                    <span className="rel-prev-tag">Cancelada</span>
+                  ) : null}
                 </div>
-                <button type="button" className="rel-prev-cancel" onClick={() => onToggle(item.key)}>
-                  {off ? <RotateCcw size={15} /> : <X size={15} />}
-                  {off ? 'Voltar' : 'Cancelar esta'}
-                </button>
+                {item.status === 'ja_feita' ? (
+                  <span className="rel-prev-locked">Protegida</span>
+                ) : (
+                  <button type="button" className="rel-prev-cancel" onClick={() => onToggle(item.key)}>
+                    {canceladas.has(item.key) ? <RotateCcw size={15} /> : <X size={15} />}
+                    {canceladas.has(item.key) ? 'Voltar' : 'Cancelar esta'}
+                  </button>
+                )}
               </header>
               <div className="rel-prev-cols">
                 <FichaMontada
