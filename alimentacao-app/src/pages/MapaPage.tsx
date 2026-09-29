@@ -208,9 +208,6 @@ export function MapaPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Mapa Eleitoral</h1>
-          <p className="page-subtitle">
-            Seção, bairro e zona — com o nome e a coordenada do local na planilha TSE (NM_LOCAL_VOTACAO_ORIGINAL).
-          </p>
         </div>
       </div>
 
