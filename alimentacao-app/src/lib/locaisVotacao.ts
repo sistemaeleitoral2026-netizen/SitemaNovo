@@ -23,18 +23,46 @@ type CompactRow = {
   ln?: number
 }
 
+/**
+ * Correções manuais: TSE às vezes joga o ponto na beira d'água / mangue.
+ * Chave = NR_LOCAL_VOTACAO_ORIGINAL.
+ */
+const COORD_OVERRIDES: Record<string, { lat: number; lng: number }> = {
+  // UEB Cidade Olímpica (Azulão) — Av. 29 de Dezembro, Cidade Olímpica
+  '1325': { lat: -2.5928, lng: -44.1885 },
+}
+
 let cache: Map<string, LocalVotacaoRef> | null = null
 let loadPromise: Promise<Map<string, LocalVotacaoRef>> | null = null
 
+/** Garante lat/lng no Maranhão (corrige troca e pontos absurdos). */
+function sanitizeMaCoords(lat?: number, lng?: number): { lat?: number; lng?: number } {
+  if (lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return {}
+  }
+  let la = lat
+  let ln = lng
+  // TSE às vezes inverte: latitude com magnitude de longitude
+  if (Math.abs(la) > 20 && Math.abs(ln) < 15) {
+    const t = la
+    la = ln
+    ln = t
+  }
+  if (la < -12 || la > 1 || ln < -50 || ln > -40) return {}
+  return { lat: la, lng: ln }
+}
+
 function fromCompact(row: CompactRow): LocalVotacaoRef {
+  const override = row.n ? COORD_OVERRIDES[row.n] : undefined
+  const raw = sanitizeMaCoords(override?.lat ?? row.la, override?.lng ?? row.ln)
   return {
     local: row.l,
     nrLocal: row.n,
     bairro: row.b,
     endereco: row.e,
     municipio: row.m,
-    lat: row.la,
-    lng: row.ln,
+    lat: raw.lat,
+    lng: raw.lng,
   }
 }
 
@@ -52,6 +80,10 @@ export async function loadLocaisVotacaoMa(): Promise<Map<string, LocalVotacaoRef
   loadPromise = (async () => {
     const res = await fetch(LOCAIS_VOTACAO_MA_URL)
     if (!res.ok) throw new Error('Não foi possível carregar os locais de votação do TSE.')
+    const ct = (res.headers.get('content-type') || '').toLowerCase()
+    if (ct.includes('text/html')) {
+      throw new Error('Arquivo de locais TSE não encontrado (HTML no lugar do JSON).')
+    }
     const raw = (await res.json()) as Record<string, CompactRow>
     const map = new Map<string, LocalVotacaoRef>()
     for (const [key, row] of Object.entries(raw)) {
