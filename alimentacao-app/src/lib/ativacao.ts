@@ -423,19 +423,39 @@ export type AtivacaoSaveInput = {
   /** Novos arquivos a enviar */
   foto_veiculo_files?: File[]
   foto_casa_files?: File[]
-  /** Admin/diretoria podem sobrescrever seção já lançada por outra formiga. */
+  /**
+   * Seções liberadas no UI após confirmação do cadeado.
+   * Sem isso, seção de outra formiga NÃO é gravada (só a própria ou vazia).
+   */
+  unlocked?: {
+    wa?: boolean
+    carros?: boolean
+    casa?: boolean
+    links?: boolean
+  }
+  /** @deprecated use unlocked — se true, libera todas as seções */
   canOverride?: boolean
   /** Grava só os links, sem mexer nas outras partes da ficha. */
   onlySections?: 'links'
 }
 
-/** Qualquer formiga pode editar qualquer parte; o banco grava o nome de quem salvou. */
+/** Só grava seção se vazia, for sua, ou liberada após confirmação. */
 function canTouchFormigasSection(
-  _ownerId: string | null | undefined,
-  _userId: string,
-  _canOverride: boolean,
+  ownerId: string | null | undefined,
+  userId: string,
+  sectionUnlocked: boolean,
 ) {
-  return true
+  if (!ownerId) return true
+  if (ownerId === userId) return true
+  return sectionUnlocked
+}
+
+export function formatFormigasSaveError(raw: string): string {
+  const msg = (raw || '').trim()
+  if (/só a formiga|somente a formiga|não pode alterar|nao pode alterar/i.test(msg)) {
+    return 'Esta parte ainda está protegida no servidor. Confirme o cadeado, altere de verdade e salve de novo. Se continuar, peçam para rodar o SQL de edição livre.'
+  }
+  return msg || 'Não foi possível salvar. Tente de novo.'
 }
 
 async function uploadFormigasFoto(
@@ -742,13 +762,35 @@ export async function saveAtivacao(
   const userId = session?.user?.id
   if (!userId) return { error: 'Sessão expirada. Entre novamente.' }
 
-  const canOverride = Boolean(input.canOverride)
-  const editWa = canTouchFormigasSection(previous?.formigas_wa_by, userId, canOverride)
-  const editCarros = canTouchFormigasSection(previous?.formigas_carros_by, userId, canOverride)
-  const editCasa = canTouchFormigasSection(previous?.formigas_casa_by, userId, canOverride)
-  const editLinks = canTouchFormigasSection(previous?.formigas_links_by, userId, canOverride)
+  const canOverrideAll = Boolean(input.canOverride)
+  const unlocked = input.unlocked ?? {}
+  const editWa = canTouchFormigasSection(
+    previous?.formigas_wa_by,
+    userId,
+    canOverrideAll || Boolean(unlocked.wa),
+  )
+  const editCarros = canTouchFormigasSection(
+    previous?.formigas_carros_by,
+    userId,
+    canOverrideAll || Boolean(unlocked.carros),
+  )
+  const editCasa = canTouchFormigasSection(
+    previous?.formigas_casa_by,
+    userId,
+    canOverrideAll || Boolean(unlocked.casa),
+  )
+  const editLinks = canTouchFormigasSection(
+    previous?.formigas_links_by,
+    userId,
+    canOverrideAll || Boolean(unlocked.links),
+  )
 
   if (input.onlySections === 'links') {
+    if (!editLinks) {
+      return {
+        error: 'Links protegidos: confirme o cadeado (“Você realmente quer editar?”), altere o link e salve.',
+      }
+    }
     const table = tipo === 'eleitor' ? 'cadastros' : tipo === 'lideranca' ? 'lideres' : 'coordenadores'
     const payload = {
       postagem_links: links,
@@ -756,7 +798,7 @@ export async function saveAtivacao(
       ativacao_em: previous?.ativacao_em ?? (links.length > 0 ? new Date().toISOString() : null),
     }
     const { data: updated, error } = await supabase.from(table).update(payload).eq('id', id).select('id').maybeSingle()
-    if (error) return { error: error.message }
+    if (error) return { error: formatFormigasSaveError(error.message) }
     if (!updated) {
       return { error: 'O registro não foi atualizado. Recarregue a ficha e tente novamente.' }
     }
@@ -830,7 +872,8 @@ export async function saveAtivacao(
   }
 
   if (editCarros && !(carros > 0 || motos > 0)) foto_veiculo_paths = []
-  if (editCasa && casaStatus !== 'sim') foto_casa_paths = []
+  // Mantém fotos em sim e talvez; só limpa quando marcar "Não possui"
+  if (editCasa && casaStatus === 'nao') foto_casa_paths = []
 
   const payload: Record<string, unknown> = {
     ativacao_notas: notas,
@@ -908,7 +951,7 @@ export async function saveAtivacao(
   const { data: updated, error } = await supabase.from(table).update(payload).eq('id', id).select('id').maybeSingle()
   if (error) {
     if (uploaded.length) void supabase.storage.from(FORMIGAS_FOTOS_BUCKET).remove(uploaded)
-    return { error: error.message }
+    return { error: formatFormigasSaveError(error.message) }
   }
   if (!updated) {
     if (uploaded.length) void supabase.storage.from(FORMIGAS_FOTOS_BUCKET).remove(uploaded)

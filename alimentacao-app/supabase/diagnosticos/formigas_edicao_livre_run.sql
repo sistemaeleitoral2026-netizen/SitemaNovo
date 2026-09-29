@@ -1,6 +1,6 @@
 -- Rode no SQL Editor do Supabase.
--- Qualquer formiga pode editar qualquer parte.
--- Ao alterar, o nome/data passam a ser de quem editou agora.
+-- Qualquer formiga pode editar qualquer parte (com confirmação no app).
+-- Ao alterar (status, fotos, links…), o nome/data passam a ser de quem editou agora.
 
 create or replace function public.enforce_formigas_section_owners()
 returns trigger
@@ -48,9 +48,10 @@ begin
     new.formigas_wa_em := old.formigas_wa_em;
   end if;
 
-  -- Veículos (carro e moto)
+  -- Veículos (quantidade ou fotos)
   if coalesce(old.carros_adesivados, 0) is distinct from coalesce(new.carros_adesivados, 0)
-     or coalesce(old.motos_adesivadas, 0) is distinct from coalesce(new.motos_adesivadas, 0) then
+     or coalesce(old.motos_adesivadas, 0) is distinct from coalesce(new.motos_adesivadas, 0)
+     or coalesce(old.foto_veiculo_paths, '{}'::text[]) is distinct from coalesce(new.foto_veiculo_paths, '{}'::text[]) then
     if coalesce(new.carros_adesivados, 0) > 0 or coalesce(new.motos_adesivadas, 0) > 0 then
       new.formigas_carros_by := v_uid;
       new.formigas_carros_em := now();
@@ -63,9 +64,10 @@ begin
     new.formigas_carros_em := old.formigas_carros_em;
   end if;
 
-  -- Adesivo residencial
+  -- Adesivo residencial (status, quantidade ou fotos)
   if v_old_casa is distinct from v_new_casa
-     or coalesce(old.adesivos_casa, 0) is distinct from coalesce(new.adesivos_casa, 0) then
+     or coalesce(old.adesivos_casa, 0) is distinct from coalesce(new.adesivos_casa, 0)
+     or coalesce(old.foto_casa_paths, '{}'::text[]) is distinct from coalesce(new.foto_casa_paths, '{}'::text[]) then
     if v_new_casa in ('sim', 'talvez') or coalesce(new.adesivos_casa, 0) > 0 then
       new.formigas_casa_by := v_uid;
       new.formigas_casa_em := now();
