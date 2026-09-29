@@ -1528,6 +1528,29 @@ a.ranking-row:hover .ranking-person strong { color: #2459c4; }
   border-bottom-color: transparent;
 }
 .me-rank-btn + .me-rank-btn { border-top: 1px solid #f1f5f9; }
+.me-rank-btn.is-focus {
+  background: #eff6ff;
+}
+.me-rank-btn.is-focus .me-rank-pos {
+  background: #2563eb;
+  color: #fff;
+  border-radius: 999px;
+}
+.me-fichas-card {
+  margin-top: .25rem;
+}
+.me-fichas-table-wrap {
+  max-height: min(420px, 55vh);
+  overflow: auto;
+}
+.me-ficha-link {
+  color: inherit;
+  text-decoration: none;
+}
+.me-ficha-link:hover strong {
+  color: #2563eb;
+  text-decoration: underline;
+}
 .me-rank-pos {
   color: #94a3b8;
   font-size: .68rem;
