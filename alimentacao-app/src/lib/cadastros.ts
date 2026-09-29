@@ -2,7 +2,7 @@ import { format, parseISO } from 'date-fns'
 import { supabase } from './supabase'
 import { coordsFromZona } from './geocode'
 import type { Cadastro, ImportExistingKeys, MapMarkerData, PeriodFilter } from '../types'
-import { digitsOnly, normalizeName } from './normalize'
+import { digitsOnly, normalizeName, normalizeSecao, normalizeZona } from './normalize'
 import { sanitizeSearchTerm } from './search'
 
 /** Garante strings vazias em vez de null (evita crash em .trim() na UI). */
@@ -723,31 +723,76 @@ export function buildZonaData(cadastros: Cadastro[]): { name: string; value: num
     .sort((a, b) => b.value - a.value)
 }
 
-/** Agrupa marcadores por zona eleitoral. */
-export function buildMapMarkers(cadastros: Cadastro[]): MapMarkerData[] {
+/** Espalha pontos ao redor da sede da zona quando não há lat/lng próprio. */
+function offsetAroundZona(zonaLat: number, zonaLng: number, seed: string) {
+  let hash = 0
+  for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0
+  const n = (hash % 997) + 1
+  const angle = (n * 2.399963229728653) % (Math.PI * 2)
+  const ring = 0.0035 + (n % 9) * 0.0012
+  const latScale = Math.cos((zonaLat * Math.PI) / 180) || 1
+  return {
+    lat: zonaLat + Math.cos(angle) * ring,
+    lng: zonaLng + (Math.sin(angle) * ring) / latScale,
+  }
+}
+
+export type MapGroupBy = 'zona' | 'secao' | 'bairro'
+
+/**
+ * Agrupa marcadores por zona, seção/local ou bairro.
+ * Em modo seção: junta fichas do mesmo NM_LOCAL_VOTACAO_ORIGINAL (mesmo colégio).
+ */
+export function buildMapMarkers(
+  cadastros: Cadastro[],
+  groupBy: MapGroupBy = 'zona',
+): MapMarkerData[] {
   const groups = new Map<string, {
     zona: string
     secao: string
+    bairro: string
+    local_votacao: string
     count: number
     lats: number[]
     lngs: number[]
   }>()
 
   cadastros.forEach((c) => {
-    const zona = (c.zona ?? '').trim()
-    if (!zona) return
-    const existing = groups.get(zona)
+    const zona = normalizeZona(c.zona) || (c.zona ?? '').trim()
+    const secao = normalizeSecao(c.secao) || (c.secao ?? '').trim()
+    const bairro = (c.bairro ?? '').trim()
+    const local = (c.local_votacao ?? '').trim()
+    if (groupBy === 'zona' && !zona) return
+    if (groupBy === 'secao' && (!zona || !secao)) return
+    if (groupBy === 'bairro' && !bairro) return
+
+    // Seção: preferir o local TSE — várias seções no mesmo colégio somam juntas
+    const key =
+      groupBy === 'secao'
+        ? (local
+          ? `local:${local.toLocaleLowerCase('pt-BR')}`
+          : `${zona}::${secao}`)
+        : groupBy === 'bairro'
+          ? bairro.toLocaleLowerCase('pt-BR')
+          : zona
+
+    const existing = groups.get(key)
     if (existing) {
       existing.count += 1
       if (c.lat != null && c.lng != null) {
         existing.lats.push(c.lat)
         existing.lngs.push(c.lng)
       }
-      if (!existing.secao && c.secao) existing.secao = c.secao
+      if (!existing.secao && secao) existing.secao = secao
+      if (!existing.zona && zona) existing.zona = zona
+      if (!existing.bairro && bairro) existing.bairro = bairro
+      if (!existing.local_votacao && local) existing.local_votacao = local
     } else {
-      groups.set(zona, {
+      groups.set(key, {
         zona,
-        secao: c.secao || '',
+        secao,
+        bairro,
+        local_votacao: local,
         count: 1,
         lats: c.lat != null ? [c.lat] : [],
         lngs: c.lng != null ? [c.lng] : [],
@@ -756,27 +801,38 @@ export function buildMapMarkers(cadastros: Cadastro[]): MapMarkerData[] {
   })
 
   return Array.from(groups.values())
-    .map((g) => {
-      const fromZona = coordsFromZona(g.zona)
+    .map((g): MapMarkerData | null => {
+      const fromZona = g.zona ? coordsFromZona(g.zona) : null
       const avgLat = g.lats.length
         ? g.lats.reduce((a, b) => a + b, 0) / g.lats.length
-        : fromZona?.lat
+        : null
       const avgLng = g.lngs.length
         ? g.lngs.reduce((a, b) => a + b, 0) / g.lngs.length
-        : fromZona?.lng
+        : null
 
-      // Preferência: média dos cadastros geocodificados (foco real); senão sede da zona
-      const lat = avgLat ?? fromZona?.lat
-      const lng = avgLng ?? fromZona?.lng
+      let lat = avgLat ?? fromZona?.lat ?? null
+      let lng = avgLng ?? fromZona?.lng ?? null
       if (lat == null || lng == null) return null
+
+      // Só espalha quando não há coordenada real (ficha ou TSE)
+      if ((groupBy === 'secao' || groupBy === 'bairro') && fromZona && avgLat == null) {
+        const seed = groupBy === 'secao' ? (g.local_votacao || g.secao) : g.bairro
+        if (seed) {
+          const off = offsetAroundZona(fromZona.lat, fromZona.lng, seed)
+          lat = off.lat
+          lng = off.lng
+        }
+      }
 
       return {
         lat,
         lng,
         zona: g.zona,
         secao: g.secao,
+        bairro: g.bairro || undefined,
+        local_votacao: g.local_votacao || undefined,
         count: g.count,
-      } satisfies MapMarkerData
+      }
     })
     .filter((m): m is MapMarkerData => m != null)
     .sort((a, b) => b.count - a.count)
