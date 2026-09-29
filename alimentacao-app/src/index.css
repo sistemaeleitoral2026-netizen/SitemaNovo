@@ -1546,6 +1546,26 @@ a.ranking-row:hover .ranking-person strong { color: #2459c4; }
   background: linear-gradient(180deg, #f0fdf4 0%, #fff 70%);
 }
 .rel-txt-stat.is-ok strong { color: #15803d; }
+.rel-txt-stat-dl {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  margin-top: .55rem;
+  padding: .28rem .55rem;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  background: #fff;
+  color: #15803d;
+  font-size: .72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.rel-txt-stat-dl:hover { background: #f0fdf4; }
+.rel-txt-stat-dl.is-fail {
+  border-color: #fecdd3;
+  color: #be123c;
+}
+.rel-txt-stat-dl.is-fail:hover { background: #fff1f2; }
 .rel-txt-form {
   display: flex;
   flex-wrap: wrap;
