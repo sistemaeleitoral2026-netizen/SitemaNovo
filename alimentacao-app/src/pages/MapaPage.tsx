@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Building2, Hash, MapPin, RotateCcw, Vote } from 'lucide-react'
+import { Building2, Hash, MapPin, RotateCcw, Vote, X } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { Card } from '../components/ui/Card'
 import { Select } from '../components/ui/Select'
 import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/Spinner'
+import { EmptyState } from '../components/ui/EmptyState'
 import { PeriodFilterSelect } from '../components/ui/PeriodFilter'
 import { CadastrosMap } from '../components/map/CadastrosMap'
-import { buildMapMarkers, type MapGroupBy, fetchCadastros } from '../lib/cadastros'
-import { enrichCadastrosComLocalTse, loadLocaisVotacaoMa } from '../lib/locaisVotacao'
+import { buildMapMarkers, cadastroMapGroupId, type MapGroupBy, fetchCadastros } from '../lib/cadastros'
+import {
+  countParesForaDoTse,
+  enrichCadastrosComLocalTse,
+  loadLocaisVotacaoMa,
+  type LocalVotacaoRef,
+} from '../lib/locaisVotacao'
+import { normalizeSecao, normalizeZona } from '../lib/normalize'
 import { getPeriodFromPreset, type PeriodPreset } from '../lib/period'
 import { supabase } from '../lib/supabase'
 import type { Cadastro, MapMarkerData, Profile } from '../types'
@@ -17,8 +25,9 @@ function fmt(n: number) {
 }
 
 function markerKey(m: MapMarkerData, groupBy: MapGroupBy) {
+  if (m.id) return m.id
   if (groupBy === 'bairro') return `b:${(m.bairro || '').toLowerCase()}`
-  if (groupBy === 'secao') return `s:${m.zona}-${m.secao}`
+  if (groupBy === 'secao') return `s:${m.zona}-${m.local_votacao || m.secao}`
   return `z:${m.zona}`
 }
 
@@ -33,10 +42,17 @@ function markerSub(m: MapMarkerData, groupBy: MapGroupBy) {
     return [m.zona ? `Zona ${m.zona}` : null, m.secao ? `Seção ${m.secao}` : null].filter(Boolean).join(' · ')
   }
   if (groupBy === 'secao') {
+    const secoes = m.secoes?.length ? m.secoes : (m.secao ? [m.secao] : [])
+    const secaoLabel =
+      secoes.length === 0 ? null
+      : secoes.length === 1 ? `Seção ${secoes[0]}`
+      : secoes.length <= 4 ? `Seções ${secoes.join(', ')}`
+      : `${secoes.length} seções (${secoes.slice(0, 3).join(', ')}…)`
     return [
       m.zona ? `Zona ${m.zona}` : null,
-      m.secao ? `Seção ${m.secao}` : null,
+      secaoLabel,
       m.bairro || null,
+      m.id?.startsWith('fora:') ? 'par fora da planilha TSE' : null,
     ].filter(Boolean).join(' · ')
   }
   return m.bairro || m.local_votacao || null
@@ -44,6 +60,7 @@ function markerSub(m: MapMarkerData, groupBy: MapGroupBy) {
 
 export function MapaPage() {
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
+  const [locais, setLocais] = useState<Map<string, LocalVotacaoRef>>(new Map())
   const [nerites, setNerites] = useState<Profile[]>([])
   const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
   const [operatorId, setOperatorId] = useState('')
@@ -53,7 +70,8 @@ export function MapaPage() {
   const [minCount, setMinCount] = useState('')
   const [groupBy, setGroupBy] = useState<MapGroupBy>('secao')
   const [layerMode, setLayerMode] = useState<'markers' | 'density'>('density')
-  const [focus, setFocus] = useState<{ lat: number; lng: number } | null>(null)
+  const [focus, setFocus] = useState<{ lat: number; lng: number; id?: string; nonce: number } | null>(null)
+  const [selected, setSelected] = useState<MapMarkerData | null>(null)
   const [resetKey, setResetKey] = useState(0)
   const [loading, setLoading] = useState(true)
 
@@ -63,13 +81,13 @@ export function MapaPage() {
     async function load() {
       setLoading(true)
       try {
-        const [cads, ops, locais] = await Promise.all([
+        const [cads, ops, locaisMap] = await Promise.all([
           fetchCadastros({ period }),
           supabase.from('profiles').select('*').eq('role', 'operador').order('nome'),
-          loadLocaisVotacaoMa().catch(() => new Map()),
+          loadLocaisVotacaoMa().catch(() => new Map<string, LocalVotacaoRef>()),
         ])
-        // Nome do local vem da planilha TSE (NM_LOCAL_VOTACAO_ORIGINAL) por zona+seção
-        setCadastros(enrichCadastrosComLocalTse(cads, locais))
+        setLocais(locaisMap)
+        setCadastros(enrichCadastrosComLocalTse(cads, locaisMap))
         setNerites((ops.data ?? []) as Profile[])
       } finally {
         setLoading(false)
@@ -81,8 +99,8 @@ export function MapaPage() {
   const filtered = useMemo(() => {
     return cadastros.filter((c) => {
       if (operatorId && c.operator_id !== operatorId) return false
-      if (zona && c.zona !== zona) return false
-      if (secao && c.secao !== secao) return false
+      if (zona && normalizeZona(c.zona) !== normalizeZona(zona) && c.zona !== zona) return false
+      if (secao && normalizeSecao(c.secao) !== normalizeSecao(secao) && c.secao !== secao) return false
       if (bairro && (c.bairro ?? '').trim().toLocaleLowerCase('pt-BR') !== bairro.toLocaleLowerCase('pt-BR')) return false
       if (groupBy === 'secao') return Boolean((c.zona ?? '').trim() && (c.secao ?? '').trim())
       if (groupBy === 'bairro') return Boolean((c.bairro ?? '').trim())
@@ -90,11 +108,16 @@ export function MapaPage() {
     })
   }, [cadastros, operatorId, zona, secao, bairro, groupBy])
 
+  const foraDoTse = useMemo(
+    () => countParesForaDoTse(filtered, locais),
+    [filtered, locais],
+  )
+
   const markers = useMemo(() => {
-    const all = buildMapMarkers(filtered, groupBy)
+    const all = buildMapMarkers(filtered, groupBy, locais)
     const min = minCount === '6' ? 6 : minCount === '21' ? 21 : minCount === '51' ? 51 : 0
     return all.filter((m) => m.count >= min).sort((a, b) => b.count - a.count)
-  }, [filtered, minCount, groupBy])
+  }, [filtered, minCount, groupBy, locais])
 
   const zonas = useMemo(
     () => [...new Set(cadastros.map((c) => c.zona).filter((z): z is string => Boolean(z)))]
@@ -140,6 +163,13 @@ export function MapaPage() {
     }
   }, [filtered])
 
+  const selectedFichas = useMemo(() => {
+    if (!selected?.id) return []
+    return filtered
+      .filter((c) => cadastroMapGroupId(c, groupBy, locais) === selected.id)
+      .sort((a, b) => (a.nome_completo || '').localeCompare(b.nome_completo || '', 'pt-BR'))
+  }, [filtered, selected, groupBy, locais])
+
   const maxCount = markers[0]?.count || 1
   const groupLabel =
     groupBy === 'bairro' ? 'bairros'
@@ -160,6 +190,17 @@ export function MapaPage() {
     setGroupBy('secao')
     setLayerMode('density')
     setFocus(null)
+    setSelected(null)
+  }
+
+  function selectMarker(m: MapMarkerData) {
+    setSelected(m)
+    setFocus({
+      lat: m.lat,
+      lng: m.lng,
+      id: m.id || markerKey(m, groupBy),
+      nonce: Date.now(),
+    })
   }
 
   return (
@@ -168,7 +209,7 @@ export function MapaPage() {
         <div>
           <h1 className="page-title">Mapa Eleitoral</h1>
           <p className="page-subtitle">
-            Seção, bairro e zona — com o nome do local de votação da planilha TSE (NM_LOCAL_VOTACAO_ORIGINAL).
+            Seção, bairro e zona — com o nome e a coordenada do local na planilha TSE (NM_LOCAL_VOTACAO_ORIGINAL).
           </p>
         </div>
       </div>
@@ -244,6 +285,7 @@ export function MapaPage() {
             onChange={(e) => {
               setGroupBy(e.target.value as MapGroupBy)
               setFocus(null)
+              setSelected(null)
             }}
             options={[
               { value: 'secao', label: 'Local de votação' },
@@ -252,7 +294,7 @@ export function MapaPage() {
             ]}
           />
           <Select
-            label={`Mínimo por ${groupBy === 'bairro' ? 'bairro' : groupBy === 'secao' ? 'seção' : 'zona'}`}
+            label={`Mínimo por ${groupBy === 'bairro' ? 'bairro' : groupBy === 'secao' ? 'local' : 'zona'}`}
             value={minCount}
             onChange={(e) => setMinCount(e.target.value)}
             placeholder="Qualquer quantidade"
@@ -286,7 +328,10 @@ export function MapaPage() {
         </div>
         <div className="map-summary">
           <strong>{fmt(markers.length)} {groupLabel} no mapa · {fmt(filtered.length)} fichas</strong>
-          <span>{periodNote}</span>
+          <span>
+            {periodNote}
+            {foraDoTse > 0 ? ` · ${fmt(foraDoTse)} com zona+seção fora da planilha TSE` : ''}
+          </span>
         </div>
       </Card>
 
@@ -299,7 +344,7 @@ export function MapaPage() {
                 {groupBy === 'bairro'
                   ? 'Concentração por bairro'
                   : groupBy === 'secao'
-                    ? 'Pontos por seção / local de votação'
+                    ? 'Pontos no local de votação (TSE)'
                     : 'Mancha por zona eleitoral'}
               </strong>
             </div>
@@ -319,6 +364,7 @@ export function MapaPage() {
               resetKey={resetKey}
               layerMode={layerMode}
               groupMode={groupBy}
+              onMarkerSelect={selectMarker}
             />
           )}
         </Card>
@@ -332,8 +378,8 @@ export function MapaPage() {
             }
             subtitle={
               groupBy === 'secao'
-                ? `${fmt(markers.reduce((s, m) => s + m.count, 0))} fichas nestes locais — clique para aproximar`
-                : 'Clique para aproximar no mapa'
+                ? `${fmt(markers.reduce((s, m) => s + m.count, 0))} fichas nestes locais — clique para ver a lista`
+                : 'Clique para ver a lista de fichas'
             }
             className="me-rank-card"
           >
@@ -344,59 +390,93 @@ export function MapaPage() {
                   {groupBy === 'bairro'
                     ? 'Preencha o bairro nas fichas para ver a concentração.'
                     : groupBy === 'secao'
-                      ? 'As seções aparecem com zona e seção nas fichas; o nome do local vem da planilha TSE.'
+                      ? 'As seções aparecem com zona e seção nas fichas; o nome e a posição vêm da planilha TSE.'
                       : 'As zonas aparecem quando houver cadastros com zona.'}
                 </span>
               </div>
             ) : (
               <div className="me-rank-list">
-                {markers.slice(0, 24).map((m, index) => (
-                  <button
-                    key={markerKey(m, groupBy)}
-                    type="button"
-                    className="map-rank-btn me-rank-btn"
-                    onClick={() => setFocus({ lat: m.lat, lng: m.lng })}
-                  >
-                    <span className="me-rank-pos">{index + 1}</span>
-                    <span className="me-rank-body">
-                      <strong>{markerTitle(m, groupBy)}</strong>
-                      {markerSub(m, groupBy) ? <em>{markerSub(m, groupBy)}</em> : null}
-                      <span className="me-rank-bar" aria-hidden>
-                        <i style={{ width: `${Math.max((m.count / maxCount) * 100, 4)}%` }} />
+                {markers.slice(0, 40).map((m, index) => {
+                  const key = markerKey(m, groupBy)
+                  const isFocused = selected?.id === key || focus?.id === key
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      className={`map-rank-btn me-rank-btn${isFocused ? ' is-focus' : ''}`}
+                      onClick={() => selectMarker(m)}
+                    >
+                      <span className="me-rank-pos">{index + 1}</span>
+                      <span className="me-rank-body">
+                        <strong>{markerTitle(m, groupBy)}</strong>
+                        {markerSub(m, groupBy) ? <em>{markerSub(m, groupBy)}</em> : null}
+                        <span className="me-rank-bar" aria-hidden>
+                          <i style={{ width: `${Math.max((m.count / maxCount) * 100, 4)}%` }} />
+                        </span>
                       </span>
-                    </span>
-                    <strong className="me-rank-count tabular-nums">{fmt(m.count)}</strong>
-                  </button>
-                ))}
+                      <strong className="me-rank-count tabular-nums">{fmt(m.count)}</strong>
+                    </button>
+                  )
+                })}
               </div>
             )}
           </Card>
-
-          {bairros.length > 0 && groupBy !== 'bairro' ? (
-            <Card
-              title="Bairros do filtro"
-              subtitle={`${fmt(bairros.length)} bairros com fichas`}
-              className="me-bairro-card"
-            >
-              <div className="me-bairro-chips">
-                {bairros.slice(0, 18).map((b) => (
-                  <button
-                    key={b}
-                    type="button"
-                    className={`me-bairro-chip${bairro === b ? ' is-on' : ''}`}
-                    onClick={() => setBairro((cur) => (cur === b ? '' : b))}
-                  >
-                    {b}
-                  </button>
-                ))}
-                {bairros.length > 18 ? (
-                  <span className="me-bairro-more">+{bairros.length - 18}</span>
-                ) : null}
-              </div>
-            </Card>
-          ) : null}
         </div>
       </div>
+
+      {selected ? (
+        <Card
+          className="me-fichas-card cadastros-table-card"
+          title={
+            groupBy === 'bairro'
+              ? selected.bairro || 'Bairro'
+              : groupBy === 'zona'
+                ? `Zona ${selected.zona}`
+                : (selected.local_votacao || `Seção ${selected.secao}`)
+          }
+          subtitle={`${fmt(selectedFichas.length)} ficha${selectedFichas.length === 1 ? '' : 's'} · ${markerSub(selected, groupBy) || '—'}`}
+          action={(
+            <Button size="sm" variant="secondary" onClick={() => setSelected(null)}>
+              <X size={14} /> Fechar
+            </Button>
+          )}
+        >
+          {!selectedFichas.length ? (
+            <EmptyState title="Nenhuma ficha" description="Não há fichas neste local com o filtro atual." />
+          ) : (
+            <div className="table-wrapper me-fichas-table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Coordenador</th>
+                    <th>Liderança</th>
+                    <th>Título</th>
+                    <th>Zona</th>
+                    <th>Seção</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedFichas.map((c) => (
+                    <tr key={c.id}>
+                      <td>
+                        <Link to={`/cadastros/${c.id}`} className="me-ficha-link">
+                          <strong>{(c.nome_completo || '—').toLocaleUpperCase('pt-BR')}</strong>
+                        </Link>
+                      </td>
+                      <td>{c.coordenador || '—'}</td>
+                      <td>{c.lider || '—'}</td>
+                      <td className="mono-cell">{c.titulo || '—'}</td>
+                      <td className="mono-cell">{c.zona || '—'}</td>
+                      <td className="mono-cell">{c.secao || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      ) : null}
     </div>
   )
 }
