@@ -767,7 +767,10 @@ export function RelatorioFichasTxtPage() {
               </p>
             </label>
           </Card>
-          <Card title={`Falhas gravadas (${falhaLines.length})`} action={falhaLines.length ? (
+          <Card
+            title={`Falhas gravadas (${falhaLines.length})`}
+            subtitle="Mesmos campos do TXT + Nerite, Coordenador e Motivo da falha. Não altera cadastros — só o relatório."
+            action={falhaLines.length ? (
             <Button size="sm" type="button" variant="secondary" onClick={handleBaixarFalhas}>
               <Download size={14} /> Baixar TXT
             </Button>
@@ -777,35 +780,45 @@ export function RelatorioFichasTxtPage() {
             ) : (
               <>
                 <div className="table-wrapper">
-                  <table className="data-table rel-txt-table">
+                  <table className="data-table rel-txt-table rel-txt-falhas-table">
                     <thead>
                       <tr>
+                        <th>#</th>
                         <th>Nome</th>
-                        <th>Mãe</th>
+                        <th>id</th>
+                        <th>CPF</th>
+                        <th>Título de eleitor</th>
+                        <th>Data de nascimento</th>
+                        <th>Nome completo da mãe</th>
+                        <th>Zona</th>
+                        <th>Seção</th>
                         <th>Nerite</th>
                         <th>Coordenador</th>
-                        <th>Liderança</th>
-                        <th>Motivo</th>
-                        <th>id</th>
+                        <th>Motivo da falha</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {falhaLines.map((row) => (
+                      {falhaLines.map((row, i) => (
                         <tr key={row.titulo_key}>
-                          <td><strong>{row.nome || '—'}</strong></td>
+                          <td className="mono-cell">{i + 1}</td>
+                          <td><strong style={{ fontWeight: 600 }}>{row.nome || '—'}</strong></td>
+                          <td><FichaLink id={row.cadastro_id} /></td>
+                          <td className="mono-cell">{formatCpf(row.cpf) || row.cpf || '—'}</td>
+                          <td className="mono-cell">{row.titulo || '—'}</td>
+                          <td>{valorFicha('data_nascimento', row.data_nascimento)}</td>
                           <td>{row.nome_mae || '—'}</td>
+                          <td>{row.zona || '—'}</td>
+                          <td>{row.secao || '—'}</td>
                           <td>{row.operador_nome || '—'}</td>
                           <td>{row.coordenador || '—'}</td>
-                          <td>{row.lider || '—'}</td>
-                          <td>{row.motivo || '—'}</td>
-                          <td><FichaLink id={row.cadastro_id} /></td>
+                          <td className="rel-txt-motivo">{row.motivo || '—'}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
                 <label className="rel-txt-paste" style={{ marginTop: '1rem' }}>
-                  <span className="rel-txt-paste-label">Linhas devolvidas</span>
+                  <span className="rel-txt-paste-label">Linhas devolvidas (TXT padrão)</span>
                   <textarea value={falhasTxt} readOnly rows={Math.min(12, falhaLines.length + 1)} spellCheck={false} />
                 </label>
               </>
