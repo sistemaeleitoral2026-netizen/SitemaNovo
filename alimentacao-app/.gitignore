@@ -27,3 +27,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# TSE extract (fonte: eleitorado_local_votacao_2026.zip)
+_tmp_eleitorado/

@@ -431,7 +431,9 @@ function AdminDashboard() {
 
   const evolution = useMemo(() => buildEvolutionData(scopedCadastros), [scopedCadastros])
   const zonaData = useMemo(() => buildZonaData(scopedCadastros), [scopedCadastros])
-  const mapMarkers = useMemo(() => buildMapMarkers(scopedCadastros), [scopedCadastros])
+  const mapMarkers = useMemo(() => buildMapMarkers(scopedCadastros, 'secao'), [scopedCadastros])
+  const mapSecaoCount = mapMarkers.length
+  const mapSecaoShown = useMemo(() => mapMarkers.slice(0, 80), [mapMarkers])
 
   const periodLabel = useMemo(() => {
     const map: Record<PeriodPreset, string> = {
@@ -481,10 +483,20 @@ function AdminDashboard() {
   }, [scopedCadastros])
 
   const topSecoes = useMemo(() => {
-    const map = new Map<string, number>()
-    scopedCadastros.forEach((c) => { const s = (c.secao ?? '').trim(); if (!s) return; map.set(s, (map.get(s) ?? 0) + 1) })
-    return Array.from(map.entries()).map(([n, v]) => ({ n, v })).sort((a, b) => b.v - a.v).slice(0, 4)
+    const map = new Map<string, { n: string; zona: string; v: number }>()
+    scopedCadastros.forEach((c) => {
+      const s = (c.secao ?? '').trim()
+      const z = (c.zona ?? '').trim()
+      if (!s) return
+      const key = `${z}::${s}`
+      const cur = map.get(key)
+      if (cur) cur.v += 1
+      else map.set(key, { n: s, zona: z, v: 1 })
+    })
+    return Array.from(map.values()).sort((a, b) => b.v - a.v).slice(0, 6)
   }, [scopedCadastros])
+
+  const maiorSecao = topSecoes[0]
 
   const mobBase = mobilizacaoTotals.fichas + mobilizacaoTotals.equipe
   const mobComLancamento = Math.max(0, mobBase - mobilizacaoTotals.pendentes)
@@ -494,25 +506,22 @@ function AdminDashboard() {
   const dirQueryAmp = filtroAtivo ? `&diretoria=${dirFilter}` : ''
 
   const maiorZona = zonaData[0]
-  const zonasFracas = useMemo(() => {
-    if (zonaData.length < 2) return []
-    return zonaData.filter((z) => z.value > 0 && z.value <= Math.max(15, Math.ceil(scopedCadastros.length * 0.02)))
-  }, [zonaData, scopedCadastros.length])
 
   const equipeAtiva = ranking.length || scopedNerites.filter((n) => n.ativo).length
   const mediaPorNerite = equipeAtiva > 0 ? Math.round(scopedCadastros.length / equipeAtiva) : 0
 
   const concentracaoNota = useMemo(() => {
-    if (!maiorZona || !scopedCadastros.length) return null
-    const pct = Math.round((maiorZona.value / scopedCadastros.length) * 100)
-    const zonaLabel = maiorZona.name.replace(/^Zona eleitoral\s+/i, '')
-    if (zonasFracas.length === 0) {
-      return pct >= 50 ? `Alta concentração (${pct}%) na Zona ${zonaLabel}.` : null
+    if (!maiorSecao || !scopedCadastros.length) {
+      if (!maiorZona || !scopedCadastros.length) return null
+      const pct = Math.round((maiorZona.value / scopedCadastros.length) * 100)
+      const zonaLabel = maiorZona.name.replace(/^Zona eleitoral\s+/i, '')
+      return pct >= 40 ? `Alta concentração (${pct}%) na Zona ${zonaLabel}.` : null
     }
-    const fracos = zonasFracas.slice(0, 2).map((z) => z.name.replace(/^Zona eleitoral\s+/i, '')).join(' e ')
-    const somaFraca = zonasFracas.reduce((a, z) => a + z.value, 0)
-    return `Alta concentração (${pct}%) na Zona ${zonaLabel}. As zonas ${fracos} somam ${fmt(somaFraca)} fichas — território praticamente inexplorado.`
-  }, [maiorZona, scopedCadastros.length, zonasFracas])
+    const pct = Math.round((maiorSecao.v / scopedCadastros.length) * 100)
+    const zonaBit = maiorSecao.zona ? ` (Zona ${maiorSecao.zona})` : ''
+    if (pct < 8) return `${mapSecaoCount} seções no filtro — a maior é a Seção ${maiorSecao.n}${zonaBit} com ${fmt(maiorSecao.v)} fichas.`
+    return `Maior foco na Seção ${maiorSecao.n}${zonaBit}: ${pct}% das fichas (${fmt(maiorSecao.v)}).`
+  }, [maiorSecao, maiorZona, scopedCadastros.length, mapSecaoCount])
 
   const somaNerites = ranking.reduce((a, n) => a + n.total, 0)
   const somaLideresTop = topLideres.reduce((a, l) => a + l.total, 0)
@@ -873,23 +882,34 @@ function AdminDashboard() {
           <div className="nd-card nd-map-col">
             <div className="nd-card-head">
               <div>
-                <h3 className="nd-card-title">Mapa por zona eleitoral</h3>
-                <p className="nd-card-sub">Intensidade pelas fichas do filtro atual</p>
+                <h3 className="nd-card-title">Mapa por seção eleitoral</h3>
+                <p className="nd-card-sub">Onde as pessoas vão votar — intensidade pelas fichas do filtro</p>
               </div>
               <Link to={`/mapa${dirQuery}`} className="nd-card-link">Visão completa →</Link>
             </div>
-            <div className="nd-map-wrap">
-              <CadastrosMap markers={mapMarkers} height={320} showLegend={false} fitToMarkers />
+            <div className="nd-map-wrap is-secao">
+              <CadastrosMap
+                markers={mapSecaoShown}
+                height={340}
+                showLegend={false}
+                fitToMarkers
+                groupMode="secao"
+                compact
+              />
               <div className="nd-map-legend" aria-hidden>
                 <div className="nd-map-legend-title">Intensidade</div>
-                <div className="nd-map-legend-row"><span className="nd-map-legend-swatch" style={{ background: '#7fd8c4' }} /> Baixa</div>
-                <div className="nd-map-legend-row"><span className="nd-map-legend-swatch" style={{ background: '#f2cf6a' }} /> Média</div>
-                <div className="nd-map-legend-row"><span className="nd-map-legend-swatch" style={{ background: '#f0a355' }} /> Alta</div>
-                <div className="nd-map-legend-row"><span className="nd-map-legend-swatch" style={{ background: '#e2614f' }} /> Muito alta</div>
+                <div className="nd-map-legend-row"><span className="nd-map-legend-swatch" style={{ background: '#5eead4' }} /> Baixa</div>
+                <div className="nd-map-legend-row"><span className="nd-map-legend-swatch" style={{ background: '#fde047' }} /> Média</div>
+                <div className="nd-map-legend-row"><span className="nd-map-legend-swatch" style={{ background: '#fdba74' }} /> Alta</div>
+                <div className="nd-map-legend-row"><span className="nd-map-legend-swatch" style={{ background: '#f87171' }} /> Muito alta</div>
               </div>
             </div>
             <div className="nd-map-foot">
-              <span>Intensidade pelas fichas do filtro atual</span>
+              <span>
+                {mapSecaoCount
+                  ? `${fmt(Math.min(mapSecaoCount, 80))} de ${fmt(mapSecaoCount)} seções no mapa`
+                  : 'Nenhuma seção com zona+seção no filtro'}
+              </span>
               <Link to={`/mapa${dirQuery}`}>Abrir mapa completo →</Link>
             </div>
           </div>
@@ -897,66 +917,73 @@ function AdminDashboard() {
           <div className="nd-card nd-conc-col">
             <div className="nd-card-head">
               <div>
-                <h3 className="nd-card-title">Concentração territorial</h3>
+                <h3 className="nd-card-title">Concentração por seção</h3>
                 <p className="nd-card-sub">
                   {scopedCadastros.length
-                    ? `${fmt(scopedCadastros.length)} fichas distribuídas por zona`
+                    ? `${fmt(scopedCadastros.length)} fichas · ${fmt(mapSecaoCount)} seções`
                     : 'nenhuma ficha no filtro'}
                 </p>
               </div>
-              {zonaData.length > 0 && <span className="nd-conc-badge">Top {Math.min(zonaData.length, 4)} Zonas</span>}
+              {topSecoes.length > 0 && <span className="nd-conc-badge">Top {Math.min(topSecoes.length, 6)}</span>}
             </div>
-            {zonaData.length ? (
+            {topSecoes.length ? (
               <>
                 <div className="nd-zona-list">
-                  {zonaData.slice(0, 4).map((z, i) => {
-                    const pct = scopedCadastros.length ? Math.round((z.value / scopedCadastros.length) * 100) : 0
-                    const zonaLabel = z.name.replace(/^Zona eleitoral\s+/i, '')
+                  {topSecoes.map((s, i) => {
+                    const pct = scopedCadastros.length ? Math.round((s.v / scopedCadastros.length) * 100) : 0
                     const color = ZONA_DOT_COLORS[i] ?? '#94a3b8'
                     return (
-                      <div key={z.name} className="nd-zona-item">
+                      <Link
+                        key={`${s.zona}-${s.n}`}
+                        to={`/cadastros?secao=${encodeURIComponent(s.n)}${dirQueryAmp}`}
+                        className="nd-zona-item nd-zona-item-link"
+                      >
                         <div className="nd-zona-top">
                           <span className="nd-zona-name">
                             <span className="nd-zona-dot" style={{ background: color }} />
-                            Zona {zonaLabel}
+                            Seção {s.n}
+                            {s.zona ? <em className="nd-zona-soft">Zona {s.zona}</em> : null}
                           </span>
                           <span className="nd-zona-value tabular-nums">
-                            {fmt(z.value)} <span className="nd-zona-pct">({pct}%)</span>
+                            {fmt(s.v)} <span className="nd-zona-pct">({pct}%)</span>
                           </span>
                         </div>
                         <div className="nd-zona-bar">
-                          <div className="nd-zona-bar-fill" style={{ width: `${Math.max(pct, z.value > 0 ? 1.5 : 0)}%`, background: color }} />
+                          <div className="nd-zona-bar-fill" style={{ width: `${Math.max(pct, s.v > 0 ? 1.5 : 0)}%`, background: color }} />
                         </div>
-                      </div>
+                      </Link>
                     )
                   })}
                 </div>
                 {concentracaoNota && (
                   <div className="nd-zona-callout">
-                    <strong>Análise:</strong> {concentracaoNota}
+                    <strong>Leitura:</strong> {concentracaoNota}
                   </div>
                 )}
-                {topSecoes.length > 0 && (
+                {zonaData.length > 0 && (
                   <div className="nd-secoes">
-                    <span className="nd-secoes-label">Seções com Maior Coleta</span>
+                    <span className="nd-secoes-label">Também por zona</span>
                     <div className="nd-secoes-grid">
-                      {topSecoes.map((s) => (
-                        <Link key={s.n} to={`/cadastros?secao=${encodeURIComponent(s.n)}${dirQueryAmp}`} className="nd-secao">
-                          <span>Seção {s.n}</span>
-                          <strong className="tabular-nums">{s.v} fichas</strong>
-                        </Link>
-                      ))}
+                      {zonaData.slice(0, 4).map((z) => {
+                        const zonaLabel = z.name.replace(/^Zona eleitoral\s+/i, '')
+                        return (
+                          <div key={z.name} className="nd-secao">
+                            <span>Zona {zonaLabel}</span>
+                            <strong className="tabular-nums">{fmt(z.value)} fichas</strong>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
-                {zonaData.length > 4 && (
+                {mapSecaoCount > 6 && (
                   <div className="nd-zona-more">
-                    <Link to={`/mapa${dirQuery}`}>Ver todas as {zonaData.length} zonas →</Link>
+                    <Link to={`/mapa${dirQuery}`}>Ver todas as {fmt(mapSecaoCount)} seções no mapa →</Link>
                   </div>
                 )}
               </>
             ) : (
-              <div className="nd-empty">Nenhuma ficha neste filtro — sem zonas para exibir.</div>
+              <div className="nd-empty">Nenhuma ficha com seção neste filtro.</div>
             )}
           </div>
         </div>
@@ -1293,7 +1320,11 @@ function DiretoriaDashboard() {
   const zonas = useMemo(() => new Set(cadastros.map((c) => c.zona).filter(Boolean)).size, [cadastros])
   const evolution = useMemo(() => buildEvolutionData(cadastros), [cadastros])
   const zonaData = useMemo(() => buildZonaData(cadastros), [cadastros])
-  const mapMarkers = useMemo(() => buildMapMarkers(cadastros), [cadastros])
+  const mapMarkers = useMemo(() => buildMapMarkers(cadastros, 'secao').slice(0, 80), [cadastros])
+  const mapSecaoTotal = useMemo(
+    () => new Set(cadastros.map((c) => `${(c.zona ?? '').trim()}::${(c.secao ?? '').trim()}`).filter((k) => !k.startsWith('::') && !k.endsWith('::'))).size,
+    [cadastros],
+  )
   const mobilizacaoTotals = useMemo(
     () => sumMobilizacao(mobilizacaoCadastros, coordenadores, lideres, { totalFichas }),
     [mobilizacaoCadastros, coordenadores, lideres, totalFichas],
@@ -1519,29 +1550,41 @@ function DiretoriaDashboard() {
         <div className="nv-panel">
           <div className="nv-panel-head">
             <div>
-              <h2><MapIcon size={16} strokeWidth={1.6} aria-hidden />Mapa por zona eleitoral</h2>
-              <p>Intensidade pelas fichas do período</p>
+              <h2><MapIcon size={16} strokeWidth={1.6} aria-hidden />Mapa por seção eleitoral</h2>
+              <p>Onde as pessoas vão votar — intensidade no período</p>
             </div>
             <Link to="/mapa">Mapa completo →</Link>
           </div>
-          <div className="nv-map-wrap">
-            <CadastrosMap markers={mapMarkers} height={320} showLegend={false} />
+          <div className="nv-map-wrap is-secao">
+            <CadastrosMap
+              markers={mapMarkers}
+              height={320}
+              showLegend={false}
+              fitToMarkers
+              groupMode="secao"
+              compact
+            />
             <div className="nv-map-legend" aria-hidden>
               <div className="nv-map-legend-title">Intensidade</div>
               <div className="nv-map-legend-row">
-                <span className="nv-map-legend-swatch" style={{ background: '#7fd8c4' }} /> Baixa
+                <span className="nv-map-legend-swatch" style={{ background: '#5eead4' }} /> Baixa
               </div>
               <div className="nv-map-legend-row">
-                <span className="nv-map-legend-swatch" style={{ background: '#f2d264' }} /> Média
+                <span className="nv-map-legend-swatch" style={{ background: '#fde047' }} /> Média
               </div>
               <div className="nv-map-legend-row">
-                <span className="nv-map-legend-swatch" style={{ background: '#f0a355' }} /> Alta
+                <span className="nv-map-legend-swatch" style={{ background: '#fdba74' }} /> Alta
               </div>
               <div className="nv-map-legend-row">
-                <span className="nv-map-legend-swatch" style={{ background: '#e2614f' }} /> Muito alta
+                <span className="nv-map-legend-swatch" style={{ background: '#f87171' }} /> Muito alta
               </div>
             </div>
           </div>
+          {mapSecaoTotal > 0 && (
+            <div className="nv-map-note">
+              Mostrando até 80 seções · {mapSecaoTotal.toLocaleString('pt-BR')} no total
+            </div>
+          )}
       </div>
 
         <div className="nv-panel">
