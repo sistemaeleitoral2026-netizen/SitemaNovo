@@ -32,6 +32,26 @@ export type ProgressoCorrecao = {
   aplicadas: number
   inalteradas: number
   falhas: number
+  duplicadas: number
+}
+
+export type CorrecaoPreviewStatus = 'aplicar' | 'inalterada' | 'falha' | 'ja_feita'
+
+export type CorrecaoPreview = {
+  key: string
+  line: RelatorioTxtLinha
+  extra: { operador_nome: string; coordenador: string; lider: string }
+  antes: Record<string, string> | null
+  depois: Record<string, string> | null
+  status: CorrecaoPreviewStatus
+  motivo?: string
+}
+
+export type AplicarCorrecoesResult = {
+  aplicadas: number
+  inalteradas: number
+  duplicadas: number
+  falhas: RelatorioTxtLinha[]
 }
 
 function erroLimite(n: number): Error {
@@ -262,12 +282,6 @@ export type CorrecaoBackup = {
   revertido: boolean
 }
 
-export type AplicarCorrecoesResult = {
-  aplicadas: number
-  inalteradas: number
-  falhas: RelatorioTxtLinha[]
-}
-
 export const FICHA_CAMPOS = [
   { key: 'nome_completo', label: 'Nome Completo' },
   { key: 'nome_mae', label: 'Nome da Mãe' },
@@ -277,18 +291,6 @@ export const FICHA_CAMPOS = [
   { key: 'zona', label: 'Zona' },
   { key: 'secao', label: 'Seção' },
 ] as const
-
-export type CorrecaoPreviewStatus = 'aplicar' | 'inalterada' | 'falha'
-
-export type CorrecaoPreview = {
-  key: string
-  line: RelatorioTxtLinha
-  extra: { operador_nome: string; coordenador: string; lider: string }
-  antes: Record<string, string> | null
-  depois: Record<string, string> | null
-  status: CorrecaoPreviewStatus
-  motivo?: string
-}
 
 function snapshotFicha(row: CadastroCorrecao): Record<string, string> {
   return {
@@ -347,6 +349,55 @@ async function fetchNomesOperadores(ids: string[]): Promise<Map<string, string>>
   return map
 }
 
+/** Chaves e ids que já passaram por correção (não sobem de novo). */
+async function fetchJaCorrigidas(keys: string[], cadastroIds: string[]): Promise<Set<string>> {
+  const blocked = new Set<string>()
+  const uniqueKeys = [...new Set(keys.filter(Boolean))]
+  const uniqueIds = [...new Set(cadastroIds.filter(Boolean))]
+  const page = 200
+
+  for (let i = 0; i < uniqueKeys.length; i += page) {
+    const slice = uniqueKeys.slice(i, i + page)
+    const { data, error } = await supabase
+      .from('relatorio_fichas_txt')
+      .select('titulo_key, cadastro_id')
+      .eq('status', 'ok')
+      .in('titulo_key', slice)
+    if (error) throw new Error(error.message)
+    for (const row of data ?? []) {
+      if (row.titulo_key) blocked.add(String(row.titulo_key))
+      if (row.cadastro_id) blocked.add(String(row.cadastro_id))
+    }
+  }
+
+  for (let i = 0; i < uniqueIds.length; i += page) {
+    const slice = uniqueIds.slice(i, i + page)
+    const { data, error } = await supabase
+      .from('relatorio_fichas_txt')
+      .select('titulo_key, cadastro_id')
+      .eq('status', 'ok')
+      .in('cadastro_id', slice)
+    if (error) throw new Error(error.message)
+    for (const row of data ?? []) {
+      if (row.titulo_key) blocked.add(String(row.titulo_key))
+      if (row.cadastro_id) blocked.add(String(row.cadastro_id))
+    }
+
+    const backup = await supabase
+      .from('cadastro_correcao_backup')
+      .select('cadastro_id')
+      .eq('revertido', false)
+      .in('cadastro_id', slice)
+    if (!backup.error) {
+      for (const row of backup.data ?? []) {
+        if (row.cadastro_id) blocked.add(String(row.cadastro_id))
+      }
+    }
+  }
+
+  return blocked
+}
+
 function toFalha(
   line: RelatorioTxtLinha,
   motivo: string,
@@ -373,7 +424,13 @@ export async function previsualizarCorrecoesTxt(
   if (!parsed.length) return []
 
   const ids = parsed.map((p) => p.cadastro_id).filter((id): id is string => Boolean(id))
-  const cadastros = await fetchCadastrosByIds(ids)
+  const [cadastros, jaCorrigidas] = await Promise.all([
+    fetchCadastrosByIds(ids),
+    fetchJaCorrigidas(
+      parsed.map((p) => p.titulo_key),
+      ids,
+    ),
+  ])
   const operadores = await fetchNomesOperadores(
     [...cadastros.values()].map((c) => c.operator_id ?? ''),
   )
@@ -439,6 +496,23 @@ export async function previsualizarCorrecoesTxt(
     }
 
     const antes = snapshotFicha(atual)
+    const jaFeita =
+      jaCorrigidas.has(line.titulo_key)
+      || jaCorrigidas.has(line.cadastro_id)
+      || (line.titulo && jaCorrigidas.has(String(line.titulo).replace(/\D/g, '')))
+
+    if (jaFeita) {
+      return {
+        key: line.titulo_key,
+        line: { ...line, nome: depois.nome_completo },
+        extra,
+        antes,
+        depois,
+        status: 'ja_feita' as const,
+        motivo: 'Correção já feita — não sobe de novo',
+      }
+    }
+
     return {
       key: line.titulo_key,
       line: { ...line, nome: depois.nome_completo },
@@ -467,16 +541,18 @@ export async function aplicarCorrecoesTxt(
     aplicadas: 0,
     inalteradas: 0,
     falhas: 0,
+    duplicadas: 0,
   })
   const previews = await previsualizarCorrecoesTxt(text, diretoriaId)
   const escolhidas = previews.filter((item) => !selecionadas || selecionadas.has(item.key))
-  if (!escolhidas.length) return { aplicadas: 0, inalteradas: 0, falhas: [] }
+  if (!escolhidas.length) return { aplicadas: 0, inalteradas: 0, duplicadas: 0, falhas: [] }
   assertLimiteLinhas(escolhidas.length)
 
   const falhas: RelatorioTxtLinha[] = []
   const okRows: RelatorioTxtLinha[] = []
   let aplicadas = 0
   let inalteradas = 0
+  let duplicadas = 0
 
   for (let i = 0; i < escolhidas.length; i += 1) {
     const item = escolhidas[i]
@@ -495,12 +571,18 @@ export async function aplicarCorrecoesTxt(
       aplicadas,
       inalteradas,
       falhas: falhas.length,
+      duplicadas,
     })
     await yieldUi()
 
     const extra = item.extra
     if (item.status === 'falha' || !item.depois) {
       falhas.push(toFalha(item.line, item.motivo || 'Não foi possível aplicar', extra))
+      continue
+    }
+
+    if (item.status === 'ja_feita') {
+      duplicadas += 1
       continue
     }
 
@@ -554,6 +636,7 @@ export async function aplicarCorrecoesTxt(
     aplicadas,
     inalteradas,
     falhas: falhas.length,
+    duplicadas,
   })
 
   if (okRows.length) {
@@ -592,8 +675,9 @@ export async function aplicarCorrecoesTxt(
     aplicadas,
     inalteradas,
     falhas: falhas.length,
+    duplicadas,
   })
-  return { aplicadas, inalteradas, falhas }
+  return { aplicadas, inalteradas, duplicadas, falhas }
 }
 
 export async function saveFalhasTxt(
@@ -629,23 +713,25 @@ export async function saveFalhasTxt(
 
 export async function fetchCorrecaoBackups(opts: {
   nome?: string
-  data?: string
-  hora?: string
+  quem?: string
+  status?: 'todos' | 'ativos' | 'revertidos'
+  dataDe?: string
+  dataAte?: string
+  ascending?: boolean
 }): Promise<CorrecaoBackup[]> {
   let q = supabase
     .from('cadastro_correcao_backup')
     .select('id, cadastro_id, nome_completo, antes, depois, linha_txt, alterado_por_nome, alterado_em, revertido')
-    .order('alterado_em', { ascending: false })
-    .limit(200)
+    .order('alterado_em', { ascending: Boolean(opts.ascending) })
+    .limit(500)
   const nome = (opts.nome ?? '').trim()
   if (nome) q = q.ilike('nome_completo', `%${nome}%`)
-  if (opts.data) {
-    const start = `${opts.data}T${opts.hora && opts.hora.length >= 4 ? opts.hora : '00:00'}:00`
-    const end = opts.hora && opts.hora.length >= 4
-      ? `${opts.data}T${opts.hora}:59`
-      : `${opts.data}T23:59:59`
-    q = q.gte('alterado_em', start).lte('alterado_em', end)
-  }
+  const quem = (opts.quem ?? '').trim()
+  if (quem) q = q.ilike('alterado_por_nome', `%${quem}%`)
+  if (opts.status === 'ativos') q = q.eq('revertido', false)
+  if (opts.status === 'revertidos') q = q.eq('revertido', true)
+  if (opts.dataDe) q = q.gte('alterado_em', `${opts.dataDe}T00:00:00`)
+  if (opts.dataAte) q = q.lte('alterado_em', `${opts.dataAte}T23:59:59`)
   const { data, error } = await q
   if (error) throw new Error(error.message)
   return (data ?? []) as CorrecaoBackup[]

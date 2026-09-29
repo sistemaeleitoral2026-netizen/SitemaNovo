@@ -13,7 +13,13 @@ import { Pagination } from '../components/ui/Pagination'
 import { PeriodFilterSelect } from '../components/ui/PeriodFilter'
 import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import { formatCpf, formatDate, formatPhone, formatCep } from '../lib/format'
-import { fetchCadastros } from '../lib/cadastros'
+import {
+  fetchCadastroListFacets,
+  fetchCadastrosMatching,
+  fetchCadastrosPage,
+  type CadastroListFacets,
+  type CadastrosListSortKey,
+} from '../lib/cadastros'
 import { logAudit } from '../lib/audit'
 import { getPeriodFromPreset, type PeriodPreset } from '../lib/period'
 import { supabase } from '../lib/supabase'
@@ -24,6 +30,16 @@ type ColumnKey = 'nome' | 'nerite' | 'coordenador' | 'lider' | 'nascimento' | 'n
 type SortKey = Exclude<ColumnKey, 'acoes'>
 type SortDir = 'desc' | 'asc'
 type CadastroOperator = Pick<Profile, 'id' | 'nome' | 'diretoria_id'>
+
+const EMPTY_FACETS: CadastroListFacets = {
+  totalAll: 0,
+  zonas: [],
+  secoes: [],
+  secoesPorZona: {},
+  coordenadores: [],
+  lideres: [],
+  dupTitulos: [],
+}
 
 const columnOptions: { key: ColumnKey; label: string; defaultVisible: boolean }[] = [
   { key: 'nome', label: 'Nome', defaultVisible: true },
@@ -44,49 +60,6 @@ const columnOptions: { key: ColumnKey; label: string; defaultVisible: boolean }[
   { key: 'acoes', label: 'Ações', defaultVisible: true },
 ]
 
-function compareText(a: string, b: string) {
-  return a.localeCompare(b, 'pt-BR', { sensitivity: 'base', numeric: true })
-}
-
-function sortValue(
-  c: Cadastro,
-  key: SortKey,
-  neriteNames: Map<string, string>,
-): string | number {
-  switch (key) {
-    case 'nome':
-      return (c.nome_completo ?? '').trim()
-    case 'nerite':
-      return (c.operator_id && neriteNames.get(c.operator_id)) || ''
-    case 'coordenador':
-      return (c.coordenador ?? '').trim()
-    case 'lider':
-      return (c.lider ?? '').trim()
-    case 'nascimento':
-      return c.data_nascimento || ''
-    case 'nome_mae':
-      return (c.nome_mae ?? '').trim()
-    case 'cpf':
-      return (c.cpf ?? '').replace(/\D/g, '')
-    case 'telefone':
-      return (c.telefone ?? '').replace(/\D/g, '')
-    case 'titulo':
-      return (c.titulo ?? '').trim()
-    case 'zona':
-      return (c.zona ?? '').trim()
-    case 'secao':
-      return (c.secao ?? '').trim()
-    case 'cep':
-      return (c.cep ?? '').replace(/\D/g, '')
-    case 'endereco':
-      return [c.endereco, c.numero, c.bairro].filter(Boolean).join(' ')
-    case 'localizacao':
-      return c.lat != null && c.lng != null ? 1 : 0
-    case 'data':
-      return c.created_at || ''
-  }
-}
-
 async function fetchCadastroOperators() {
   const rpcResult = await supabase.rpc('list_cadastro_operadores')
   if (!rpcResult.error) return rpcResult
@@ -99,9 +72,12 @@ export function CadastrosPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const isOwnOnly = location.pathname === '/meus-cadastros'
 
-  const [cadastros, setCadastros] = useState<Cadastro[]>([])
+  const [pageItems, setPageItems] = useState<Cadastro[]>([])
+  const [total, setTotal] = useState(0)
+  const [facets, setFacets] = useState<CadastroListFacets>(EMPTY_FACETS)
   const [nerites, setNerites] = useState<CadastroOperator[]>([])
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [operatorFilter, setOperatorFilter] = useState(() => searchParams.get('operator') ?? '')
   const [coordenadorFilter, setCoordenadorFilter] = useState(() => searchParams.get('coordenador') ?? '')
   const [liderFilter, setLiderFilter] = useState(() => searchParams.get('lider') ?? '')
@@ -120,6 +96,7 @@ export function CadastrosPage() {
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(25)
   const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -129,6 +106,7 @@ export function CadastrosPage() {
   )
   const [sortKey, setSortKey] = useState<SortKey>('data')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [reloadKey, setReloadKey] = useState(0)
 
   const showColumn = (key: ColumnKey) => visibleColumns.has(key) && (key !== 'nerite' || !isOwnOnly)
 
@@ -151,30 +129,103 @@ export function CadastrosPage() {
     setPage(0)
   }
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setLoadError(null)
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedSearch(search.trim()), 300)
+    return () => window.clearTimeout(t)
+  }, [search])
+
+  const scopeOperatorId = isOwnOnly ? profile?.id : undefined
+
+  const loadMeta = useCallback(async () => {
     try {
-      const [data, profilesResult] = await Promise.all([
-        fetchCadastros({ operatorId: isOwnOnly ? profile?.id : undefined }),
+      const [facetData, profilesResult] = await Promise.all([
+        fetchCadastroListFacets({ operatorId: scopeOperatorId }),
         isOwnOnly
-          ? Promise.resolve({ data: [] })
+          ? Promise.resolve({ data: [] as CadastroOperator[] })
           : fetchCadastroOperators(),
       ])
       if ('error' in profilesResult && profilesResult.error) throw profilesResult.error
-      setCadastros(data)
+      setFacets(facetData)
       setNerites((profilesResult.data ?? []) as CadastroOperator[])
-      setPage(0)
     } catch {
-      setLoadError('Não foi possível carregar as fichas. Confira sua conexão e tente novamente.')
-    } finally {
-      setLoading(false)
+      // facetas são auxiliares — a listagem ainda tenta carregar
     }
-  }, [isOwnOnly, profile?.id])
+  }, [isOwnOnly, scopeOperatorId])
+
+  const period = useMemo(() => getPeriodFromPreset(periodPreset), [periodPreset])
+
+  const listQuery = useMemo(() => {
+    const effectiveGeo = (geoFilter || (view === 'mapped' ? 'mapped' : view === 'unmapped' ? 'unmapped' : '')) as
+      | 'mapped'
+      | 'unmapped'
+      | ''
+
+    let periodStart = period.start
+    let periodEnd = period.end
+    if (view === 'week7') {
+      const weekStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      if (!periodStart || periodStart < weekStart) periodStart = weekStart
+      if (!periodEnd) periodEnd = new Date()
+    }
+
+    const diretoriaOperatorIds = diretoriaFilter
+      ? nerites.filter((n) => n.diretoria_id === diretoriaFilter).map((n) => n.id)
+      : undefined
+
+    return {
+      operatorId: scopeOperatorId || operatorFilter || undefined,
+      diretoriaId: !operatorFilter && diretoriaFilter ? diretoriaFilter : undefined,
+      diretoriaOperatorIds,
+      coordenador: coordenadorFilter || undefined,
+      lider: liderFilter || undefined,
+      zona: zonaFilter || undefined,
+      secao: secaoFilter || undefined,
+      search: debouncedSearch || undefined,
+      period: periodStart || periodEnd ? { start: periodStart, end: periodEnd } : undefined,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      cep: cepFilter || undefined,
+      titulo: tituloFilter || undefined,
+      geo: effectiveGeo,
+      dupTitulos: dupFilter ? facets.dupTitulos : undefined,
+      dupMode: (dupFilter === 'only' || dupFilter === 'hide' ? dupFilter : '') as 'only' | 'hide' | '',
+      sortKey: sortKey as CadastrosListSortKey,
+      sortDir,
+    }
+  }, [
+    scopeOperatorId, operatorFilter, diretoriaFilter, nerites, coordenadorFilter, liderFilter,
+    zonaFilter, secaoFilter, debouncedSearch, period, dateFrom, dateTo, cepFilter, tituloFilter,
+    geoFilter, view, dupFilter, facets.dupTitulos, sortKey, sortDir,
+  ])
 
   useEffect(() => {
-    load()
-  }, [load])
+    void loadMeta()
+  }, [loadMeta])
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setLoadError(null)
+    void (async () => {
+      try {
+        const { rows, total: count } = await fetchCadastrosPage({
+          ...listQuery,
+          page,
+          pageSize,
+        })
+        if (cancelled) return
+        setPageItems(rows)
+        setTotal(count)
+      } catch {
+        if (!cancelled) {
+          setLoadError('Não foi possível carregar as fichas. Confira sua conexão e tente novamente.')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [listQuery, page, pageSize, reloadKey])
 
   useEffect(() => {
     const next = new URLSearchParams()
@@ -190,142 +241,20 @@ export function CadastrosPage() {
     [nerites],
   )
 
-  const neriteById = useMemo(
-    () => new Map(nerites.map((n) => [n.id, n])),
-    [nerites],
-  )
-
-  const zonas = useMemo(
-    () => [...new Set(cadastros.map((c) => c.zona).filter((z): z is string => Boolean(z)))]
-      .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })),
-    [cadastros],
-  )
-  const secoes = useMemo(
-    () => [...new Set(
-      cadastros
-        .filter((c) => !zonaFilter || c.zona === zonaFilter)
-        .map((c) => c.secao)
-        .filter((s): s is string => Boolean(s)),
-    )].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })),
-    [cadastros, zonaFilter],
-  )
-  const coordenadoresOpts = useMemo(
-    () => [...new Set(cadastros.map((c) => (c.coordenador ?? '').trim()).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b, 'pt-BR')),
-    [cadastros],
-  )
-  const lideresOpts = useMemo(() => {
-    const seen = new Set<string>()
-    const opts: { value: string; label: string; lider: string; coordenador: string }[] = []
-    cadastros.forEach((c) => {
-      const lider = (c.lider ?? '').trim()
-      if (!lider) return
-      const coordenador = (c.coordenador ?? '').trim()
-      const value = `${lider}\u001f${coordenador}`
-      if (seen.has(value)) return
-      seen.add(value)
-      opts.push({
-        value,
-        lider,
-        coordenador,
-        label: coordenador ? `${lider} · ${coordenador}` : lider,
-      })
-    })
-    return opts.sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'))
-  }, [cadastros])
-
-  const period = useMemo(() => getPeriodFromPreset(periodPreset), [periodPreset])
-  const weekAgo = useMemo(() => Date.now() - 7 * 24 * 60 * 60 * 1000, [])
-
-  const duplicateTitles = useMemo(() => {
-    const counts = new Map<string, number>()
-    cadastros.forEach((c) => {
-      const key = (c.titulo ?? '').trim().toLowerCase()
-      if (key) counts.set(key, (counts.get(key) ?? 0) + 1)
-    })
-    return new Set([...counts.entries()].filter(([, n]) => n > 1).map(([k]) => k))
-  }, [cadastros])
-
-  const filteredCadastros = useMemo(() => {
-    const textTerm = search.trim().toLowerCase()
-    const digitTerm = search.replace(/\D/g, '')
-    const cepTerm = cepFilter.replace(/\D/g, '')
-    const tituloTerm = tituloFilter.trim().toLowerCase()
-    const coordTerm = coordenadorFilter.trim().toLowerCase()
-    const liderTerm = liderFilter.trim().toLowerCase()
-
-    return cadastros.filter((c) => {
-      const matchesSearch = !textTerm || [
-        c.nome_completo ?? '',
-        c.coordenador ?? '',
-        c.lider ?? '',
-        c.cpf ?? '',
-        c.telefone ?? '',
-        c.titulo ?? '',
-        c.cep ?? '',
-        neriteNames.get(c.operator_id ?? '') ?? '',
-      ].some((value) => {
-        const normalized = value.toLowerCase()
-        return normalized.includes(textTerm) || (!!digitTerm && value.replace(/\D/g, '').includes(digitTerm))
-      })
-
-      if (!matchesSearch) return false
-      if (operatorFilter && c.operator_id !== operatorFilter) return false
-      if (coordTerm && (c.coordenador ?? '').trim().toLowerCase() !== coordTerm) return false
-      if (liderTerm && (c.lider ?? '').trim().toLowerCase() !== liderTerm) return false
-      if (diretoriaFilter) {
-        const nerite = neriteById.get(c.operator_id ?? '')
-        const dirId = c.diretoria_id || nerite?.diretoria_id
-        if (dirId !== diretoriaFilter) return false
-      }
-      if (zonaFilter && c.zona !== zonaFilter) return false
-      if (secaoFilter && c.secao !== secaoFilter) return false
-
-      const hasGeo = c.lat != null && c.lng != null
-      const effectiveGeo = geoFilter || (view === 'mapped' ? 'mapped' : view === 'unmapped' ? 'unmapped' : '')
-      if (effectiveGeo === 'mapped' && !hasGeo) return false
-      if (effectiveGeo === 'unmapped' && hasGeo) return false
-
-      if (view === 'week7' && new Date(c.created_at).getTime() < weekAgo) return false
-
-      if (period.start && new Date(c.created_at) < period.start) return false
-      if (period.end && new Date(c.created_at) > period.end) return false
-      if (dateFrom && c.created_at.slice(0, 10) < dateFrom) return false
-      if (dateTo && c.created_at.slice(0, 10) > dateTo) return false
-      if (cepTerm && !(c.cep ?? '').replace(/\D/g, '').includes(cepTerm)) return false
-      if (tituloTerm && !(c.titulo ?? '').toLowerCase().includes(tituloTerm)) return false
-
-      const titleKey = (c.titulo ?? '').trim().toLowerCase()
-      if (dupFilter === 'only' && !duplicateTitles.has(titleKey)) return false
-      if (dupFilter === 'hide' && titleKey && duplicateTitles.has(titleKey)) return false
-
-      return true
-    })
-  }, [
-    cadastros, search, operatorFilter, coordenadorFilter, liderFilter, diretoriaFilter,
-    zonaFilter, secaoFilter, geoFilter, view, weekAgo,
-    period, dateFrom, dateTo, cepFilter, tituloFilter, dupFilter, duplicateTitles, neriteNames, neriteById,
-  ])
-
-  const sortedCadastros = useMemo(() => {
-    const dir = sortDir === 'desc' ? -1 : 1
-    return [...filteredCadastros].sort((a, b) => {
-      const va = sortValue(a, sortKey, neriteNames)
-      const vb = sortValue(b, sortKey, neriteNames)
-      if (typeof va === 'number' && typeof vb === 'number') {
-        return (va - vb) * dir
-      }
-      const cmp = compareText(String(va), String(vb))
-      if (cmp !== 0) return cmp * dir
-      // desempate estável por data mais recente
-      return b.created_at.localeCompare(a.created_at)
-    })
-  }, [filteredCadastros, sortKey, sortDir, neriteNames])
+  const zonas = facets.zonas
+  const secoes = useMemo(() => {
+    if (zonaFilter && facets.secoesPorZona[zonaFilter]) {
+      return facets.secoesPorZona[zonaFilter]
+    }
+    return facets.secoes
+  }, [facets, zonaFilter])
+  const coordenadoresOpts = facets.coordenadores
+  const lideresOpts = facets.lideres
 
   useEffect(() => setPage(0), [
-    search, operatorFilter, coordenadorFilter, liderFilter, diretoriaFilter,
+    debouncedSearch, operatorFilter, coordenadorFilter, liderFilter, diretoriaFilter,
     zonaFilter, secaoFilter, geoFilter, view, periodPreset,
-    dateFrom, dateTo, cepFilter, tituloFilter, dupFilter, pageSize,
+    dateFrom, dateTo, cepFilter, tituloFilter, dupFilter, pageSize, sortKey, sortDir,
   ])
 
   const hasFilters = Boolean(
@@ -342,8 +271,7 @@ export function CadastrosPage() {
     return parts.join(' · ')
   }, [liderFilter, coordenadorFilter, operatorFilter, neriteNames])
 
-  const totalPages = Math.max(1, Math.ceil(sortedCadastros.length / pageSize))
-  const pageItems = sortedCadastros.slice(page * pageSize, (page + 1) * pageSize)
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   function SortHeader({ column, label }: { column: SortKey; label: string }) {
     const active = sortKey === column
@@ -365,6 +293,7 @@ export function CadastrosPage() {
 
   function clearFilters() {
     setSearch('')
+    setDebouncedSearch('')
     setOperatorFilter('')
     setCoordenadorFilter('')
     setLiderFilter('')
@@ -394,7 +323,7 @@ export function CadastrosPage() {
 
   async function handleDelete() {
     if (!deleteId) return
-    const cadastro = cadastros.find((item) => item.id === deleteId)
+    const cadastro = pageItems.find((item) => item.id === deleteId)
     if (!cadastro || !canDelete(cadastro)) {
       setDeleteId(null)
       return
@@ -403,37 +332,47 @@ export function CadastrosPage() {
     const { error } = await supabase.from('cadastros').delete().eq('id', deleteId)
     if (!error) {
       logAudit('excluir', 'cadastros', deleteId)
-      setCadastros((prev) => prev.filter((c) => c.id !== deleteId))
+      setPageItems((prev) => prev.filter((c) => c.id !== deleteId))
+      setTotal((n) => Math.max(0, n - 1))
+      setFacets((prev) => ({ ...prev, totalAll: Math.max(0, prev.totalAll - 1) }))
     }
     setDeleting(false)
     setDeleteId(null)
   }
 
-  function exportCsv() {
-    const header = ['Nome', 'Coordenador', 'Lideranca', 'Data nascimento', 'Nome da mae', 'Telefone', 'Titulo', 'Zona', 'Secao', 'CEP', 'Data']
-    const rows = filteredCadastros.map((c) => [
-      c.nome_completo,
-      c.coordenador || '',
-      c.lider || '',
-      c.data_nascimento ? formatDate(c.data_nascimento) : '',
-      c.nome_mae || '',
-      c.telefone,
-      c.titulo,
-      c.zona,
-      c.secao,
-      c.cep ?? '',
-      formatDate(c.created_at),
-    ])
-    const csv = [header, ...rows]
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-      .join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'cadastros.csv'
-    a.click()
-    URL.revokeObjectURL(url)
+  async function exportCsv() {
+    setExporting(true)
+    try {
+      const rowsData = await fetchCadastrosMatching(listQuery)
+      const header = ['Nome', 'Coordenador', 'Lideranca', 'Data nascimento', 'Nome da mae', 'Telefone', 'Titulo', 'Zona', 'Secao', 'CEP', 'Data']
+      const rows = rowsData.map((c) => [
+        c.nome_completo,
+        c.coordenador || '',
+        c.lider || '',
+        c.data_nascimento ? formatDate(c.data_nascimento) : '',
+        c.nome_mae || '',
+        c.telefone,
+        c.titulo,
+        c.zona,
+        c.secao,
+        c.cep ?? '',
+        formatDate(c.created_at),
+      ])
+      const csv = [header, ...rows]
+        .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        .join('\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'cadastros.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      setLoadError('Não foi possível exportar. Tente novamente.')
+    } finally {
+      setExporting(false)
+    }
   }
 
   return (
@@ -483,8 +422,8 @@ export function CadastrosPage() {
                   </div>
                 )}
               </div>
-              <Button variant="secondary" onClick={exportCsv}>
-                <Download size={15} /> Exportar
+              <Button variant="secondary" onClick={() => void exportCsv()} disabled={exporting}>
+                <Download size={15} /> {exporting ? 'Exportando…' : 'Exportar'}
               </Button>
             </>
           )}
@@ -631,21 +570,23 @@ export function CadastrosPage() {
 
           <div className="filter-results" style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
             <span>
-              <strong>{filteredCadastros.length}</strong> de {cadastros.length} registros encontrados
+              <strong>{total}</strong> de {facets.totalAll} registros encontrados
               {scopeHint ? <span style={{ color: '#657084' }}> · {scopeHint}</span> : null}
             </span>
-            <span style={{ color: '#8a95a7', fontSize: '.68rem' }}>Ordenado por data</span>
+            <span style={{ color: '#8a95a7', fontSize: '.68rem' }}>
+              Ordenado por {columnOptions.find((c) => c.key === sortKey)?.label ?? 'data'}
+            </span>
           </div>
       </div>
 
       <div className="cadastros-table-card">
-        {loading ? (
+        {loading && !pageItems.length ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
             <Spinner size={36} />
           </div>
         ) : loadError ? (
           <div className="alert alert-error" style={{ margin: '1rem' }}>
-            {loadError} <Button size="sm" variant="secondary" onClick={() => void load()}>Tentar novamente</Button>
+            {loadError} <Button size="sm" variant="secondary" onClick={() => setReloadKey((k) => k + 1)}>Tentar novamente</Button>
           </div>
         ) : !pageItems.length ? (
           <EmptyState
@@ -655,6 +596,11 @@ export function CadastrosPage() {
           />
         ) : (
           <>
+            {loading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '.75rem' }}>
+                <Spinner size={22} />
+              </div>
+            ) : null}
             <div className="table-wrapper desktop-only">
               <table className="data-table">
                 <thead>
@@ -784,7 +730,7 @@ export function CadastrosPage() {
             <Pagination
               page={page}
               totalPages={totalPages}
-              totalItems={filteredCadastros.length}
+              totalItems={total}
               pageSize={pageSize}
               onPageChange={setPage}
               onPageSizeChange={(size) => { setPageSize(size); setPage(0) }}
