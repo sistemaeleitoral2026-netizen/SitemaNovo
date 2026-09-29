@@ -1,5 +1,4 @@
--- Rode no SQL Editor do Supabase.
--- Libera o nome da formiga que preencheu cada parte + Dashboard WhatsApp da Aianka.
+-- Aianka (chefe WhatsApp) e administrativo também leem nomes das formigas.
 
 create or replace function public.formigas_nomes(p_ids uuid[])
 returns table (id uuid, nome text)
