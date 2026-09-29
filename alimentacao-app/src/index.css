@@ -6217,17 +6217,24 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .fl-casa-bairro { grid-column: 1 / -1; }
 }
 .fl-stamp {
-  display: inline-flex;
-  align-items: center;
-  gap: .4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: .45rem;
   margin: 0 0 .75rem;
-  padding: .32rem .65rem;
-  border-radius: 999px;
+  padding: .45rem .7rem;
+  border-radius: 12px;
   background: #f1f5f9;
   color: #475569;
-  font-size: .72rem;
+  font-size: .78rem;
   font-weight: 650;
-  line-height: 1.3;
+  line-height: 1.35;
+}
+.fl-stamp > p {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: .4rem;
+  margin: 0;
 }
 .fl-stamp.is-prior {
   background: #fff7ed;
@@ -6238,7 +6245,140 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .fl-stamp.is-prior strong {
   font-weight: 800;
 }
-.fl-stamp svg { flex-shrink: 0; }
+.fl-stamp.is-locked {
+  border-color: #f97316;
+  background: #fff7ed;
+}
+.fl-stamp.is-unlocked {
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  color: #065f46;
+}
+.fl-stamp svg { flex-shrink: 0; margin-top: .1rem; }
+.fl-unlock-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  min-height: 2.5rem;
+  width: 100%;
+  padding: .5rem .75rem;
+  border: 1px solid #fdba74;
+  border-radius: 10px;
+  background: #fff;
+  color: #9a3412;
+  font-size: .82rem;
+  font-weight: 750;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.fl-unlock-btn:hover,
+.fl-unlock-btn:active {
+  background: #ffedd5;
+}
+.fl-unlock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 450;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  background: rgba(15, 23, 42, .55);
+  -webkit-tap-highlight-color: transparent;
+}
+.fl-unlock-dialog {
+  width: 100%;
+  max-width: 28rem;
+  max-height: min(85dvh, 28rem);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  padding: 1.25rem 1.15rem calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -12px 40px rgba(15, 23, 42, .22);
+  box-sizing: border-box;
+  text-align: center;
+}
+.fl-unlock-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: 0 auto .75rem;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #c2410c;
+}
+.fl-unlock-dialog h2 {
+  margin: 0 0 .5rem;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+.fl-unlock-dialog p {
+  margin: 0 0 .65rem;
+  color: #64748b;
+  font-size: .9rem;
+  line-height: 1.45;
+}
+.fl-unlock-dialog p strong {
+  color: #0f172a;
+  font-weight: 750;
+}
+.fl-unlock-note {
+  margin: 0 0 1.1rem !important;
+  padding: .7rem .8rem;
+  border-radius: 10px;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #9a3412 !important;
+  font-size: .84rem !important;
+  text-align: left;
+}
+.fl-unlock-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .65rem;
+}
+.fl-unlock-cancel,
+.fl-unlock-confirm {
+  min-height: 2.85rem;
+  padding: .55rem .75rem;
+  border-radius: 12px;
+  font-size: .95rem;
+  font-weight: 750;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.fl-unlock-cancel {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #475569;
+}
+.fl-unlock-confirm {
+  border: 0;
+  background: #0f172a;
+  color: #fff;
+}
+.fl-unlock-cancel:disabled,
+.fl-unlock-confirm:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+@media (min-width: 721px) {
+  .fl-unlock-overlay {
+    align-items: center;
+    padding: 1.5rem;
+  }
+  .fl-unlock-dialog {
+    border-radius: 16px;
+    padding: 1.35rem 1.35rem 1.25rem;
+  }
+}
 .fl-block-meta {
   display: flex;
   flex-direction: column;
