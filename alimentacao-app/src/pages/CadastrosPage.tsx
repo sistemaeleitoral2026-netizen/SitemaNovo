@@ -154,6 +154,16 @@ export function CadastrosPage() {
 
   const period = useMemo(() => getPeriodFromPreset(periodPreset), [periodPreset])
 
+  const diretoriaOperatorIds = useMemo(() => {
+    if (!diretoriaFilter) return undefined
+    return nerites.filter((n) => n.diretoria_id === diretoriaFilter).map((n) => n.id)
+  }, [diretoriaFilter, nerites])
+
+  const activeDupTitulos = useMemo(
+    () => (dupFilter === 'only' || dupFilter === 'hide' ? facets.dupTitulos : undefined),
+    [dupFilter, facets.dupTitulos],
+  )
+
   const listQuery = useMemo(() => {
     const effectiveGeo = (geoFilter || (view === 'mapped' ? 'mapped' : view === 'unmapped' ? 'unmapped' : '')) as
       | 'mapped'
@@ -167,10 +177,6 @@ export function CadastrosPage() {
       if (!periodStart || periodStart < weekStart) periodStart = weekStart
       if (!periodEnd) periodEnd = new Date()
     }
-
-    const diretoriaOperatorIds = diretoriaFilter
-      ? nerites.filter((n) => n.diretoria_id === diretoriaFilter).map((n) => n.id)
-      : undefined
 
     return {
       operatorId: scopeOperatorId || operatorFilter || undefined,
@@ -187,15 +193,15 @@ export function CadastrosPage() {
       cep: cepFilter || undefined,
       titulo: tituloFilter || undefined,
       geo: effectiveGeo,
-      dupTitulos: dupFilter ? facets.dupTitulos : undefined,
+      dupTitulos: activeDupTitulos,
       dupMode: (dupFilter === 'only' || dupFilter === 'hide' ? dupFilter : '') as 'only' | 'hide' | '',
       sortKey: sortKey as CadastrosListSortKey,
       sortDir,
     }
   }, [
-    scopeOperatorId, operatorFilter, diretoriaFilter, nerites, coordenadorFilter, liderFilter,
+    scopeOperatorId, operatorFilter, diretoriaFilter, diretoriaOperatorIds, coordenadorFilter, liderFilter,
     zonaFilter, secaoFilter, debouncedSearch, period, dateFrom, dateTo, cepFilter, tituloFilter,
-    geoFilter, view, dupFilter, facets.dupTitulos, sortKey, sortDir,
+    geoFilter, view, dupFilter, activeDupTitulos, sortKey, sortDir,
   ])
 
   useEffect(() => {
