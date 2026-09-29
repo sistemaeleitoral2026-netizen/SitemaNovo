@@ -3,6 +3,7 @@ import { supabase } from './supabase'
 import { coordsFromZona } from './geocode'
 import type { Cadastro, ImportExistingKeys, MapMarkerData, PeriodFilter } from '../types'
 import { digitsOnly, normalizeName } from './normalize'
+import { sanitizeSearchTerm } from './search'
 
 /** Garante strings vazias em vez de null (evita crash em .trim() na UI). */
 function sanitizeCadastro(row: Cadastro): Cadastro {
@@ -27,6 +28,10 @@ function sanitizeCadastro(row: Cadastro): Cadastro {
     data_nascimento: row.data_nascimento || null,
   }
 }
+
+/** Colunas da listagem — sem arrays pesados de Formigas (fotos/links). */
+export const CADASTRO_LIST_SELECT =
+  'id,operator_id,diretoria_id,nome_completo,cpf,telefone,titulo,zona,secao,nome_mae,coordenador,lider,data_nascimento,cep,endereco,numero,complemento,bairro,cidade,uf,lat,lng,created_at,updated_at'
 
 /** Supabase/PostgREST limita ~1000 linhas por request — pagina até esgotar. */
 async function fetchAllPaged<T>(
@@ -54,7 +59,7 @@ export async function fetchCadastros(options?: {
   const rows = await fetchAllPaged<Cadastro>((from, to) => {
     let query = supabase
       .from('cadastros')
-      .select('*')
+      .select(CADASTRO_LIST_SELECT)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
 
@@ -87,6 +92,265 @@ export async function fetchCadastros(options?: {
   }
 
   return results
+}
+
+export type CadastrosListSortKey =
+  | 'nome' | 'coordenador' | 'lider' | 'nascimento' | 'nome_mae'
+  | 'cpf' | 'telefone' | 'titulo' | 'zona' | 'secao' | 'cep' | 'endereco'
+  | 'localizacao' | 'data' | 'nerite'
+
+export type CadastrosListQuery = {
+  page: number
+  pageSize: number
+  operatorId?: string
+  diretoriaId?: string
+  /** IDs de nerites da diretoria (para filtrar por diretoria_id OU operator_id). */
+  diretoriaOperatorIds?: string[]
+  coordenador?: string
+  lider?: string
+  zona?: string
+  secao?: string
+  search?: string
+  period?: PeriodFilter
+  dateFrom?: string
+  dateTo?: string
+  cep?: string
+  titulo?: string
+  geo?: 'mapped' | 'unmapped' | ''
+  /** Títulos duplicados (lowercase) — quando só duplicados / ocultar. */
+  dupTitulos?: string[]
+  dupMode?: 'only' | 'hide' | ''
+  sortKey?: CadastrosListSortKey
+  sortDir?: 'asc' | 'desc'
+}
+
+const SORT_COLUMN: Record<CadastrosListSortKey, string> = {
+  nome: 'nome_completo',
+  coordenador: 'coordenador',
+  lider: 'lider',
+  nascimento: 'data_nascimento',
+  nome_mae: 'nome_mae',
+  cpf: 'cpf',
+  telefone: 'telefone',
+  titulo: 'titulo',
+  zona: 'zona',
+  secao: 'secao',
+  cep: 'cep',
+  endereco: 'endereco',
+  localizacao: 'lat',
+  data: 'created_at',
+  nerite: 'operator_id',
+}
+
+function applyCadastrosListFilters(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  query: any,
+  options: CadastrosListQuery,
+) {
+  let q = query
+  if (options.operatorId) q = q.eq('operator_id', options.operatorId)
+
+  if (options.diretoriaId) {
+    const ops = (options.diretoriaOperatorIds ?? []).filter(Boolean)
+    if (ops.length) {
+      q = q.or(`diretoria_id.eq.${options.diretoriaId},operator_id.in.(${ops.join(',')})`)
+    } else {
+      q = q.eq('diretoria_id', options.diretoriaId)
+    }
+  }
+
+  const coord = (options.coordenador ?? '').trim()
+  if (coord) q = q.ilike('coordenador', coord)
+  const lider = (options.lider ?? '').trim()
+  if (lider) q = q.ilike('lider', lider)
+  if (options.zona) q = q.eq('zona', options.zona)
+  if (options.secao) q = q.eq('secao', options.secao)
+
+  if (options.period?.start) q = q.gte('created_at', options.period.start.toISOString())
+  if (options.period?.end) q = q.lte('created_at', options.period.end.toISOString())
+  if (options.dateFrom) q = q.gte('created_at', `${options.dateFrom}T00:00:00`)
+  if (options.dateTo) q = q.lte('created_at', `${options.dateTo}T23:59:59.999`)
+
+  const cep = (options.cep ?? '').replace(/\D/g, '')
+  if (cep) q = q.ilike('cep', `%${cep}%`)
+  const titulo = sanitizeSearchTerm(options.titulo ?? '')
+  if (titulo) q = q.ilike('titulo', `%${titulo}%`)
+
+  if (options.geo === 'mapped') q = q.not('lat', 'is', null).not('lng', 'is', null)
+  if (options.geo === 'unmapped') q = q.or('lat.is.null,lng.is.null')
+
+  const search = sanitizeSearchTerm(options.search ?? '')
+  if (search) {
+    const digits = search.replace(/\D/g, '')
+    const parts = [
+      `nome_completo.ilike.%${search}%`,
+      `titulo.ilike.%${search}%`,
+      `coordenador.ilike.%${search}%`,
+      `lider.ilike.%${search}%`,
+      `telefone.ilike.%${search}%`,
+      `cpf.ilike.%${search}%`,
+      `cep.ilike.%${search}%`,
+    ]
+    if (digits) {
+      parts.push(`telefone.ilike.%${digits}%`)
+      parts.push(`cpf.ilike.%${digits}%`)
+      parts.push(`titulo.ilike.%${digits}%`)
+    }
+    q = q.or(parts.join(','))
+  }
+
+  const dups = (options.dupTitulos ?? []).filter(Boolean).slice(0, 200)
+  if (options.dupMode === 'only') {
+    if (!dups.length) return q.eq('id', '00000000-0000-0000-0000-000000000000')
+    q = q.in('titulo', dups)
+  }
+  if (options.dupMode === 'hide' && dups.length) {
+    q = q.not('titulo', 'in', `(${dups.map((t) => `"${t.replace(/"/g, '')}"`).join(',')})`)
+  }
+
+  return q
+}
+
+/** Uma página de fichas + total — listagem Cadastros sem baixar a tabela inteira. */
+export async function fetchCadastrosPage(
+  options: CadastrosListQuery,
+): Promise<{ rows: Cadastro[]; total: number }> {
+  const page = Math.max(0, options.page)
+  const pageSize = Math.min(200, Math.max(1, options.pageSize))
+  const from = page * pageSize
+  const to = from + pageSize - 1
+  const sortKey = options.sortKey && SORT_COLUMN[options.sortKey] ? options.sortKey : 'data'
+  const ascending = options.sortDir === 'asc'
+  const column = SORT_COLUMN[sortKey]
+
+  let query = supabase
+    .from('cadastros')
+    .select(CADASTRO_LIST_SELECT, { count: 'exact' })
+    .order(column, { ascending, nullsFirst: false })
+    .order('id', { ascending: false })
+
+  query = applyCadastrosListFilters(query, options)
+
+  const { data, error, count } = await query.range(from, to)
+  if (error) throw new Error(error.message)
+  return {
+    rows: ((data ?? []) as Cadastro[]).map(sanitizeCadastro),
+    total: count ?? 0,
+  }
+}
+
+export type CadastroListFacets = {
+  totalAll: number
+  zonas: string[]
+  secoes: string[]
+  /** Seções por zona — para filtrar o dropdown ao escolher zona. */
+  secoesPorZona: Record<string, string[]>
+  coordenadores: string[]
+  lideres: { lider: string; coordenador: string; value: string; label: string }[]
+  /** Títulos com mais de uma ficha (amostra original) — filtro de duplicados. */
+  dupTitulos: string[]
+}
+
+/** Facetas leves (5 colunas) para montar os filtros sem baixar a ficha inteira. */
+export async function fetchCadastroListFacets(options?: {
+  operatorId?: string
+}): Promise<CadastroListFacets> {
+  const rows = await fetchAllPaged<{
+    zona: string | null
+    secao: string | null
+    coordenador: string | null
+    lider: string | null
+    titulo: string | null
+  }>((from, to) => {
+    let q = supabase
+      .from('cadastros')
+      .select('zona,secao,coordenador,lider,titulo')
+      .order('id', { ascending: false })
+    if (options?.operatorId) q = q.eq('operator_id', options.operatorId)
+    return q.range(from, to)
+  })
+
+  const zonas = new Set<string>()
+  const secoes = new Set<string>()
+  const secoesPorZona = new Map<string, Set<string>>()
+  const coordenadores = new Set<string>()
+  const liderSeen = new Set<string>()
+  const lideres: CadastroListFacets['lideres'] = []
+  const tituloCount = new Map<string, { n: number; sample: string }>()
+
+  for (const row of rows) {
+    const zona = (row.zona ?? '').trim()
+    const secao = (row.secao ?? '').trim()
+    const coordenador = (row.coordenador ?? '').trim()
+    const lider = (row.lider ?? '').trim()
+    const titulo = (row.titulo ?? '').trim()
+    if (zona) zonas.add(zona)
+    if (secao) {
+      secoes.add(secao)
+      if (zona) {
+        let set = secoesPorZona.get(zona)
+        if (!set) {
+          set = new Set()
+          secoesPorZona.set(zona, set)
+        }
+        set.add(secao)
+      }
+    }
+    if (coordenador) coordenadores.add(coordenador)
+    if (lider) {
+      const value = `${lider}\u001f${coordenador}`
+      if (!liderSeen.has(value)) {
+        liderSeen.add(value)
+        lideres.push({
+          value,
+          lider,
+          coordenador,
+          label: coordenador ? `${lider} · ${coordenador}` : lider,
+        })
+      }
+    }
+    if (titulo) {
+      const key = titulo.toLowerCase()
+      const prev = tituloCount.get(key)
+      if (prev) prev.n += 1
+      else tituloCount.set(key, { n: 1, sample: titulo })
+    }
+  }
+
+  const sortPt = (a: string, b: string) => a.localeCompare(b, 'pt-BR', { numeric: true })
+  const secoesPorZonaObj: Record<string, string[]> = {}
+  for (const [zona, set] of secoesPorZona) {
+    secoesPorZonaObj[zona] = [...set].sort(sortPt)
+  }
+
+  return {
+    totalAll: rows.length,
+    zonas: [...zonas].sort(sortPt),
+    secoes: [...secoes].sort(sortPt),
+    secoesPorZona: secoesPorZonaObj,
+    coordenadores: [...coordenadores].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    lideres: lideres.sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')),
+    dupTitulos: [...tituloCount.entries()]
+      .filter(([, v]) => v.n > 1)
+      .map(([, v]) => v.sample),
+  }
+}
+
+/** Todas as fichas que batem nos filtros (exportação) — slim select, paginado. */
+export async function fetchCadastrosMatching(
+  options: Omit<CadastrosListQuery, 'page' | 'pageSize'>,
+  maxRows = 20000,
+): Promise<Cadastro[]> {
+  const pageSize = 500
+  const all: Cadastro[] = []
+  let page = 0
+  for (;;) {
+    const { rows, total } = await fetchCadastrosPage({ ...options, page, pageSize })
+    all.push(...rows)
+    if (all.length >= total || rows.length < pageSize || all.length >= maxRows) break
+    page += 1
+  }
+  return all
 }
 
 /**
