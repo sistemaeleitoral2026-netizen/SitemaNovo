@@ -270,6 +270,10 @@ export function RelatorioFichasTxtPage() {
     () => falhaLines.map((row) => linhaTxtDe(row)).join('\n'),
     [falhaLines],
   )
+  const ajustadosTxt = useMemo(
+    () => ajustadosLines.map((row) => linhaTxtDe(row)).join('\n'),
+    [ajustadosLines],
+  )
   const correcaoCount = useMemo(() => parseRelatorioTxtLines(correcaoDraft).length, [correcaoDraft])
   const falhaCount = useMemo(() => parseRelatorioTxtLines(falhaDraft).length, [falhaDraft])
   const correcaoAcima = correcaoCount > RELATORIO_TXT_LIMITE
@@ -277,6 +281,22 @@ export function RelatorioFichasTxtPage() {
 
   function mensagemLimite(n: number) {
     return `São ${n} linhas. O limite é ${RELATORIO_TXT_LIMITE} por vez — não dá para subir mais. Tire o restante e faça outro lote.`
+  }
+
+  function handleBaixarAjustados() {
+    if (!ajustadosLines.length) return
+    downloadTxt(
+      `${[RELATORIO_TXT_HEADER, ...ajustadosLines.map((row) => linhaTxtDe(row))].join('\n')}\n`,
+      `relatorio-ja-ajustados-${new Date().toISOString().slice(0, 10)}.txt`,
+    )
+  }
+
+  function handleBaixarFalhas() {
+    if (!falhaLines.length) return
+    downloadTxt(
+      `${[RELATORIO_TXT_HEADER, ...falhaLines.map((row) => linhaTxtDe(row))].join('\n')}\n`,
+      `relatorio-falhas-${new Date().toISOString().slice(0, 10)}.txt`,
+    )
   }
 
   function handleGerar() {
@@ -553,10 +573,20 @@ export function RelatorioFichasTxtPage() {
         <div className="rel-txt-stat is-ok">
           <span>Já ajustados</span>
           <strong>{ajustadosLines.length.toLocaleString('pt-BR')}</strong>
+          {ajustadosLines.length > 0 ? (
+            <button type="button" className="rel-txt-stat-dl" onClick={handleBaixarAjustados}>
+              <Download size={13} /> Baixar TXT
+            </button>
+          ) : null}
         </div>
         <div className="rel-txt-stat">
           <span>Falhas</span>
           <strong>{falhaLines.length.toLocaleString('pt-BR')}</strong>
+          {falhaLines.length > 0 ? (
+            <button type="button" className="rel-txt-stat-dl is-fail" onClick={handleBaixarFalhas}>
+              <Download size={13} /> Baixar TXT
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -657,6 +687,52 @@ export function RelatorioFichasTxtPage() {
               onToggle={toggleCancelar}
             />
           ) : null}
+          <Card
+            title={`Já ajustados (${ajustadosLines.length})`}
+            subtitle="Linhas que já passaram pela correção e não entram de novo no Gerar arquivo."
+            action={ajustadosLines.length ? (
+              <Button size="sm" type="button" variant="secondary" onClick={handleBaixarAjustados}>
+                <Download size={14} /> Baixar TXT
+              </Button>
+            ) : undefined}
+          >
+            {!ajustadosLines.length ? (
+              <p className="rel-txt-empty">Nenhuma correção aplicada ainda.</p>
+            ) : (
+              <>
+                <div className="table-wrapper">
+                  <table className="data-table rel-txt-table">
+                    <thead>
+                      <tr>
+                        <th>Nome</th>
+                        <th>Mãe</th>
+                        <th>Título</th>
+                        <th>Zona</th>
+                        <th>Seção</th>
+                        <th>id</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ajustadosLines.map((row) => (
+                        <tr key={row.titulo_key}>
+                          <td><strong>{row.nome || '—'}</strong></td>
+                          <td>{row.nome_mae || '—'}</td>
+                          <td className="mono-cell">{row.titulo || '—'}</td>
+                          <td>{row.zona || '—'}</td>
+                          <td>{row.secao || '—'}</td>
+                          <td><FichaLink id={row.cadastro_id} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <label className="rel-txt-paste" style={{ marginTop: '1rem' }}>
+                  <span className="rel-txt-paste-label">Linhas (TXT)</span>
+                  <textarea value={ajustadosTxt} readOnly rows={Math.min(12, ajustadosLines.length + 1)} spellCheck={false} />
+                </label>
+              </>
+            )}
+          </Card>
         </>
       ) : null}
 
@@ -691,7 +767,11 @@ export function RelatorioFichasTxtPage() {
               </p>
             </label>
           </Card>
-          <Card title={`Falhas gravadas (${falhaLines.length})`}>
+          <Card title={`Falhas gravadas (${falhaLines.length})`} action={falhaLines.length ? (
+            <Button size="sm" type="button" variant="secondary" onClick={handleBaixarFalhas}>
+              <Download size={14} /> Baixar TXT
+            </Button>
+          ) : undefined}>
             {!falhaLines.length ? (
               <p className="rel-txt-empty">Nenhuma falha ainda.</p>
             ) : (
