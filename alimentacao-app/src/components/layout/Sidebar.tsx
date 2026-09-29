@@ -215,15 +215,16 @@ export function Sidebar({ roles = [], email, open, onClose }: SidebarProps) {
     }
 
     void load()
+    // Não amarrar em location.pathname — cada troca de rota reiniciava a busca.
     const timer = window.setInterval(() => {
       void load()
-    }, 30_000)
+    }, 60_000)
 
     return () => {
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [canSeeDemandas, location.pathname])
+  }, [canSeeDemandas])
 
   const groups = navGroups
     .map((group) => ({
