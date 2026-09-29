@@ -14,6 +14,10 @@ interface CadastrosMapProps {
   resetKey?: number
   showLegend?: boolean
   layerMode?: 'markers' | 'density'
+  /** zona = mancha TRE; secao/bairro = pontos */
+  groupMode?: 'zona' | 'secao' | 'bairro'
+  /** Dashboard / cards: menos rótulos, pontos mais limpos */
+  compact?: boolean
   /** Enquadra só os centros dos marcadores (melhor no dashboard; evita oceano vazio). */
   fitToMarkers?: boolean
 }
@@ -135,6 +139,8 @@ export function CadastrosMap({
   resetKey = 0,
   showLegend = true,
   layerMode = 'density',
+  groupMode = 'zona',
+  compact = false,
   fitToMarkers = false,
 }: CadastrosMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -189,87 +195,152 @@ export function CadastrosMap({
     const maxCount = Math.max(...markers.map((m) => m.count), 1)
     const allBounds: L.LatLngExpression[] = []
 
-    markers.forEach((m) => {
-      const area = getZonaArea(m.zona, { lat: m.lat, lng: m.lng })
-      if (!area) return
+    if (groupMode === 'secao' || groupMode === 'bairro') {
+      markers.forEach((m) => {
+        const colors = zoneStyle(m.count, maxCount)
+        const intensity = Math.sqrt(m.count / maxCount)
+        const baseR = compact ? 5 : 7
+        const radius = baseR + intensity * (compact ? 10 : 14)
+        const title =
+          groupMode === 'bairro'
+            ? (m.bairro || 'Bairro')
+            : (m.local_votacao || (m.secao ? `Seção ${m.secao}` : 'Seção'))
+        const metaBits = [
+          m.zona ? `Zona <b>${m.zona}</b>` : null,
+          groupMode === 'bairro' && m.secao ? `Seção <b>${m.secao}</b>` : null,
+          groupMode === 'secao' && m.secao ? `Seção <b>${m.secao}</b>` : null,
+          groupMode === 'secao' && m.bairro ? `Bairro <b>${m.bairro}</b>` : null,
+        ].filter(Boolean).join(' · ')
+        const popupHtml = `
+          <div class="cm-popup">
+            <div class="cm-popup-title">${title}</div>
+            ${metaBits ? `<div class="cm-popup-meta">${metaBits}</div>` : ''}
+            <div class="cm-popup-count"><b>${m.count}</b> cadastro${m.count === 1 ? '' : 's'}</div>
+          </div>
+        `
 
-      const intensity = m.count / maxCount
-      const colors = zoneStyle(m.count, maxCount)
-      const fillOpacity = 0.22 + intensity * 0.28
-      const strokeOpacity = 0.7 + intensity * 0.25
+        const halo = L.circleMarker([m.lat, m.lng], {
+          radius: radius + (compact ? 5 : 7),
+          color: colors.fill,
+          weight: 0,
+          fillColor: colors.fill,
+          fillOpacity: 0.18 + intensity * 0.12,
+          interactive: false,
+        })
+        overlay.addLayer(halo)
 
-      const popupHtml = `
-        <div style="min-width:200px;max-width:280px;font-family:inherit">
-          <div style="font-weight:750;font-size:13px;color:#172033;margin-bottom:4px">${area.titulo}</div>
-          <div style="font-size:11px;color:#657084;margin-bottom:6px">Sede: <b style="color:#253046">${area.sede}</b></div>
-          ${area.municipios.length ? `<div style="font-size:11px;color:#657084;margin-bottom:6px">Município(s): ${area.municipios.join(', ')}</div>` : ''}
-          ${area.bairroNomes.length ? `<div style="font-size:11px;color:#475569;line-height:1.4;margin-bottom:8px"><b style="color:#172033">Bairros:</b><br/>${area.bairroNomes.join(', ')}</div>` : ''}
-          <div style="font-size:12px;color:#172033">Cadastros: <b>${m.count}</b></div>
-        </div>
-      `
+        const circle = L.circleMarker([m.lat, m.lng], {
+          radius,
+          color: colors.stroke,
+          weight: compact ? 1.5 : 2,
+          opacity: 1,
+          fillColor: colors.fill,
+          fillOpacity: 0.82 + intensity * 0.14,
+        })
+        circle.bindPopup(popupHtml, { className: 'cm-popup-wrap', maxWidth: m.local_votacao ? 280 : 220 })
+        overlay.addLayer(circle)
+        allBounds.push([m.lat, m.lng])
 
-      const hull = convexHull(area.bairros)
-      if (hull.length >= 3) {
-        const polygon = L.polygon(
-          hull.map((p) => [p.lat, p.lng] as [number, number]),
-          {
+        if (layerMode === 'markers' && !compact) {
+          const chip =
+            groupMode === 'bairro'
+              ? (m.bairro || '—').slice(0, 14)
+              : (m.local_votacao || `S. ${m.secao || '—'}`).slice(0, 18)
+          const label = L.marker([m.lat, m.lng], {
+            interactive: false,
+            icon: L.divIcon({
+              className: 'cm-secao-label',
+              html: `<span class="cm-secao-chip" style="border-color:${colors.stroke};color:${colors.label}">${chip}</span>`,
+              iconSize: [m.local_votacao ? 110 : 72, 18],
+              iconAnchor: [m.local_votacao ? 55 : 36, -8],
+            }),
+          })
+          overlay.addLayer(label)
+        }
+      })
+    } else {
+      markers.forEach((m) => {
+        const area = getZonaArea(m.zona, { lat: m.lat, lng: m.lng })
+        if (!area) return
+
+        const intensity = m.count / maxCount
+        const colors = zoneStyle(m.count, maxCount)
+        const fillOpacity = 0.22 + intensity * 0.28
+        const strokeOpacity = 0.7 + intensity * 0.25
+
+        const popupHtml = `
+          <div style="min-width:200px;max-width:280px;font-family:inherit">
+            <div style="font-weight:750;font-size:13px;color:#172033;margin-bottom:4px">${area.titulo}</div>
+            <div style="font-size:11px;color:#657084;margin-bottom:6px">Sede: <b style="color:#253046">${area.sede}</b></div>
+            ${area.municipios.length ? `<div style="font-size:11px;color:#657084;margin-bottom:6px">Município(s): ${area.municipios.join(', ')}</div>` : ''}
+            ${area.bairroNomes.length ? `<div style="font-size:11px;color:#475569;line-height:1.4;margin-bottom:8px"><b style="color:#172033">Bairros:</b><br/>${area.bairroNomes.join(', ')}</div>` : ''}
+            <div style="font-size:12px;color:#172033">Cadastros: <b>${m.count}</b></div>
+          </div>
+        `
+
+        const hull = convexHull(area.bairros)
+        if (hull.length >= 3) {
+          const polygon = L.polygon(
+            hull.map((p) => [p.lat, p.lng] as [number, number]),
+            {
+              color: colors.stroke,
+              weight: 1.75,
+              opacity: strokeOpacity,
+              fillColor: colors.fill,
+              fillOpacity,
+            },
+          )
+          polygon.bindPopup(popupHtml)
+          overlay.addLayer(polygon)
+          hull.forEach((p) => allBounds.push([p.lat, p.lng]))
+        } else {
+          const circle = L.circle([m.lat, m.lng], {
+            radius: area.radiusMeters,
             color: colors.stroke,
             weight: 1.75,
             opacity: strokeOpacity,
             fillColor: colors.fill,
             fillOpacity,
-          },
-        )
-        polygon.bindPopup(popupHtml)
-        overlay.addLayer(polygon)
-        hull.forEach((p) => allBounds.push([p.lat, p.lng]))
-      } else {
-        const circle = L.circle([m.lat, m.lng], {
-          radius: area.radiusMeters,
-          color: colors.stroke,
-          weight: 1.75,
-          opacity: strokeOpacity,
-          fillColor: colors.fill,
-          fillOpacity,
-        })
-        circle.bindPopup(popupHtml)
-        overlay.addLayer(circle)
-        allBounds.push([m.lat, m.lng])
-      }
+          })
+          circle.bindPopup(popupHtml)
+          overlay.addLayer(circle)
+          allBounds.push([m.lat, m.lng])
+        }
 
-      const label = L.marker([m.lat, m.lng], {
-        interactive: false,
-        icon: L.divIcon({
-          className: 'zona-map-label',
-          html: `<span style="
-            display:inline-block;
-            background:rgba(255,255,255,.92);
-            border:1px solid ${colors.stroke};
-            color:${colors.label};
-            font:650 11px/1 inherit;
-            padding:3px 7px;
-            border-radius:6px;
-            box-shadow:0 1px 4px rgba(15,23,42,.12);
-            white-space:nowrap;
-          ">${area.titulo}</span>`,
-          iconSize: [90, 22],
-          iconAnchor: [45, 11],
-        }),
+        const label = L.marker([m.lat, m.lng], {
+          interactive: false,
+          icon: L.divIcon({
+            className: 'zona-map-label',
+            html: `<span style="
+              display:inline-block;
+              background:rgba(255,255,255,.92);
+              border:1px solid ${colors.stroke};
+              color:${colors.label};
+              font:650 11px/1 inherit;
+              padding:3px 7px;
+              border-radius:6px;
+              box-shadow:0 1px 4px rgba(15,23,42,.12);
+              white-space:nowrap;
+            ">${area.titulo}</span>`,
+            iconSize: [90, 22],
+            iconAnchor: [45, 11],
+          }),
+        })
+        overlay.addLayer(label)
+
+        if (layerMode === 'markers') {
+          const marker = L.circleMarker([m.lat, m.lng], {
+            radius: 5,
+            color: colors.stroke,
+            weight: 1,
+            fillColor: '#fff',
+            fillOpacity: 0.95,
+          })
+          marker.bindPopup(popupHtml)
+          overlay.addLayer(marker)
+        }
       })
-      overlay.addLayer(label)
-
-      if (layerMode === 'markers') {
-        const marker = L.circleMarker([m.lat, m.lng], {
-          radius: 5,
-          color: colors.stroke,
-          weight: 1,
-          fillColor: '#fff',
-          fillOpacity: 0.95,
-        })
-        marker.bindPopup(popupHtml)
-        overlay.addLayer(marker)
-      }
-    })
+    }
 
     let cancelled = false
     let cancelFit: (() => void) | undefined
@@ -281,11 +352,15 @@ export function CadastrosMap({
       }
       const centers = markers.map((m) => [m.lat, m.lng] as [number, number])
       if (allBounds.length > 0) {
-        map.fitBounds(L.latLngBounds(allBounds), { padding: [48, 48], maxZoom: 13, animate: false })
+        map.fitBounds(L.latLngBounds(allBounds), {
+          padding: [48, 48],
+          maxZoom: groupMode === 'zona' ? 13 : 14,
+          animate: false,
+        })
       } else if (centers.length > 0) {
         map.fitBounds(L.latLngBounds(centers), {
           padding: [48, 48],
-          maxZoom: 13,
+          maxZoom: groupMode === 'zona' ? 13 : 14,
           animate: false,
         })
       }
@@ -303,7 +378,7 @@ export function CadastrosMap({
       cancelled = true
       cancelFit?.()
     }
-  }, [markers, layerMode, fitToMarkers])
+  }, [markers, layerMode, groupMode, compact, fitToMarkers])
 
   useEffect(() => {
     const map = mapRef.current
@@ -351,8 +426,14 @@ export function CadastrosMap({
           }}
         >
           <EmptyState
-            title="Nenhuma mancha no mapa"
-            description="Cadastre fichas com zona eleitoral para ver a cobertura oficial da zona."
+            title={groupMode === 'secao' ? 'Nenhuma seção no mapa' : groupMode === 'bairro' ? 'Nenhum bairro no mapa' : 'Nenhuma mancha no mapa'}
+            description={
+              groupMode === 'secao'
+                ? 'Cadastre fichas com zona e seção; o nome do local vem da planilha TSE.'
+                : groupMode === 'bairro'
+                  ? 'Cadastre fichas com bairro preenchido para ver a concentração por bairro.'
+                  : 'Cadastre fichas com zona eleitoral para ver a cobertura oficial da zona.'
+            }
           />
         </div>
       )}

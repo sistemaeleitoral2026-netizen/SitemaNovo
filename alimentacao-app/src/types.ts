@@ -133,6 +133,8 @@ export interface Cadastro {
   bairro?: string | null
   cidade?: string | null
   uf?: string | null
+  /** Preenchido em memória pelo cruzamento TSE (NM_LOCAL_VOTACAO_ORIGINAL), não é coluna do banco. */
+  local_votacao?: string | null
   lat: number | null
   lng: number | null
   carros_adesivados?: number
@@ -257,6 +259,8 @@ export interface MapMarkerData {
   lng: number
   zona: string
   secao: string
+  bairro?: string
+  local_votacao?: string
   count: number
   cep?: string
 }
