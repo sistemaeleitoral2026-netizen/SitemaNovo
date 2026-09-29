@@ -251,88 +251,97 @@ export type CadastroListFacets = {
   dupTitulos: string[]
 }
 
-/** Facetas leves (5 colunas) para montar os filtros sem baixar a ficha inteira. */
+/** Facetas leves — NÃO baixa a tabela de fichas. Equipe + count + RPC (se existir). */
 export async function fetchCadastroListFacets(options?: {
   operatorId?: string
 }): Promise<CadastroListFacets> {
-  const rows = await fetchAllPaged<{
-    zona: string | null
-    secao: string | null
-    coordenador: string | null
-    lider: string | null
-    titulo: string | null
-  }>((from, to) => {
-    let q = supabase
-      .from('cadastros')
-      .select('zona,secao,coordenador,lider,titulo')
-      .order('id', { ascending: false })
-    if (options?.operatorId) q = q.eq('operator_id', options.operatorId)
-    return q.range(from, to)
-  })
+  const operatorId = options?.operatorId
 
-  const zonas = new Set<string>()
-  const secoes = new Set<string>()
-  const secoesPorZona = new Map<string, Set<string>>()
-  const coordenadores = new Set<string>()
+  let countQuery = supabase
+    .from('cadastros')
+    .select('id', { count: 'exact', head: true })
+  if (operatorId) countQuery = countQuery.eq('operator_id', operatorId)
+
+  const [countRes, coordsRes, lidsRes, rpcRes] = await Promise.all([
+    countQuery,
+    supabase.from('coordenadores').select('id,nome').eq('ativo', true).order('nome'),
+    supabase.from('lideres').select('id,nome,coordenador_id').eq('ativo', true).order('nome'),
+    supabase.rpc('cadastros_list_facets', { p_operator_id: operatorId ?? null }),
+  ])
+
+  const coordById = new Map<string, string>()
+  const coordenadores: string[] = []
+  for (const row of (coordsRes.data ?? []) as { id: string; nome: string | null }[]) {
+    const nome = (row.nome ?? '').trim()
+    if (!nome) continue
+    coordById.set(row.id, nome)
+    coordenadores.push(nome)
+  }
+
   const liderSeen = new Set<string>()
   const lideres: CadastroListFacets['lideres'] = []
-  const tituloCount = new Map<string, { n: number; sample: string }>()
-
-  for (const row of rows) {
-    const zona = (row.zona ?? '').trim()
-    const secao = (row.secao ?? '').trim()
-    const coordenador = (row.coordenador ?? '').trim()
-    const lider = (row.lider ?? '').trim()
-    const titulo = (row.titulo ?? '').trim()
-    if (zona) zonas.add(zona)
-    if (secao) {
-      secoes.add(secao)
-      if (zona) {
-        let set = secoesPorZona.get(zona)
-        if (!set) {
-          set = new Set()
-          secoesPorZona.set(zona, set)
-        }
-        set.add(secao)
-      }
-    }
-    if (coordenador) coordenadores.add(coordenador)
-    if (lider) {
-      const value = `${lider}\u001f${coordenador}`
-      if (!liderSeen.has(value)) {
-        liderSeen.add(value)
-        lideres.push({
-          value,
-          lider,
-          coordenador,
-          label: coordenador ? `${lider} · ${coordenador}` : lider,
-        })
-      }
-    }
-    if (titulo) {
-      const key = titulo.toLowerCase()
-      const prev = tituloCount.get(key)
-      if (prev) prev.n += 1
-      else tituloCount.set(key, { n: 1, sample: titulo })
-    }
+  for (const row of (lidsRes.data ?? []) as {
+    id: string
+    nome: string | null
+    coordenador_id: string | null
+  }[]) {
+    const lider = (row.nome ?? '').trim()
+    if (!lider) continue
+    const coordenador = (row.coordenador_id && coordById.get(row.coordenador_id)) || ''
+    const value = `${lider}\u001f${coordenador}`
+    if (liderSeen.has(value)) continue
+    liderSeen.add(value)
+    lideres.push({
+      value,
+      lider,
+      coordenador,
+      label: coordenador ? `${lider} · ${coordenador}` : lider,
+    })
   }
 
   const sortPt = (a: string, b: string) => a.localeCompare(b, 'pt-BR', { numeric: true })
-  const secoesPorZonaObj: Record<string, string[]> = {}
-  for (const [zona, set] of secoesPorZona) {
-    secoesPorZonaObj[zona] = [...set].sort(sortPt)
+  let totalAll = countRes.count ?? 0
+  let zonas: string[] = []
+  let secoes: string[] = []
+  const secoesPorZona: Record<string, string[]> = {}
+  let dupTitulos: string[] = []
+
+  const rpc = rpcRes.error ? null : rpcRes.data
+  if (rpc && typeof rpc === 'object') {
+    const payload = rpc as {
+      totalAll?: number
+      zonas?: string[]
+      secoes?: { zona: string | null; secao: string | null }[]
+      dupTitulos?: string[]
+    }
+    if (typeof payload.totalAll === 'number') totalAll = payload.totalAll
+    zonas = (payload.zonas ?? []).filter(Boolean).sort(sortPt)
+    dupTitulos = (payload.dupTitulos ?? []).filter(Boolean)
+    const secaoSet = new Set<string>()
+    for (const pair of payload.secoes ?? []) {
+      const zona = (pair.zona ?? '').trim()
+      const secao = (pair.secao ?? '').trim()
+      if (!secao) continue
+      secaoSet.add(secao)
+      if (zona) {
+        if (!secoesPorZona[zona]) secoesPorZona[zona] = []
+        if (!secoesPorZona[zona].includes(secao)) secoesPorZona[zona].push(secao)
+      }
+    }
+    secoes = [...secaoSet].sort(sortPt)
+    for (const zona of Object.keys(secoesPorZona)) {
+      secoesPorZona[zona].sort(sortPt)
+    }
   }
 
   return {
-    totalAll: rows.length,
-    zonas: [...zonas].sort(sortPt),
-    secoes: [...secoes].sort(sortPt),
-    secoesPorZona: secoesPorZonaObj,
-    coordenadores: [...coordenadores].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    totalAll,
+    zonas,
+    secoes,
+    secoesPorZona,
+    coordenadores: [...new Set(coordenadores)].sort((a, b) => a.localeCompare(b, 'pt-BR')),
     lideres: lideres.sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')),
-    dupTitulos: [...tituloCount.entries()]
-      .filter(([, v]) => v.n > 1)
-      .map(([, v]) => v.sample),
+    dupTitulos,
   }
 }
 
