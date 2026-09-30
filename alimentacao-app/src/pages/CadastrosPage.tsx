@@ -134,6 +134,27 @@ export function CadastrosPage() {
     return () => window.clearTimeout(t)
   }, [search])
 
+  useEffect(() => {
+    if (!hasRole(profile, 'coordenador') || !profile?.id) return
+    if (searchParams.get('coordenador')) return
+    let cancelled = false
+    void (async () => {
+      const q = profile.coordenador_id
+        ? supabase.from('coordenadores').select('nome').eq('id', profile.coordenador_id).maybeSingle()
+        : supabase.from('coordenadores').select('nome').eq('user_id', profile.id).maybeSingle()
+      const { data } = await q
+      if (!cancelled && data?.nome) {
+        setCoordenadorFilter(data.nome)
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev)
+          next.set('coordenador', data.nome)
+          return next
+        }, { replace: true })
+      }
+    })()
+    return () => { cancelled = true }
+  }, [profile, searchParams, setSearchParams])
+
   const scopeOperatorId = isOwnOnly ? profile?.id : undefined
 
   const loadMeta = useCallback(async () => {
@@ -318,7 +339,7 @@ export function CadastrosPage() {
   }
 
   const canEdit = (_c: Cadastro) =>
-    hasRole(profile, ['admin', 'diretoria']) || _c.operator_id === profile?.id
+    hasRole(profile, ['admin', 'diretoria', 'coordenador']) || _c.operator_id === profile?.id
 
   const canDelete = (c: Cadastro) => {
     if (hasRole(profile, 'admin')) return true

@@ -8,6 +8,26 @@ function json(res, status, body) {
   res.end(JSON.stringify(body))
 }
 
+async function rest(path, { method = 'GET', body } = {}) {
+  const headers = {
+    Authorization: `Bearer ${SERVICE_ROLE}`,
+    apikey: SERVICE_ROLE,
+  }
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json'
+    headers.Prefer = 'return=minimal'
+  }
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  })
+  const text = await res.text()
+  let data = null
+  try { data = text ? JSON.parse(text) : null } catch { data = text }
+  return { ok: res.ok, status: res.status, data }
+}
+
 async function getCaller(token) {
   const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
     headers: { Authorization: `Bearer ${token}`, apikey: ANON_KEY },
@@ -15,13 +35,25 @@ async function getCaller(token) {
   if (!userRes.ok) return null
   const user = await userRes.json()
   const profileRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=id,role,ativo`,
+    `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=id,role,ativo,diretoria_id,coordenador_id`,
     { headers: { Authorization: `Bearer ${token}`, apikey: ANON_KEY } },
   )
   const profiles = await profileRes.json()
   const profile = Array.isArray(profiles) ? profiles[0] : null
-  if (!profile || !profile.ativo || !['admin', 'diretoria'].includes(profile.role)) return null
+  if (!profile || !profile.ativo || !['admin', 'diretoria', 'coordenador'].includes(profile.role)) {
+    return null
+  }
   return profile
+}
+
+async function resolveCallerCoordId(caller) {
+  if (caller.role !== 'coordenador') return null
+  if (caller.coordenador_id) return caller.coordenador_id
+  const mine = await rest(
+    `coordenadores?user_id=eq.${caller.id}&select=id&limit=1`,
+  )
+  const row = Array.isArray(mine.data) ? mine.data[0] : null
+  return row?.id ?? null
 }
 
 export default async function handler(req, res) {
@@ -46,7 +78,7 @@ export default async function handler(req, res) {
     if (!neriteId) return json(res, 400, { error: 'Informe o usuário.' })
 
     const targetRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?id=eq.${neriteId}&select=id,role,diretoria_id,email`,
+      `${SUPABASE_URL}/rest/v1/profiles?id=eq.${neriteId}&select=id,role,diretoria_id,email,coordenador_id`,
       {
         headers: {
           Authorization: `Bearer ${SERVICE_ROLE}`,
@@ -56,7 +88,8 @@ export default async function handler(req, res) {
     )
     const targets = await targetRes.json()
     const target = Array.isArray(targets) ? targets[0] : null
-    if (!target || !['operador', 'mobilizador', 'administrativo'].includes(target.role)) {
+    const managedRoles = ['operador', 'mobilizador', 'administrativo', 'coordenador', 'auxiliar']
+    if (!target || !managedRoles.includes(target.role)) {
       return json(res, 404, { error: 'Usuário não encontrado.' })
     }
     if (target.role === 'administrativo' && caller.role !== 'admin') {
@@ -65,9 +98,17 @@ export default async function handler(req, res) {
     if (caller.role === 'diretoria' && target.diretoria_id !== caller.id) {
       return json(res, 403, { error: 'Sem permissão para este usuário.' })
     }
+    if (caller.role === 'coordenador') {
+      if (target.role !== 'auxiliar') {
+        return json(res, 403, { error: 'Coordenador só gerencia auxiliares.' })
+      }
+      const myCoord = await resolveCallerCoordId(caller)
+      if (!myCoord || target.coordenador_id !== myCoord) {
+        return json(res, 403, { error: 'Sem permissão para este auxiliar.' })
+      }
+    }
 
     if (req.method === 'DELETE') {
-      // Conta fichas desta nerite (mobilizador não gera fichas)
       let fichasCount = 0
       if (target.role === 'operador') {
         const countRes = await fetch(
@@ -92,39 +133,32 @@ export default async function handler(req, res) {
         }
 
         if (fichasCount > 0) {
-          await fetch(`${SUPABASE_URL}/rest/v1/cadastros?operator_id=eq.${neriteId}`, {
+          await rest(`cadastros?operator_id=eq.${neriteId}`, {
             method: 'PATCH',
-            headers: {
-              Authorization: `Bearer ${SERVICE_ROLE}`,
-              apikey: SERVICE_ROLE,
-              'Content-Type': 'application/json',
-              Prefer: 'return=minimal',
-            },
-            body: JSON.stringify({ operator_id: null }),
+            body: { operator_id: null },
           })
         }
       }
 
-      await fetch(`${SUPABASE_URL}/rest/v1/importacoes?operator_id=eq.${neriteId}`, {
+      if (target.role === 'coordenador') {
+        await rest(`coordenadores?user_id=eq.${neriteId}`, {
+          method: 'PATCH',
+          body: { user_id: null },
+        })
+      }
+
+      if (target.role === 'auxiliar') {
+        await rest(`auxiliar_lideres?auxiliar_id=eq.${neriteId}`, { method: 'DELETE' })
+      }
+
+      await rest(`importacoes?operator_id=eq.${neriteId}`, {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${SERVICE_ROLE}`,
-          apikey: SERVICE_ROLE,
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal',
-        },
-        body: JSON.stringify({ operator_id: null }),
+        body: { operator_id: null },
       })
 
-      await fetch(`${SUPABASE_URL}/rest/v1/auditoria?actor_id=eq.${neriteId}`, {
+      await rest(`auditoria?actor_id=eq.${neriteId}`, {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${SERVICE_ROLE}`,
-          apikey: SERVICE_ROLE,
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal',
-        },
-        body: JSON.stringify({ actor_id: null }),
+        body: { actor_id: null },
       })
 
       const delAuth = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${neriteId}`, {
@@ -136,7 +170,7 @@ export default async function handler(req, res) {
       })
       if (!delAuth.ok) {
         const errText = await delAuth.text()
-        return json(res, 500, { error: errText || 'Não foi possível excluir a nerite.' })
+        return json(res, 500, { error: errText || 'Não foi possível excluir o usuário.' })
       }
 
       return json(res, 200, { ok: true })
@@ -154,9 +188,16 @@ export default async function handler(req, res) {
     let extraRoles = Array.isArray(body.extra_roles)
       ? [...new Set(body.extra_roles.map(String).filter((r) => allowedExtra.has(r) && r !== target.role))]
       : null
-    if (extraRoles && caller.role === 'diretoria') {
+    if (extraRoles && (caller.role === 'diretoria' || caller.role === 'coordenador')) {
       extraRoles = extraRoles.filter((r) => r !== 'administrativo')
     }
+    if (target.role === 'coordenador' || target.role === 'auxiliar') {
+      extraRoles = []
+    }
+
+    const liderIds = Array.isArray(body.lider_ids)
+      ? [...new Set(body.lider_ids.map(String).filter(Boolean))]
+      : null
 
     if (!nome) return json(res, 400, { error: 'Informe o nome.' })
     if (password && password.length < 8) {
@@ -166,7 +207,7 @@ export default async function handler(req, res) {
     const patch = {
       nome,
       diretoria_id: target.role === 'administrativo' ? null : diretoriaId,
-      coordenador_id: target.role === 'operador' ? coordenadorId : null,
+      coordenador_id: ['operador', 'coordenador', 'auxiliar'].includes(target.role) ? coordenadorId : null,
       lider_id: target.role === 'operador' ? liderId : null,
       ativo,
     }
@@ -187,17 +228,26 @@ export default async function handler(req, res) {
         })
       }
     }
+    if (target.role === 'coordenador' || target.role === 'auxiliar') {
+      Object.assign(patch, {
+        diretoria_id: diretoriaId,
+        coordenador_id: coordenadorId || target.coordenador_id,
+        lider_id: null,
+        extra_roles: [],
+      })
+    }
 
-    await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${neriteId}`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${SERVICE_ROLE}`,
-        apikey: SERVICE_ROLE,
-        'Content-Type': 'application/json',
-        Prefer: 'return=minimal',
-      },
-      body: JSON.stringify(patch),
-    })
+    await rest(`profiles?id=eq.${neriteId}`, { method: 'PATCH', body: patch })
+
+    if (target.role === 'auxiliar' && liderIds) {
+      await rest(`auxiliar_lideres?auxiliar_id=eq.${neriteId}`, { method: 'DELETE' })
+      if (liderIds.length) {
+        await rest('auxiliar_lideres', {
+          method: 'POST',
+          body: liderIds.map((lider_id) => ({ auxiliar_id: neriteId, lider_id })),
+        })
+      }
+    }
 
     if (password) {
       await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${neriteId}`, {
