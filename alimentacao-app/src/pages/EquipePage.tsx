@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Pencil, Plus, Search, Trash2, UserPlus, Users, UserCog, Crown, ClipboardList, Megaphone, Briefcase } from 'lucide-react'
+import { Pencil, Plus, Search, Trash2, UserPlus, Users, UserCog, Crown, ClipboardList, Megaphone, Briefcase, Handshake } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
@@ -15,11 +15,12 @@ import { formatPhone } from '../lib/normalize'
 import { fetchCadastroFichaStats, fetchOperatorCadastroStats } from '../lib/cadastros'
 import { cadastrosLinkForLider, countFichasForLider, resolveLimiteFichas, resolveLimiteLiderancas } from '../lib/liderFichas'
 import { META_COORDENADOR_LIDERANCAS, META_DIRETORIA_LIDERANCAS, META_LIDERANCA_FICHAS } from '../lib/meta'
+import { fetchAuxiliarLiderIds } from '../lib/votacao'
 import { supabase } from '../lib/supabase'
 import type { Coordenador, Lider, Profile, UserRole } from '../types'
 import { labelRole, normalizeExtraRoles } from '../lib/roles'
 
-type Tab = 'nerites' | 'coordenadores' | 'lideres' | 'mobilizadores' | 'administrativos'
+type Tab = 'nerites' | 'coordenadores' | 'lideres' | 'mobilizadores' | 'administrativos' | 'auxiliares'
 
 const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
   nerites: {
@@ -42,6 +43,10 @@ const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
     title: 'Administrativos',
     subtitle: 'Equipe que lança e acompanha Demandas (sem liberar conclusão).',
   },
+  auxiliares: {
+    title: 'Auxiliares',
+    subtitle: 'Cada coordenador cadastra auxiliares e escolhe quais lideranças eles lançam na votação.',
+  },
 }
 
 function ExtraRolesBadges({ roles }: { roles?: UserRole[] | null }) {
@@ -59,9 +64,14 @@ function ExtraRolesBadges({ roles }: { roles?: UserRole[] | null }) {
 export function EquipePage() {
   const { profile, createNerite } = useAuth()
   const isAdmin = profile?.role === 'admin'
+  const isCoordenador = profile?.role === 'coordenador'
   const canManageTeam = isAdmin || profile?.role === 'diretoria'
+  const canManageAuxiliares = canManageTeam || isCoordenador
   const diretoriaId = profile?.role === 'diretoria' ? profile.id : null
   const [searchParams, setSearchParams] = useSearchParams()
+  const [myCoordenadorId, setMyCoordenadorId] = useState<string | null>(
+    profile?.coordenador_id ?? null,
+  )
 
   const tabParam = searchParams.get('tab')
   const tab: Tab =
@@ -69,11 +79,14 @@ export function EquipePage() {
     || tabParam === 'lideres'
     || tabParam === 'nerites'
     || tabParam === 'mobilizadores'
+    || tabParam === 'auxiliares'
     || (tabParam === 'administrativos' && isAdmin)
       ? (tabParam as Tab)
-      : isAdmin
-        ? 'nerites'
-        : 'coordenadores'
+      : isCoordenador
+        ? 'auxiliares'
+        : isAdmin
+          ? 'nerites'
+          : 'coordenadores'
 
   const diretoriaFromUrl = searchParams.get('diretoria') ?? ''
   const coordenadorFromUrl = searchParams.get('coordenador') ?? ''
@@ -103,6 +116,9 @@ export function EquipePage() {
   const [nerites, setNerites] = useState<Profile[]>([])
   const [mobilizadores, setMobilizadores] = useState<Profile[]>([])
   const [administrativos, setAdministrativos] = useState<Profile[]>([])
+  const [auxiliares, setAuxiliares] = useState<Profile[]>([])
+  const [coordLogins, setCoordLogins] = useState<Record<string, { id: string; email: string }>>({})
+  const [auxiliarLiderMap, setAuxiliarLiderMap] = useState<Record<string, string[]>>({})
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
   const [lideres, setLideres] = useState<Lider[]>([])
   const [fichasByCoord, setFichasByCoord] = useState<Record<string, number>>({})
@@ -130,16 +146,19 @@ export function EquipePage() {
   const [admOpen, setAdmOpen] = useState(false)
   const [coordOpen, setCoordOpen] = useState(false)
   const [liderOpen, setLiderOpen] = useState(false)
+  const [auxOpen, setAuxOpen] = useState(false)
   const [editingNeriteId, setEditingNeriteId] = useState<string | null>(null)
   const [editingMobId, setEditingMobId] = useState<string | null>(null)
   const [editingAdmId, setEditingAdmId] = useState<string | null>(null)
   const [editingCoordId, setEditingCoordId] = useState<string | null>(null)
   const [editingLiderId, setEditingLiderId] = useState<string | null>(null)
+  const [editingAuxId, setEditingAuxId] = useState<string | null>(null)
   const [deleteNeriteId, setDeleteNeriteId] = useState<string | null>(null)
   const [deleteMobId, setDeleteMobId] = useState<string | null>(null)
   const [deleteAdmId, setDeleteAdmId] = useState<string | null>(null)
   const [deleteCoordId, setDeleteCoordId] = useState<string | null>(null)
   const [deleteLiderId, setDeleteLiderId] = useState<string | null>(null)
+  const [deleteAuxId, setDeleteAuxId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -176,6 +195,10 @@ export function EquipePage() {
     nome: '',
     diretoria_id: '',
     limite_liderancas: String(META_COORDENADOR_LIDERANCAS),
+    email: '',
+    password: '',
+    confirm: '',
+    user_id: '' as string,
   })
   const [liderForm, setLiderForm] = useState({
     nome: '',
@@ -183,6 +206,16 @@ export function EquipePage() {
     diretoria_id: '',
     coordenador_id: '',
     limite_fichas: String(META_LIDERANCA_FICHAS),
+  })
+  const [auxForm, setAuxForm] = useState({
+    nome: '',
+    email: '',
+    password: '',
+    confirm: '',
+    coordenador_id: '',
+    diretoria_id: '',
+    ativo: true,
+    lider_ids: [] as string[],
   })
 
   async function load() {
@@ -193,21 +226,42 @@ export function EquipePage() {
     let neritesQuery = supabase.from('profiles').select('*').eq('role', 'operador').order('nome')
     let mobsQuery = supabase.from('profiles').select('*').eq('role', 'mobilizador').order('nome')
     const admsQuery = supabase.from('profiles').select('*').eq('role', 'administrativo').order('nome')
+    let auxQuery = supabase.from('profiles').select('*').eq('role', 'auxiliar').order('nome')
     let coordsQuery = supabase.from('coordenadores').select('*').order('nome')
     let lideresQuery = supabase.from('lideres').select('*').order('nome')
 
+    let resolvedMyCoord = myCoordenadorId
+    if (isCoordenador && profile?.id) {
+      const mine = await supabase
+        .from('coordenadores')
+        .select('id,diretoria_id')
+        .or(`user_id.eq.${profile.id}${profile.coordenador_id ? `,id.eq.${profile.coordenador_id}` : ''}`)
+        .limit(1)
+        .maybeSingle()
+      if (mine.data?.id) {
+        resolvedMyCoord = mine.data.id
+        setMyCoordenadorId(mine.data.id)
+        coordsQuery = coordsQuery.eq('id', mine.data.id)
+        lideresQuery = lideresQuery.eq('coordenador_id', mine.data.id)
+        auxQuery = auxQuery.eq('coordenador_id', mine.data.id)
+        neritesQuery = neritesQuery.eq('coordenador_id', mine.data.id)
+      }
+    }
+
     const scope = isAdmin ? filterDiretoria : diretoriaId
-    if (scope) {
+    if (scope && !isCoordenador) {
       neritesQuery = neritesQuery.eq('diretoria_id', scope)
       mobsQuery = mobsQuery.eq('diretoria_id', scope)
       coordsQuery = coordsQuery.eq('diretoria_id', scope)
       lideresQuery = lideresQuery.eq('diretoria_id', scope)
+      auxQuery = auxQuery.eq('diretoria_id', scope)
     }
 
-    const [n, m, a, c, l, fRows] = await Promise.all([
-      neritesQuery,
-      mobsQuery,
-      admsQuery,
+    const [n, m, a, aux, c, l, fRows] = await Promise.all([
+      isCoordenador ? Promise.resolve({ data: [] as Profile[] }) : neritesQuery,
+      isCoordenador ? Promise.resolve({ data: [] as Profile[] }) : mobsQuery,
+      isCoordenador ? Promise.resolve({ data: [] as Profile[] }) : admsQuery,
+      auxQuery,
       coordsQuery,
       lideresQuery,
       fetchCadastroFichaStats(),
@@ -215,13 +269,42 @@ export function EquipePage() {
     const neriteRows = (n.data ?? []) as Profile[]
     const mobRows = (m.data ?? []) as Profile[]
     const admRows = (a.data ?? []) as Profile[]
+    const auxRows = (aux.data ?? []) as Profile[]
     const coordRows = (c.data ?? []) as Coordenador[]
     const liderRows = (l.data ?? []) as Lider[]
     setNerites(neriteRows)
     setMobilizadores(mobRows)
     setAdministrativos(admRows)
+    setAuxiliares(auxRows)
     setCoordenadores(coordRows)
     setLideres(liderRows)
+
+    const loginIds = coordRows.map((r) => r.user_id).filter((id): id is string => Boolean(id))
+    if (loginIds.length) {
+      const { data: loginRows } = await supabase
+        .from('profiles')
+        .select('id,email')
+        .in('id', loginIds)
+      const map: Record<string, { id: string; email: string }> = {}
+      for (const row of loginRows ?? []) {
+        map[row.id] = { id: row.id, email: row.email }
+      }
+      setCoordLogins(map)
+    } else {
+      setCoordLogins({})
+    }
+
+    const liderMap: Record<string, string[]> = {}
+    await Promise.all(
+      auxRows.map(async (auxRow) => {
+        try {
+          liderMap[auxRow.id] = await fetchAuxiliarLiderIds(auxRow.id)
+        } catch {
+          liderMap[auxRow.id] = []
+        }
+      }),
+    )
+    setAuxiliarLiderMap(liderMap)
 
     const { counts: byNeriteExact } = await fetchOperatorCadastroStats(neriteRows.map((r) => r.id))
 
@@ -233,9 +316,14 @@ export function EquipePage() {
       diretoria_id: string | null
       total: number
     }[] = []
+    const myCoordNome = resolvedMyCoord
+      ? (coordRows.find((r) => r.id === resolvedMyCoord)?.nome ?? '').trim()
+      : ''
 
     fRows.forEach((row) => {
-      if (scope) {
+      if (isCoordenador && myCoordNome) {
+        if ((row.coordenador ?? '').trim() !== myCoordNome) return
+      } else if (scope) {
         const inScope =
           row.diretoria_id === scope || (row.operator_id != null && neriteIds.has(row.operator_id))
         if (!inScope) return
@@ -260,7 +348,7 @@ export function EquipePage() {
 
   useEffect(() => {
     load()
-  }, [filterDiretoria, diretoriaId, isAdmin])
+  }, [filterDiretoria, diretoriaId, isAdmin, isCoordenador, profile?.id])
 
   const q = search.trim().toLowerCase()
 
@@ -307,6 +395,16 @@ export function EquipePage() {
         return m.nome.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
       }),
     [mobilizadores, q],
+  )
+  const filteredAuxiliares = useMemo(
+    () =>
+      auxiliares.filter((a) => {
+        if (coordenadorFromUrl && a.coordenador_id !== coordenadorFromUrl) return false
+        if (isCoordenador && myCoordenadorId && a.coordenador_id !== myCoordenadorId) return false
+        if (!q) return true
+        return a.nome.toLowerCase().includes(q) || a.email.toLowerCase().includes(q)
+      }),
+    [auxiliares, q, coordenadorFromUrl, isCoordenador, myCoordenadorId],
   )
   const filteredAdministrativos = useMemo(
     () =>
@@ -395,6 +493,10 @@ export function EquipePage() {
       nome: '',
       diretoria_id: diretoriaId ?? '',
       limite_liderancas: String(META_COORDENADOR_LIDERANCAS),
+      email: '',
+      password: '',
+      confirm: '',
+      user_id: '',
     })
     setCoordOpen(true)
   }
@@ -402,12 +504,54 @@ export function EquipePage() {
   function openEditCoord(c: Coordenador) {
     setError(null)
     setEditingCoordId(c.id)
+    const login = c.user_id ? coordLogins[c.user_id] : null
     setCoordForm({
       nome: c.nome,
       diretoria_id: c.diretoria_id,
       limite_liderancas: String(resolveLimiteLiderancas(c.limite_liderancas)),
+      email: login?.email ?? '',
+      password: '',
+      confirm: '',
+      user_id: c.user_id ?? '',
     })
     setCoordOpen(true)
+  }
+
+  function openNewAux() {
+    setError(null)
+    setEditingAuxId(null)
+    const defaultCoord = isCoordenador
+      ? (myCoordenadorId ?? '')
+      : (coordenadorFromUrl || '')
+    const coordRow = coordenadores.find((c) => c.id === defaultCoord)
+    setAuxForm({
+      nome: '',
+      email: '',
+      password: '',
+      confirm: '',
+      coordenador_id: defaultCoord,
+      diretoria_id: coordRow?.diretoria_id || diretoriaId || filterDiretoria || '',
+      ativo: true,
+      lider_ids: [],
+    })
+    setAuxOpen(true)
+  }
+
+  async function openEditAux(a: Profile) {
+    setError(null)
+    setEditingAuxId(a.id)
+    const liderIds = auxiliarLiderMap[a.id] ?? await fetchAuxiliarLiderIds(a.id).catch(() => [])
+    setAuxForm({
+      nome: a.nome,
+      email: a.email,
+      password: '',
+      confirm: '',
+      coordenador_id: a.coordenador_id ?? '',
+      diretoria_id: a.diretoria_id ?? '',
+      ativo: a.ativo,
+      lider_ids: liderIds,
+    })
+    setAuxOpen(true)
   }
 
   function openNewLider() {
@@ -904,6 +1048,27 @@ export function EquipePage() {
       setError(`Já existe um coordenador chamado "${duplicate.nome}" nesta diretoria.`)
       return
     }
+    const creatingLogin = !coordForm.user_id && Boolean(coordForm.email.trim() || coordForm.password)
+    if (creatingLogin) {
+      if (!coordForm.email.trim() || coordForm.password.length < 8) {
+        setError('Para criar o login: e-mail e senha (mín. 8).')
+        return
+      }
+      if (coordForm.password !== coordForm.confirm) {
+        setError('As senhas não coincidem.')
+        return
+      }
+    }
+    if (coordForm.user_id && coordForm.password) {
+      if (coordForm.password.length < 8) {
+        setError('A nova senha precisa ter no mínimo 8 caracteres.')
+        return
+      }
+      if (coordForm.password !== coordForm.confirm) {
+        setError('As senhas não coincidem.')
+        return
+      }
+    }
     const oldNome = editingCoordId
       ? (coordenadores.find((c) => c.id === editingCoordId)?.nome ?? null)
       : null
@@ -914,15 +1079,28 @@ export function EquipePage() {
       diretoria_id: targetDir,
       limite_liderancas: limite,
     }
-    const { error: err } = editingCoordId
-      ? await supabase.from('coordenadores').update(payload).eq('id', editingCoordId)
-      : await supabase.from('coordenadores').insert(payload)
-    if (err) {
-      setSaving(false)
-      setError(err.message)
-      return
+    let coordId = editingCoordId
+    if (editingCoordId) {
+      const { error: err } = await supabase.from('coordenadores').update(payload).eq('id', editingCoordId)
+      if (err) {
+        setSaving(false)
+        setError(err.message)
+        return
+      }
+    } else {
+      const { data: inserted, error: err } = await supabase
+        .from('coordenadores')
+        .insert(payload)
+        .select('id')
+        .maybeSingle()
+      if (err || !inserted?.id) {
+        setSaving(false)
+        setError(err?.message || 'Não foi possível criar o coordenador.')
+        return
+      }
+      coordId = inserted.id
     }
-    // Fichas guardam o nome em texto — ao renomear, atualiza as fichas da mesma diretoria
+
     if (editingCoordId && oldNome && oldNome !== newNome) {
       const { error: syncErr } = await supabase
         .from('cadastros')
@@ -936,6 +1114,39 @@ export function EquipePage() {
         return
       }
     }
+
+    if (creatingLogin && coordId) {
+      const { error: loginErr } = await createNerite({
+        nome: newNome,
+        email: coordForm.email.trim().toLowerCase(),
+        password: coordForm.password,
+        role: 'coordenador',
+        diretoria_id: targetDir,
+        coordenador_id: coordId,
+      })
+      if (loginErr) {
+        setSaving(false)
+        setError(`Coordenador salvo, mas o login falhou: ${loginErr}`)
+        await load()
+        return
+      }
+    } else if (coordForm.user_id && (coordForm.password || newNome)) {
+      const { error: manageErr } = await manageNeriteRequest('POST', {
+        id: coordForm.user_id,
+        nome: newNome,
+        password: coordForm.password || undefined,
+        diretoria_id: targetDir,
+        coordenador_id: coordId,
+        ativo: true,
+      })
+      if (manageErr) {
+        setSaving(false)
+        setError(`Coordenador salvo, mas a senha/login falhou: ${manageErr}`)
+        await load()
+        return
+      }
+    }
+
     setSaving(false)
     setCoordOpen(false)
     setEditingCoordId(null)
@@ -943,7 +1154,92 @@ export function EquipePage() {
       nome: '',
       diretoria_id: '',
       limite_liderancas: String(META_COORDENADOR_LIDERANCAS),
+      email: '',
+      password: '',
+      confirm: '',
+      user_id: '',
     })
+    await load()
+  }
+
+  async function handleSaveAux() {
+    setError(null)
+    const coordId = isCoordenador ? (myCoordenadorId ?? '') : auxForm.coordenador_id
+    const coordRow = coordenadores.find((c) => c.id === coordId)
+    const targetDir = isAdmin
+      ? (auxForm.diretoria_id || coordRow?.diretoria_id || '')
+      : (isCoordenador ? (coordRow?.diretoria_id || profile?.diretoria_id || '') : (diretoriaId || ''))
+    if (!auxForm.nome.trim() || !coordId) {
+      setError('Informe o nome e o coordenador.')
+      return
+    }
+    if (!editingAuxId) {
+      if (!auxForm.email.trim() || auxForm.password.length < 8) {
+        setError('E-mail e senha (mín. 8) são obrigatórios.')
+        return
+      }
+      if (auxForm.password !== auxForm.confirm) {
+        setError('As senhas não coincidem.')
+        return
+      }
+    } else if (auxForm.password) {
+      if (auxForm.password.length < 8) {
+        setError('A nova senha precisa ter no mínimo 8 caracteres.')
+        return
+      }
+      if (auxForm.password !== auxForm.confirm) {
+        setError('As senhas não coincidem.')
+        return
+      }
+    }
+    setSaving(true)
+    if (editingAuxId) {
+      const { error: err } = await manageNeriteRequest('POST', {
+        id: editingAuxId,
+        nome: auxForm.nome.trim(),
+        password: auxForm.password || undefined,
+        diretoria_id: targetDir || null,
+        coordenador_id: coordId,
+        ativo: auxForm.ativo,
+        lider_ids: auxForm.lider_ids,
+      })
+      setSaving(false)
+      if (err) {
+        setError(err)
+        return
+      }
+    } else {
+      const { error: err } = await createNerite({
+        nome: auxForm.nome.trim(),
+        email: auxForm.email.trim().toLowerCase(),
+        password: auxForm.password,
+        role: 'auxiliar',
+        diretoria_id: targetDir || null,
+        coordenador_id: coordId,
+        lider_ids: auxForm.lider_ids,
+      })
+      setSaving(false)
+      if (err) {
+        setError(err)
+        return
+      }
+    }
+    setAuxOpen(false)
+    setEditingAuxId(null)
+    await load()
+  }
+
+  async function handleDeleteAux() {
+    if (!deleteAuxId) return
+    setSaving(true)
+    const { error: err } = await manageNeriteRequest('DELETE', { id: deleteAuxId })
+    setSaving(false)
+    if (err) {
+      setError(err)
+      setDeleteAuxId(null)
+      return
+    }
+    setDeleteAuxId(null)
     await load()
   }
 
@@ -1089,6 +1385,7 @@ export function EquipePage() {
   const deleteAdmName = administrativos.find((m) => m.id === deleteAdmId)?.nome
   const deleteCoordName = coordenadores.find((c) => c.id === deleteCoordId)?.nome
   const deleteLiderName = lideres.find((l) => l.id === deleteLiderId)?.nome
+  const deleteAuxName = auxiliares.find((a) => a.id === deleteAuxId)?.nome
 
   if (loading) {
     return (
@@ -1102,11 +1399,13 @@ export function EquipePage() {
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">{isAdmin ? 'Equipe' : meta.title}</h1>
+          <h1 className="page-title">{isAdmin || isCoordenador ? 'Equipe' : meta.title}</h1>
           <p className="page-subtitle">
             {isAdmin
               ? 'Gerencie diretorias, nerites, líderes e coordenadores.'
-              : meta.subtitle}
+              : isCoordenador
+                ? 'Suas lideranças, auxiliares e fichas da coordenação.'
+                : meta.subtitle}
           </p>
         </div>
         <div className="page-header-actions">
@@ -1119,28 +1418,43 @@ export function EquipePage() {
           {tab === 'administrativos' && isAdmin && (
             <Button onClick={openNewAdm}><UserPlus size={16} /> Novo administrativo</Button>
           )}
-          {tab === 'coordenadores' && (
+          {tab === 'coordenadores' && canManageTeam && (
             <Button onClick={openNewCoord}><Plus size={16} /> Novo coordenador</Button>
           )}
-          {tab === 'lideres' && (
+          {tab === 'lideres' && canManageTeam && (
             <Button onClick={openNewLider}><Plus size={16} /> Nova liderança</Button>
+          )}
+          {tab === 'auxiliares' && canManageAuxiliares && (
+            <Button onClick={openNewAux}><UserPlus size={16} /> Novo auxiliar</Button>
           )}
         </div>
       </div>
 
-      {!isAdmin && (
+      {!isAdmin && !isCoordenador && (
         <div className="ficha-setup-banner">
           <strong>Fluxo da ficha</strong>
           <span>1) Cadastre coordenadores → 2) Cadastre lideranças → 3) Cadastre nerites. Na ficha, a nerite só seleciona esses nomes.</span>
         </div>
       )}
+      {isCoordenador && (
+        <div className="ficha-setup-banner">
+          <strong>Sua coordenação</strong>
+          <span>Cadastre auxiliares e escolha quais lideranças cada um lança no dia da votação. Você também vê suas lideranças e fichas.</span>
+        </div>
+      )}
 
       <div className="views-row">
         {(
-          [
+          isCoordenador
+            ? [
+                { key: 'lideres' as const, label: 'Lideranças', Icon: Crown, count: lideresCount },
+                { key: 'auxiliares' as const, label: 'Auxiliares', Icon: Handshake, count: filteredAuxiliares.length },
+              ]
+            : [
             { key: 'coordenadores' as const, label: 'Coordenadores', Icon: UserCog, count: coordenadores.length },
             { key: 'lideres' as const, label: 'Lideranças', Icon: Crown, count: lideresCount },
             { key: 'nerites' as const, label: 'Nerites', Icon: Users, count: neritesCount },
+            { key: 'auxiliares' as const, label: 'Auxiliares', Icon: Handshake, count: filteredAuxiliares.length },
             ...(canManageTeam
               ? [{ key: 'mobilizadores' as const, label: 'Formigas', Icon: Megaphone, count: mobilizadores.length }]
               : []),
@@ -1296,6 +1610,7 @@ export function EquipePage() {
                 <thead>
                   <tr>
                     <th>Coordenador</th>
+                    <th>Login</th>
                     <th>Lideranças</th>
                     {isAdmin && <th>Diretoria</th>}
                     {canManageTeam && <th>Ações</th>}
@@ -1306,10 +1621,18 @@ export function EquipePage() {
                     const fichas = fichasByCoord[c.nome] ?? 0
                     const qtdLiderancas = lideresByCoord[c.id] ?? 0
                     const limiteLiderancas = resolveLimiteLiderancas(c.limite_liderancas)
+                    const login = c.user_id ? coordLogins[c.user_id] : null
                     return (
                     <tr key={c.id}>
                       <td>
                         <strong>{c.nome}</strong>
+                      </td>
+                      <td>
+                        {login?.email ? (
+                          <span style={{ fontSize: '.8rem', color: '#166534' }}>{login.email}</span>
+                        ) : (
+                          <span style={{ fontSize: '.8rem', color: '#94a3b8' }}>Sem login</span>
+                        )}
                       </td>
                       <td>
                         <button
@@ -1398,7 +1721,7 @@ export function EquipePage() {
                   ? `Nenhuma liderança vinculada a ${selectedCoord.nome}. Cadastre uma liderança para este coordenador.`
                   : 'Cadastre as lideranças que vão aparecer para seleção na ficha das nerites.'
               }
-              action={<Button onClick={openNewLider}><Plus size={16} /> Nova liderança</Button>}
+              action={canManageTeam ? <Button onClick={openNewLider}><Plus size={16} /> Nova liderança</Button> : undefined}
             />
           ) : (
             <>
@@ -1408,7 +1731,7 @@ export function EquipePage() {
                   <tr>
                     <th>Liderança</th>
                     <th>Contato</th>
-                    <th>Coordenador</th>
+                    {!isCoordenador && <th>Coordenador</th>}
                     <th>Fichas</th>
                     {isAdmin && <th>Diretoria</th>}
                     {canManageTeam && <th>Ações</th>}
@@ -1447,7 +1770,9 @@ export function EquipePage() {
                           {l.telefone ? <WhatsAppLink phone={l.telefone} className="whatsapp-link-inline" /> : null}
                         </span>
                       </td>
-                      <td>{coordenadores.find((c) => c.id === l.coordenador_id)?.nome ?? '—'}</td>
+                      {!isCoordenador && (
+                        <td>{coordenadores.find((c) => c.id === l.coordenador_id)?.nome ?? '—'}</td>
+                      )}
                       <td>
                         <span
                           className={`fichas-count${fichas ? '' : ' zero'}${fichas >= limite ? ' done' : ''}`}
@@ -1493,6 +1818,68 @@ export function EquipePage() {
               </table>
             </div>
             </>
+          )
+        )}
+
+        {tab === 'auxiliares' && canManageAuxiliares && (
+          !filteredAuxiliares.length ? (
+            <EmptyState
+              title="Nenhum auxiliar"
+              description="Cadastre auxiliares e escolha as lideranças que cada um poderá lançar na votação."
+              action={<Button onClick={openNewAux}><UserPlus size={16} /> Novo auxiliar</Button>}
+            />
+          ) : (
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    {!isCoordenador && <th>Coordenador</th>}
+                    <th>Lideranças</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAuxiliares.map((a) => {
+                    const liderIds = auxiliarLiderMap[a.id] ?? []
+                    const liderNomes = liderIds
+                      .map((id) => lideres.find((l) => l.id === id)?.nome)
+                      .filter(Boolean)
+                    return (
+                      <tr key={a.id}>
+                        <td><strong>{a.nome}</strong></td>
+                        <td>{a.email}</td>
+                        {!isCoordenador && (
+                          <td>{coordenadores.find((c) => c.id === a.coordenador_id)?.nome ?? '—'}</td>
+                        )}
+                        <td>
+                          {liderNomes.length
+                            ? <span style={{ fontSize: '.82rem' }}>{liderNomes.join(', ')}</span>
+                            : <span style={{ color: '#94a3b8', fontSize: '.82rem' }}>Nenhuma</span>}
+                        </td>
+                        <td>
+                          <span className={`status-pill${a.ativo ? ' active' : ''}`}>
+                            {a.ativo ? 'Ativo' : 'Inativo'}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '0.35rem' }}>
+                            <Button variant="ghost" size="sm" aria-label="Editar" onClick={() => void openEditAux(a)}>
+                              <Pencil size={16} />
+                            </Button>
+                            <Button variant="ghost" size="sm" aria-label="Excluir" onClick={() => { setError(null); setDeleteAuxId(a.id) }}>
+                              <Trash2 size={16} color="var(--color-danger)" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           )
         )}
 
@@ -1693,6 +2080,136 @@ export function EquipePage() {
             Padrão {META_COORDENADOR_LIDERANCAS}. Aparece como <strong>atual/meta</strong> (ex.: 10/20).
             Não bloqueia novas lideranças — pode passar da meta.
           </p>
+          <hr style={{ border: 0, borderTop: '1px solid #e2e8f0', margin: '.25rem 0' }} />
+          <p style={{ margin: 0, fontSize: '.8rem', fontWeight: 700, color: '#0f172a' }}>
+            {coordForm.user_id ? 'Login do coordenador' : 'Criar login (opcional)'}
+          </p>
+          <Input
+            label="E-mail"
+            type="email"
+            value={coordForm.email}
+            disabled={Boolean(coordForm.user_id)}
+            onChange={(e) => setCoordForm((f) => ({ ...f, email: e.target.value }))}
+            placeholder="coordenador@email.com"
+          />
+          <Input
+            label={coordForm.user_id ? 'Nova senha (opcional)' : 'Senha'}
+            type="password"
+            value={coordForm.password}
+            onChange={(e) => setCoordForm((f) => ({ ...f, password: e.target.value }))}
+            placeholder={coordForm.user_id ? 'Deixe em branco para manter' : 'Mínimo 8 caracteres'}
+          />
+          <Input
+            label="Confirmar senha"
+            type="password"
+            value={coordForm.confirm}
+            onChange={(e) => setCoordForm((f) => ({ ...f, confirm: e.target.value }))}
+            placeholder="Repita a senha"
+          />
+          {error && <div className="alert alert-error">{error}</div>}
+        </div>
+      </Modal>
+
+      <Modal
+        open={auxOpen}
+        title={editingAuxId ? 'Editar auxiliar' : 'Novo auxiliar'}
+        onClose={() => !saving && setAuxOpen(false)}
+        onConfirm={() => void handleSaveAux()}
+        confirmLabel="Salvar"
+        loading={saving}
+      >
+        <div style={{ display: 'grid', gap: '.75rem' }}>
+          {!isCoordenador && (
+            <Select
+              label="Coordenador"
+              value={auxForm.coordenador_id}
+              onChange={(e) => {
+                const id = e.target.value
+                const row = coordenadores.find((c) => c.id === id)
+                setAuxForm((f) => ({
+                  ...f,
+                  coordenador_id: id,
+                  diretoria_id: row?.diretoria_id || f.diretoria_id,
+                  lider_ids: [],
+                }))
+              }}
+              options={coordenadores.map((c) => ({ value: c.id, label: c.nome }))}
+              placeholder="Selecione"
+            />
+          )}
+          <Input
+            label="Nome"
+            value={auxForm.nome}
+            onChange={(e) => setAuxForm((f) => ({ ...f, nome: e.target.value }))}
+            placeholder="Nome do auxiliar"
+          />
+          <Input
+            label="E-mail"
+            type="email"
+            value={auxForm.email}
+            disabled={Boolean(editingAuxId)}
+            onChange={(e) => setAuxForm((f) => ({ ...f, email: e.target.value }))}
+            placeholder="auxiliar@email.com"
+          />
+          <Input
+            label={editingAuxId ? 'Nova senha (opcional)' : 'Senha'}
+            type="password"
+            value={auxForm.password}
+            onChange={(e) => setAuxForm((f) => ({ ...f, password: e.target.value }))}
+            placeholder={editingAuxId ? 'Deixe em branco para manter' : 'Mínimo 8 caracteres'}
+          />
+          <Input
+            label="Confirmar senha"
+            type="password"
+            value={auxForm.confirm}
+            onChange={(e) => setAuxForm((f) => ({ ...f, confirm: e.target.value }))}
+            placeholder="Repita a senha"
+          />
+          <div>
+            <div style={{ fontSize: '.8rem', fontWeight: 700, marginBottom: '.4rem' }}>
+              Lideranças que este auxiliar lança
+            </div>
+            <div style={{ display: 'grid', gap: '.35rem', maxHeight: 220, overflow: 'auto' }}>
+              {lideres
+                .filter((l) => !auxForm.coordenador_id || !l.coordenador_id || l.coordenador_id === auxForm.coordenador_id)
+                .map((l) => {
+                  const checked = auxForm.lider_ids.includes(l.id)
+                  return (
+                    <label
+                      key={l.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '.5rem',
+                        fontSize: '.9rem',
+                        padding: '.35rem .45rem',
+                        borderRadius: 8,
+                        background: checked ? '#f0fdf4' : 'transparent',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          setAuxForm((f) => ({
+                            ...f,
+                            lider_ids: checked
+                              ? f.lider_ids.filter((id) => id !== l.id)
+                              : [...f.lider_ids, l.id],
+                          }))
+                        }}
+                      />
+                      {l.nome}
+                    </label>
+                  )
+                })}
+              {!lideres.filter((l) => !auxForm.coordenador_id || !l.coordenador_id || l.coordenador_id === auxForm.coordenador_id).length && (
+                <p style={{ margin: 0, fontSize: '.8rem', color: '#94a3b8' }}>
+                  Nenhuma liderança nesta coordenação.
+                </p>
+              )}
+            </div>
+          </div>
           {error && <div className="alert alert-error">{error}</div>}
         </div>
       </Modal>
@@ -1819,6 +2336,17 @@ export function EquipePage() {
         description={`Remover "${deleteLiderName ?? 'esta liderança'}" da lista. As fichas já cadastradas mantêm o nome salvo.`}
         onClose={() => !saving && setDeleteLiderId(null)}
         onConfirm={handleDeleteLider}
+        confirmLabel="Excluir"
+        confirmVariant="danger"
+        loading={saving}
+      />
+
+      <Modal
+        open={Boolean(deleteAuxId)}
+        title="Excluir auxiliar?"
+        description={`Remover o acesso de "${deleteAuxName ?? 'este auxiliar'}".`}
+        onClose={() => !saving && setDeleteAuxId(null)}
+        onConfirm={() => void handleDeleteAux()}
         confirmLabel="Excluir"
         confirmVariant="danger"
         loading={saving}

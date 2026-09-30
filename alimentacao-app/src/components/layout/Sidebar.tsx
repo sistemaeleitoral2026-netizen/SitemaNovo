@@ -65,6 +65,16 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    label: 'Votação',
+    roles: ['auxiliar', 'coordenador'],
+    items: [
+      { to: '/votacao/lancar', label: 'Lançar', icon: ClipboardCheck, roles: ['auxiliar', 'coordenador'] },
+      { to: '/equipe?tab=lideres', label: 'Lideranças', icon: Crown, roles: ['coordenador'] },
+      { to: '/equipe?tab=auxiliares', label: 'Auxiliares', icon: Users, roles: ['coordenador'] },
+      { to: '/cadastros', label: 'Fichas', icon: ClipboardList, roles: ['coordenador'] },
+    ],
+  },
+  {
     label: 'Demandas',
     roles: ['administrativo'],
     items: [
@@ -81,6 +91,7 @@ const navGroups: NavGroup[] = [
       { to: '/equipe?tab=nerites', label: 'Minhas Nerites', icon: Users, roles: ['diretoria'] },
       { to: '/equipe?tab=coordenadores', label: 'Coordenadores', icon: UserCog, roles: ['diretoria'] },
       { to: '/equipe?tab=lideres', label: 'Lideranças', icon: Crown, roles: ['diretoria'] },
+      { to: '/equipe?tab=auxiliares', label: 'Auxiliares', icon: Users, roles: ['diretoria'] },
       { to: '/equipe?tab=mobilizadores', label: 'Formigas', icon: Megaphone, roles: ['diretoria'] },
       { to: '/nerites', label: 'Nerites', icon: Users, roles: ['admin'] },
       { to: '/cadastros', label: 'Todos os cadastros', icon: ClipboardList, roles: ['admin', 'diretoria', 'operador'] },
@@ -88,6 +99,7 @@ const navGroups: NavGroup[] = [
       { to: '/meus-cadastros', label: 'Meus Cadastros', icon: ClipboardList, roles: ['operador'] },
       { to: '/cadastros/novo', label: 'Novo Cadastro', icon: UserPlus, roles: ['operador'] },
       { to: '/importar', label: 'Importar Planilha', icon: Upload, roles: ['operador'] },
+      { to: '/votacao/lancar', label: 'Votação', icon: ClipboardCheck, roles: ['admin', 'diretoria'] },
     ],
   },
   {
