@@ -319,3 +319,357 @@ export async function updateWhatsappTelefone(
 
   throw new Error(rpcError.message || error.message)
 }
+
+/* —— Visão completa (admin): WhatsApp + adesivos carro/casa + postagens —— */
+
+export type FormigasVisaoFiltro = 'whatsapp' | 'carros' | 'casas' | 'postagens' | 'todos'
+
+export type FormigasAtivacaoPessoa = {
+  key: string
+  id: string
+  tipo: WhatsappPessoa['tipo']
+  tipoLabel: string
+  nome: string
+  telefone: string
+  coordenador: string
+  lider: string
+  carros: number
+  motos: number
+  casa: number
+  casaStatus: 'nao' | 'sim' | 'talvez' | null
+  postagens: number
+  fotoVeiculoPaths: string[]
+  fotoCasaPaths: string[]
+  formigaCarrosId: string | null
+  formigaCarrosNome: string
+  formigaCasaId: string | null
+  formigaCasaNome: string
+  formigaLinksId: string | null
+  formigaLinksNome: string
+}
+
+export type FormigasAtivacaoResumo = {
+  id: string
+  nome: string
+  carros: number
+  motos: number
+  casas: number
+  postagens: number
+  veiculosPessoas: number
+  casasPessoas: number
+  postagensPessoas: number
+  total: number
+}
+
+export type FormigasVisaoDashboard = {
+  whatsapp: WhatsappDashboard
+  ativacao: {
+    pessoas: FormigasAtivacaoPessoa[]
+    porFormiga: FormigasAtivacaoResumo[]
+    totais: {
+      carros: number
+      motos: number
+      casas: number
+      postagens: number
+      veiculosPessoas: number
+      casasPessoas: number
+      postagensPessoas: number
+      formigas: number
+    }
+  }
+}
+
+type RawAtiv = {
+  id: string
+  nome: string
+  telefone: string | null
+  coordenador: string | null
+  lider: string | null
+  carros_adesivados: number
+  motos_adesivadas: number
+  adesivos_casa: number
+  adesivos_casa_status: string | null
+  postagens: number
+  foto_veiculo_paths: string[]
+  foto_casa_paths: string[]
+  formigas_carros_by: string | null
+  formigas_casa_by: string | null
+  formigas_links_by: string | null
+}
+
+function qty(v: unknown) {
+  const n = Math.floor(Number(v) || 0)
+  return n > 0 ? n : 0
+}
+
+function toFotoPaths(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((v) => String(v ?? '').trim()).filter(Boolean)
+  }
+  return []
+}
+
+function hasAtivacao(r: RawAtiv) {
+  return (
+    r.carros_adesivados > 0
+    || r.motos_adesivadas > 0
+    || r.adesivos_casa > 0
+    || r.adesivos_casa_status === 'sim'
+    || r.adesivos_casa_status === 'talvez'
+    || r.postagens > 0
+  )
+}
+
+function mapAtiv(
+  row: RawAtiv,
+  tipo: WhatsappPessoa['tipo'],
+  nomes: Map<string, string>,
+): FormigasAtivacaoPessoa | null {
+  if (!hasAtivacao(row)) return null
+  const casaStatus =
+    row.adesivos_casa_status === 'sim' || row.adesivos_casa_status === 'talvez' || row.adesivos_casa_status === 'nao'
+      ? row.adesivos_casa_status
+      : null
+  const formigaCarrosId = row.formigas_carros_by || null
+  const formigaCasaId = row.formigas_casa_by || null
+  const formigaLinksId = row.formigas_links_by || null
+  return {
+    key: `${tipo}:${row.id}`,
+    id: row.id,
+    tipo,
+    tipoLabel: tipoLabel(tipo),
+    nome: (row.nome || '').trim() || '—',
+    telefone: row.telefone || '',
+    coordenador: row.coordenador || '',
+    lider: row.lider || '',
+    carros: row.carros_adesivados,
+    motos: row.motos_adesivadas,
+    casa: row.adesivos_casa,
+    casaStatus,
+    postagens: row.postagens,
+    fotoVeiculoPaths: row.foto_veiculo_paths,
+    fotoCasaPaths: row.foto_casa_paths,
+    formigaCarrosId,
+    formigaCarrosNome: ((formigaCarrosId ? nomes.get(formigaCarrosId) : '') || '').trim() || (formigaCarrosId ? 'Formiga' : '—'),
+    formigaCasaId,
+    formigaCasaNome: ((formigaCasaId ? nomes.get(formigaCasaId) : '') || '').trim() || (formigaCasaId ? 'Formiga' : '—'),
+    formigaLinksId,
+    formigaLinksNome: ((formigaLinksId ? nomes.get(formigaLinksId) : '') || '').trim() || (formigaLinksId ? 'Formiga' : '—'),
+  }
+}
+
+async function fetchAtivacaoRows(): Promise<{
+  cadastros: RawAtiv[]
+  lideres: RawAtiv[]
+  coordenadores: RawAtiv[]
+}> {
+  const mapCad = (r: Record<string, unknown>): RawAtiv => ({
+    id: String(r.id),
+    nome: String(r.nome_completo ?? r.nome ?? ''),
+    telefone: (r.telefone as string | null) ?? null,
+    coordenador: (r.coordenador as string | null) ?? null,
+    lider: (r.lider as string | null) ?? null,
+    carros_adesivados: qty(r.carros_adesivados),
+    motos_adesivadas: qty(r.motos_adesivadas),
+    adesivos_casa: qty(r.adesivos_casa),
+    adesivos_casa_status: (r.adesivos_casa_status as string | null) ?? null,
+    postagens: qty(r.postagens),
+    foto_veiculo_paths: toFotoPaths(r.foto_veiculo_paths),
+    foto_casa_paths: toFotoPaths(r.foto_casa_paths),
+    formigas_carros_by: (r.formigas_carros_by as string | null) ?? null,
+    formigas_casa_by: (r.formigas_casa_by as string | null) ?? null,
+    formigas_links_by: (r.formigas_links_by as string | null) ?? null,
+  })
+
+  const [cadastros, lideres, coordenadores] = await Promise.all([
+    fetchAllPaged<RawAtiv>((from, to) =>
+      supabase
+        .from('cadastros')
+        .select(
+          'id,nome_completo,telefone,coordenador,lider,carros_adesivados,motos_adesivadas,adesivos_casa,adesivos_casa_status,postagens,foto_veiculo_paths,foto_casa_paths,formigas_carros_by,formigas_casa_by,formigas_links_by',
+        )
+        .or(
+          'carros_adesivados.gt.0,motos_adesivadas.gt.0,adesivos_casa.gt.0,adesivos_casa_status.eq.sim,adesivos_casa_status.eq.talvez,postagens.gt.0',
+        )
+        .range(from, to)
+        .then(({ data, error }) => ({
+          data: (data ?? []).map((r) => mapCad(r as Record<string, unknown>)),
+          error,
+        })),
+    ),
+    fetchAllPaged<RawAtiv>((from, to) =>
+      supabase
+        .from('lideres')
+        .select(
+          'id,nome,telefone,carros_adesivados,motos_adesivadas,adesivos_casa,adesivos_casa_status,postagens,foto_veiculo_paths,foto_casa_paths,formigas_carros_by,formigas_casa_by,formigas_links_by',
+        )
+        .or(
+          'carros_adesivados.gt.0,motos_adesivadas.gt.0,adesivos_casa.gt.0,adesivos_casa_status.eq.sim,adesivos_casa_status.eq.talvez,postagens.gt.0',
+        )
+        .range(from, to)
+        .then(({ data, error }) => ({
+          data: error
+            ? []
+            : (data ?? []).map((r) => {
+                const row = mapCad({ ...r, nome_completo: (r as { nome?: string }).nome })
+                row.lider = row.nome
+                row.coordenador = ''
+                return row
+              }),
+          error: null,
+        })),
+    ),
+    fetchAllPaged<RawAtiv>((from, to) =>
+      supabase
+        .from('coordenadores')
+        .select(
+          'id,nome,carros_adesivados,motos_adesivadas,adesivos_casa,adesivos_casa_status,postagens,foto_veiculo_paths,foto_casa_paths,formigas_carros_by,formigas_casa_by,formigas_links_by',
+        )
+        .or(
+          'carros_adesivados.gt.0,motos_adesivadas.gt.0,adesivos_casa.gt.0,adesivos_casa_status.eq.sim,adesivos_casa_status.eq.talvez,postagens.gt.0',
+        )
+        .range(from, to)
+        .then(({ data, error }) => ({
+          data: error
+            ? []
+            : (data ?? []).map((r) => {
+                const row = mapCad({ ...r, nome_completo: (r as { nome?: string }).nome, telefone: null })
+                row.coordenador = row.nome
+                row.lider = ''
+                return row
+              }),
+          error: null,
+        })),
+    ),
+  ])
+
+  return { cadastros, lideres, coordenadores }
+}
+
+export async function fetchFormigasVisaoDashboard(): Promise<FormigasVisaoDashboard> {
+  const nomes = await fetchFormigaNomes()
+  const [whatsapp, ativRaw] = await Promise.all([
+    fetchFormigasWhatsappDashboard(),
+    fetchAtivacaoRows(),
+  ])
+
+  const ownerIds = [
+    ...ativRaw.cadastros,
+    ...ativRaw.lideres,
+    ...ativRaw.coordenadores,
+  ].flatMap((r) => [r.formigas_carros_by, r.formigas_casa_by, r.formigas_links_by].filter(Boolean) as string[])
+  const nomesPorId = await fetchNomesPorIds(ownerIds)
+  for (const [id, nome] of nomesPorId) nomes.set(id, nome)
+
+  const pessoas: FormigasAtivacaoPessoa[] = []
+  for (const row of ativRaw.cadastros) {
+    const m = mapAtiv(row, 'eleitor', nomes)
+    if (m) pessoas.push(m)
+  }
+  for (const row of ativRaw.lideres) {
+    const m = mapAtiv(row, 'lideranca', nomes)
+    if (m) pessoas.push(m)
+  }
+  for (const row of ativRaw.coordenadores) {
+    const m = mapAtiv(row, 'coordenador', nomes)
+    if (m) pessoas.push(m)
+  }
+  pessoas.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+
+  const byFormiga = new Map<string, FormigasAtivacaoResumo>()
+  function bump(
+    formigaId: string | null,
+    formigaNome: string,
+    patch: Partial<Pick<FormigasAtivacaoResumo, 'carros' | 'motos' | 'casas' | 'postagens' | 'veiculosPessoas' | 'casasPessoas' | 'postagensPessoas'>>,
+  ) {
+    if (!formigaId && formigaNome === '—') return
+    const id = formigaId || `sem:${formigaNome}`
+    const cur = byFormiga.get(id) ?? {
+      id,
+      nome: formigaNome || 'Formiga',
+      carros: 0,
+      motos: 0,
+      casas: 0,
+      postagens: 0,
+      veiculosPessoas: 0,
+      casasPessoas: 0,
+      postagensPessoas: 0,
+      total: 0,
+    }
+    if (patch.carros) cur.carros += patch.carros
+    if (patch.motos) cur.motos += patch.motos
+    if (patch.casas) cur.casas += patch.casas
+    if (patch.postagens) cur.postagens += patch.postagens
+    if (patch.veiculosPessoas) cur.veiculosPessoas += patch.veiculosPessoas
+    if (patch.casasPessoas) cur.casasPessoas += patch.casasPessoas
+    if (patch.postagensPessoas) cur.postagensPessoas += patch.postagensPessoas
+    cur.total = cur.veiculosPessoas + cur.casasPessoas + cur.postagensPessoas
+    if (formigaNome && cur.nome === 'Formiga') cur.nome = formigaNome
+    byFormiga.set(id, cur)
+  }
+
+  for (const p of pessoas) {
+    if (p.carros > 0 || p.motos > 0) {
+      bump(p.formigaCarrosId, p.formigaCarrosNome, {
+        carros: p.carros,
+        motos: p.motos,
+        veiculosPessoas: 1,
+      })
+    }
+    if (p.casa > 0 || p.casaStatus === 'sim' || p.casaStatus === 'talvez') {
+      bump(p.formigaCasaId, p.formigaCasaNome, {
+        casas: Math.max(p.casa, p.casaStatus === 'sim' || p.casaStatus === 'talvez' ? 1 : 0),
+        casasPessoas: 1,
+      })
+    }
+    if (p.postagens > 0) {
+      bump(p.formigaLinksId, p.formigaLinksNome, {
+        postagens: p.postagens,
+        postagensPessoas: 1,
+      })
+    }
+  }
+
+  const porFormiga = [...byFormiga.values()]
+    .filter((f) => f.total > 0)
+    .sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome, 'pt-BR'))
+
+  let carros = 0
+  let motos = 0
+  let casas = 0
+  let postagens = 0
+  let veiculosPessoas = 0
+  let casasPessoas = 0
+  let postagensPessoas = 0
+  for (const p of pessoas) {
+    carros += p.carros
+    motos += p.motos
+    if (p.casa > 0 || p.casaStatus === 'sim') {
+      casas += Math.max(p.casa, 1)
+      casasPessoas += 1
+    } else if (p.casaStatus === 'talvez') {
+      casasPessoas += 1
+    }
+    postagens += p.postagens
+    if (p.carros > 0 || p.motos > 0) veiculosPessoas += 1
+    if (p.postagens > 0) postagensPessoas += 1
+  }
+
+  return {
+    whatsapp,
+    ativacao: {
+      pessoas,
+      porFormiga,
+      totais: {
+        carros,
+        motos,
+        casas,
+        postagens,
+        veiculosPessoas,
+        casasPessoas,
+        postagensPessoas,
+        formigas: porFormiga.length,
+      },
+    },
+  }
+}
