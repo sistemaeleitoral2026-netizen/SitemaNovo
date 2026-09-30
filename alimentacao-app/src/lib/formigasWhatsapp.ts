@@ -5,8 +5,11 @@ import type { Profile } from '../types'
 
 export const FORMIGAS_WHATSAPP_EMAILS = ['aiankacecilia01@gmail.com']
 
-export function canSeeFormigasWhatsapp(profile: Pick<Profile, 'email'> | null | undefined): boolean {
+export function canSeeFormigasWhatsapp(
+  profile: Pick<Profile, 'email' | 'role'> | null | undefined,
+): boolean {
   if (!profile) return false
+  if (profile.role === 'admin') return true
   const email = (profile.email ?? '').trim().toLowerCase()
   return FORMIGAS_WHATSAPP_EMAILS.includes(email)
 }

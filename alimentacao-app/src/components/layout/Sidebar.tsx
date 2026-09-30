@@ -24,6 +24,7 @@ import {
   ClipboardCheck,
   CreditCard,
   MessageCircle,
+  Banknote,
 } from 'lucide-react'
 import type { UserRole } from '../../types'
 import { fetchDemandaCounts } from '../../lib/demandas'
@@ -101,9 +102,10 @@ const navGroups: NavGroup[] = [
     label: 'Formigas',
     roles: ['admin', 'diretoria'],
     items: [
-      { to: '/ativacao/lancar', label: 'Lançar', icon: Megaphone, roles: ['admin', 'diretoria'] },
-      { to: '/ativacao/painel', label: 'Painel', icon: ClipboardList, roles: ['admin', 'diretoria'] },
-      { to: '/ativacao/historico', label: 'Histórico', icon: History, roles: ['admin', 'diretoria'] },
+      { to: '/formigas/whatsapp', label: 'Dashboard', icon: MessageCircle, roles: ['admin'] },
+      { to: '/ativacao/lancar', label: 'Lançar', icon: Megaphone, roles: ['diretoria'] },
+      { to: '/ativacao/painel', label: 'Painel', icon: ClipboardList, roles: ['diretoria'] },
+      { to: '/ativacao/historico', label: 'Histórico', icon: History, roles: ['diretoria'] },
     ],
   },
   {
@@ -140,6 +142,7 @@ const navGroups: NavGroup[] = [
     label: 'Gestão',
     roles: ['admin', 'diretoria'],
     items: [
+      { to: '/financeiro', label: 'Financeiro', icon: Banknote, roles: ['admin', 'diretoria'] },
       { to: '/lideranca', label: 'Liderança', icon: ListChecks, roles: ['admin', 'diretoria'] },
       { to: '/relatorios', label: 'Relatórios', icon: BarChart3, roles: ['admin', 'diretoria'] },
       { to: '/relatorios/fichas-txt', label: 'Relatório/Correção', icon: FileText, roles: ['admin', 'diretoria'] },
