@@ -1455,7 +1455,7 @@ export async function fetchAtivacaoPainel(filters: AtivacaoListFilters = {}): Pr
 }
 
 const KPI_SELECT =
-  'carros_adesivados, motos_adesivadas, adesivos_casa, adesivos_casa_status, postagem_links, contato_whatsapp_status'
+  'carros_adesivados, motos_adesivadas, adesivos_casa, adesivos_casa_status, postagem_links, contato_whatsapp_status, ativacao_em'
 
 type KpiRow = {
   carros_adesivados: number | null
@@ -1464,6 +1464,7 @@ type KpiRow = {
   adesivos_casa_status: string | null
   postagem_links: unknown
   contato_whatsapp_status: string | null
+  ativacao_em: string | null
 }
 
 async function fetchKpiRows(table: 'cadastros' | 'lideres' | 'coordenadores', diretoriaId?: string) {
@@ -1483,6 +1484,8 @@ function accumulateKpis(rows: KpiRow[]) {
   let whatsapp = 0
   let comAtivacao = 0
   for (const p of rows) {
+    // Só conta lançamento real das formigas (evita lixo da mobilização antiga).
+    if (!p.ativacao_em) continue
     const carrosN = Number(p.carros_adesivados) || 0
     const motosN = Number(p.motos_adesivadas) || 0
     const casaN = Number(p.adesivos_casa) || 0
