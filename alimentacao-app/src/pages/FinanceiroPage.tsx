@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { supabase } from '../lib/supabase'
+import { hasRole } from '../lib/roles'
 import {
   buildCoordResumos,
   createLancamento,
@@ -54,8 +55,8 @@ function fmtWhen(iso: string) {
 export function FinanceiroPage() {
   const { profile } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
-  const isAdmin = profile?.role === 'admin'
-  const diretoriaScope = profile?.role === 'diretoria' ? profile.id : null
+  const isAdmin = hasRole(profile, 'admin')
+  const diretoriaScope = hasRole(profile, 'diretoria') && !isAdmin ? profile?.id ?? null : null
 
   const [diretorias, setDiretorias] = useState<Profile[]>([])
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
@@ -399,7 +400,7 @@ export function FinanceiroPage() {
     setDeletingId(l.id)
     setError(null)
     try {
-      await deleteLancamento(l.id, l.comprovante_path)
+      await deleteLancamento(l.id, l.comprovante_path, { asAdmin: true })
       setLancamentos((prev) => prev.filter((x) => x.id !== l.id))
       showToast('Lançamento apagado.')
     } catch (err) {
@@ -716,7 +717,10 @@ export function FinanceiroPage() {
           <section className="fin-recent">
             <div className="fin-recent-head">
               <h2>Últimos lançamentos</h2>
-              <p>Pagamentos registrados recentemente</p>
+              <p>
+                Pagamentos registrados recentemente
+                {isAdmin ? ' · só o admin pode apagar' : ''}
+              </p>
             </div>
             {!recentList.length ? (
               <p className="fin-empty-line">Nenhum pagamento registrado.</p>

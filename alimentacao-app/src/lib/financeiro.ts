@@ -482,7 +482,15 @@ export async function createLancamento(input: {
   }
 }
 
-export async function deleteLancamento(id: string, comprovantePath?: string | null): Promise<void> {
+export async function deleteLancamento(
+  id: string,
+  comprovantePath?: string | null,
+  opts?: { asAdmin?: boolean },
+): Promise<void> {
+  if (!opts?.asAdmin) {
+    throw new Error('Somente o administrador pode apagar lançamentos.')
+  }
+
   const { error } = await supabase.from('financeiro_lancamentos').delete().eq('id', id)
 
   if (error) {

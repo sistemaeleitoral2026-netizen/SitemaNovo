@@ -119,6 +119,7 @@ create policy financeiro_lancamentos_insert
   on public.financeiro_lancamentos for insert to authenticated
   with check (public.is_admin() or diretoria_id = auth.uid());
 
+-- Só admin apaga histórico de lançamentos (reforce a policy):
 drop policy if exists financeiro_lancamentos_delete on public.financeiro_lancamentos;
 create policy financeiro_lancamentos_delete
   on public.financeiro_lancamentos for delete to authenticated
