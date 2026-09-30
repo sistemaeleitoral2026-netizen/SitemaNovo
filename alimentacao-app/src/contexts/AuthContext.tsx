@@ -28,6 +28,7 @@ interface AuthContextValue {
     diretoria_id?: string | null
     coordenador_id?: string | null
     lider_id?: string | null
+    lider_ids?: string[]
   }) => Promise<{ error: string | null }>
   refreshProfile: () => Promise<void>
 }
@@ -126,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     diretoria_id?: string | null
     coordenador_id?: string | null
     lider_id?: string | null
+    lider_ids?: string[]
   }) => {
     const { data: sessionData } = await supabase.auth.getSession()
     const adminSession = sessionData.session
@@ -147,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           diretoria_id: input.diretoria_id ?? null,
           coordenador_id: input.coordenador_id ?? null,
           lider_id: input.lider_id ?? null,
+          lider_ids: input.lider_ids ?? [],
         }),
       })
 
