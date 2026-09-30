@@ -102,7 +102,7 @@ const navGroups: NavGroup[] = [
     label: 'Formigas',
     roles: ['admin', 'diretoria'],
     items: [
-      { to: '/formigas/whatsapp', label: 'Dashboard', icon: MessageCircle, roles: ['admin'] },
+      { to: '/formigas/whatsapp', label: 'Visão geral', icon: MessageCircle, roles: ['admin'] },
       { to: '/ativacao/lancar', label: 'Lançar', icon: Megaphone, roles: ['diretoria'] },
       { to: '/ativacao/painel', label: 'Painel', icon: ClipboardList, roles: ['diretoria'] },
       { to: '/ativacao/historico', label: 'Histórico', icon: History, roles: ['diretoria'] },
