@@ -172,10 +172,38 @@ function mapWaCad(r: Record<string, unknown>): RawWa {
   }
 }
 
+/** Primeiro actor que lançou WhatsApp na ficha (histórico) — recupera crédito se formigas_wa_by veio null. */
+async function fetchWhatsappFirstActorMap(): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  try {
+    const rows = await fetchAllPaged<{
+      tipo: string
+      pessoa_id: string
+      actor_id: string
+      created_at: string
+    }>((from, to) =>
+      supabase
+        .from('formigas_historico')
+        .select('tipo,pessoa_id,actor_id,created_at')
+        .eq('secao', 'whatsapp')
+        .order('created_at', { ascending: true })
+        .range(from, to)
+        .then(({ data, error }) => ({ data, error })),
+    )
+    for (const r of rows) {
+      const key = `${r.tipo}:${r.pessoa_id}`
+      if (!map.has(key) && r.actor_id) map.set(key, String(r.actor_id))
+    }
+  } catch {
+    /* histórico pode falhar por RLS — segue só com formigas_wa_by */
+  }
+  return map
+}
+
 export async function fetchFormigasWhatsappDashboard(): Promise<WhatsappDashboard> {
   const nomes = await fetchFormigaNomes()
 
-  const [cadastros, lideres, coordenadores] = await Promise.all([
+  const [cadastros, lideres, coordenadores, firstActor] = await Promise.all([
     fetchAllPaged<RawWa>((from, to) =>
       supabase
         .from('cadastros')
@@ -228,25 +256,35 @@ export async function fetchFormigasWhatsappDashboard(): Promise<WhatsappDashboar
           error: null,
         })),
     ),
+    fetchWhatsappFirstActorMap(),
   ])
 
-  const ownerIds = [...cadastros, ...lideres, ...coordenadores]
-    .map((r) => r.formigas_wa_by)
-    .filter((id): id is string => Boolean(id))
+  // Recupera crédito: se dono atual está vazio, usa quem lançou WA primeiro no histórico.
+  function withCredit(row: RawWa, tipo: WhatsappPessoa['tipo']): RawWa {
+    if (row.formigas_wa_by) return row
+    const fromHist = firstActor.get(`${tipo}:${row.id}`)
+    return fromHist ? { ...row, formigas_wa_by: fromHist } : row
+  }
+
+  const ownerIds = [
+    ...cadastros.map((r) => withCredit(r, 'eleitor').formigas_wa_by),
+    ...lideres.map((r) => withCredit(r, 'lideranca').formigas_wa_by),
+    ...coordenadores.map((r) => withCredit(r, 'coordenador').formigas_wa_by),
+  ].filter((id): id is string => Boolean(id))
   const nomesPorId = await fetchNomesPorIds(ownerIds)
   for (const [id, nome] of nomesPorId) nomes.set(id, nome)
 
   const pessoas: WhatsappPessoa[] = []
   for (const row of cadastros) {
-    const mapped = mapRow(row, 'eleitor', nomes)
+    const mapped = mapRow(withCredit(row, 'eleitor'), 'eleitor', nomes)
     if (mapped) pessoas.push(mapped)
   }
   for (const row of lideres) {
-    const mapped = mapRow(row, 'lideranca', nomes)
+    const mapped = mapRow(withCredit(row, 'lideranca'), 'lideranca', nomes)
     if (mapped) pessoas.push(mapped)
   }
   for (const row of coordenadores) {
-    const mapped = mapRow(row, 'coordenador', nomes)
+    const mapped = mapRow(withCredit(row, 'coordenador'), 'coordenador', nomes)
     if (mapped) pessoas.push(mapped)
   }
 

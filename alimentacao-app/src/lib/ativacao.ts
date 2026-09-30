@@ -1054,6 +1054,55 @@ export async function fetchFormigasHistorico(opts?: {
   }
 }
 
+/** Resumo: lançamentos (eventos) vs pessoas distintas — evita confundir 260 eventos com 260 pessoas. */
+export async function fetchFormigasHistoricoResumo(opts?: {
+  onlyMine?: boolean
+  actorId?: string | null
+}): Promise<{
+  eventos: number
+  pessoas: number
+  whatsappPessoas: number
+  whatsappEventos: number
+  error: string | null
+}> {
+  let actorId = opts?.actorId ?? null
+  if (!actorId && opts?.onlyMine) {
+    const { data: { session } } = await supabase.auth.getSession()
+    actorId = session?.user?.id ?? null
+    if (!actorId) {
+      return { eventos: 0, pessoas: 0, whatsappPessoas: 0, whatsappEventos: 0, error: null }
+    }
+  }
+
+  let q = supabase.from('formigas_historico').select('tipo,pessoa_id,secao')
+  if (actorId) q = q.eq('actor_id', actorId)
+
+  const all: { tipo: string; pessoa_id: string; secao: string }[] = []
+  let from = 0
+  const page = 1000
+  for (;;) {
+    const { data, error } = await q.range(from, from + page - 1)
+    if (error) {
+      return { eventos: 0, pessoas: 0, whatsappPessoas: 0, whatsappEventos: 0, error: error.message }
+    }
+    const chunk = (data ?? []) as { tipo: string; pessoa_id: string; secao: string }[]
+    all.push(...chunk)
+    if (chunk.length < page) break
+    from += page
+  }
+
+  const pessoas = new Set(all.map((r) => `${r.tipo}:${r.pessoa_id}`))
+  const wa = all.filter((r) => r.secao === 'whatsapp')
+  const waPessoas = new Set(wa.map((r) => `${r.tipo}:${r.pessoa_id}`))
+  return {
+    eventos: all.length,
+    pessoas: pessoas.size,
+    whatsappPessoas: waPessoas.size,
+    whatsappEventos: wa.length,
+    error: null,
+  }
+}
+
 /** Timeline de uma ficha (todas as formigas que mexeram nela). */
 export async function fetchFormigasHistoricoPorPessoa(
   tipo: AtivacaoTipo,
