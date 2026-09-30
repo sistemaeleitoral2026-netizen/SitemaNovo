@@ -26,6 +26,7 @@ import { DemandasPainelPage } from './pages/DemandasPainelPage'
 import { LiderancaPage } from './pages/LiderancaPage'
 import { GaragemLancarPage } from './pages/GaragemLancarPage'
 import { GaragemHistoricoPage } from './pages/GaragemHistoricoPage'
+import { FinanceiroPage } from './pages/FinanceiroPage'
 import { TvDashboardPage } from './pages/TvDashboardPage'
 import { hasRole } from './lib/roles'
 import { canSeeFormigasWhatsapp } from './lib/formigasWhatsapp'
@@ -173,6 +174,7 @@ function AppRoutes() {
         <Route path="garagem" element={<Navigate to="/garagem/lancar" replace />} />
         <Route path="garagem/lancar" element={<StaffRoute><GaragemLancarPage /></StaffRoute>} />
         <Route path="garagem/historico" element={<StaffRoute><GaragemHistoricoPage /></StaffRoute>} />
+        <Route path="financeiro" element={<StaffRoute><FinanceiroPage /></StaffRoute>} />
         <Route path="configuracoes" element={<StaffRoute><ConfiguracoesPage /></StaffRoute>} />
         <Route path="admin-only" element={<AdminOnlyRoute><DashboardPage /></AdminOnlyRoute>} />
       </Route>
