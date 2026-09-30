@@ -7358,6 +7358,23 @@ button.fichas-count.equipe-drill-count.zero:hover {
   color: #64748b;
   font-size: .875rem;
 }
+.fh-resumo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .35rem .55rem;
+  margin: 0 0 1rem;
+  padding: .7rem .9rem;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: .82rem;
+  color: #475569;
+}
+.fh-resumo strong {
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
 .fh-refresh {
   display: inline-flex;
   align-items: center;
