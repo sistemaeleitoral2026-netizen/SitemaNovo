@@ -58,10 +58,12 @@ const navGroups: NavGroup[] = [
   {
     label: 'Operação de Campo',
     roles: ['mobilizador'],
+    // Aianka (adminstrativo + Formiga) e quem tem cargo Formiga
+    emails: FORMIGAS_WHATSAPP_EMAILS,
     items: [
-      { to: '/ativacao/lancar', label: 'Lançar', icon: Megaphone, roles: ['mobilizador'] },
-      { to: '/ativacao/painel', label: 'Painel', icon: ClipboardList, roles: ['mobilizador'] },
-      { to: '/ativacao/historico', label: 'Histórico', icon: History, roles: ['mobilizador'] },
+      { to: '/ativacao/lancar', label: 'Lançar', icon: Megaphone, roles: ['mobilizador'], emails: FORMIGAS_WHATSAPP_EMAILS },
+      { to: '/ativacao/painel', label: 'Painel', icon: ClipboardList, roles: ['mobilizador'], emails: FORMIGAS_WHATSAPP_EMAILS },
+      { to: '/ativacao/historico', label: 'Histórico', icon: History, roles: ['mobilizador'], emails: FORMIGAS_WHATSAPP_EMAILS },
     ],
   },
   {
@@ -69,6 +71,7 @@ const navGroups: NavGroup[] = [
     roles: ['auxiliar', 'coordenador'],
     items: [
       { to: '/votacao/lancar', label: 'Lançar', icon: ClipboardCheck, roles: ['auxiliar', 'coordenador'] },
+      { to: '/votacao/progresso', label: 'Progresso', icon: ListChecks, roles: ['coordenador'] },
       { to: '/equipe?tab=lideres', label: 'Lideranças', icon: Crown, roles: ['coordenador'] },
       { to: '/equipe?tab=auxiliares', label: 'Auxiliares', icon: Users, roles: ['coordenador'] },
       { to: '/cadastros', label: 'Fichas', icon: ClipboardList, roles: ['coordenador'] },
@@ -99,7 +102,8 @@ const navGroups: NavGroup[] = [
       { to: '/meus-cadastros', label: 'Meus Cadastros', icon: ClipboardList, roles: ['operador'] },
       { to: '/cadastros/novo', label: 'Novo Cadastro', icon: UserPlus, roles: ['operador'] },
       { to: '/importar', label: 'Importar Planilha', icon: Upload, roles: ['operador'] },
-      { to: '/votacao/lancar', label: 'Votação', icon: ClipboardCheck, roles: ['admin', 'diretoria'] },
+      { to: '/votacao/lancar', label: 'Lançar votação', icon: ClipboardCheck, roles: ['admin', 'diretoria'] },
+      { to: '/votacao/progresso', label: 'Progresso votação', icon: ListChecks, roles: ['admin', 'diretoria'] },
     ],
   },
   {
@@ -170,8 +174,13 @@ function linkActive(to: string, pathname: string, search: string) {
 
   if (to.includes('?')) {
     const [path, query] = to.split('?')
-    const current = search.replace(/^\?/, '')
-    return pathname === path && current === query
+    if (pathname !== path) return false
+    const want = new URLSearchParams(query)
+    const have = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
+    for (const [key, value] of want.entries()) {
+      if (have.get(key) !== value) return false
+    }
+    return true
   }
 
   if (pathname === to) return true
@@ -198,14 +207,19 @@ function canSeeByEmail(emails: string[] | undefined, email: string) {
   return emails.includes(email)
 }
 
-/** Item/grupo com lista de e-mails: só esses e-mails veem (qualquer cargo). Sem lista: só por role. */
+/**
+ * Item/grupo: por role OU por e-mail liberado.
+ * Assim administrativo com Formiga (extra_roles) vê Operação de Campo,
+ * e a Aianka (lista de e-mail) também.
+ */
 function canSeeNav(
   entry: { roles: UserRole[]; emails?: string[] },
   roles: UserRole[],
   email: string,
 ) {
+  if (intersects(entry.roles, roles)) return true
   if (entry.emails?.length) return canSeeByEmail(entry.emails, email)
-  return intersects(entry.roles, roles)
+  return false
 }
 
 export function Sidebar({ roles = [], email, open, onClose }: SidebarProps) {

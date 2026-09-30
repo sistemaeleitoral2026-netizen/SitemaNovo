@@ -25,7 +25,7 @@ import {
   FormigasFichaHistoricoDrawer,
 } from '../components/FormigasFichaHistoricoDrawer'
 import { FormigasFotoField } from '../components/FormigasFotoField'
-import { canEditFormigasSection, FormigasLockChip, FormigasSectionLock, FormigasUnlockConfirm } from '../components/FormigasSectionLock'
+import { FormigasLockChip, FormigasSectionLock } from '../components/FormigasSectionLock'
 import {
   claimNextAtivacao,
   fetchAtivacaoPessoa,
@@ -57,22 +57,6 @@ function normalizePostUrl(value: string): string | null {
   } catch {
     return null
   }
-}
-
-type FormigasSectionKey = 'wa' | 'carros' | 'casa' | 'links'
-
-const SECTION_LABELS: Record<FormigasSectionKey, string> = {
-  wa: 'WhatsApp',
-  carros: 'Veículos adesivados',
-  casa: 'Adesivo residencial',
-  links: 'Links de postagem',
-}
-
-const LOCKED_SECTIONS: Record<FormigasSectionKey, boolean> = {
-  wa: false,
-  carros: false,
-  casa: false,
-  links: false,
 }
 
 function SegmentedControl({
@@ -153,31 +137,20 @@ export function AtivacaoLancarPage() {
   const [dirtyPrompt, setDirtyPrompt] = useState<'proximo' | 'limpar' | 'trocar' | null>(null)
   const [pendingQuery, setPendingQuery] = useState<string | null>(null)
   const [histOpen, setHistOpen] = useState(false)
-  const [unlockedSections, setUnlockedSections] = useState<Record<FormigasSectionKey, boolean>>(LOCKED_SECTIONS)
-  const [unlockAsk, setUnlockAsk] = useState<{ key: FormigasSectionKey; nome: string } | null>(null)
   const skipSaveRef = useRef(false)
 
   const isFormActive = selected !== null
   const waUrl = buildWhatsAppUrl(selected?.telefone)
-  const editWa = canEditFormigasSection(selected?.formigas_wa_by, profile?.id, unlockedSections.wa)
-  const editCarros = canEditFormigasSection(selected?.formigas_carros_by, profile?.id, unlockedSections.carros)
-  const editCasa = canEditFormigasSection(selected?.formigas_casa_by, profile?.id, unlockedSections.casa)
-  const editLinks = canEditFormigasSection(selected?.formigas_links_by, profile?.id, unlockedSections.links)
+  // Qualquer formiga edita; o “cadeado” só mostra quem alterou por último
+  const editWa = true
+  const editCarros = true
+  const editCasa = true
+  const editLinks = true
   // Endereço opcional (sim/talvez): mostra campos, sem obrigar CEP/rua
   const showCasaAddr = casaStatus === 'sim' || casaStatus === 'talvez'
   const editCasaAddr = editCasa
   const lockChipProps = {
     userId: profile?.id,
-  }
-
-  function requestUnlock(key: FormigasSectionKey, ownerNome?: string | null) {
-    setUnlockAsk({ key, nome: ownerNome?.trim() || 'Formiga' })
-  }
-
-  function confirmUnlock() {
-    if (!unlockAsk) return
-    setUnlockedSections((prev) => ({ ...prev, [unlockAsk.key]: true }))
-    setUnlockAsk(null)
   }
 
   const isDirty = useMemo(() => {
@@ -217,13 +190,13 @@ export function AtivacaoLancarPage() {
   ])
 
   useEffect(() => {
-    if (!dirtyPrompt && !unlockAsk) return
+    if (!dirtyPrompt) return
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
       document.body.style.overflow = prev
     }
-  }, [dirtyPrompt, unlockAsk])
+  }, [dirtyPrompt])
 
   useEffect(() => {
     if (!isDirty) return
@@ -278,8 +251,6 @@ export function AtivacaoLancarPage() {
     setSelected(p)
     setQuery(p.nome)
     setSuggestions([])
-    setUnlockedSections({ ...LOCKED_SECTIONS })
-    setUnlockAsk(null)
     setCarros(p.carros_adesivados)
     setMotos(p.motos_adesivadas)
     setVeiculoCarro(p.carros_adesivados > 0)
@@ -308,8 +279,6 @@ export function AtivacaoLancarPage() {
   function resetForm() {
     setSelected(null)
     setQuery('')
-    setUnlockedSections({ ...LOCKED_SECTIONS })
-    setUnlockAsk(null)
     setCarros(0)
     setMotos(0)
     setVeiculoCarro(false)
@@ -349,60 +318,6 @@ export function AtivacaoLancarPage() {
       return false
     }
 
-    const nextLinks = links.map((l) => l.trim()).filter(Boolean)
-    const prevLinks = selected.postagem_links
-    const linksDirty =
-      nextLinks.length !== prevLinks.length
-      || [...nextLinks].sort().join('\n') !== [...prevLinks].sort().join('\n')
-    const waDirty = contatoStatus !== selected.contato_whatsapp_status
-    const carrosDirty =
-      nextCarros !== selected.carros_adesivados
-      || nextMotos !== selected.motos_adesivadas
-      || ((nextCarros > 0 || nextMotos > 0) && (
-        fotoVeiculoFiles.length > 0
-        || fotoVeiculoKeep.join('|') !== selected.foto_veiculo_paths.join('|')
-      ))
-    const addrDirty =
-      casaCep.replace(/\D/g, '') !== selected.cep.replace(/\D/g, '')
-      || casaEndereco.trim() !== selected.endereco.trim()
-      || casaNumero.trim() !== selected.numero.trim()
-      || casaBairro.trim() !== selected.bairro.trim()
-    const casaDirty =
-      casaStatus !== selected.adesivos_casa_status
-      || ((casaStatus === 'sim' || casaStatus === 'talvez') && (
-        fotoCasaFiles.length > 0
-        || fotoCasaKeep.join('|') !== selected.foto_casa_paths.join('|')
-        || addrDirty
-      ))
-
-    // Cadeado liberado só conta se houver mudança real naquela parte
-    const unlockForSave = {
-      wa: Boolean(unlockedSections.wa && waDirty),
-      carros: Boolean(unlockedSections.carros && carrosDirty),
-      casa: Boolean(unlockedSections.casa && casaDirty),
-      links: Boolean(unlockedSections.links && linksDirty),
-    }
-
-    const blocked: string[] = []
-    if (waDirty && !canEditFormigasSection(selected.formigas_wa_by, profile?.id, unlockForSave.wa)) {
-      blocked.push('WhatsApp')
-    }
-    if (carrosDirty && !canEditFormigasSection(selected.formigas_carros_by, profile?.id, unlockForSave.carros)) {
-      blocked.push('Veículos')
-    }
-    if (casaDirty && !canEditFormigasSection(selected.formigas_casa_by, profile?.id, unlockForSave.casa)) {
-      blocked.push('Adesivo residencial')
-    }
-    if (linksDirty && !canEditFormigasSection(selected.formigas_links_by, profile?.id, unlockForSave.links)) {
-      blocked.push('Links')
-    }
-    if (blocked.length) {
-      setError(
-        `Cadeado ativo em: ${blocked.join(', ')}. Toque em “Editar mesmo assim”, confirme, altere e salve.`,
-      )
-      return false
-    }
-
     setSaving(true)
     setError(null)
     const snapshot = selected
@@ -421,14 +336,13 @@ export function AtivacaoLancarPage() {
       foto_veiculo_files: nextCarros > 0 || nextMotos > 0 ? fotoVeiculoFiles : [],
       foto_casa_keep: casaStatus === 'sim' || casaStatus === 'talvez' ? fotoCasaKeep : [],
       foto_casa_files: casaStatus === 'sim' || casaStatus === 'talvez' ? fotoCasaFiles : [],
-      unlocked: unlockForSave,
+      canOverride: true,
     }, snapshot)
     setSaving(false)
     if (err) {
       setError(err)
       return false
     }
-    setUnlockedSections({ ...LOCKED_SECTIONS })
     return true
   }
 
@@ -590,7 +504,7 @@ export function AtivacaoLancarPage() {
       links: nextLinks,
       notas: snapshot.ativacao_notas || '',
       contato_whatsapp_status: snapshot.contato_whatsapp_status,
-      unlocked: { links: unlockedSections.links },
+      canOverride: true,
       onlySections: 'links',
     }, snapshot)
     setSavingLink(false)
@@ -614,7 +528,6 @@ export function AtivacaoLancarPage() {
       }
     })
     if (refreshed?.id === snapshot.id) setLinks([...refreshed.postagem_links])
-    setUnlockedSections((prev) => ({ ...prev, links: false }))
     setLinkJustSaved(url)
     setOk('Link salvo.')
     window.setTimeout(() => setLinkJustSaved((cur) => (cur === url ? null : cur)), 4000)
@@ -838,8 +751,6 @@ export function AtivacaoLancarPage() {
                     ownerNome={selected.formigas_wa_by_nome}
                     at={selected.formigas_wa_em}
                     userId={profile?.id}
-                    unlocked={unlockedSections.wa}
-                    onRequestUnlock={() => requestUnlock('wa', selected.formigas_wa_by_nome)}
                   />
                 ) : null}
                 {waUrl ? (
@@ -906,8 +817,6 @@ export function AtivacaoLancarPage() {
                   ownerNome={selected.formigas_carros_by_nome}
                   at={selected.formigas_carros_em}
                   userId={profile?.id}
-                  unlocked={unlockedSections.carros}
-                  onRequestUnlock={() => requestUnlock('carros', selected.formigas_carros_by_nome)}
                 />
               ) : null}
               <label className="fl-label-sm">Tipo de veículo</label>
@@ -1057,8 +966,6 @@ export function AtivacaoLancarPage() {
                   ownerNome={selected.formigas_casa_by_nome}
                   at={selected.formigas_casa_em}
                   userId={profile?.id}
-                  unlocked={unlockedSections.casa}
-                  onRequestUnlock={() => requestUnlock('casa', selected.formigas_casa_by_nome)}
                 />
               ) : null}
               <label className="fl-label-sm">Confirmação de campo</label>
@@ -1176,8 +1083,6 @@ export function AtivacaoLancarPage() {
                 ownerNome={selected.formigas_links_by_nome}
                 at={selected.formigas_links_em}
                 userId={profile?.id}
-                unlocked={unlockedSections.links}
-                onRequestUnlock={() => requestUnlock('links', selected.formigas_links_by_nome)}
               />
             ) : null}
             <p className="fl-hint">Cole o link da rede social e toque em Salvar link. Cada um conta como 1 postagem.</p>
@@ -1269,18 +1174,6 @@ export function AtivacaoLancarPage() {
           {saveLabel}
         </button>
       </div>
-
-      {unlockAsk
-        && createPortal(
-          <FormigasUnlockConfirm
-            open
-            ownerNome={unlockAsk.nome}
-            sectionLabel={SECTION_LABELS[unlockAsk.key]}
-            onCancel={() => setUnlockAsk(null)}
-            onConfirm={confirmUnlock}
-          />,
-          document.body,
-        )}
 
       {dirtyPrompt
         && createPortal(

@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
-import { Check, ChevronDown, Copy, Lock, Trash2, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Check, ChevronDown, Copy, Lock, Search, Trash2, X } from 'lucide-react'
 import { Spinner } from '../ui/Spinner'
 import type { UserRole } from '../../types'
 import { ATRIBUICAO_OPTIONS, labelRole } from '../../lib/roles'
 
-export type MemberKind = 'operador' | 'mobilizador' | 'administrativo'
+export type MemberKind = 'operador' | 'mobilizador' | 'administrativo' | 'auxiliar'
 
 type Option = { value: string; label: string }
 
@@ -16,6 +16,7 @@ export type MemberFormState = {
   diretoria_id: string
   coordenador_id?: string
   lider_id?: string
+  lider_ids?: string[]
   ativo: boolean
   extra_roles: UserRole[]
 }
@@ -27,9 +28,13 @@ interface EquipeMemberModalProps {
   form: MemberFormState
   showDiretoria: boolean
   diretoriaLocked?: boolean
+  /** Auxiliar: mostra select de coordenador (admin/diretoria). */
+  showCoordenador?: boolean
   diretorias: Option[]
   coordOptions?: Option[]
   liderOptions?: Option[]
+  /** Auxiliar: lideranças multi-select (cards). */
+  liderMultiOptions?: Option[]
   allowAdminRole: boolean
   error?: string | null
   saving?: boolean
@@ -62,6 +67,10 @@ function toggleExtra(
   return [...current, value]
 }
 
+function toggleLider(current: string[], id: string): string[] {
+  return current.includes(id) ? current.filter((x) => x !== id) : [...current, id]
+}
+
 export function EquipeMemberModal({
   open,
   mode,
@@ -69,9 +78,11 @@ export function EquipeMemberModal({
   form,
   showDiretoria,
   diretoriaLocked,
+  showCoordenador = false,
   diretorias,
   coordOptions = [],
   liderOptions = [],
+  liderMultiOptions = [],
   allowAdminRole,
   error,
   saving,
@@ -82,15 +93,27 @@ export function EquipeMemberModal({
 }: EquipeMemberModalProps) {
   const [pwdOpen, setPwdOpen] = useState(mode === 'create')
   const [copied, setCopied] = useState(false)
+  const [liderSearch, setLiderSearch] = useState('')
 
   useEffect(() => {
-    if (open) setPwdOpen(mode === 'create')
+    if (open) {
+      setPwdOpen(mode === 'create')
+      setLiderSearch('')
+    }
   }, [open, mode])
+
+  const filteredLideres = useMemo(() => {
+    const q = liderSearch.trim().toLowerCase()
+    if (!q) return liderMultiOptions
+    return liderMultiOptions.filter((l) => l.label.toLowerCase().includes(q))
+  }, [liderMultiOptions, liderSearch])
 
   if (!open) return null
 
   const isEdit = mode === 'edit'
+  const isAuxiliar = kind === 'auxiliar'
   const roleLabel = labelRole(kind)
+  const liderIds = form.lider_ids ?? []
   const roleOptions = ATRIBUICAO_OPTIONS.filter((opt) => {
     if (opt.value === kind) return true
     if (!allowAdminRole && opt.value === 'administrativo') return false
@@ -118,13 +141,21 @@ export function EquipeMemberModal({
           </div>
           <div className="eqm-head-text">
             <div className="eqm-title-row">
-              <h2 id="eqm-title">{isEdit ? 'Editar Membro da Equipe' : 'Novo Membro da Equipe'}</h2>
+              <h2 id="eqm-title">
+                {isAuxiliar
+                  ? (isEdit ? 'Editar auxiliar' : 'Novo auxiliar')
+                  : (isEdit ? 'Editar Membro da Equipe' : 'Novo Membro da Equipe')}
+              </h2>
               <span className="eqm-role-badge">{roleLabel}</span>
             </div>
             <p className="eqm-sub">
-              {isEdit
-                ? <>Atualize diretoria, dados de acesso e permissões de <strong>{firstName(form.nome)}</strong></>
-                : <>Preencha os dados e as atribuições do novo membro</>}
+              {isAuxiliar
+                ? (isEdit
+                  ? <>Atualize acesso e lideranças de <strong>{firstName(form.nome)}</strong></>
+                  : <>Cadastre o auxiliar e marque as lideranças que ele lança na votação</>)
+                : (isEdit
+                  ? <>Atualize diretoria, dados de acesso e permissões de <strong>{firstName(form.nome)}</strong></>
+                  : <>Preencha os dados e as atribuições do novo membro</>)}
             </p>
           </div>
           <button type="button" className="eqm-close" onClick={onClose} disabled={Boolean(saving)} aria-label="Fechar">
@@ -166,7 +197,7 @@ export function EquipeMemberModal({
                 </div>
               </div>
 
-              {showDiretoria && kind !== 'administrativo' && (
+              {showDiretoria && kind !== 'administrativo' && kind !== 'auxiliar' && (
                 <div className="eqm-field">
                   <label htmlFor="eqm-dir">
                     Diretoria vinculada <span className="eqm-req">*</span>
@@ -185,6 +216,28 @@ export function EquipeMemberModal({
                     <option value="">Selecione</option>
                     {diretorias.map((d) => (
                       <option key={d.value} value={d.value}>{d.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {isAuxiliar && showCoordenador && (
+                <div className="eqm-field eqm-field-full">
+                  <label htmlFor="eqm-coord-aux">
+                    Coordenador <span className="eqm-req">*</span>
+                  </label>
+                  <select
+                    id="eqm-coord-aux"
+                    className="eqm-input eqm-select"
+                    value={form.coordenador_id ?? ''}
+                    onChange={(e) => onChange({
+                      coordenador_id: e.target.value,
+                      lider_ids: [],
+                    })}
+                  >
+                    <option value="">Selecione</option>
+                    {coordOptions.map((c) => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
                     ))}
                   </select>
                 </div>
@@ -252,37 +305,115 @@ export function EquipeMemberModal({
             </div>
           </section>
 
-          <section className="eqm-section">
-            <div className="eqm-section-head">
-              <h3 className="eqm-section-title">Atribuições e cargos</h3>
-              <span className="eqm-section-note">Libera módulos no menu lateral</span>
-            </div>
-            <p className="eqm-hint">Selecione as atribuições ativas deste usuário no sistema:</p>
-            <div className="eqm-roles">
-              {roleOptions.map((opt) => {
-                const isPrimary = opt.value === kind
-                const checked = isPrimary || form.extra_roles.includes(opt.value)
-                return (
+          {isAuxiliar && (
+            <section className="eqm-section">
+              <div className="eqm-section-head">
+                <h3 className="eqm-section-title">Lideranças da votação</h3>
+                <span className="eqm-section-note">
+                  {liderIds.length
+                    ? `${liderIds.length} selecionada${liderIds.length === 1 ? '' : 's'}`
+                    : 'Nenhuma ainda'}
+                </span>
+              </div>
+              <p className="eqm-hint">
+                Marque as lideranças cujas fichas este auxiliar poderá lançar no celular.
+              </p>
+              {liderMultiOptions.length > 6 && (
+                <div className="eqm-lider-search">
+                  <Search size={15} aria-hidden />
+                  <input
+                    value={liderSearch}
+                    onChange={(e) => setLiderSearch(e.target.value)}
+                    placeholder="Buscar liderança…"
+                    autoComplete="off"
+                  />
+                </div>
+              )}
+              {!liderMultiOptions.length ? (
+                <p className="eqm-hint" style={{ marginTop: 0 }}>
+                  Nenhuma liderança nesta coordenação. Cadastre lideranças antes.
+                </p>
+              ) : !filteredLideres.length ? (
+                <p className="eqm-hint" style={{ marginTop: 0 }}>Nenhuma liderança com esse nome.</p>
+              ) : (
+                <div className="eqm-lideres">
+                  {filteredLideres.map((l) => {
+                    const checked = liderIds.includes(l.value)
+                    return (
+                      <button
+                        key={l.value}
+                        type="button"
+                        className={`eqm-lider-card${checked ? ' is-on' : ''}`}
+                        onClick={() => onChange({ lider_ids: toggleLider(liderIds, l.value) })}
+                      >
+                        <span className={`eqm-check${checked ? ' is-on' : ''}`}>
+                          {checked ? <Check size={12} strokeWidth={2.5} /> : null}
+                        </span>
+                        <strong>{l.label}</strong>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+              {liderMultiOptions.length > 0 && (
+                <div className="eqm-lider-actions">
                   <button
-                    key={opt.value}
                     type="button"
-                    className={`eqm-role-card${checked ? ' is-on' : ''}${isPrimary ? ' is-base' : ''}`}
-                    disabled={isPrimary}
-                    onClick={() => onChange({
-                      extra_roles: toggleExtra(form.extra_roles, opt.value, kind, allowAdminRole),
-                    })}
+                    className="eqm-btn-ghost eqm-btn-sm"
+                    onClick={() => onChange({ lider_ids: liderMultiOptions.map((l) => l.value) })}
                   >
-                    <span className={`eqm-check${checked ? ' is-on' : ''}`}>
-                      {checked ? <Check size={12} strokeWidth={2.5} /> : null}
-                    </span>
-                    <strong>{opt.label}</strong>
-                    {isPrimary && <em className="eqm-base-tag">Base</em>}
-                    <span>{isPrimary ? 'Cargo principal ativo' : opt.hint}</span>
+                    Marcar todas
                   </button>
-                )
-              })}
-            </div>
-          </section>
+                  <button
+                    type="button"
+                    className="eqm-btn-ghost eqm-btn-sm"
+                    onClick={() => onChange({ lider_ids: [] })}
+                    disabled={!liderIds.length}
+                  >
+                    Limpar
+                  </button>
+                </div>
+              )}
+            </section>
+          )}
+
+          {!isAuxiliar && (
+            <section className="eqm-section">
+              <div className="eqm-section-head">
+                <h3 className="eqm-section-title">Atribuições e cargos</h3>
+                <span className="eqm-section-note">Libera módulos no menu lateral</span>
+              </div>
+              <p className="eqm-hint">
+                {kind === 'administrativo'
+                  ? 'Demandas já vem com o cargo. Marque Formiga se a pessoa também lança Formigas (ex.: Aianka).'
+                  : 'Selecione as atribuições ativas deste usuário no sistema:'}
+              </p>
+              <div className="eqm-roles">
+                {roleOptions.map((opt) => {
+                  const isPrimary = opt.value === kind
+                  const checked = isPrimary || form.extra_roles.includes(opt.value)
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      className={`eqm-role-card${checked ? ' is-on' : ''}${isPrimary ? ' is-base' : ''}`}
+                      disabled={isPrimary}
+                      onClick={() => onChange({
+                        extra_roles: toggleExtra(form.extra_roles, opt.value, kind, allowAdminRole),
+                      })}
+                    >
+                      <span className={`eqm-check${checked ? ' is-on' : ''}`}>
+                        {checked ? <Check size={12} strokeWidth={2.5} /> : null}
+                      </span>
+                      <strong>{opt.label}</strong>
+                      {isPrimary && <em className="eqm-base-tag">Base</em>}
+                      <span>{isPrimary ? 'Cargo principal ativo' : opt.hint}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+          )}
 
           <section className="eqm-section">
             <button

@@ -37,6 +37,12 @@ function toInputDate(iso: string | null | undefined) {
   return m?.[1] ?? ''
 }
 
+function statusLabel(votou: boolean | null | undefined) {
+  if (votou === true) return 'Votou'
+  if (votou === false) return 'Não votou'
+  return 'Pendente'
+}
+
 export function VotacaoLancarPage() {
   const { profile } = useAuth()
   const cameraRef = useRef<HTMLInputElement>(null)
@@ -68,6 +74,8 @@ export function VotacaoLancarPage() {
   const [okMsg, setOkMsg] = useState<string | null>(null)
 
   const isAuxiliar = hasRole(profile, 'auxiliar')
+  const isCoordenador = hasRole(profile, 'coordenador')
+  const semLiderancas = isAuxiliar && !loadingScope && liderNomes.length === 0
 
   useEffect(() => {
     let cancelled = false
@@ -77,30 +85,24 @@ export function VotacaoLancarPage() {
         if (isAuxiliar && profile?.id) {
           const nomes = await fetchAuxiliarLiderNomes(profile.id)
           if (!cancelled) setLiderNomes(nomes)
-        } else if (hasRole(profile, 'coordenador') && profile?.coordenador_id) {
+        } else if (isCoordenador && profile?.id) {
           const { data } = await supabase
             .from('coordenadores')
             .select('nome')
-            .eq('id', profile.coordenador_id)
-            .maybeSingle()
-          if (!cancelled) setCoordNome(data?.nome ?? null)
-        } else if (hasRole(profile, 'coordenador') && profile?.id) {
-          const { data } = await supabase
-            .from('coordenadores')
-            .select('nome')
-            .eq('user_id', profile.id)
+            .or(`user_id.eq.${profile.id}${profile.coordenador_id ? `,id.eq.${profile.coordenador_id}` : ''}`)
+            .limit(1)
             .maybeSingle()
           if (!cancelled) setCoordNome(data?.nome ?? null)
         }
       } catch {
-        if (!cancelled) setError('Não foi possível carregar as lideranças do auxiliar.')
+        if (!cancelled) setError('Não foi possível carregar suas lideranças.')
       } finally {
         if (!cancelled) setLoadingScope(false)
       }
     }
     void loadScope()
     return () => { cancelled = true }
-  }, [profile, isAuxiliar])
+  }, [profile, isAuxiliar, isCoordenador])
 
   useEffect(() => {
     if (!fotoFile) {
@@ -118,6 +120,7 @@ export function VotacaoLancarPage() {
       setHits([])
       return
     }
+    // Auxiliar: só pesquisa dentro das lideranças alocadas a ele.
     if (isAuxiliar && !liderNomes.length) {
       setHits([])
       return
@@ -131,11 +134,17 @@ export function VotacaoLancarPage() {
           const rows = await searchVotacaoFichas({
             query: q,
             liderNomes: isAuxiliar ? liderNomes : undefined,
-            coordenadorNome: !isAuxiliar ? coordNome : undefined,
+            coordenadorNome: isCoordenador ? coordNome : undefined,
           })
           if (!cancelled) setHits(rows)
         } catch (e) {
-          if (!cancelled) setError(e instanceof Error ? e.message : 'Falha na busca.')
+          if (!cancelled) {
+            const msg = e instanceof Error ? e.message : 'Falha na busca.'
+            setError(/votou|voto_|column|schema/i.test(msg)
+              ? `${msg} — rode o SQL coordenador_auxiliar_votacao_run.sql no Supabase.`
+              : msg)
+            setHits([])
+          }
         } finally {
           if (!cancelled) setSearching(false)
         }
@@ -145,7 +154,7 @@ export function VotacaoLancarPage() {
       cancelled = true
       window.clearTimeout(t)
     }
-  }, [query, liderNomes, coordNome, isAuxiliar])
+  }, [query, liderNomes, coordNome, isAuxiliar, isCoordenador])
 
   async function openFicha(hit: VotacaoHit, onlyView: boolean) {
     setError(null)
@@ -167,6 +176,7 @@ export function VotacaoLancarPage() {
     } else {
       setFotoPreview(null)
     }
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   function closeFicha() {
@@ -219,7 +229,12 @@ export function VotacaoLancarPage() {
       setOkMsg('Lançamento salvo.')
       setViewOnly(true)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Não foi possível salvar.')
+      const msg = e instanceof Error ? e.message : 'Não foi possível salvar.'
+      if (/votou|voto_|column|schema|bucket|storage/i.test(msg)) {
+        setError(`${msg} — rode o SQL coordenador_auxiliar_votacao_run.sql no Supabase.`)
+      } else {
+        setError(msg)
+      }
     } finally {
       setSaving(false)
     }
@@ -234,21 +249,22 @@ export function VotacaoLancarPage() {
   const scopeHint = useMemo(() => {
     if (isAuxiliar) {
       if (!liderNomes.length) return 'Nenhuma liderança atribuída. Peça ao coordenador.'
-      return `${liderNomes.length} liderança${liderNomes.length === 1 ? '' : 's'} liberada${liderNomes.length === 1 ? '' : 's'}`
+      return `Só as fichas das suas lideranças: ${liderNomes.join(', ')}`
     }
-    return coordNome ? `Coordenação: ${coordNome}` : 'Sua coordenação'
-  }, [isAuxiliar, liderNomes, coordNome])
+    if (isCoordenador) return coordNome ? `Coordenação: ${coordNome}` : 'Coordenação não vinculada'
+    return 'Busca nas fichas (visão admin/diretoria).'
+  }, [isAuxiliar, isCoordenador, liderNomes, coordNome])
 
   if (loadingScope) {
     return (
-      <div className="vot-page vot-center">
+      <div className="vot-page vot-lancar vot-center">
         <Spinner size={36} />
       </div>
     )
   }
 
   return (
-    <div className="vot-page">
+    <div className="vot-page vot-lancar">
       <header className="vot-head">
         <h1 className="vot-title">Lançar votação</h1>
         <p className="vot-sub">{scopeHint}</p>
@@ -256,6 +272,13 @@ export function VotacaoLancarPage() {
 
       {!selected && (
         <>
+          {semLiderancas && (
+            <div className="alert alert-error">
+              Seu coordenador ainda não liberou nenhuma liderança para você.
+              Peça para marcar as lideranças em Equipe → Auxiliares.
+            </div>
+          )}
+
           <div className="vot-search">
             <Search size={18} aria-hidden />
             <input
@@ -264,6 +287,7 @@ export function VotacaoLancarPage() {
               placeholder="Nome ou título de eleitor"
               autoComplete="off"
               enterKeyHint="search"
+              disabled={semLiderancas}
             />
             {query && (
               <button type="button" className="vot-clear" onClick={() => setQuery('')} aria-label="Limpar">
@@ -280,8 +304,14 @@ export function VotacaoLancarPage() {
             </div>
           )}
 
-          {!searching && query.trim().length >= 2 && !hits.length && (
-            <p className="vot-empty">Nenhuma ficha encontrada.</p>
+          {!searching && !semLiderancas && query.trim().length >= 2 && !hits.length && (
+            <p className="vot-empty">
+              Nenhuma ficha nas suas lideranças para “{query.trim()}”.
+            </p>
+          )}
+
+          {!semLiderancas && query.trim().length < 2 && (
+            <p className="vot-empty">Digite ao menos 2 letras do nome ou título.</p>
           )}
 
           <ul className="vot-list">
@@ -295,8 +325,8 @@ export function VotacaoLancarPage() {
                     </span>
                     <em>{h.lider || 'Sem liderança'}</em>
                   </div>
-                  <span className={`vot-badge${h.votou === true ? ' is-yes' : h.votou === false ? ' is-no' : ''}`}>
-                    {h.votou === true ? 'Votou' : h.votou === false ? 'Não' : '—'}
+                  <span className={`vot-badge${h.votou === true ? ' is-yes' : h.votou === false ? ' is-no' : ' is-pend'}`}>
+                    {statusLabel(h.votou)}
                   </span>
                 </button>
               </li>
@@ -346,6 +376,55 @@ export function VotacaoLancarPage() {
             </button>
           </div>
 
+          <div className="vot-foto">
+            <div className="vot-foto-label">Foto do lançamento</div>
+            {fotoPreview ? (
+              <div className="vot-foto-preview">
+                <img src={fotoPreview} alt="Comprovante" />
+                {!viewOnly && (
+                  <button
+                    type="button"
+                    className="vot-foto-remove"
+                    onClick={() => {
+                      setFotoFile(null)
+                      setFotoPreview(null)
+                      setClearFoto(true)
+                    }}
+                  >
+                    Remover
+                  </button>
+                )}
+              </div>
+            ) : (
+              <p className="vot-muted">Nenhuma foto — tire com a câmera ou escolha da galeria.</p>
+            )}
+            {!viewOnly && (
+              <div className="vot-foto-btns">
+                <button type="button" className="vot-btn" onClick={() => cameraRef.current?.click()}>
+                  <Camera size={18} /> Câmera
+                </button>
+                <button type="button" className="vot-btn ghost" onClick={() => galleryRef.current?.click()}>
+                  <ImagePlus size={18} /> Galeria
+                </button>
+              </div>
+            )}
+            <input
+              ref={cameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              hidden
+              onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
+            />
+            <input
+              ref={galleryRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              hidden
+              onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
+            />
+          </div>
+
           <div className="vot-fields">
             <label>
               Nome
@@ -387,58 +466,9 @@ export function VotacaoLancarPage() {
             </div>
           </div>
 
-          <div className="vot-foto">
-            <div className="vot-foto-label">Foto do lançamento</div>
-            {fotoPreview ? (
-              <div className="vot-foto-preview">
-                <img src={fotoPreview} alt="Comprovante" />
-                {!viewOnly && (
-                  <button
-                    type="button"
-                    className="vot-foto-remove"
-                    onClick={() => {
-                      setFotoFile(null)
-                      setFotoPreview(null)
-                      setClearFoto(true)
-                    }}
-                  >
-                    Remover
-                  </button>
-                )}
-              </div>
-            ) : (
-              <p className="vot-muted">Nenhuma foto anexada.</p>
-            )}
-            {!viewOnly && (
-              <div className="vot-foto-btns">
-                <button type="button" className="vot-btn" onClick={() => cameraRef.current?.click()}>
-                  <Camera size={18} /> Câmera
-                </button>
-                <button type="button" className="vot-btn ghost" onClick={() => galleryRef.current?.click()}>
-                  <ImagePlus size={18} /> Galeria
-                </button>
-              </div>
-            )}
-            <input
-              ref={cameraRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              hidden
-              onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
-            />
-            <input
-              ref={galleryRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              hidden
-              onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
-            />
-          </div>
-
           {!viewOnly && (
             <button type="button" className="vot-save" disabled={saving} onClick={() => void handleSave()}>
-              {saving ? 'Salvando…' : 'Salvar'}
+              {saving ? 'Salvando…' : 'Salvar lançamento'}
             </button>
           )}
         </div>

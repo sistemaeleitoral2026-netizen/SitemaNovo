@@ -18,6 +18,7 @@ import { META_COORDENADOR_LIDERANCAS, META_DIRETORIA_LIDERANCAS, META_LIDERANCA_
 import { fetchAuxiliarLiderIds } from '../lib/votacao'
 import { supabase } from '../lib/supabase'
 import type { Coordenador, Lider, Profile, UserRole } from '../types'
+import { FORMIGAS_WHATSAPP_EMAILS } from '../lib/formigasWhatsapp'
 import { labelRole, normalizeExtraRoles } from '../lib/roles'
 
 type Tab = 'nerites' | 'coordenadores' | 'lideres' | 'mobilizadores' | 'administrativos' | 'auxiliares'
@@ -41,7 +42,7 @@ const TAB_META: Record<Tab, { title: string; subtitle: string }> = {
   },
   administrativos: {
     title: 'Administrativos',
-    subtitle: 'Equipe que lança e acompanha Demandas (sem liberar conclusão).',
+    subtitle: 'Demandas. Marque também Formiga no popup se a pessoa precisa lançar Formigas (ex.: Aianka).',
   },
   auxiliares: {
     title: 'Auxiliares',
@@ -893,6 +894,16 @@ export function EquipePage() {
     await load()
   }
 
+  function admExtraRolesForSave(email: string, selected: UserRole[]): UserRole[] {
+    let extras = normalizeExtraRoles('administrativo', selected)
+    const mail = email.trim().toLowerCase()
+    // Chefe WhatsApp precisa Formiga para lançar no app (RLS + menu)
+    if (FORMIGAS_WHATSAPP_EMAILS.includes(mail) && !extras.includes('mobilizador')) {
+      extras = [...extras, 'mobilizador']
+    }
+    return extras
+  }
+
   async function handleSaveAdm() {
     setError(null)
     if (!admForm.nome.trim()) {
@@ -917,7 +928,7 @@ export function EquipePage() {
         nome: admForm.nome.trim(),
         ativo: admForm.ativo,
         password: admForm.password || undefined,
-        extra_roles: normalizeExtraRoles('administrativo', admForm.extra_roles),
+        extra_roles: admExtraRolesForSave(admForm.email, admForm.extra_roles),
       })
       setSaving(false)
       if (err) {
@@ -935,7 +946,7 @@ export function EquipePage() {
         email: admForm.email,
         password: admForm.password,
         role: 'administrativo',
-        extra_roles: normalizeExtraRoles('administrativo', admForm.extra_roles),
+        extra_roles: admExtraRolesForSave(admForm.email, admForm.extra_roles),
       })
       setSaving(false)
       if (err) {
@@ -1126,7 +1137,10 @@ export function EquipePage() {
       })
       if (loginErr) {
         setSaving(false)
-        setError(`Coordenador salvo, mas o login falhou: ${loginErr}`)
+        const hint = /role|coordenador|user_id|check|constraint|profiles/i.test(loginErr)
+          ? ' Rode o SQL coordenador_auxiliar_votacao_run.sql no Supabase e tente de novo.'
+          : ''
+        setError(`Coordenador salvo, mas o login falhou: ${loginErr}.${hint}`)
         await load()
         return
       }
@@ -1240,6 +1254,33 @@ export function EquipePage() {
       return
     }
     setDeleteAuxId(null)
+    await load()
+  }
+
+  async function handleDeactivateAux() {
+    if (!editingAuxId || !auxForm.ativo) return
+    setError(null)
+    setSaving(true)
+    const coordId = isCoordenador ? (myCoordenadorId ?? '') : auxForm.coordenador_id
+    const coordRow = coordenadores.find((c) => c.id === coordId)
+    const targetDir = isAdmin
+      ? (auxForm.diretoria_id || coordRow?.diretoria_id || '')
+      : (isCoordenador ? (coordRow?.diretoria_id || profile?.diretoria_id || '') : (diretoriaId || ''))
+    const { error: err } = await manageNeriteRequest('POST', {
+      id: editingAuxId,
+      nome: auxForm.nome.trim(),
+      diretoria_id: targetDir || null,
+      coordenador_id: coordId || null,
+      ativo: false,
+      lider_ids: auxForm.lider_ids,
+    })
+    setSaving(false)
+    if (err) {
+      setError(err)
+      return
+    }
+    setAuxOpen(false)
+    setEditingAuxId(null)
     await load()
   }
 
@@ -2110,109 +2151,37 @@ export function EquipePage() {
         </div>
       </Modal>
 
-      <Modal
+      <EquipeMemberModal
         open={auxOpen}
-        title={editingAuxId ? 'Editar auxiliar' : 'Novo auxiliar'}
+        mode={editingAuxId ? 'edit' : 'create'}
+        kind="auxiliar"
+        form={{ ...auxForm, extra_roles: [] }}
+        showDiretoria={false}
+        showCoordenador={!isCoordenador}
+        diretorias={[]}
+        coordOptions={coordenadores.map((c) => ({ value: c.id, label: c.nome }))}
+        liderMultiOptions={lideres
+          .filter((l) => !auxForm.coordenador_id || !l.coordenador_id || l.coordenador_id === auxForm.coordenador_id)
+          .map((l) => ({ value: l.id, label: l.nome }))}
+        allowAdminRole={false}
+        error={error}
+        saving={saving}
         onClose={() => !saving && setAuxOpen(false)}
-        onConfirm={() => void handleSaveAux()}
-        confirmLabel="Salvar"
-        loading={saving}
-      >
-        <div style={{ display: 'grid', gap: '.75rem' }}>
-          {!isCoordenador && (
-            <Select
-              label="Coordenador"
-              value={auxForm.coordenador_id}
-              onChange={(e) => {
-                const id = e.target.value
-                const row = coordenadores.find((c) => c.id === id)
-                setAuxForm((f) => ({
-                  ...f,
-                  coordenador_id: id,
-                  diretoria_id: row?.diretoria_id || f.diretoria_id,
-                  lider_ids: [],
-                }))
-              }}
-              options={coordenadores.map((c) => ({ value: c.id, label: c.nome }))}
-              placeholder="Selecione"
-            />
-          )}
-          <Input
-            label="Nome"
-            value={auxForm.nome}
-            onChange={(e) => setAuxForm((f) => ({ ...f, nome: e.target.value }))}
-            placeholder="Nome do auxiliar"
-          />
-          <Input
-            label="E-mail"
-            type="email"
-            value={auxForm.email}
-            disabled={Boolean(editingAuxId)}
-            onChange={(e) => setAuxForm((f) => ({ ...f, email: e.target.value }))}
-            placeholder="auxiliar@email.com"
-          />
-          <Input
-            label={editingAuxId ? 'Nova senha (opcional)' : 'Senha'}
-            type="password"
-            value={auxForm.password}
-            onChange={(e) => setAuxForm((f) => ({ ...f, password: e.target.value }))}
-            placeholder={editingAuxId ? 'Deixe em branco para manter' : 'Mínimo 8 caracteres'}
-          />
-          <Input
-            label="Confirmar senha"
-            type="password"
-            value={auxForm.confirm}
-            onChange={(e) => setAuxForm((f) => ({ ...f, confirm: e.target.value }))}
-            placeholder="Repita a senha"
-          />
-          <div>
-            <div style={{ fontSize: '.8rem', fontWeight: 700, marginBottom: '.4rem' }}>
-              Lideranças que este auxiliar lança
-            </div>
-            <div style={{ display: 'grid', gap: '.35rem', maxHeight: 220, overflow: 'auto' }}>
-              {lideres
-                .filter((l) => !auxForm.coordenador_id || !l.coordenador_id || l.coordenador_id === auxForm.coordenador_id)
-                .map((l) => {
-                  const checked = auxForm.lider_ids.includes(l.id)
-                  return (
-                    <label
-                      key={l.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '.5rem',
-                        fontSize: '.9rem',
-                        padding: '.35rem .45rem',
-                        borderRadius: 8,
-                        background: checked ? '#f0fdf4' : 'transparent',
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => {
-                          setAuxForm((f) => ({
-                            ...f,
-                            lider_ids: checked
-                              ? f.lider_ids.filter((id) => id !== l.id)
-                              : [...f.lider_ids, l.id],
-                          }))
-                        }}
-                      />
-                      {l.nome}
-                    </label>
-                  )
-                })}
-              {!lideres.filter((l) => !auxForm.coordenador_id || !l.coordenador_id || l.coordenador_id === auxForm.coordenador_id).length && (
-                <p style={{ margin: 0, fontSize: '.8rem', color: '#94a3b8' }}>
-                  Nenhuma liderança nesta coordenação.
-                </p>
-              )}
-            </div>
-          </div>
-          {error && <div className="alert alert-error">{error}</div>}
-        </div>
-      </Modal>
+        onSave={() => void handleSaveAux()}
+        onChange={(patch) => {
+          setAuxForm((f) => {
+            const next = { ...f, ...patch }
+            if (patch.coordenador_id !== undefined) {
+              const row = coordenadores.find((c) => c.id === patch.coordenador_id)
+              next.diretoria_id = row?.diretoria_id || f.diretoria_id
+              if (patch.lider_ids === undefined) next.lider_ids = []
+            }
+            if (patch.lider_ids !== undefined) next.lider_ids = patch.lider_ids
+            return next
+          })
+        }}
+        onDeactivate={() => void handleDeactivateAux()}
+      />
 
       <Modal
         open={liderOpen}
