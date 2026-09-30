@@ -159,20 +159,43 @@ export function FormigasFotoField({
   )
 }
 
-/** Botão compacto no Painel: ícone de foto + lightbox com cabeçalho. */
+/** Botão compacto no Painel: ícone de foto + lightbox.
+ *  `preview` = miniatura real da 1ª foto (visão Formigas admin). */
 export function FormigasFotoThumbButton({
   paths,
   title,
   subtitle,
+  preview = false,
 }: {
   paths: string[]
   title: string
   subtitle?: string
+  preview?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [urls, setUrls] = useState<string[]>([])
   const [idx, setIdx] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [thumbUrl, setThumbUrl] = useState<string | null>(null)
+  const [thumbLoading, setThumbLoading] = useState(false)
+  const pathsKey = paths.join('|')
+
+  useEffect(() => {
+    if (!preview || !paths.length) {
+      setThumbUrl(null)
+      return
+    }
+    let cancelled = false
+    setThumbLoading(true)
+    void getFormigasFotoUrls(paths.slice(0, 1)).then((next) => {
+      if (cancelled) return
+      setThumbUrl(next[0] ?? null)
+      setThumbLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [preview, pathsKey])
 
   useEffect(() => {
     if (!open) return
@@ -192,9 +215,9 @@ export function FormigasFotoThumbButton({
 
   if (!paths.length) return null
 
-  async function openGallery() {
+  async function openGallery(startIdx = 0) {
     setOpen(true)
-    setIdx(0)
+    setIdx(startIdx)
     if (urls.length === paths.length) return
     setLoading(true)
     const next = await getFormigasFotoUrls(paths)
@@ -206,16 +229,37 @@ export function FormigasFotoThumbButton({
 
   return (
     <>
-      <button
-        type="button"
-        className="ativacao-foto-chip"
-        onClick={() => void openGallery()}
-        title={`${paths.length} foto${paths.length === 1 ? '' : 's'} — ${title}`}
-        aria-label={`Ver fotos: ${title}`}
-      >
-        <Camera size={13} strokeWidth={2.25} />
-        <span>{paths.length}</span>
-      </button>
+      {preview ? (
+        <button
+          type="button"
+          className="wa-foto-preview"
+          onClick={() => void openGallery(0)}
+          title={`${paths.length} foto${paths.length === 1 ? '' : 's'} — ${title}`}
+          aria-label={`Ver fotos: ${title}`}
+        >
+          {thumbLoading && !thumbUrl ? (
+            <span className="wa-foto-preview-loading" />
+          ) : thumbUrl ? (
+            <img src={thumbUrl} alt="" decoding="async" />
+          ) : (
+            <span className="wa-foto-preview-fallback">
+              <Camera size={14} strokeWidth={2.25} />
+            </span>
+          )}
+          {paths.length > 1 ? <em className="wa-foto-preview-count">+{paths.length - 1}</em> : null}
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="ativacao-foto-chip"
+          onClick={() => void openGallery(0)}
+          title={`${paths.length} foto${paths.length === 1 ? '' : 's'} — ${title}`}
+          aria-label={`Ver fotos: ${title}`}
+        >
+          <Camera size={13} strokeWidth={2.25} />
+          <span>{paths.length}</span>
+        </button>
+      )}
 
       {open
         && createPortal(
