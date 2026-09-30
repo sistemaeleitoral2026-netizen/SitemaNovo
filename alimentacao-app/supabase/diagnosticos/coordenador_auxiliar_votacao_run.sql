@@ -1,4 +1,6 @@
--- Login de coordenador + auxiliares + lançamento de votação no dia.
+-- PRÉ-REQUISITO do fluxo Coordenador + Auxiliar + Votação.
+-- Rode isto no SQL Editor do Supabase ANTES de criar login de coordenador/auxiliar.
+-- Cria roles, auxiliar_lideres, campos votou/voto_*, RLS e bucket votacao-fotos.
 
 alter table public.profiles drop constraint if exists profiles_role_check;
 alter table public.profiles
