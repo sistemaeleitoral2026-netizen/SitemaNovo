@@ -7,6 +7,7 @@ import { Pagination } from '../components/ui/Pagination'
 import {
   fetchFormigasHistorico,
   fetchFormigasHistoricoActors,
+  fetchFormigasHistoricoResumo,
   historicoDescricao,
   type FormigasHistoricoItem,
 } from '../lib/ativacao'
@@ -66,6 +67,12 @@ export function AtivacaoHistoricoPage() {
   const [pageSize, setPageSize] = useState(25)
   const [actorFilter, setActorFilter] = useState('')
   const [actors, setActors] = useState<{ id: string; nome: string; email: string }[]>([])
+  const [resumo, setResumo] = useState<{
+    eventos: number
+    pessoas: number
+    whatsappPessoas: number
+    whatsappEventos: number
+  } | null>(null)
 
   const title = canSeeAll ? 'Histórico — Formigas' : 'Meu histórico'
   const subtitle = canSeeAll
@@ -75,21 +82,37 @@ export function AtivacaoHistoricoPage() {
   async function load() {
     setLoading(true)
     setError(null)
-    const { items: rows, total: count, error: err } = await fetchFormigasHistorico({
-      onlyMine: !canSeeAll,
-      actorId: canSeeAll && actorFilter ? actorFilter : null,
-      limit: pageSize,
-      offset: page * pageSize,
-    })
+    const actorId = canSeeAll && actorFilter ? actorFilter : null
+    const [{ items: rows, total: count, error: err }, resumoNext] = await Promise.all([
+      fetchFormigasHistorico({
+        onlyMine: !canSeeAll,
+        actorId,
+        limit: pageSize,
+        offset: page * pageSize,
+      }),
+      fetchFormigasHistoricoResumo({
+        onlyMine: !canSeeAll,
+        actorId,
+      }),
+    ])
     setLoading(false)
     if (err) {
       setError(err)
       setItems([])
       setTotal(0)
+      setResumo(null)
       return
     }
     setItems(rows)
     setTotal(count)
+    if (!resumoNext.error) {
+      setResumo({
+        eventos: resumoNext.eventos,
+        pessoas: resumoNext.pessoas,
+        whatsappPessoas: resumoNext.whatsappPessoas,
+        whatsappEventos: resumoNext.whatsappEventos,
+      })
+    }
   }
 
   useEffect(() => {
@@ -148,6 +171,18 @@ export function AtivacaoHistoricoPage() {
       )}
 
       {error && <div className="alert alert-error">{error}</div>}
+
+      {resumo && (
+        <div className="fh-resumo" role="status">
+          <strong>{resumo.whatsappPessoas}</strong> pessoas no WhatsApp
+          <span aria-hidden>·</span>
+          <strong>{resumo.whatsappEventos}</strong> lançamentos WhatsApp
+          <span aria-hidden>·</span>
+          <strong>{resumo.pessoas}</strong> pessoas no total
+          <span aria-hidden>·</span>
+          <strong>{resumo.eventos}</strong> lançamentos (cada alteração conta 1)
+        </div>
+      )}
 
       {loading ? (
         <div className="fh-loading"><Spinner /></div>
