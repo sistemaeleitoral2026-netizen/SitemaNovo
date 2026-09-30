@@ -1,4 +1,4 @@
-import { hasWhatsappPhone, normalizePhone } from './normalize'
+import { normalizePhone } from './normalize'
 import { supabase } from './supabase'
 import { validateBrazilianPhone } from './validation'
 import type { Profile } from '../types'
@@ -75,6 +75,7 @@ type RawWa = {
   lider: string | null
   contato_whatsapp_status: string | null
   formigas_wa_by: string | null
+  ativacao_em: string | null
 }
 
 function tipoLabel(tipo: WhatsappPessoa['tipo']) {
@@ -84,10 +85,10 @@ function tipoLabel(tipo: WhatsappPessoa['tipo']) {
 }
 
 function mapRow(row: RawWa, tipo: WhatsappPessoa['tipo'], nomes: Map<string, string>): WhatsappPessoa | null {
+  // Só conta o que as formigas realmente lançaram (ativacao_em).
+  if (!row.ativacao_em) return null
   const status = row.contato_whatsapp_status
   if (status !== 'sim' && status !== 'sem') return null
-  // Sem telefone não é acionamento — só entra se sinalizaram "sem WhatsApp".
-  if (status === 'sim' && !hasWhatsappPhone(row.telefone)) return null
   const formigaId = row.formigas_wa_by || null
   const formigaNome = ((formigaId ? nomes.get(formigaId) : '') || '').trim()
     || (formigaId ? 'Formiga' : '—')
@@ -158,6 +159,19 @@ async function fetchFormigaNomes(): Promise<Map<string, string>> {
   return map
 }
 
+function mapWaCad(r: Record<string, unknown>): RawWa {
+  return {
+    id: String(r.id),
+    nome: String(r.nome_completo ?? r.nome ?? ''),
+    telefone: (r.telefone as string | null) ?? null,
+    coordenador: (r.coordenador as string | null) ?? null,
+    lider: (r.lider as string | null) ?? null,
+    contato_whatsapp_status: (r.contato_whatsapp_status as string | null) ?? null,
+    formigas_wa_by: (r.formigas_wa_by as string | null) ?? null,
+    ativacao_em: (r.ativacao_em as string | null) ?? null,
+  }
+}
+
 export async function fetchFormigasWhatsappDashboard(): Promise<WhatsappDashboard> {
   const nomes = await fetchFormigaNomes()
 
@@ -165,61 +179,52 @@ export async function fetchFormigasWhatsappDashboard(): Promise<WhatsappDashboar
     fetchAllPaged<RawWa>((from, to) =>
       supabase
         .from('cadastros')
-        .select('id,nome_completo,telefone,coordenador,lider,contato_whatsapp_status,formigas_wa_by')
+        .select('id,nome_completo,telefone,coordenador,lider,contato_whatsapp_status,formigas_wa_by,ativacao_em')
         .in('contato_whatsapp_status', ['sim', 'sem'])
+        .not('ativacao_em', 'is', null)
         .range(from, to)
         .then(({ data, error }) => ({
-          data: (data ?? []).map((r) => ({
-            id: String((r as { id: string }).id),
-            nome: String((r as { nome_completo?: string }).nome_completo ?? ''),
-            telefone: (r as { telefone?: string | null }).telefone ?? null,
-            coordenador: (r as { coordenador?: string | null }).coordenador ?? null,
-            lider: (r as { lider?: string | null }).lider ?? null,
-            contato_whatsapp_status: (r as { contato_whatsapp_status?: string | null }).contato_whatsapp_status ?? null,
-            formigas_wa_by: (r as { formigas_wa_by?: string | null }).formigas_wa_by ?? null,
-          })),
+          data: (data ?? []).map((r) => mapWaCad(r as Record<string, unknown>)),
           error,
         })),
     ),
     fetchAllPaged<RawWa>((from, to) =>
       supabase
         .from('lideres')
-        .select('id,nome,telefone,contato_whatsapp_status,formigas_wa_by')
+        .select('id,nome,telefone,contato_whatsapp_status,formigas_wa_by,ativacao_em')
+        .eq('ativo', true)
         .in('contato_whatsapp_status', ['sim', 'sem'])
+        .not('ativacao_em', 'is', null)
         .range(from, to)
         .then(({ data, error }) => ({
           data: error
             ? []
-            : (data ?? []).map((r) => ({
-                id: String((r as { id: string }).id),
-                nome: String((r as { nome?: string }).nome ?? ''),
-                telefone: (r as { telefone?: string | null }).telefone ?? null,
-                coordenador: null,
-                lider: String((r as { nome?: string }).nome ?? ''),
-                contato_whatsapp_status: (r as { contato_whatsapp_status?: string | null }).contato_whatsapp_status ?? null,
-                formigas_wa_by: (r as { formigas_wa_by?: string | null }).formigas_wa_by ?? null,
-              })),
+            : (data ?? []).map((r) => {
+                const row = mapWaCad({ ...r, nome_completo: (r as { nome?: string }).nome })
+                row.lider = row.nome
+                row.coordenador = null
+                return row
+              }),
           error: null,
         })),
     ),
     fetchAllPaged<RawWa>((from, to) =>
       supabase
         .from('coordenadores')
-        .select('id,nome,telefone,contato_whatsapp_status,formigas_wa_by')
+        .select('id,nome,telefone,contato_whatsapp_status,formigas_wa_by,ativacao_em')
+        .eq('ativo', true)
         .in('contato_whatsapp_status', ['sim', 'sem'])
+        .not('ativacao_em', 'is', null)
         .range(from, to)
         .then(({ data, error }) => ({
           data: error
             ? []
-            : (data ?? []).map((r) => ({
-                id: String((r as { id: string }).id),
-                nome: String((r as { nome?: string }).nome ?? ''),
-                telefone: (r as { telefone?: string | null }).telefone ?? null,
-                coordenador: String((r as { nome?: string }).nome ?? ''),
-                lider: null,
-                contato_whatsapp_status: (r as { contato_whatsapp_status?: string | null }).contato_whatsapp_status ?? null,
-                formigas_wa_by: (r as { formigas_wa_by?: string | null }).formigas_wa_by ?? null,
-              })),
+            : (data ?? []).map((r) => {
+                const row = mapWaCad({ ...r, nome_completo: (r as { nome?: string }).nome })
+                row.coordenador = row.nome
+                row.lider = null
+                return row
+              }),
           error: null,
         })),
     ),
@@ -367,12 +372,21 @@ export type FormigasVisaoDashboard = {
     pessoas: FormigasAtivacaoPessoa[]
     porFormiga: FormigasAtivacaoResumo[]
     totais: {
+      /** Soma de carros_adesivados */
       carros: number
+      /** Soma de motos_adesivadas */
       motos: number
+      /** Pessoas com casa sim (igual painel Formigas) */
       casas: number
+      /** Pessoas com casa talvez */
+      casasTalvez: number
+      /** Soma de postagens (quantidade) */
       postagens: number
+      /** Pessoas com carro ou moto (igual painel) */
       veiculosPessoas: number
+      /** Pessoas com casa sim ou talvez */
       casasPessoas: number
+      /** Pessoas com postagem (igual painel) */
       postagensPessoas: number
       formigas: number
     }
@@ -395,6 +409,7 @@ type RawAtiv = {
   formigas_carros_by: string | null
   formigas_casa_by: string | null
   formigas_links_by: string | null
+  ativacao_em: string | null
 }
 
 function qty(v: unknown) {
@@ -410,6 +425,7 @@ function toFotoPaths(value: unknown): string[] {
 }
 
 function hasAtivacao(r: RawAtiv) {
+  if (!r.ativacao_em) return false
   return (
     r.carros_adesivados > 0
     || r.motos_adesivadas > 0
@@ -479,18 +495,21 @@ async function fetchAtivacaoRows(): Promise<{
     formigas_carros_by: (r.formigas_carros_by as string | null) ?? null,
     formigas_casa_by: (r.formigas_casa_by as string | null) ?? null,
     formigas_links_by: (r.formigas_links_by as string | null) ?? null,
+    ativacao_em: (r.ativacao_em as string | null) ?? null,
   })
+
+  const ativOr =
+    'carros_adesivados.gt.0,motos_adesivadas.gt.0,adesivos_casa.gt.0,adesivos_casa_status.eq.sim,adesivos_casa_status.eq.talvez,postagens.gt.0'
 
   const [cadastros, lideres, coordenadores] = await Promise.all([
     fetchAllPaged<RawAtiv>((from, to) =>
       supabase
         .from('cadastros')
         .select(
-          'id,nome_completo,telefone,coordenador,lider,carros_adesivados,motos_adesivadas,adesivos_casa,adesivos_casa_status,postagens,foto_veiculo_paths,foto_casa_paths,formigas_carros_by,formigas_casa_by,formigas_links_by',
+          'id,nome_completo,telefone,coordenador,lider,carros_adesivados,motos_adesivadas,adesivos_casa,adesivos_casa_status,postagens,foto_veiculo_paths,foto_casa_paths,formigas_carros_by,formigas_casa_by,formigas_links_by,ativacao_em',
         )
-        .or(
-          'carros_adesivados.gt.0,motos_adesivadas.gt.0,adesivos_casa.gt.0,adesivos_casa_status.eq.sim,adesivos_casa_status.eq.talvez,postagens.gt.0',
-        )
+        .not('ativacao_em', 'is', null)
+        .or(ativOr)
         .range(from, to)
         .then(({ data, error }) => ({
           data: (data ?? []).map((r) => mapCad(r as Record<string, unknown>)),
@@ -501,11 +520,11 @@ async function fetchAtivacaoRows(): Promise<{
       supabase
         .from('lideres')
         .select(
-          'id,nome,telefone,carros_adesivados,motos_adesivadas,adesivos_casa,adesivos_casa_status,postagens,foto_veiculo_paths,foto_casa_paths,formigas_carros_by,formigas_casa_by,formigas_links_by',
+          'id,nome,telefone,carros_adesivados,motos_adesivadas,adesivos_casa,adesivos_casa_status,postagens,foto_veiculo_paths,foto_casa_paths,formigas_carros_by,formigas_casa_by,formigas_links_by,ativacao_em',
         )
-        .or(
-          'carros_adesivados.gt.0,motos_adesivadas.gt.0,adesivos_casa.gt.0,adesivos_casa_status.eq.sim,adesivos_casa_status.eq.talvez,postagens.gt.0',
-        )
+        .eq('ativo', true)
+        .not('ativacao_em', 'is', null)
+        .or(ativOr)
         .range(from, to)
         .then(({ data, error }) => ({
           data: error
@@ -523,11 +542,11 @@ async function fetchAtivacaoRows(): Promise<{
       supabase
         .from('coordenadores')
         .select(
-          'id,nome,carros_adesivados,motos_adesivadas,adesivos_casa,adesivos_casa_status,postagens,foto_veiculo_paths,foto_casa_paths,formigas_carros_by,formigas_casa_by,formigas_links_by',
+          'id,nome,carros_adesivados,motos_adesivadas,adesivos_casa,adesivos_casa_status,postagens,foto_veiculo_paths,foto_casa_paths,formigas_carros_by,formigas_casa_by,formigas_links_by,ativacao_em',
         )
-        .or(
-          'carros_adesivados.gt.0,motos_adesivadas.gt.0,adesivos_casa.gt.0,adesivos_casa_status.eq.sim,adesivos_casa_status.eq.talvez,postagens.gt.0',
-        )
+        .eq('ativo', true)
+        .not('ativacao_em', 'is', null)
+        .or(ativOr)
         .range(from, to)
         .then(({ data, error }) => ({
           data: error
@@ -603,7 +622,8 @@ export async function fetchFormigasVisaoDashboard(): Promise<FormigasVisaoDashbo
     if (patch.veiculosPessoas) cur.veiculosPessoas += patch.veiculosPessoas
     if (patch.casasPessoas) cur.casasPessoas += patch.casasPessoas
     if (patch.postagensPessoas) cur.postagensPessoas += patch.postagensPessoas
-    cur.total = cur.veiculosPessoas + cur.casasPessoas + cur.postagensPessoas
+    // Ranking geral: pessoas com veículo + casa sim + postagem (igual painel).
+    cur.total = cur.veiculosPessoas + cur.casas + cur.postagensPessoas
     if (formigaNome && cur.nome === 'Formiga') cur.nome = formigaNome
     byFormiga.set(id, cur)
   }
@@ -616,9 +636,13 @@ export async function fetchFormigasVisaoDashboard(): Promise<FormigasVisaoDashbo
         veiculosPessoas: 1,
       })
     }
-    if (p.casa > 0 || p.casaStatus === 'sim' || p.casaStatus === 'talvez') {
+    if (p.casaStatus === 'sim' || p.casa > 0) {
       bump(p.formigaCasaId, p.formigaCasaNome, {
-        casas: Math.max(p.casa, p.casaStatus === 'sim' || p.casaStatus === 'talvez' ? 1 : 0),
+        casas: 1,
+        casasPessoas: 1,
+      })
+    } else if (p.casaStatus === 'talvez') {
+      bump(p.formigaCasaId, p.formigaCasaNome, {
         casasPessoas: 1,
       })
     }
@@ -634,9 +658,11 @@ export async function fetchFormigasVisaoDashboard(): Promise<FormigasVisaoDashbo
     .filter((f) => f.total > 0)
     .sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome, 'pt-BR'))
 
+  // Totais alinhados ao painel Formigas (pessoas), com soma de qtds no detalhe.
   let carros = 0
   let motos = 0
   let casas = 0
+  let casasTalvez = 0
   let postagens = 0
   let veiculosPessoas = 0
   let casasPessoas = 0
@@ -644,14 +670,15 @@ export async function fetchFormigasVisaoDashboard(): Promise<FormigasVisaoDashbo
   for (const p of pessoas) {
     carros += p.carros
     motos += p.motos
-    if (p.casa > 0 || p.casaStatus === 'sim') {
-      casas += Math.max(p.casa, 1)
-      casasPessoas += 1
-    } else if (p.casaStatus === 'talvez') {
-      casasPessoas += 1
-    }
     postagens += p.postagens
     if (p.carros > 0 || p.motos > 0) veiculosPessoas += 1
+    if (p.casaStatus === 'sim' || p.casa > 0) {
+      casas += 1
+      casasPessoas += 1
+    } else if (p.casaStatus === 'talvez') {
+      casasTalvez += 1
+      casasPessoas += 1
+    }
     if (p.postagens > 0) postagensPessoas += 1
   }
 
@@ -664,6 +691,7 @@ export async function fetchFormigasVisaoDashboard(): Promise<FormigasVisaoDashbo
         carros,
         motos,
         casas,
+        casasTalvez,
         postagens,
         veiculosPessoas,
         casasPessoas,
