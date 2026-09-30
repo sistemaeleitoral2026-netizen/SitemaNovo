@@ -1,6 +1,6 @@
+-- Formigas: qualquer uma pode editar qualquer parte.
+-- O nome no “cadeado” é só de quem alterou por último (crédito), não trava edição.
 -- Rode no SQL Editor do Supabase.
--- Qualquer formiga pode editar qualquer parte (com confirmação no app).
--- Ao alterar (status, fotos, links…), o nome/data passam a ser de quem editou agora.
 
 create or replace function public.enforce_formigas_section_owners()
 returns trigger
@@ -48,7 +48,7 @@ begin
     new.formigas_wa_em := old.formigas_wa_em;
   end if;
 
-  -- Veículos (quantidade ou fotos)
+  -- Veículos
   if coalesce(old.carros_adesivados, 0) is distinct from coalesce(new.carros_adesivados, 0)
      or coalesce(old.motos_adesivadas, 0) is distinct from coalesce(new.motos_adesivadas, 0)
      or coalesce(old.foto_veiculo_paths, '{}'::text[]) is distinct from coalesce(new.foto_veiculo_paths, '{}'::text[]) then
@@ -64,7 +64,7 @@ begin
     new.formigas_carros_em := old.formigas_carros_em;
   end if;
 
-  -- Adesivo residencial (status, quantidade ou fotos)
+  -- Casa
   if v_old_casa is distinct from v_new_casa
      or coalesce(old.adesivos_casa, 0) is distinct from coalesce(new.adesivos_casa, 0)
      or coalesce(old.foto_casa_paths, '{}'::text[]) is distinct from coalesce(new.foto_casa_paths, '{}'::text[]) then
