@@ -176,10 +176,10 @@ export function FormigasWhatsappPage() {
             return {
               id: formigaValue(f),
               nome: f.nome,
-              primary: f.carros + f.motos,
-              secondary: f.veiculosPessoas,
+              primary: f.veiculosPessoas,
+              secondary: f.carros + f.motos,
               total: f.veiculosPessoas,
-              detail: `${f.carros} carros · ${f.motos} motos · ${f.veiculosPessoas} pessoas`,
+              detail: `${f.veiculosPessoas} pessoas · ${f.carros} carros · ${f.motos} motos`,
             }
           }
           if (filtro === 'casas') {
@@ -188,25 +188,25 @@ export function FormigasWhatsappPage() {
               nome: f.nome,
               primary: f.casas,
               secondary: f.casasPessoas,
-              total: f.casasPessoas,
-              detail: `${f.casas} adesivos · ${f.casasPessoas} casas`,
+              total: f.casas,
+              detail: `${f.casas} casas · ${f.casasPessoas} com status`,
             }
           }
           if (filtro === 'postagens') {
             return {
               id: formigaValue(f),
               nome: f.nome,
-              primary: f.postagens,
-              secondary: f.postagensPessoas,
+              primary: f.postagensPessoas,
+              secondary: f.postagens,
               total: f.postagensPessoas,
-              detail: `${f.postagens} postagens · ${f.postagensPessoas} pessoas`,
+              detail: `${f.postagensPessoas} pessoas · ${f.postagens} links`,
             }
           }
           return {
             id: formigaValue(f),
             nome: f.nome,
-            primary: f.veiculosPessoas + f.casasPessoas + f.postagensPessoas,
-            secondary: f.carros + f.casas + f.postagens,
+            primary: f.veiculosPessoas + f.casas + f.postagensPessoas,
+            secondary: f.carros + f.motos + f.postagens,
             total: f.total,
             detail: `${f.veiculosPessoas} veíc. · ${f.casasPessoas} casas · ${f.postagensPessoas} posts`,
           }
@@ -442,7 +442,7 @@ export function FormigasWhatsappPage() {
             >
               <span className="wa-kpi-icon"><Car size={18} /></span>
               <em>Veículos</em>
-              <strong>{(ativ?.totais.carros ?? 0) + (ativ?.totais.motos ?? 0)}</strong>
+              <strong>{ativ?.totais.veiculosPessoas ?? 0}</strong>
               <small>
                 {ativ?.totais.carros ?? 0} carros · {ativ?.totais.motos ?? 0} motos
               </small>
@@ -457,8 +457,12 @@ export function FormigasWhatsappPage() {
             >
               <span className="wa-kpi-icon"><Home size={18} /></span>
               <em>Casas</em>
-              <strong>{ativ?.totais.casasPessoas ?? 0}</strong>
-              <small>{ativ?.totais.casas ?? 0} adesivos casa</small>
+              <strong>{ativ?.totais.casas ?? 0}</strong>
+              <small>
+                {(ativ?.totais.casasTalvez ?? 0) > 0
+                  ? `${ativ?.totais.casasTalvez ?? 0} talvez`
+                  : 'adesivo residencial'}
+              </small>
             </button>
             <button
               type="button"
@@ -470,8 +474,8 @@ export function FormigasWhatsappPage() {
             >
               <span className="wa-kpi-icon"><Share2 size={18} /></span>
               <em>Postagens</em>
-              <strong>{ativ?.totais.postagens ?? 0}</strong>
-              <small>{ativ?.totais.postagensPessoas ?? 0} pessoas</small>
+              <strong>{ativ?.totais.postagensPessoas ?? 0}</strong>
+              <small>{ativ?.totais.postagens ?? 0} links</small>
             </button>
           </>
         ) : null}
