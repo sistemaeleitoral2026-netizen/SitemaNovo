@@ -1,4 +1,11 @@
-export type UserRole = 'admin' | 'diretoria' | 'operador' | 'mobilizador' | 'administrativo'
+export type UserRole =
+  | 'admin'
+  | 'diretoria'
+  | 'operador'
+  | 'mobilizador'
+  | 'administrativo'
+  | 'coordenador'
+  | 'auxiliar'
 
 export type DemandaStatus = 'aberta' | 'feita'
 export type DemandaOrigem = 'cadastro' | 'avulso'
@@ -43,6 +50,8 @@ export interface Coordenador {
   diretoria_id: string
   nome: string
   ativo: boolean
+  /** Login vinculado (profiles.id com role coordenador). */
+  user_id?: string | null
   /** Meta de lideranças previstas (padrão 20). Não bloqueia acima da meta. */
   limite_liderancas?: number
   carros_adesivados?: number
@@ -154,6 +163,11 @@ export interface Cadastro {
   formigas_carros_by?: string | null
   formigas_casa_by?: string | null
   formigas_links_by?: string | null
+  /** Lançamento de votação (dia da eleição). */
+  votou?: boolean | null
+  voto_foto_path?: string | null
+  voto_em?: string | null
+  voto_por?: string | null
   created_at: string
   updated_at: string
 }

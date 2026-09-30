@@ -44,6 +44,10 @@ export function labelRole(role: UserRole): string {
       return 'Diretoria'
     case 'admin':
       return 'Admin'
+    case 'coordenador':
+      return 'Coordenador'
+    case 'auxiliar':
+      return 'Auxiliar'
     default:
       return role
   }

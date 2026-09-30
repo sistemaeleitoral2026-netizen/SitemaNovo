@@ -27,6 +27,7 @@ import { LiderancaPage } from './pages/LiderancaPage'
 import { GaragemLancarPage } from './pages/GaragemLancarPage'
 import { GaragemHistoricoPage } from './pages/GaragemHistoricoPage'
 import { FinanceiroPage } from './pages/FinanceiroPage'
+import { VotacaoLancarPage } from './pages/VotacaoLancarPage'
 import { TvDashboardPage } from './pages/TvDashboardPage'
 import { hasRole } from './lib/roles'
 import { canSeeFormigasWhatsapp } from './lib/formigasWhatsapp'
@@ -36,6 +37,8 @@ import type { Profile } from './types'
 function homeForProfile(profile: Profile | null | undefined) {
   if (!profile) return '/login'
   if (hasRole(profile, 'admin') || hasRole(profile, 'diretoria')) return '/'
+  if (hasRole(profile, 'coordenador')) return '/equipe?tab=auxiliares'
+  if (hasRole(profile, 'auxiliar')) return '/votacao/lancar'
   if (hasRole(profile, 'operador')) return '/meus-cadastros'
   if (hasRole(profile, 'mobilizador')) return '/ativacao/lancar'
   if (hasRole(profile, 'administrativo')) return '/demandas/lancar'
@@ -46,6 +49,24 @@ function StaffRoute({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
   if (loading) return <Spinner />
   if (!hasRole(profile, ['admin', 'diretoria'])) {
+    return <Navigate to={homeForProfile(profile)} replace />
+  }
+  return children
+}
+
+function EquipeRoute({ children }: { children: React.ReactNode }) {
+  const { profile, loading } = useAuth()
+  if (loading) return <Spinner />
+  if (!hasRole(profile, ['admin', 'diretoria', 'coordenador'])) {
+    return <Navigate to={homeForProfile(profile)} replace />
+  }
+  return children
+}
+
+function VotacaoRoute({ children }: { children: React.ReactNode }) {
+  const { profile, loading } = useAuth()
+  if (loading) return <Spinner />
+  if (!hasRole(profile, ['admin', 'diretoria', 'coordenador', 'auxiliar'])) {
     return <Navigate to={homeForProfile(profile)} replace />
   }
   return children
@@ -72,7 +93,8 @@ function DemandasRoute({ children }: { children: React.ReactNode }) {
 function BlockFieldOnly({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
   if (loading) return <Spinner />
-  if (hasRole(profile, 'operador') || hasRole(profile, ['admin', 'diretoria'])) return children
+  if (hasRole(profile, 'operador') || hasRole(profile, ['admin', 'diretoria', 'coordenador'])) return children
+  if (hasRole(profile, 'auxiliar')) return <Navigate to="/votacao/lancar" replace />
   if (hasRole(profile, 'mobilizador')) return <Navigate to="/ativacao/lancar" replace />
   if (hasRole(profile, 'administrativo')) return <Navigate to="/demandas/lancar" replace />
   return children
@@ -146,7 +168,7 @@ function AppRoutes() {
 
       <Route element={<AppShell />}>
         <Route index element={<HomeRedirect />} />
-        <Route path="equipe" element={<StaffRoute><EquipePage /></StaffRoute>} />
+        <Route path="equipe" element={<EquipeRoute><EquipePage /></EquipeRoute>} />
         <Route path="nerites" element={<StaffRoute><OperadoresPage /></StaffRoute>} />
         <Route path="nerites/:id" element={<StaffRoute><OperadorDetailPage /></StaffRoute>} />
         <Route path="operadores" element={<Navigate to="/nerites" replace />} />
@@ -175,6 +197,7 @@ function AppRoutes() {
         <Route path="garagem/lancar" element={<StaffRoute><GaragemLancarPage /></StaffRoute>} />
         <Route path="garagem/historico" element={<StaffRoute><GaragemHistoricoPage /></StaffRoute>} />
         <Route path="financeiro" element={<StaffRoute><FinanceiroPage /></StaffRoute>} />
+        <Route path="votacao/lancar" element={<VotacaoRoute><VotacaoLancarPage /></VotacaoRoute>} />
         <Route path="configuracoes" element={<StaffRoute><ConfiguracoesPage /></StaffRoute>} />
         <Route path="admin-only" element={<AdminOnlyRoute><DashboardPage /></AdminOnlyRoute>} />
       </Route>
