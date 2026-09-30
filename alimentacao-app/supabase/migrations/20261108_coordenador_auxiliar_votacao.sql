@@ -1,4 +1,4 @@
--- Login de coordenador + auxiliares + lançamento de votação no dia.
+-- PRÉ-REQUISITO: login coordenador + auxiliares + votação (roles, RLS, bucket).
 
 alter table public.profiles drop constraint if exists profiles_role_check;
 alter table public.profiles

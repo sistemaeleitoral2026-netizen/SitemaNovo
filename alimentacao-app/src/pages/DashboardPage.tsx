@@ -31,6 +31,7 @@ import { EvolutionChart } from '../components/charts/EvolutionChart'
 import { CadastrosMap } from '../components/map/CadastrosMap'
 import { getPeriodFromPreset, type PeriodPreset } from '../lib/period'
 import { buildEvolutionData, buildMapMarkers, buildZonaData, fetchDashboardCadastros, fetchMobilizacaoCadastroRows } from '../lib/cadastros'
+import { loadLocaisVotacaoMa, type LocalVotacaoRef } from '../lib/locaisVotacao'
 import {
   getMetaFichas,
   markMetaPopupSeen,
@@ -162,6 +163,7 @@ function AdminDashboard() {
   const [dirScopedTotalFichas, setDirScopedTotalFichas] = useState(0)
   const [meta, setMeta] = useState(() => getMetaFichas())
   const [metaPopupOpen, setMetaPopupOpen] = useState(false)
+  const [locaisTse, setLocaisTse] = useState<Map<string, LocalVotacaoRef>>(new Map())
 
   const refMap = useRef<HTMLElement>(null)
   const refEquipe = useRef<HTMLElement>(null)
@@ -170,6 +172,14 @@ function AdminDashboard() {
   const period = useMemo(() => getPeriodFromPreset(periodPreset), [periodPreset])
 
   useEffect(() => { setMeta(getMetaFichas()) }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void loadLocaisVotacaoMa()
+      .then((m) => { if (!cancelled) setLocaisTse(m) })
+      .catch(() => { if (!cancelled) setLocaisTse(new Map()) })
+    return () => { cancelled = true }
+  }, [])
 
   // Shell rápido: totais + equipe + demandas (sem dump de fichas)
   useEffect(() => {
@@ -431,7 +441,10 @@ function AdminDashboard() {
 
   const evolution = useMemo(() => buildEvolutionData(scopedCadastros), [scopedCadastros])
   const zonaData = useMemo(() => buildZonaData(scopedCadastros), [scopedCadastros])
-  const mapMarkers = useMemo(() => buildMapMarkers(scopedCadastros, 'secao'), [scopedCadastros])
+  const mapMarkers = useMemo(
+    () => buildMapMarkers(scopedCadastros, 'secao', locaisTse),
+    [scopedCadastros, locaisTse],
+  )
   const mapSecaoCount = mapMarkers.length
   const mapSecaoShown = useMemo(() => mapMarkers.slice(0, 80), [mapMarkers])
 
@@ -1235,9 +1248,18 @@ function DiretoriaDashboard() {
   const [totalFichas, setTotalFichas] = useState(0)
   const [loading, setLoading] = useState(true)
   const [chartsLoading, setChartsLoading] = useState(true)
+  const [locaisTse, setLocaisTse] = useState<Map<string, LocalVotacaoRef>>(new Map())
 
   const period = useMemo(() => getPeriodFromPreset(periodPreset), [periodPreset])
   const dirId = profile!.id
+
+  useEffect(() => {
+    let cancelled = false
+    void loadLocaisVotacaoMa()
+      .then((m) => { if (!cancelled) setLocaisTse(m) })
+      .catch(() => { if (!cancelled) setLocaisTse(new Map()) })
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -1320,7 +1342,10 @@ function DiretoriaDashboard() {
   const zonas = useMemo(() => new Set(cadastros.map((c) => c.zona).filter(Boolean)).size, [cadastros])
   const evolution = useMemo(() => buildEvolutionData(cadastros), [cadastros])
   const zonaData = useMemo(() => buildZonaData(cadastros), [cadastros])
-  const mapMarkers = useMemo(() => buildMapMarkers(cadastros, 'secao').slice(0, 80), [cadastros])
+  const mapMarkers = useMemo(
+    () => buildMapMarkers(cadastros, 'secao', locaisTse).slice(0, 80),
+    [cadastros, locaisTse],
+  )
   const mapSecaoTotal = useMemo(
     () => new Set(cadastros.map((c) => `${(c.zona ?? '').trim()}::${(c.secao ?? '').trim()}`).filter((k) => !k.startsWith('::') && !k.endsWith('::'))).size,
     [cadastros],
