@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Clock3,
+  Eye,
   Lock,
   LockOpen,
   Paperclip,
   Plus,
   Receipt,
+  Search,
   Trash2,
-  Users,
   Wallet,
   X,
 } from 'lucide-react'
@@ -50,6 +53,8 @@ type InlineForm = {
   file: File | null
 }
 
+const AVATAR_TONES = ['blue', 'teal', 'amber', 'rose', 'violet', 'slate'] as const
+
 function formaLabel(forma: FinanceiroForma) {
   if (forma === 'pix') return 'PIX'
   if (forma === 'transferencia') return 'Transferência'
@@ -69,30 +74,36 @@ function fmtWhen(iso: string) {
   }
 }
 
-function MoneyStrip({
-  devido,
-  pago,
-  falta,
-}: {
-  devido: number
-  pago: number
-  falta: number
-}) {
+function pctPago(devido: number, pago: number) {
+  if (devido <= 0) return pago > 0 ? 100 : 0
+  return Math.min(100, Math.round((pago / devido) * 100))
+}
+
+function avatarTone(name: string) {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h + name.charCodeAt(i) * (i + 1)) % AVATAR_TONES.length
+  return AVATAR_TONES[h]
+}
+
+function ProgressRing({ pct }: { pct: number }) {
+  const r = 26
+  const c = 2 * Math.PI * r
+  const offset = c - (pct / 100) * c
   return (
-    <div className="fin-money-strip" aria-label="Resumo financeiro">
-      <span>
-        <small>Devido</small>
-        <b>{formatMoneyBRL(devido)}</b>
-      </span>
-      <span>
-        <small>Pago</small>
-        <b className="is-pago">{formatMoneyBRL(pago)}</b>
-      </span>
-      <span>
-        <small>Falta</small>
-        <b className={falta > 0 ? 'is-falta' : ''}>{formatMoneyBRL(falta)}</b>
-      </span>
-    </div>
+    <svg className="fin-ring" viewBox="0 0 64 64" aria-hidden>
+      <circle className="fin-ring-bg" cx="32" cy="32" r={r} />
+      <circle
+        className="fin-ring-fg"
+        cx="32"
+        cy="32"
+        r={r}
+        strokeDasharray={c}
+        strokeDashoffset={offset}
+      />
+      <text className="fin-ring-text" x="32" y="36" textAnchor="middle">
+        {pct}%
+      </text>
+    </svg>
   )
 }
 
@@ -113,6 +124,9 @@ export function FinanceiroPage() {
   const [error, setError] = useState<string | null>(null)
   const [localMode, setLocalMode] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const [filterDirId, setFilterDirId] = useState('')
+  const [lancFilterKey, setLancFilterKey] = useState<string | null>(null)
 
   const [inlineForms, setInlineForms] = useState<Record<string, InlineForm>>({})
   const [devidoDraft, setDevidoDraft] = useState<Record<string, string>>({})
@@ -131,6 +145,7 @@ export function FinanceiroPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const modalFileRef = useRef<HTMLInputElement>(null)
   const inlineFileRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const recentRef = useRef<HTMLElement | null>(null)
 
   const wantLancar = searchParams.get('lancar') === '1'
 
@@ -238,7 +253,7 @@ export function FinanceiroPage() {
 
       if (!expandedDirId && dirs.length === 1) setExpandedDirId(dirs[0].id)
       if (coords.length && expandedCoordIds.size === 0) {
-        setExpandedCoordIds(new Set(coords.slice(0, 3).map((c) => c.id)))
+        setExpandedCoordIds(new Set(coords.slice(0, 1).map((c) => c.id)))
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível carregar o financeiro.')
@@ -284,29 +299,48 @@ export function FinanceiroPage() {
   }, [hierarquia])
 
   const cards = useMemo(() => {
-    return diretorias.map((d) => {
-      const blocos = hierarquia.filter((b) => b.diretoria_id === d.id)
-      const alvos: FinanceiroAlvoResumo[] = []
-      for (const b of blocos) alvos.push(b.proprio, ...b.liderancas)
-      const tot = sumAlvos(alvos)
-      const liderCount = blocos.reduce((n, b) => n + b.liderancas.length, 0)
-      return { dir: d, blocos, tot, liderCount }
-    })
-  }, [diretorias, hierarquia])
+    const q = query.trim().toLowerCase()
+    return diretorias
+      .filter((d) => !filterDirId || d.id === filterDirId)
+      .map((d) => {
+        let blocos = hierarquia.filter((b) => b.diretoria_id === d.id)
+        if (q) {
+          blocos = blocos
+            .map((b) => {
+              const coordHit = b.nome.toLowerCase().includes(q)
+              const liderancas = b.liderancas.filter((l) => l.nome.toLowerCase().includes(q))
+              if (coordHit) return b
+              if (liderancas.length) return { ...b, liderancas }
+              return null
+            })
+            .filter(Boolean) as FinanceiroCoordBloco[]
+        }
+        const alvos: FinanceiroAlvoResumo[] = []
+        for (const b of blocos) alvos.push(b.proprio, ...b.liderancas)
+        const tot = sumAlvos(alvos)
+        const liderCount = blocos.reduce((n, b) => n + b.liderancas.length, 0)
+        return { dir: d, blocos, tot, liderCount }
+      })
+      .filter((c) => !q || c.blocos.length > 0)
+  }, [diretorias, hierarquia, query, filterDirId])
 
   const recentList = useMemo(() => {
-    return lancamentos.slice(0, 12).map((l) => ({
-      ...l,
-      coordenador_nome: nomeCoord.get(l.coordenador_id) ?? 'Coordenação',
-      lider_nome: l.lider_id ? (nomeLider.get(l.lider_id) ?? 'Liderança') : undefined,
-      diretoria_nome: nomeDir.get(l.diretoria_id) ?? 'Diretoria',
-      alvo_label: labelAlvoLancamento({
-        lider_id: l.lider_id,
-        lider_nome: l.lider_id ? nomeLider.get(l.lider_id) : undefined,
-        coordenador_nome: nomeCoord.get(l.coordenador_id),
-      }),
-    }))
-  }, [lancamentos, nomeCoord, nomeLider, nomeDir])
+    return lancamentos.slice(0, 80).map((l) => {
+      const key = alvoKey(l.coordenador_id, l.lider_id)
+      return {
+        ...l,
+        alvo_key: key,
+        coordenador_nome: nomeCoord.get(l.coordenador_id) ?? 'Coordenação',
+        lider_nome: l.lider_id ? (nomeLider.get(l.lider_id) ?? 'Liderança') : undefined,
+        diretoria_nome: nomeDir.get(l.diretoria_id) ?? 'Diretoria',
+        alvo_label: labelAlvoLancamento({
+          lider_id: l.lider_id,
+          lider_nome: l.lider_id ? nomeLider.get(l.lider_id) : undefined,
+          coordenador_nome: nomeCoord.get(l.coordenador_id),
+        }),
+      }
+    }).filter((l) => !lancFilterKey || l.alvo_key === lancFilterKey)
+  }, [lancamentos, nomeCoord, nomeLider, nomeDir, lancFilterKey])
 
   const modalCoords = useMemo(() => {
     if (!modalDirId) return []
@@ -347,6 +381,14 @@ export function FinanceiroPage() {
       amount: '',
       file: null,
     })
+  }
+
+  function viewLancamentos(alvo: FinanceiroAlvoResumo) {
+    setLancFilterKey(alvo.key)
+    setExpandedDirId(alvo.diretoria_id)
+    window.setTimeout(() => {
+      recentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 50)
   }
 
   function openModal(preDirId?: string, preCoordId?: string, preLiderId?: string) {
@@ -396,17 +438,18 @@ export function FinanceiroPage() {
     setSavingDevido(key)
     setError(null)
     try {
+      // Só trava quando há valor real — R$ 0 fica editável
       const row = await upsertValorDevido({
         diretoriaId: alvo.diretoria_id,
         coordenadorId: alvo.coordenador_id,
         liderId: alvo.lider_id,
         valorDevido: valor,
-        travado: true,
+        travado: valor > 0,
         updatedBy: profile.id,
       })
       upsertDevidoLocal(row)
       setLocalMode(isLocalFinanceiroMode())
-      showToast('Valor devido salvo e travado!')
+      showToast(valor > 0 ? 'Valor devido salvo e travado!' : 'Valor devido salvo.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao salvar valor devido.')
     } finally {
@@ -547,32 +590,38 @@ export function FinanceiroPage() {
     }
   }
 
-  function renderAlvoRow(alvo: FinanceiroAlvoResumo, nested = false) {
+  function renderDueEditor(alvo: FinanceiroAlvoResumo) {
     const key = alvo.key
-    const travado = alvo.travado
+    // R$ 0 “travado” impede editar — trata como aberto
+    const locked = Boolean(alvo.travado && alvo.valor_devido > 0)
     const saving = savingDevido === key
     return (
-      <div key={key} className={`fin-alvo${nested ? ' is-lider' : ' is-coord'}`}>
-        <div className="fin-alvo-main">
-          <div className="fin-alvo-id">
-            <span className={`fin-badge${nested ? ' is-lider' : ''}`}>
-              {nested ? 'Liderança' : 'Coordenação'}
-            </span>
-            <strong>{alvo.nome}</strong>
-          </div>
-          <MoneyStrip devido={alvo.valor_devido} pago={alvo.pago} falta={alvo.falta} />
-        </div>
-        <div className="fin-alvo-actions">
-          <div className={`fin-due-row${travado ? ' is-locked' : ''}`}>
+      <div className={`fin-due-edit${locked ? ' is-locked' : ''}`}>
+        {locked ? (
+          <>
+            <b>{formatMoneyBRL(alvo.valor_devido)}</b>
+            <button
+              type="button"
+              className="fin-edit-due"
+              title="Editar valor devido"
+              disabled={saving}
+              onClick={() => void unlockDevido(alvo)}
+            >
+              <Lock size={12} strokeWidth={2.4} />
+              {saving ? '…' : 'Editar'}
+            </button>
+          </>
+        ) : (
+          <>
             <div className="fin-due-box">
               <span>R$</span>
               <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={devidoDraft[key] ?? '0'}
-                disabled={travado || saving}
-                readOnly={travado}
+                type="text"
+                inputMode="decimal"
+                placeholder="0,00"
+                value={devidoDraft[key] ?? ''}
+                disabled={saving}
+                onFocus={(e) => e.currentTarget.select()}
                 onChange={(e) =>
                   setDevidoDraft((prev) => ({
                     ...prev,
@@ -580,7 +629,7 @@ export function FinanceiroPage() {
                   }))
                 }
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !travado) {
+                  if (e.key === 'Enter') {
                     e.preventDefault()
                     void saveDevido(alvo, (e.target as HTMLInputElement).value)
                   }
@@ -588,45 +637,120 @@ export function FinanceiroPage() {
                 aria-label={`Valor devido de ${alvo.nome}`}
               />
             </div>
-            {travado ? (
+            <button
+              type="button"
+              className="fin-save-due"
+              disabled={saving}
+              onClick={() => void saveDevido(alvo)}
+            >
+              {saving ? '…' : 'Salvar'}
+            </button>
+            <span className="fin-icon-btn is-muted" title="Destrancado" aria-hidden>
+              <LockOpen size={12} strokeWidth={2.2} />
+            </span>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  function renderPayForm(bloco: FinanceiroCoordBloco, dirId: string) {
+    const form = inlineForms[dirId]
+    if (!form) return null
+    return (
+      <div className="fin-inline-form">
+        <div className="fin-inline-title">
+          <Wallet size={12} />
+          <span>Novo pagamento</span>
+        </div>
+        <div className="fin-inline-grid">
+          <label className="fin-field">
+            <span>Alvo</span>
+            <select
+              value={form.liderId}
+              onChange={(e) => patchInline(dirId, { liderId: e.target.value })}
+            >
+              <option value="">Esta coordenação ({bloco.nome})</option>
+              {bloco.liderancas.map((l) => (
+                <option key={l.lider_id!} value={l.lider_id!}>
+                  Liderança {l.nome}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="fin-field">
+            <span>Valor pago</span>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="R$ 0,00"
+              value={form.amount}
+              onChange={(e) => patchInline(dirId, { amount: e.target.value })}
+            />
+          </label>
+          <div className="fin-field">
+            <span>Forma</span>
+            <div className="fin-forma-toggle">
               <button
                 type="button"
-                className="fin-lock-btn is-locked"
-                title="Destrancar valor"
-                disabled={saving}
-                onClick={() => void unlockDevido(alvo)}
+                className={form.method === 'dinheiro' ? 'is-on is-light' : ''}
+                onClick={() => patchInline(dirId, { method: 'dinheiro' })}
               >
-                <Lock size={13} strokeWidth={2.4} />
+                R$ Dinheiro
               </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className="fin-save-due"
-                  disabled={saving}
-                  onClick={() => void saveDevido(alvo)}
-                >
-                  {saving ? '…' : 'Salvar'}
-                </button>
-                <button
-                  type="button"
-                  className="fin-lock-btn"
-                  title="Destrancado"
-                  disabled
-                  aria-hidden
-                >
-                  <LockOpen size={13} strokeWidth={2.2} />
-                </button>
-              </>
-            )}
+              <button
+                type="button"
+                className={form.method === 'pix' ? 'is-on is-dark' : ''}
+                onClick={() => patchInline(dirId, { method: 'pix' })}
+              >
+                PIX
+              </button>
+            </div>
           </div>
+          <div className="fin-field">
+            <span>Comprovante</span>
+            <button
+              type="button"
+              className="fin-attach"
+              onClick={() => inlineFileRefs.current[dirId]?.click()}
+            >
+              <Paperclip size={12} />
+              <span className="fin-attach-text">
+                {form.file?.name || 'Anexar imagem ou PDF'}
+              </span>
+            </button>
+            <input
+              ref={(el) => {
+                inlineFileRefs.current[dirId] = el
+              }}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              hidden
+              onChange={(e) =>
+                patchInline(dirId, { file: e.target.files?.[0] ?? null })
+              }
+            />
+          </div>
+        </div>
+        <div className="fin-inline-actions">
           <button
             type="button"
-            className="fin-pay-btn"
-            onClick={() => openPayFor(alvo)}
+            className="fin-btn-ghost"
+            onClick={() => {
+              setPayTargetKey(null)
+              patchInline(dirId, { amount: '', file: null })
+            }}
           >
-            <Wallet size={13} />
-            Pagar
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="fin-btn-dark"
+            disabled={savingInline === dirId}
+            onClick={() => void submitInline(dirId)}
+          >
+            {savingInline === dirId ? 'Salvando…' : 'Confirmar pagamento'}
           </button>
         </div>
       </div>
@@ -641,6 +765,7 @@ export function FinanceiroPage() {
       && (payTargetKey === bloco.proprio.key
         || bloco.liderancas.some((l) => l.key === payTargetKey))
       && form?.coordId === bloco.coordenador_id
+    const tone = avatarTone(bloco.nome)
 
     return (
       <div key={bloco.coordenador_id} className={`fin-coord-card${open ? ' is-open' : ''}`}>
@@ -651,151 +776,158 @@ export function FinanceiroPage() {
           aria-expanded={open}
         >
           <div className="fin-coord-head-left">
-            <span className="fin-coord-avatar" aria-hidden>{initials(bloco.nome)}</span>
+            <span className={`fin-avatar tone-${tone}`} aria-hidden>
+              {initials(bloco.nome)}
+            </span>
             <span>
-              <strong>{bloco.nome}</strong>
+              <strong>Coordenação {bloco.nome}</strong>
               <em>
                 {bloco.liderancas.length}{' '}
                 {bloco.liderancas.length === 1 ? 'liderança' : 'lideranças'}
               </em>
             </span>
           </div>
-          <div className="fin-coord-head-right">
-            <MoneyStrip
-              devido={bloco.totalLeitura.devido}
-              pago={bloco.totalLeitura.pago}
-              falta={bloco.totalLeitura.falta}
-            />
-            <span className="fin-acc-chevron" aria-hidden>
-              {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          <div className="fin-cols-money">
+            <span>
+              <small>Devido</small>
+              <b>{formatMoneyBRL(bloco.totalLeitura.devido)}</b>
+            </span>
+            <span className="is-pago">
+              <small>Pago</small>
+              <b>{formatMoneyBRL(bloco.totalLeitura.pago)}</b>
+            </span>
+            <span className="is-apagar">
+              <small>A pagar</small>
+              <b>{formatMoneyBRL(bloco.totalLeitura.falta)}</b>
             </span>
           </div>
+          <span className="fin-acc-chevron" aria-hidden>
+            {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </span>
         </button>
 
         {open ? (
           <div className="fin-coord-body">
-            {renderAlvoRow(bloco.proprio, false)}
+            <div className="fin-coord-self">
+              <div className="fin-person">
+                <span className={`fin-avatar tone-${tone}`} aria-hidden>
+                  {initials(bloco.nome)}
+                </span>
+                <div>
+                  <strong>{bloco.nome}</strong>
+                  <em>Coordenação</em>
+                </div>
+              </div>
+              <div className="fin-cols-money is-inline">
+                <span>
+                  <small>Devido</small>
+                  {renderDueEditor(bloco.proprio)}
+                </span>
+                <span className="is-pago">
+                  <small>Pago</small>
+                  <b>{formatMoneyBRL(bloco.proprio.pago)}</b>
+                </span>
+                <span className="is-apagar">
+                  <small>A pagar</small>
+                  <b>{formatMoneyBRL(bloco.proprio.falta)}</b>
+                </span>
+              </div>
+              <div className="fin-row-actions">
+                <button
+                  type="button"
+                  className="fin-btn-dark"
+                  onClick={() => openPayFor(bloco.proprio)}
+                >
+                  Pagar
+                </button>
+                <button
+                  type="button"
+                  className="fin-btn-outline"
+                  onClick={() => viewLancamentos(bloco.proprio)}
+                >
+                  Ver lançamentos
+                </button>
+              </div>
+            </div>
 
             <div className="fin-lider-block">
               <div className="fin-lider-block-head">
-                <Users size={13} />
-                <span>Lideranças</span>
+                <span>Lideranças da coordenação</span>
               </div>
               {!bloco.liderancas.length ? (
                 <p className="fin-empty-line">Nenhuma liderança nesta coordenação.</p>
               ) : (
-                bloco.liderancas.map((l) => renderAlvoRow(l, true))
+                <div className="fin-table-wrap">
+                  <table className="fin-table">
+                    <thead>
+                      <tr>
+                        <th>Liderança</th>
+                        <th>Devido</th>
+                        <th>Pago</th>
+                        <th>A pagar</th>
+                        <th>Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bloco.liderancas.map((l) => (
+                        <tr key={l.key}>
+                          <td>
+                            <div className="fin-person">
+                              <span className={`fin-avatar sm tone-${avatarTone(l.nome)}`} aria-hidden>
+                                {initials(l.nome)}
+                              </span>
+                              <strong>{l.nome}</strong>
+                            </div>
+                          </td>
+                          <td>{renderDueEditor(l)}</td>
+                          <td className="is-pago">{formatMoneyBRL(l.pago)}</td>
+                          <td className="is-apagar">{formatMoneyBRL(l.falta)}</td>
+                          <td>
+                            <div className="fin-row-actions">
+                              <button
+                                type="button"
+                                className="fin-btn-dark fin-btn-xs"
+                                onClick={() => openPayFor(l)}
+                              >
+                                Pagar
+                              </button>
+                              <button
+                                type="button"
+                                className="fin-btn-outline fin-btn-xs"
+                                onClick={() => viewLancamentos(l)}
+                              >
+                                Ver lançamentos
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
 
             <div className="fin-coord-total">
               <span>Total da coordenação</span>
-              <MoneyStrip
-                devido={bloco.totalLeitura.devido}
-                pago={bloco.totalLeitura.pago}
-                falta={bloco.totalLeitura.falta}
-              />
+              <div className="fin-cols-money is-inline">
+                <span>
+                  <small>Devido</small>
+                  <b>{formatMoneyBRL(bloco.totalLeitura.devido)}</b>
+                </span>
+                <span className="is-pago">
+                  <small>Pago</small>
+                  <b>{formatMoneyBRL(bloco.totalLeitura.pago)}</b>
+                </span>
+                <span className="is-apagar">
+                  <small>A pagar</small>
+                  <b>{formatMoneyBRL(bloco.totalLeitura.falta)}</b>
+                </span>
+              </div>
               <small>Soma da coordenação + lideranças (só leitura)</small>
             </div>
 
-            {showPay && form ? (
-              <div className="fin-inline-form">
-                <div className="fin-inline-title">
-                  <Wallet size={12} />
-                  <span>Novo pagamento</span>
-                </div>
-                <div className="fin-inline-grid">
-                  <label className="fin-field">
-                    <span>Alvo</span>
-                    <select
-                      value={form.liderId}
-                      onChange={(e) => patchInline(dirId, { liderId: e.target.value })}
-                    >
-                      <option value="">Esta coordenação ({bloco.nome})</option>
-                      {bloco.liderancas.map((l) => (
-                        <option key={l.lider_id!} value={l.lider_id!}>
-                          Liderança {l.nome}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="fin-field">
-                    <span>Valor pago</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="R$ 0,00"
-                      value={form.amount}
-                      onChange={(e) => patchInline(dirId, { amount: e.target.value })}
-                    />
-                  </label>
-                  <div className="fin-field">
-                    <span>Forma</span>
-                    <div className="fin-forma-toggle">
-                      <button
-                        type="button"
-                        className={form.method === 'dinheiro' ? 'is-on is-light' : ''}
-                        onClick={() => patchInline(dirId, { method: 'dinheiro' })}
-                      >
-                        R$ Dinheiro
-                      </button>
-                      <button
-                        type="button"
-                        className={form.method === 'pix' ? 'is-on is-dark' : ''}
-                        onClick={() => patchInline(dirId, { method: 'pix' })}
-                      >
-                        PIX
-                      </button>
-                    </div>
-                  </div>
-                  <div className="fin-field">
-                    <span>Comprovante</span>
-                    <button
-                      type="button"
-                      className="fin-attach"
-                      onClick={() => inlineFileRefs.current[dirId]?.click()}
-                    >
-                      <Paperclip size={12} />
-                      <span className="fin-attach-text">
-                        {form.file?.name || 'Anexar imagem ou PDF'}
-                      </span>
-                    </button>
-                    <input
-                      ref={(el) => {
-                        inlineFileRefs.current[dirId] = el
-                      }}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,application/pdf"
-                      hidden
-                      onChange={(e) =>
-                        patchInline(dirId, { file: e.target.files?.[0] ?? null })
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="fin-inline-actions">
-                  <button
-                    type="button"
-                    className="fin-btn-ghost"
-                    onClick={() => {
-                      setPayTargetKey(null)
-                      patchInline(dirId, { amount: '', file: null })
-                    }}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    className="fin-cta fin-cta-sm"
-                    disabled={savingInline === dirId}
-                    onClick={() => void submitInline(dirId)}
-                  >
-                    {savingInline === dirId ? 'Salvando…' : 'Confirmar pagamento'}
-                  </button>
-                </div>
-              </div>
-            ) : null}
+            {showPay ? renderPayForm(bloco, dirId) : null}
           </div>
         ) : null}
       </div>
@@ -804,34 +936,57 @@ export function FinanceiroPage() {
 
   if (loading) return <Spinner />
 
+  const progressoGeral = pctPago(pageTot.devido, pageTot.pago)
+
   return (
     <div className="fin-page">
-      <div className="fin-head">
+      <header className="fin-head">
         <div>
-          <p className="fin-kicker">Financeiro</p>
           <h1>Pagamentos</h1>
           <p className="fin-sub">
-            Cada coordenação e cada liderança têm valor devido. A diretoria só agrupa os totais.
+            Controle de valores devidos e pagamentos por coordenação e liderança.
           </p>
         </div>
-        <button type="button" className="fin-cta" onClick={() => openModal()}>
-          <Plus size={12} strokeWidth={3} />
+        <button type="button" className="fin-btn-dark" onClick={() => openModal()}>
+          <Plus size={13} strokeWidth={3} />
           <span>Lançar pagamento</span>
         </button>
-      </div>
+      </header>
 
       <div className="fin-kpi-row" aria-label="Totais gerais">
-        <div className="fin-kpi">
-          <small>Total devido</small>
-          <strong>{formatMoneyBRL(pageTot.devido)}</strong>
+        <div className="fin-kpi is-due">
+          <div>
+            <small>Valor devido cadastrado</small>
+            <strong>{formatMoneyBRL(pageTot.devido)}</strong>
+          </div>
+          <span className="fin-kpi-icon" aria-hidden><Lock size={16} /></span>
         </div>
         <div className="fin-kpi is-pago">
-          <small>Pago</small>
-          <strong>{formatMoneyBRL(pageTot.pago)}</strong>
+          <div>
+            <small>Valor pago</small>
+            <strong>{formatMoneyBRL(pageTot.pago)}</strong>
+          </div>
+          <span className="fin-kpi-icon" aria-hidden><CheckCircle2 size={16} /></span>
         </div>
         <div className="fin-kpi is-falta">
-          <small>A pagar</small>
-          <strong>{formatMoneyBRL(pageTot.falta)}</strong>
+          <div>
+            <small>Valor a pagar</small>
+            <strong>{formatMoneyBRL(pageTot.falta)}</strong>
+          </div>
+          <span className="fin-kpi-icon" aria-hidden><Clock3 size={16} /></span>
+        </div>
+        <div className="fin-kpi is-progress">
+          <div className="fin-kpi-progress-copy">
+            <small>Progresso geral</small>
+            <strong>{progressoGeral}%</strong>
+            <em>
+              {formatMoneyBRL(pageTot.pago)} de {formatMoneyBRL(pageTot.devido)}
+            </em>
+            <div className="fin-progress-track">
+              <div className="fin-progress-fill" style={{ width: `${progressoGeral}%` }} />
+            </div>
+          </div>
+          <ProgressRing pct={progressoGeral} />
         </div>
       </div>
 
@@ -848,127 +1003,193 @@ export function FinanceiroPage() {
         <EmptyState title="Nenhuma diretora" description="Cadastre diretorias para usar o financeiro." />
       ) : (
         <>
-          <div className="fin-dir-list">
-            {cards.map(({ dir, blocos, tot, liderCount }) => {
-              const open = expandedDirId === dir.id
-              return (
-                <div key={dir.id} className={`fin-acc${open ? ' is-open' : ''}`}>
-                  <button
-                    type="button"
-                    className="fin-acc-head"
-                    onClick={() => setExpandedDirId(open ? null : dir.id)}
-                    aria-expanded={open}
+          <section className="fin-section">
+            <div className="fin-section-head">
+              <div>
+                <h2>Por diretoria</h2>
+                <p>Abra uma diretoria e gerencie o devido de cada coordenação e liderança.</p>
+              </div>
+              <div className="fin-toolbar">
+                <label className="fin-search">
+                  <Search size={14} aria-hidden />
+                  <input
+                    type="search"
+                    placeholder="Buscar coordenação ou liderança…"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                  />
+                </label>
+                {isAdmin ? (
+                  <select
+                    className="fin-filter"
+                    value={filterDirId}
+                    onChange={(e) => setFilterDirId(e.target.value)}
+                    aria-label="Filtrar diretoria"
                   >
-                    <div className="fin-acc-left">
-                      <span className="fin-acc-avatar" aria-hidden>
-                        {initials(dir.nome)}
-                      </span>
-                      <span className="fin-acc-copy">
-                        <strong>{dir.nome}</strong>
-                        <em>
-                          {blocos.length} {blocos.length === 1 ? 'coordenação' : 'coordenações'}
-                          {' · '}
-                          {liderCount} {liderCount === 1 ? 'liderança' : 'lideranças'}
-                        </em>
-                      </span>
-                    </div>
-                    <div className="fin-acc-right">
-                      <span className="fin-acc-money">
-                        <small>Devido</small>
-                        <b>{formatMoneyBRL(tot.devido)}</b>
-                      </span>
-                      <span className="fin-acc-money is-pago">
-                        <small>Pago</small>
-                        <b>{formatMoneyBRL(tot.pago)}</b>
-                      </span>
-                      <span className="fin-acc-money is-apagar">
-                        <small>A pagar</small>
-                        <b>{formatMoneyBRL(tot.falta)}</b>
-                      </span>
+                    <option value="">Todas as diretorias</option>
+                    {diretorias.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.nome}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="fin-dir-list">
+              {cards.map(({ dir, blocos, tot, liderCount }) => {
+                const open = expandedDirId === dir.id
+                return (
+                  <div key={dir.id} className={`fin-acc${open ? ' is-open' : ''}`}>
+                    <button
+                      type="button"
+                      className="fin-acc-head"
+                      onClick={() => setExpandedDirId(open ? null : dir.id)}
+                      aria-expanded={open}
+                    >
+                      <div className="fin-acc-left">
+                        <span className={`fin-avatar tone-${avatarTone(dir.nome)}`} aria-hidden>
+                          {initials(dir.nome)}
+                        </span>
+                        <span className="fin-acc-copy">
+                          <strong>{dir.nome}</strong>
+                          <em>
+                            {blocos.length} {blocos.length === 1 ? 'coordenação' : 'coordenações'}
+                            {' · '}
+                            {liderCount} {liderCount === 1 ? 'liderança' : 'lideranças'}
+                          </em>
+                        </span>
+                      </div>
+                      <div className="fin-cols-money">
+                        <span>
+                          <small>Devido</small>
+                          <b>{formatMoneyBRL(tot.devido)}</b>
+                        </span>
+                        <span className="is-pago">
+                          <small>Pago</small>
+                          <b>{formatMoneyBRL(tot.pago)}</b>
+                        </span>
+                        <span className="is-apagar">
+                          <small>A pagar</small>
+                          <b>{formatMoneyBRL(tot.falta)}</b>
+                        </span>
+                      </div>
                       <span className="fin-acc-chevron" aria-hidden>
                         {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </span>
-                    </div>
-                  </button>
+                    </button>
 
-                  {open ? (
-                    <div className="fin-acc-body">
-                      <div className="fin-acc-body-head">
-                        <div>
-                          <h2>{dir.nome}</h2>
-                          <p>Defina o devido de cada coordenação e liderança. Totais acima são só leitura.</p>
-                        </div>
-                        <button
-                          type="button"
-                          className="fin-cta fin-cta-sm"
-                          onClick={() => openModal(dir.id)}
-                        >
-                          <Plus size={10} strokeWidth={3} />
-                          Lançar pagamento
-                        </button>
+                    {open ? (
+                      <div className="fin-acc-body">
+                        {!blocos.length ? (
+                          <p className="fin-empty-line">Nenhuma coordenação ativa nesta diretoria.</p>
+                        ) : (
+                          <div className="fin-coord-list">
+                            {blocos.map((b) => renderCoordCard(b, dir.id))}
+                          </div>
+                        )}
                       </div>
+                    ) : null}
+                  </div>
+                )
+              })}
+              {!cards.length ? (
+                <p className="fin-empty-line">Nenhum resultado para a busca.</p>
+              ) : null}
+            </div>
+          </section>
 
-                      {!blocos.length ? (
-                        <p className="fin-empty-line">Nenhuma coordenação ativa nesta diretoria.</p>
-                      ) : (
-                        <div className="fin-coord-list">
-                          {blocos.map((b) => renderCoordCard(b, dir.id))}
-                        </div>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              )
-            })}
-          </div>
-
-          <section className="fin-recent">
+          <section className="fin-recent" ref={recentRef} id="fin-recent">
             <div className="fin-recent-head">
-              <h2>Últimos lançamentos</h2>
-              <p>
-                Pagamentos registrados recentemente
-                {isAdmin ? ' · só o admin pode apagar' : ''}
-              </p>
+              <div>
+                <h2>Últimos lançamentos</h2>
+                <p>
+                  Até 80 pagamentos recentes
+                  {isAdmin ? ' · só o admin pode apagar' : ''}
+                </p>
+              </div>
+              {lancFilterKey ? (
+                <button
+                  type="button"
+                  className="fin-btn-outline fin-btn-xs"
+                  onClick={() => setLancFilterKey(null)}
+                >
+                  Limpar filtro
+                </button>
+              ) : null}
             </div>
             {!recentList.length ? (
               <p className="fin-empty-line">Nenhum pagamento registrado.</p>
             ) : (
-              <div className="fin-log-list">
-                {recentList.map((l) => (
-                  <div key={l.id} className="fin-log-card">
-                    <div>
-                      <p className="fin-log-name">{l.alvo_label}</p>
-                      <p className="fin-log-meta">
-                        {l.diretoria_nome} · {fmtWhen(l.created_at)}
-                      </p>
-                    </div>
-                    <div className="fin-log-side">
-                      <span className={`fin-log-tag ${l.forma}`}>{formaLabel(l.forma)}</span>
-                      <strong>{formatMoneyBRL(l.valor)}</strong>
-                      {l.comprovante_path ? (
-                        <button
-                          type="button"
-                          className="fin-comp-link"
-                          onClick={() => void openComprovante(l.comprovante_path)}
-                        >
-                          Ver
-                        </button>
-                      ) : null}
-                      {isAdmin ? (
-                        <button
-                          type="button"
-                          className="fin-del-btn"
-                          title="Apagar lançamento"
-                          disabled={deletingId === l.id}
-                          onClick={() => void handleDeleteLancamento(l)}
-                        >
-                          <Trash2 size={13} strokeWidth={2.2} />
-                          {deletingId === l.id ? '…' : 'Apagar'}
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                ))}
+              <div className="fin-table-wrap">
+                <table className="fin-table fin-log-table">
+                  <thead>
+                    <tr>
+                      <th>Data</th>
+                      <th>Alvo</th>
+                      <th>Descrição</th>
+                      <th>Valor</th>
+                      <th>Forma</th>
+                      <th>Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentList.map((l) => (
+                      <tr key={l.id}>
+                        <td className="fin-muted">{fmtWhen(l.created_at)}</td>
+                        <td>
+                          <div className="fin-person">
+                            <span className={`fin-avatar sm tone-${avatarTone(l.alvo_label)}`} aria-hidden>
+                              {initials(l.alvo_label)}
+                            </span>
+                            <div>
+                              <strong>{l.alvo_label}</strong>
+                              <em>{l.diretoria_nome}</em>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="fin-muted">
+                          {l.observacao?.trim() || 'Pagamento'}
+                        </td>
+                        <td>
+                          <strong className="fin-valor">{formatMoneyBRL(l.valor)}</strong>
+                        </td>
+                        <td>
+                          <span className={`fin-log-tag ${l.forma}`}>{formaLabel(l.forma)}</span>
+                        </td>
+                        <td>
+                          <div className="fin-row-actions">
+                            {l.comprovante_path ? (
+                              <button
+                                type="button"
+                                className="fin-comp-link"
+                                onClick={() => void openComprovante(l.comprovante_path)}
+                              >
+                                <Eye size={13} />
+                                Ver
+                              </button>
+                            ) : (
+                              <span className="fin-muted">—</span>
+                            )}
+                            {isAdmin ? (
+                              <button
+                                type="button"
+                                className="fin-del-btn"
+                                title="Apagar lançamento"
+                                disabled={deletingId === l.id}
+                                onClick={() => void handleDeleteLancamento(l)}
+                              >
+                                <Trash2 size={13} strokeWidth={2.2} />
+                                {deletingId === l.id ? '…' : 'Apagar'}
+                              </button>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </section>
@@ -1101,7 +1322,7 @@ export function FinanceiroPage() {
                 <button type="button" className="fin-btn-ghost" onClick={closeModal}>
                   Cancelar
                 </button>
-                <button type="submit" className="fin-cta fin-cta-sm" disabled={savingModal}>
+                <button type="submit" className="fin-btn-dark" disabled={savingModal}>
                   {savingModal ? 'Salvando…' : 'Confirmar pagamento'}
                 </button>
               </div>
