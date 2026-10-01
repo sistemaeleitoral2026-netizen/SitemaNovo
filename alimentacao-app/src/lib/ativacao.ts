@@ -204,43 +204,6 @@ export function casaSim(value: unknown) {
   return toQty(value) > 0
 }
 
-/** Endereço já preenchido na ficha (cadastro ou Formigas). */
-export function hasCasaEnderecoPreenchido(p: {
-  cep?: string | null
-  endereco?: string | null
-  numero?: string | null
-  bairro?: string | null
-} | null | undefined) {
-  if (!p) return false
-  return Boolean(
-    String(p.cep ?? '').replace(/\D/g, '')
-    || String(p.endereco ?? '').trim()
-    || String(p.numero ?? '').trim()
-    || String(p.bairro ?? '').trim(),
-  )
-}
-
-/**
- * Endereço de adesivo residencial: se já existe, só a formiga dona da seção
- * (ou admin/diretoria) altera — evita outra formiga sobrescrever.
- */
-export function canEditCasaEndereco(
-  pessoa: {
-    formigas_casa_by?: string | null
-    cep?: string | null
-    endereco?: string | null
-    numero?: string | null
-    bairro?: string | null
-  } | null | undefined,
-  userId: string | undefined | null,
-  staff = false,
-) {
-  if (!hasCasaEnderecoPreenchido(pessoa)) return true
-  if (staff) return true
-  if (!userId) return false
-  return Boolean(pessoa?.formigas_casa_by && pessoa.formigas_casa_by === userId)
-}
-
 function fromCadastro(c: Cadastro): AtivacaoPessoa {
   const ativ = fromAtivacaoFields(c)
   return {
@@ -694,6 +657,7 @@ async function logFormigasHistorico(
     const addrBits = [
       (input.endereco ?? '').trim(),
       (input.numero ?? '').trim() ? `nº ${(input.numero ?? '').trim()}` : '',
+      (input.bairro ?? '').trim(),
       (input.cep ?? '').replace(/\D/g, '').length === 8
         ? `CEP ${(input.cep ?? '').replace(/\D/g, '').replace(/(\d{5})(\d{3})/, '$1-$2')}`
         : '',
@@ -702,14 +666,16 @@ async function logFormigasHistorico(
     const prevAddrKey = [
       previous.endereco.trim(),
       previous.numero.trim() ? `nº ${previous.numero.trim()}` : '',
+      previous.bairro.trim(),
       previous.cep.replace(/\D/g, '').length === 8
         ? `CEP ${previous.cep.replace(/\D/g, '').replace(/(\d{5})(\d{3})/, '$1-$2')}`
         : '',
     ].filter(Boolean).join(', ')
+    const addrChanged = addrKey !== prevAddrKey
 
     if (
       prevCasaStatus !== nextCasaStatus
-      || ((nextCasaStatus === 'sim' || nextCasaStatus === 'talvez') && addrKey && addrKey !== prevAddrKey)
+      || ((nextCasaStatus === 'sim' || nextCasaStatus === 'talvez') && addrChanged)
     ) {
       const label = casaStatusLabel(nextCasaStatus)
       const depois =
@@ -718,6 +684,7 @@ async function logFormigasHistorico(
           : addrKey
             ? `${label} — ${addrKey}`
             : label
+      const soEndereco = prevCasaStatus === nextCasaStatus && addrChanged
       rows.push({
         actor_id: userId,
         actor_email: actorEmail,
@@ -729,9 +696,13 @@ async function logFormigasHistorico(
         resumo:
           nextCasaStatus === 'nao'
             ? 'Removeu adesivo residencial'
-            : nextCasaStatus === 'talvez'
-              ? `Marcou adesivo residencial como talvez${addrKey ? ` — ${addrKey}` : ''}`
-              : `Marcou adesivo residencial${addrKey ? ` — ${addrKey}` : ''}`,
+            : soEndereco
+              ? (addrKey
+                ? `Corrigiu endereço do adesivo residencial — ${addrKey}`
+                : 'Removeu endereço do adesivo residencial')
+              : nextCasaStatus === 'talvez'
+                ? `Marcou adesivo residencial como talvez${addrKey ? ` — ${addrKey}` : ''}`
+                : `Marcou adesivo residencial${addrKey ? ` — ${addrKey}` : ''}`,
         valor_antes: prevCasaStatus === 'nao' ? 'não' : (prevAddrKey || casaStatusLabel(prevCasaStatus)),
         valor_depois: depois,
         diretoria_id: previous.diretoria_id,
@@ -774,7 +745,23 @@ async function logFormigasHistorico(
 
     const nextCasaFotos = [...new Set((input.foto_casa_keep ?? []).filter(Boolean))]
     const removedCasa = previous.foto_casa_paths.filter((p) => !nextCasaFotos.includes(p))
-    if (removedCasa.length > 0) {
+    const addedCasa = nextCasaFotos.filter((p) => !previous.foto_casa_paths.includes(p))
+    if (removedCasa.length > 0 || addedCasa.length > 0) {
+      const parts: string[] = []
+      if (removedCasa.length) {
+        parts.push(
+          removedCasa.length === 1
+            ? 'removeu 1 foto'
+            : `removeu ${removedCasa.length} fotos`,
+        )
+      }
+      if (addedCasa.length) {
+        parts.push(
+          addedCasa.length === 1
+            ? 'anexou 1 foto'
+            : `anexou ${addedCasa.length} fotos`,
+        )
+      }
       rows.push({
         actor_id: userId,
         actor_email: actorEmail,
@@ -783,9 +770,7 @@ async function logFormigasHistorico(
         pessoa_id: previous.id,
         pessoa_nome: pessoa,
         secao: 'casa',
-        resumo: removedCasa.length === 1
-          ? 'Removeu 1 foto do adesivo residencial'
-          : `Removeu ${removedCasa.length} fotos do adesivo residencial`,
+        resumo: `Adesivo residencial: ${parts.join(' e ')}`,
         valor_antes: `${previous.foto_casa_paths.length} foto(s)`,
         valor_depois: `${nextCasaFotos.length} foto(s)`,
         diretoria_id: previous.diretoria_id,
@@ -794,7 +779,23 @@ async function logFormigasHistorico(
 
     const nextVeiculoFotos = [...new Set((input.foto_veiculo_keep ?? []).filter(Boolean))]
     const removedVeiculo = previous.foto_veiculo_paths.filter((p) => !nextVeiculoFotos.includes(p))
-    if (removedVeiculo.length > 0) {
+    const addedVeiculo = nextVeiculoFotos.filter((p) => !previous.foto_veiculo_paths.includes(p))
+    if (removedVeiculo.length > 0 || addedVeiculo.length > 0) {
+      const parts: string[] = []
+      if (removedVeiculo.length) {
+        parts.push(
+          removedVeiculo.length === 1
+            ? 'removeu 1 foto'
+            : `removeu ${removedVeiculo.length} fotos`,
+        )
+      }
+      if (addedVeiculo.length) {
+        parts.push(
+          addedVeiculo.length === 1
+            ? 'anexou 1 foto'
+            : `anexou ${addedVeiculo.length} fotos`,
+        )
+      }
       rows.push({
         actor_id: userId,
         actor_email: actorEmail,
@@ -803,9 +804,7 @@ async function logFormigasHistorico(
         pessoa_id: previous.id,
         pessoa_nome: pessoa,
         secao: 'carros',
-        resumo: removedVeiculo.length === 1
-          ? 'Removeu 1 foto de veículo adesivado'
-          : `Removeu ${removedVeiculo.length} fotos de veículo adesivado`,
+        resumo: `Veículos: ${parts.join(' e ')}`,
         valor_antes: `${previous.foto_veiculo_paths.length} foto(s)`,
         valor_depois: `${nextVeiculoFotos.length} foto(s)`,
         diretoria_id: previous.diretoria_id,
@@ -971,23 +970,7 @@ export async function saveAtivacao(
     payload.postagens = links.length
   }
 
-  let allowCasaAddr = true
-  if (previous && hasCasaEnderecoPreenchido(previous)) {
-    const { data: meProf } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .maybeSingle()
-    const staff = meProf?.role === 'admin' || meProf?.role === 'diretoria'
-    allowCasaAddr = canEditCasaEndereco(previous, userId, staff)
-  }
-
-  if (
-    editCasa
-    && allowCasaAddr
-    && hasAddrInput
-    && (casaStatus === 'sim' || casaStatus === 'talvez')
-  ) {
+  if (editCasa && hasAddrInput && (casaStatus === 'sim' || casaStatus === 'talvez')) {
     if (cepDigits.length === 8) payload.cep = cepDigits
     if (endereco) payload.endereco = endereco
     if (numero) payload.numero = numero
