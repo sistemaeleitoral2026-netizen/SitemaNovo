@@ -14148,11 +14148,253 @@ button.fichas-count.equipe-drill-count.zero:hover {
   flex: none;
 }
 
+/* Hierarquia: KPIs + coord cards + lideranças */
+.fin-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .75rem;
+  margin: 0 0 1.25rem;
+}
+.fin-kpi {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: .75rem;
+  padding: .85rem 1rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+.fin-kpi small {
+  display: block;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: .2rem;
+}
+.fin-kpi strong {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+.fin-kpi.is-pago strong { color: #047857; }
+.fin-kpi.is-falta strong { color: #b45309; }
+
+.fin-money-strip {
+  display: flex;
+  align-items: stretch;
+  gap: .65rem;
+  flex-wrap: wrap;
+}
+.fin-money-strip > span {
+  display: flex;
+  flex-direction: column;
+  gap: .1rem;
+  min-width: 4.5rem;
+}
+.fin-money-strip small {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #94a3b8;
+}
+.fin-money-strip b {
+  font-size: .8rem;
+  font-weight: 800;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+.fin-money-strip b.is-pago { color: #047857; }
+.fin-money-strip b.is-falta { color: #b45309; }
+
+.fin-coord-list {
+  display: grid;
+  gap: .85rem;
+}
+.fin-coord-card {
+  border: 1px solid #e2e8f0;
+  border-radius: .85rem;
+  background: #fff;
+  overflow: hidden;
+}
+.fin-coord-card.is-open {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, .06);
+}
+.fin-coord-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .9rem 1rem;
+  border: 0;
+  background: #f8fafc;
+  cursor: pointer;
+  text-align: left;
+}
+.fin-coord-head:hover { background: #f1f5f9; }
+.fin-coord-head-left {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  min-width: 0;
+}
+.fin-coord-head-left strong {
+  display: block;
+  font-size: .92rem;
+  color: #0f172a;
+}
+.fin-coord-head-left em {
+  display: block;
+  font-style: normal;
+  font-size: .7rem;
+  color: #64748b;
+  margin-top: .1rem;
+}
+.fin-coord-avatar {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: .55rem;
+  background: #1d4ed8;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: .7rem;
+  font-weight: 800;
+  flex: none;
+}
+.fin-coord-head-right {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  flex: none;
+}
+.fin-coord-body {
+  padding: .85rem 1rem 1rem;
+  display: grid;
+  gap: .75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.fin-alvo {
+  display: grid;
+  gap: .65rem;
+  padding: .75rem .85rem;
+  border: 1px solid #e2e8f0;
+  border-radius: .7rem;
+  background: #fff;
+}
+.fin-alvo.is-lider {
+  margin-left: .75rem;
+  background: #fafbfc;
+  border-style: dashed;
+}
+.fin-alvo-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .75rem;
+}
+.fin-alvo-id {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  min-width: 0;
+}
+.fin-alvo-id strong {
+  font-size: .88rem;
+  color: #0f172a;
+}
+.fin-badge {
+  display: inline-flex;
+  width: fit-content;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: .15rem .4rem;
+  border-radius: .3rem;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+.fin-badge.is-lider {
+  background: #f5f3ff;
+  color: #6d28d9;
+  border-color: #ddd6fe;
+}
+.fin-alvo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+}
+.fin-pay-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  border: 1px solid #bbf7d0;
+  background: #ecfdf5;
+  color: #047857;
+  border-radius: .45rem;
+  padding: .4rem .7rem;
+  font-size: .72rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+.fin-pay-btn:hover { background: #d1fae5; }
+
+.fin-lider-block {
+  display: grid;
+  gap: .55rem;
+}
+.fin-lider-block-head {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .72rem;
+  font-weight: 750;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.fin-coord-total {
+  display: grid;
+  gap: .35rem;
+  padding: .7rem .85rem;
+  border-radius: .65rem;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+.fin-coord-total > span {
+  font-size: .72rem;
+  font-weight: 800;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+.fin-coord-total small {
+  font-size: .68rem;
+  color: #94a3b8;
+}
+
 @media (max-width: 860px) {
   .fin-inline-grid { grid-template-columns: 1fr 1fr; }
+  .fin-kpi-row { grid-template-columns: 1fr; }
+  .fin-coord-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .fin-coord-head-right {
+    justify-content: space-between;
+  }
 }
 @media (max-width: 640px) {
-  .fin-acc-right { gap: .75rem; }
+  .fin-acc-right { gap: .75rem; flex-wrap: wrap; }
   .fin-acc-money small { font-size: 8px; }
   .fin-inline-grid { grid-template-columns: 1fr; }
   .fin-cta { width: 100%; }
@@ -14161,6 +14403,9 @@ button.fichas-count.equipe-drill-count.zero:hover {
     flex-direction: column;
     align-items: flex-start;
   }
+  .fin-alvo.is-lider { margin-left: .25rem; }
+  .fin-alvo-actions { width: 100%; }
+  .fin-pay-btn { flex: 1; justify-content: center; }
 }
 
 /* ——— Votação: Lançar (mobile) + Progresso (desktop/mobile) ——— */

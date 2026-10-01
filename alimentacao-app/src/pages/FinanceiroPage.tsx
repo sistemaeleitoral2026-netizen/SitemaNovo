@@ -1,13 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ChevronDown, ChevronUp, Lock, LockOpen, Paperclip, Plus, Receipt, Trash2, Wallet, X } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronUp,
+  Lock,
+  LockOpen,
+  Paperclip,
+  Plus,
+  Receipt,
+  Trash2,
+  Users,
+  Wallet,
+  X,
+} from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { supabase } from '../lib/supabase'
 import { hasRole } from '../lib/roles'
 import {
-  buildCoordResumos,
+  alvoKey,
+  buildHierarquiaFinanceiro,
   createLancamento,
   deleteLancamento,
   fetchLancamentos,
@@ -15,22 +28,26 @@ import {
   formatMoneyBRL,
   initials,
   isLocalFinanceiroMode,
+  labelAlvoLancamento,
   parseMoneyInput,
   signComprovanteUrl,
-  sumResumos,
+  sumAlvos,
   upsertValorDevido,
+  type FinanceiroAlvoResumo,
+  type FinanceiroCoordBloco,
   type FinanceiroForma,
   type FinanceiroLancamento,
   type FinanceiroValorDevido,
 } from '../lib/financeiro'
-import type { Coordenador, Profile } from '../types'
+import type { Coordenador, Lider, Profile } from '../types'
 
 type InlineForm = {
   coordId: string
+  /** '' = própria coordenação */
+  liderId: string
   amount: string
   method: 'dinheiro' | 'pix'
   file: File | null
-  visible: boolean
 }
 
 function formaLabel(forma: FinanceiroForma) {
@@ -52,6 +69,33 @@ function fmtWhen(iso: string) {
   }
 }
 
+function MoneyStrip({
+  devido,
+  pago,
+  falta,
+}: {
+  devido: number
+  pago: number
+  falta: number
+}) {
+  return (
+    <div className="fin-money-strip" aria-label="Resumo financeiro">
+      <span>
+        <small>Devido</small>
+        <b>{formatMoneyBRL(devido)}</b>
+      </span>
+      <span>
+        <small>Pago</small>
+        <b className="is-pago">{formatMoneyBRL(pago)}</b>
+      </span>
+      <span>
+        <small>Falta</small>
+        <b className={falta > 0 ? 'is-falta' : ''}>{formatMoneyBRL(falta)}</b>
+      </span>
+    </div>
+  )
+}
+
 export function FinanceiroPage() {
   const { profile } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -60,9 +104,11 @@ export function FinanceiroPage() {
 
   const [diretorias, setDiretorias] = useState<Profile[]>([])
   const [coordenadores, setCoordenadores] = useState<Coordenador[]>([])
+  const [lideres, setLideres] = useState<Lider[]>([])
   const [devidos, setDevidos] = useState<FinanceiroValorDevido[]>([])
   const [lancamentos, setLancamentos] = useState<FinanceiroLancamento[]>([])
-  const [expandedId, setExpandedId] = useState<string | null>(diretoriaScope)
+  const [expandedDirId, setExpandedDirId] = useState<string | null>(diretoriaScope)
+  const [expandedCoordIds, setExpandedCoordIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [localMode, setLocalMode] = useState(false)
@@ -72,11 +118,12 @@ export function FinanceiroPage() {
   const [devidoDraft, setDevidoDraft] = useState<Record<string, string>>({})
   const [savingDevido, setSavingDevido] = useState<string | null>(null)
   const [savingInline, setSavingInline] = useState<string | null>(null)
+  const [payTargetKey, setPayTargetKey] = useState<string | null>(null)
 
-  // Modal global
   const [modalOpen, setModalOpen] = useState(false)
   const [modalDirId, setModalDirId] = useState('')
   const [modalCoordId, setModalCoordId] = useState('')
+  const [modalLiderId, setModalLiderId] = useState('')
   const [modalAmount, setModalAmount] = useState('')
   const [modalMethod, setModalMethod] = useState<FinanceiroForma>('pix')
   const [modalFile, setModalFile] = useState<File | null>(null)
@@ -93,9 +140,7 @@ export function FinanceiroPage() {
   }
 
   useEffect(() => {
-    if (diretoriaScope) {
-      setExpandedId(diretoriaScope)
-    }
+    if (diretoriaScope) setExpandedDirId(diretoriaScope)
   }, [diretoriaScope])
 
   useEffect(() => {
@@ -127,6 +172,7 @@ export function FinanceiroPage() {
       const dirIds = dirs.map((d) => d.id)
       if (!dirIds.length) {
         setCoordenadores([])
+        setLideres([])
         setDevidos([])
         setLancamentos([])
         return
@@ -139,36 +185,61 @@ export function FinanceiroPage() {
       const [coordsRes, devidosRows, lancRows] = await Promise.all([
         coordsQuery,
         fetchValoresDevidos(dirIds),
-        fetchLancamentos({ diretoriaIds: dirIds, limit: 50 }),
+        fetchLancamentos({ diretoriaIds: dirIds, limit: 80 }),
       ])
       if (coordsRes.error) throw new Error(coordsRes.error.message)
 
       const coords = (coordsRes.data ?? []) as Coordenador[]
       setCoordenadores(coords)
+
+      let lideresRows: Lider[] = []
+      if (coords.length) {
+        let liderQuery = supabase
+          .from('lideres')
+          .select('*')
+          .eq('ativo', true)
+          .in('coordenador_id', coords.map((c) => c.id))
+          .order('nome')
+        if (diretoriaScope) liderQuery = liderQuery.eq('diretoria_id', diretoriaScope)
+        else liderQuery = liderQuery.in('diretoria_id', dirIds)
+        const liderRes = await liderQuery
+        if (liderRes.error) throw new Error(liderRes.error.message)
+        lideresRows = (liderRes.data ?? []) as Lider[]
+      }
+      setLideres(lideresRows)
       setDevidos(devidosRows)
       setLancamentos(lancRows)
 
       const draft: Record<string, string> = {}
+      for (const c of coords) {
+        const v = devidosRows.find((x) => x.coordenador_id === c.id && !x.lider_id)?.valor_devido ?? 0
+        draft[alvoKey(c.id, null)] = String(v || 0)
+      }
+      for (const l of lideresRows) {
+        if (!l.coordenador_id) continue
+        const v = devidosRows.find((x) => x.lider_id === l.id)?.valor_devido ?? 0
+        draft[alvoKey(l.coordenador_id, l.id)] = String(v || 0)
+      }
+      setDevidoDraft(draft)
+
       const forms: Record<string, InlineForm> = {}
       for (const d of dirs) {
         const list = coords.filter((c) => c.diretoria_id === d.id)
         forms[d.id] = {
           coordId: list[0]?.id ?? '',
+          liderId: '',
           amount: '',
           method: 'pix',
           file: null,
-          visible: true,
         }
       }
-      for (const c of coords) {
-        const v = devidosRows.find((x) => x.coordenador_id === c.id)?.valor_devido ?? 0
-        draft[c.id] = String(v || 0)
-      }
-      setDevidoDraft(draft)
       setInlineForms(forms)
       setLocalMode(isLocalFinanceiroMode())
 
-      if (!expandedId && dirs.length === 1) setExpandedId(dirs[0].id)
+      if (!expandedDirId && dirs.length === 1) setExpandedDirId(dirs[0].id)
+      if (coords.length && expandedCoordIds.size === 0) {
+        setExpandedCoordIds(new Set(coords.slice(0, 3).map((c) => c.id)))
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível carregar o financeiro.')
     } finally {
@@ -181,21 +252,17 @@ export function FinanceiroPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, diretoriaScope, profile?.id])
 
-  const coordByDir = useMemo(() => {
-    const map = new Map<string, Coordenador[]>()
-    for (const c of coordenadores) {
-      const list = map.get(c.diretoria_id) ?? []
-      list.push(c)
-      map.set(c.diretoria_id, list)
-    }
-    return map
-  }, [coordenadores])
-
   const nomeCoord = useMemo(() => {
     const m = new Map<string, string>()
     for (const c of coordenadores) m.set(c.id, c.nome)
     return m
   }, [coordenadores])
+
+  const nomeLider = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const l of lideres) m.set(l.id, l.nome)
+    return m
+  }, [lideres])
 
   const nomeDir = useMemo(() => {
     const m = new Map<string, string>()
@@ -203,78 +270,141 @@ export function FinanceiroPage() {
     return m
   }, [diretorias])
 
+  const hierarquia = useMemo(
+    () => buildHierarquiaFinanceiro(coordenadores, lideres, devidos, lancamentos),
+    [coordenadores, lideres, devidos, lancamentos],
+  )
+
+  const pageTot = useMemo(() => {
+    const alvos: FinanceiroAlvoResumo[] = []
+    for (const b of hierarquia) {
+      alvos.push(b.proprio, ...b.liderancas)
+    }
+    return sumAlvos(alvos)
+  }, [hierarquia])
+
   const cards = useMemo(() => {
     return diretorias.map((d) => {
-      const coords = coordByDir.get(d.id) ?? []
-      const resumos = buildCoordResumos(
-        coords,
-        devidos.filter((x) => x.diretoria_id === d.id),
-        lancamentos.filter((x) => x.diretoria_id === d.id),
-      )
-      return { dir: d, coords, resumos, tot: sumResumos(resumos) }
+      const blocos = hierarquia.filter((b) => b.diretoria_id === d.id)
+      const alvos: FinanceiroAlvoResumo[] = []
+      for (const b of blocos) alvos.push(b.proprio, ...b.liderancas)
+      const tot = sumAlvos(alvos)
+      const liderCount = blocos.reduce((n, b) => n + b.liderancas.length, 0)
+      return { dir: d, blocos, tot, liderCount }
     })
-  }, [diretorias, coordByDir, devidos, lancamentos])
+  }, [diretorias, hierarquia])
 
   const recentList = useMemo(() => {
     return lancamentos.slice(0, 12).map((l) => ({
       ...l,
       coordenador_nome: nomeCoord.get(l.coordenador_id) ?? 'Coordenação',
+      lider_nome: l.lider_id ? (nomeLider.get(l.lider_id) ?? 'Liderança') : undefined,
       diretoria_nome: nomeDir.get(l.diretoria_id) ?? 'Diretoria',
+      alvo_label: labelAlvoLancamento({
+        lider_id: l.lider_id,
+        lider_nome: l.lider_id ? nomeLider.get(l.lider_id) : undefined,
+        coordenador_nome: nomeCoord.get(l.coordenador_id),
+      }),
     }))
-  }, [lancamentos, nomeCoord, nomeDir])
+  }, [lancamentos, nomeCoord, nomeLider, nomeDir])
 
   const modalCoords = useMemo(() => {
     if (!modalDirId) return []
     return coordenadores.filter((c) => c.diretoria_id === modalDirId)
   }, [coordenadores, modalDirId])
 
+  const modalLideres = useMemo(() => {
+    if (!modalCoordId) return []
+    return lideres.filter((l) => l.coordenador_id === modalCoordId)
+  }, [lideres, modalCoordId])
+
   function patchInline(dirId: string, patch: Partial<InlineForm>) {
     setInlineForms((prev) => ({
       ...prev,
-      [dirId]: { ...(prev[dirId] ?? { coordId: '', amount: '', method: 'pix', file: null, visible: true }), ...patch },
+      [dirId]: {
+        ...(prev[dirId] ?? { coordId: '', liderId: '', amount: '', method: 'pix', file: null }),
+        ...patch,
+      },
     }))
   }
 
-  function openModal(preDirId?: string) {
-    const id = preDirId ?? diretoriaScope ?? expandedId ?? diretorias[0]?.id ?? ''
+  function toggleCoord(coordId: string) {
+    setExpandedCoordIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(coordId)) next.delete(coordId)
+      else next.add(coordId)
+      return next
+    })
+  }
+
+  function openPayFor(alvo: FinanceiroAlvoResumo) {
+    setExpandedDirId(alvo.diretoria_id)
+    setExpandedCoordIds((prev) => new Set(prev).add(alvo.coordenador_id))
+    setPayTargetKey(alvo.key)
+    patchInline(alvo.diretoria_id, {
+      coordId: alvo.coordenador_id,
+      liderId: alvo.lider_id ?? '',
+      amount: '',
+      file: null,
+    })
+  }
+
+  function openModal(preDirId?: string, preCoordId?: string, preLiderId?: string) {
+    const id = preDirId ?? diretoriaScope ?? expandedDirId ?? diretorias[0]?.id ?? ''
     setModalDirId(id)
     const coords = coordenadores.filter((c) => c.diretoria_id === id)
-    setModalCoordId(coords[0]?.id ?? '')
+    const coordId = preCoordId ?? coords[0]?.id ?? ''
+    setModalCoordId(coordId)
+    setModalLiderId(preLiderId ?? '')
     setModalAmount('')
     setModalMethod('pix')
     setModalFile(null)
     if (modalFileRef.current) modalFileRef.current.value = ''
     setModalOpen(true)
-    if (id) setExpandedId(id)
+    if (id) setExpandedDirId(id)
   }
 
   function closeModal() {
     setModalOpen(false)
   }
 
-  async function saveDevido(coordId: string, dirId: string, raw?: string) {
+  function upsertDevidoLocal(row: FinanceiroValorDevido) {
+    setDevidos((prev) => {
+      const idx = prev.findIndex(
+        (r) =>
+          r.diretoria_id === row.diretoria_id
+          && r.coordenador_id === row.coordenador_id
+          && (r.lider_id || null) === (row.lider_id || null),
+      )
+      if (idx >= 0) {
+        const next = [...prev]
+        next[idx] = row
+        return next
+      }
+      return [...prev, row]
+    })
+    setDevidoDraft((prev) => ({
+      ...prev,
+      [alvoKey(row.coordenador_id, row.lider_id)]: String(row.valor_devido || 0),
+    }))
+  }
+
+  async function saveDevido(alvo: FinanceiroAlvoResumo, raw?: string) {
     if (!profile) return
-    const valor = parseMoneyInput(raw ?? devidoDraft[coordId] ?? '0')
-    setSavingDevido(coordId)
+    const key = alvo.key
+    const valor = parseMoneyInput(raw ?? devidoDraft[key] ?? '0')
+    setSavingDevido(key)
     setError(null)
     try {
       const row = await upsertValorDevido({
-        diretoriaId: dirId,
-        coordenadorId: coordId,
+        diretoriaId: alvo.diretoria_id,
+        coordenadorId: alvo.coordenador_id,
+        liderId: alvo.lider_id,
         valorDevido: valor,
         travado: true,
         updatedBy: profile.id,
       })
-      setDevidos((prev) => {
-        const idx = prev.findIndex((r) => r.coordenador_id === coordId && r.diretoria_id === dirId)
-        if (idx >= 0) {
-          const next = [...prev]
-          next[idx] = row
-          return next
-        }
-        return [...prev, row]
-      })
-      setDevidoDraft((prev) => ({ ...prev, [coordId]: String(valor) }))
+      upsertDevidoLocal(row)
       setLocalMode(isLocalFinanceiroMode())
       showToast('Valor devido salvo e travado!')
     } catch (err) {
@@ -284,28 +414,22 @@ export function FinanceiroPage() {
     }
   }
 
-  async function unlockDevido(coordId: string, dirId: string) {
+  async function unlockDevido(alvo: FinanceiroAlvoResumo) {
     if (!profile) return
-    const valor = parseMoneyInput(devidoDraft[coordId] ?? '0')
-    setSavingDevido(coordId)
+    const key = alvo.key
+    const valor = parseMoneyInput(devidoDraft[key] ?? '0')
+    setSavingDevido(key)
     setError(null)
     try {
       const row = await upsertValorDevido({
-        diretoriaId: dirId,
-        coordenadorId: coordId,
+        diretoriaId: alvo.diretoria_id,
+        coordenadorId: alvo.coordenador_id,
+        liderId: alvo.lider_id,
         valorDevido: valor,
         travado: false,
         updatedBy: profile.id,
       })
-      setDevidos((prev) => {
-        const idx = prev.findIndex((r) => r.coordenador_id === coordId && r.diretoria_id === dirId)
-        if (idx >= 0) {
-          const next = [...prev]
-          next[idx] = row
-          return next
-        }
-        return [...prev, { ...row, travado: false }]
-      })
+      upsertDevidoLocal(row)
       showToast('Valor destrancado — edite e salve de novo.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao destrancar.')
@@ -329,9 +453,11 @@ export function FinanceiroPage() {
     setSavingInline(dirId)
     setError(null)
     try {
+      const liderId = form.liderId || null
       const row = await createLancamento({
         diretoriaId: dirId,
         coordenadorId: form.coordId,
+        liderId,
         valor,
         forma: form.method,
         file: form.file,
@@ -341,9 +467,14 @@ export function FinanceiroPage() {
       patchInline(dirId, { amount: '', file: null })
       const el = inlineFileRefs.current[dirId]
       if (el) el.value = ''
+      setPayTargetKey(null)
       setLocalMode(isLocalFinanceiroMode())
-      const nome = nomeCoord.get(form.coordId) ?? 'coordenação'
-      showToast(`Pagamento de ${formatMoneyBRL(valor)} abatido de ${nome}!`)
+      const label = labelAlvoLancamento({
+        lider_id: liderId,
+        lider_nome: liderId ? nomeLider.get(liderId) : undefined,
+        coordenador_nome: nomeCoord.get(form.coordId),
+      })
+      showToast(`Pagamento de ${formatMoneyBRL(valor)} abatido de ${label}!`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao lançar pagamento.')
     } finally {
@@ -354,7 +485,7 @@ export function FinanceiroPage() {
   async function submitModal(e: React.FormEvent) {
     e.preventDefault()
     if (!profile || !modalDirId || !modalCoordId) {
-      showToast('Escolha diretoria e coordenação.')
+      showToast('Escolha a coordenação (e liderança, se for o caso).')
       return
     }
     const valor = parseMoneyInput(modalAmount)
@@ -365,9 +496,11 @@ export function FinanceiroPage() {
     setSavingModal(true)
     setError(null)
     try {
+      const liderId = modalLiderId || null
       const row = await createLancamento({
         diretoriaId: modalDirId,
         coordenadorId: modalCoordId,
+        liderId,
         valor,
         forma: modalMethod,
         file: modalFile,
@@ -392,9 +525,13 @@ export function FinanceiroPage() {
 
   async function handleDeleteLancamento(l: FinanceiroLancamento) {
     if (!isAdmin) return
-    const nome = nomeCoord.get(l.coordenador_id) ?? 'coordenação'
+    const label = labelAlvoLancamento({
+      lider_id: l.lider_id,
+      lider_nome: l.lider_id ? nomeLider.get(l.lider_id) : undefined,
+      coordenador_nome: nomeCoord.get(l.coordenador_id),
+    })
     const ok = window.confirm(
-      `Apagar o lançamento de ${formatMoneyBRL(l.valor)} em ${nome}?\nEssa ação não pode ser desfeita.`,
+      `Apagar o lançamento de ${formatMoneyBRL(l.valor)} em ${label}?\nEssa ação não pode ser desfeita.`,
     )
     if (!ok) return
     setDeletingId(l.id)
@@ -410,17 +547,271 @@ export function FinanceiroPage() {
     }
   }
 
+  function renderAlvoRow(alvo: FinanceiroAlvoResumo, nested = false) {
+    const key = alvo.key
+    const travado = alvo.travado
+    const saving = savingDevido === key
+    return (
+      <div key={key} className={`fin-alvo${nested ? ' is-lider' : ' is-coord'}`}>
+        <div className="fin-alvo-main">
+          <div className="fin-alvo-id">
+            <span className={`fin-badge${nested ? ' is-lider' : ''}`}>
+              {nested ? 'Liderança' : 'Coordenação'}
+            </span>
+            <strong>{alvo.nome}</strong>
+          </div>
+          <MoneyStrip devido={alvo.valor_devido} pago={alvo.pago} falta={alvo.falta} />
+        </div>
+        <div className="fin-alvo-actions">
+          <div className={`fin-due-row${travado ? ' is-locked' : ''}`}>
+            <div className="fin-due-box">
+              <span>R$</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={devidoDraft[key] ?? '0'}
+                disabled={travado || saving}
+                readOnly={travado}
+                onChange={(e) =>
+                  setDevidoDraft((prev) => ({
+                    ...prev,
+                    [key]: e.target.value,
+                  }))
+                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !travado) {
+                    e.preventDefault()
+                    void saveDevido(alvo, (e.target as HTMLInputElement).value)
+                  }
+                }}
+                aria-label={`Valor devido de ${alvo.nome}`}
+              />
+            </div>
+            {travado ? (
+              <button
+                type="button"
+                className="fin-lock-btn is-locked"
+                title="Destrancar valor"
+                disabled={saving}
+                onClick={() => void unlockDevido(alvo)}
+              >
+                <Lock size={13} strokeWidth={2.4} />
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="fin-save-due"
+                  disabled={saving}
+                  onClick={() => void saveDevido(alvo)}
+                >
+                  {saving ? '…' : 'Salvar'}
+                </button>
+                <button
+                  type="button"
+                  className="fin-lock-btn"
+                  title="Destrancado"
+                  disabled
+                  aria-hidden
+                >
+                  <LockOpen size={13} strokeWidth={2.2} />
+                </button>
+              </>
+            )}
+          </div>
+          <button
+            type="button"
+            className="fin-pay-btn"
+            onClick={() => openPayFor(alvo)}
+          >
+            <Wallet size={13} />
+            Pagar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  function renderCoordCard(bloco: FinanceiroCoordBloco, dirId: string) {
+    const open = expandedCoordIds.has(bloco.coordenador_id)
+    const form = inlineForms[dirId]
+    const showPay =
+      payTargetKey
+      && (payTargetKey === bloco.proprio.key
+        || bloco.liderancas.some((l) => l.key === payTargetKey))
+      && form?.coordId === bloco.coordenador_id
+
+    return (
+      <div key={bloco.coordenador_id} className={`fin-coord-card${open ? ' is-open' : ''}`}>
+        <button
+          type="button"
+          className="fin-coord-head"
+          onClick={() => toggleCoord(bloco.coordenador_id)}
+          aria-expanded={open}
+        >
+          <div className="fin-coord-head-left">
+            <span className="fin-coord-avatar" aria-hidden>{initials(bloco.nome)}</span>
+            <span>
+              <strong>{bloco.nome}</strong>
+              <em>
+                {bloco.liderancas.length}{' '}
+                {bloco.liderancas.length === 1 ? 'liderança' : 'lideranças'}
+              </em>
+            </span>
+          </div>
+          <div className="fin-coord-head-right">
+            <MoneyStrip
+              devido={bloco.totalLeitura.devido}
+              pago={bloco.totalLeitura.pago}
+              falta={bloco.totalLeitura.falta}
+            />
+            <span className="fin-acc-chevron" aria-hidden>
+              {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </span>
+          </div>
+        </button>
+
+        {open ? (
+          <div className="fin-coord-body">
+            {renderAlvoRow(bloco.proprio, false)}
+
+            <div className="fin-lider-block">
+              <div className="fin-lider-block-head">
+                <Users size={13} />
+                <span>Lideranças</span>
+              </div>
+              {!bloco.liderancas.length ? (
+                <p className="fin-empty-line">Nenhuma liderança nesta coordenação.</p>
+              ) : (
+                bloco.liderancas.map((l) => renderAlvoRow(l, true))
+              )}
+            </div>
+
+            <div className="fin-coord-total">
+              <span>Total da coordenação</span>
+              <MoneyStrip
+                devido={bloco.totalLeitura.devido}
+                pago={bloco.totalLeitura.pago}
+                falta={bloco.totalLeitura.falta}
+              />
+              <small>Soma da coordenação + lideranças (só leitura)</small>
+            </div>
+
+            {showPay && form ? (
+              <div className="fin-inline-form">
+                <div className="fin-inline-title">
+                  <Wallet size={12} />
+                  <span>Novo pagamento</span>
+                </div>
+                <div className="fin-inline-grid">
+                  <label className="fin-field">
+                    <span>Alvo</span>
+                    <select
+                      value={form.liderId}
+                      onChange={(e) => patchInline(dirId, { liderId: e.target.value })}
+                    >
+                      <option value="">Esta coordenação ({bloco.nome})</option>
+                      {bloco.liderancas.map((l) => (
+                        <option key={l.lider_id!} value={l.lider_id!}>
+                          Liderança {l.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="fin-field">
+                    <span>Valor pago</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="R$ 0,00"
+                      value={form.amount}
+                      onChange={(e) => patchInline(dirId, { amount: e.target.value })}
+                    />
+                  </label>
+                  <div className="fin-field">
+                    <span>Forma</span>
+                    <div className="fin-forma-toggle">
+                      <button
+                        type="button"
+                        className={form.method === 'dinheiro' ? 'is-on is-light' : ''}
+                        onClick={() => patchInline(dirId, { method: 'dinheiro' })}
+                      >
+                        R$ Dinheiro
+                      </button>
+                      <button
+                        type="button"
+                        className={form.method === 'pix' ? 'is-on is-dark' : ''}
+                        onClick={() => patchInline(dirId, { method: 'pix' })}
+                      >
+                        PIX
+                      </button>
+                    </div>
+                  </div>
+                  <div className="fin-field">
+                    <span>Comprovante</span>
+                    <button
+                      type="button"
+                      className="fin-attach"
+                      onClick={() => inlineFileRefs.current[dirId]?.click()}
+                    >
+                      <Paperclip size={12} />
+                      <span className="fin-attach-text">
+                        {form.file?.name || 'Anexar imagem ou PDF'}
+                      </span>
+                    </button>
+                    <input
+                      ref={(el) => {
+                        inlineFileRefs.current[dirId] = el
+                      }}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      hidden
+                      onChange={(e) =>
+                        patchInline(dirId, { file: e.target.files?.[0] ?? null })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="fin-inline-actions">
+                  <button
+                    type="button"
+                    className="fin-btn-ghost"
+                    onClick={() => {
+                      setPayTargetKey(null)
+                      patchInline(dirId, { amount: '', file: null })
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className="fin-cta fin-cta-sm"
+                    disabled={savingInline === dirId}
+                    onClick={() => void submitInline(dirId)}
+                  >
+                    {savingInline === dirId ? 'Salvando…' : 'Confirmar pagamento'}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
   if (loading) return <Spinner />
 
   return (
     <div className="fin-page">
-      {/* PAGE HEADER */}
       <div className="fin-head">
         <div>
           <p className="fin-kicker">Financeiro</p>
           <h1>Pagamentos</h1>
           <p className="fin-sub">
-            Cada coordenação tem um valor. Veja quanto falta pagar e registre os pagamentos.
+            Cada coordenação e cada liderança têm valor devido. A diretoria só agrupa os totais.
           </p>
         </div>
         <button type="button" className="fin-cta" onClick={() => openModal()}>
@@ -429,11 +820,27 @@ export function FinanceiroPage() {
         </button>
       </div>
 
+      <div className="fin-kpi-row" aria-label="Totais gerais">
+        <div className="fin-kpi">
+          <small>Total devido</small>
+          <strong>{formatMoneyBRL(pageTot.devido)}</strong>
+        </div>
+        <div className="fin-kpi is-pago">
+          <small>Pago</small>
+          <strong>{formatMoneyBRL(pageTot.pago)}</strong>
+        </div>
+        <div className="fin-kpi is-falta">
+          <small>A pagar</small>
+          <strong>{formatMoneyBRL(pageTot.falta)}</strong>
+        </div>
+      </div>
+
       {error ? <p className="form-error">{error}</p> : null}
       {localMode ? (
         <p className="fin-local-tip">
           Dados neste navegador até rodar{' '}
-          <code>supabase/diagnosticos/financeiro_coordenador_run.sql</code>.
+          <code>supabase/diagnosticos/financeiro_liderancas_run.sql</code>
+          {' '}(e o SQL base do financeiro, se ainda não rodou).
         </p>
       ) : null}
 
@@ -441,17 +848,15 @@ export function FinanceiroPage() {
         <EmptyState title="Nenhuma diretora" description="Cadastre diretorias para usar o financeiro." />
       ) : (
         <>
-          {/* DIRECTOR ACCORDION CARDS */}
           <div className="fin-dir-list">
-            {cards.map(({ dir, coords, resumos, tot }) => {
-              const open = expandedId === dir.id
-              const form = inlineForms[dir.id]
+            {cards.map(({ dir, blocos, tot, liderCount }) => {
+              const open = expandedDirId === dir.id
               return (
                 <div key={dir.id} className={`fin-acc${open ? ' is-open' : ''}`}>
                   <button
                     type="button"
                     className="fin-acc-head"
-                    onClick={() => setExpandedId(open ? null : dir.id)}
+                    onClick={() => setExpandedDirId(open ? null : dir.id)}
                     aria-expanded={open}
                   >
                     <div className="fin-acc-left">
@@ -461,18 +866,24 @@ export function FinanceiroPage() {
                       <span className="fin-acc-copy">
                         <strong>{dir.nome}</strong>
                         <em>
-                          {coords.length} {coords.length === 1 ? 'coordenação' : 'coordenações'}
+                          {blocos.length} {blocos.length === 1 ? 'coordenação' : 'coordenações'}
+                          {' · '}
+                          {liderCount} {liderCount === 1 ? 'liderança' : 'lideranças'}
                         </em>
                       </span>
                     </div>
                     <div className="fin-acc-right">
-                      <span className="fin-acc-money is-apagar">
-                        <small>A pagar</small>
-                        <b>{formatMoneyBRL(tot.falta)}</b>
+                      <span className="fin-acc-money">
+                        <small>Devido</small>
+                        <b>{formatMoneyBRL(tot.devido)}</b>
                       </span>
                       <span className="fin-acc-money is-pago">
                         <small>Pago</small>
                         <b>{formatMoneyBRL(tot.pago)}</b>
+                      </span>
+                      <span className="fin-acc-money is-apagar">
+                        <small>A pagar</small>
+                        <b>{formatMoneyBRL(tot.falta)}</b>
                       </span>
                       <span className="fin-acc-chevron" aria-hidden>
                         {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -485,7 +896,7 @@ export function FinanceiroPage() {
                       <div className="fin-acc-body-head">
                         <div>
                           <h2>{dir.nome}</h2>
-                          <p>Defina o valor de cada coordenação e acompanhe o que falta pagar.</p>
+                          <p>Defina o devido de cada coordenação e liderança. Totais acima são só leitura.</p>
                         </div>
                         <button
                           type="button"
@@ -493,217 +904,15 @@ export function FinanceiroPage() {
                           onClick={() => openModal(dir.id)}
                         >
                           <Plus size={10} strokeWidth={3} />
-                          Lançar nesta diretoria
+                          Lançar pagamento
                         </button>
                       </div>
 
-                      {/* INLINE PAYMENT FORM */}
-                      {form?.visible !== false ? (
-                        <div className="fin-inline-form">
-                          <div className="fin-inline-title">
-                            <Wallet size={12} />
-                            <span>Novo pagamento</span>
-                          </div>
-                          <div className="fin-inline-grid">
-                            <label className="fin-field">
-                              <span>Coordenação</span>
-                              <select
-                                value={form?.coordId ?? ''}
-                                onChange={(e) => patchInline(dir.id, { coordId: e.target.value })}
-                              >
-                                {!coords.length ? <option value="">Sem coordenações</option> : null}
-                                {coords.map((c) => (
-                                  <option key={c.id} value={c.id}>
-                                    {c.nome}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                            <label className="fin-field">
-                              <span>Valor pago</span>
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="R$ 0,00"
-                                value={form?.amount ?? ''}
-                                onChange={(e) => patchInline(dir.id, { amount: e.target.value })}
-                              />
-                            </label>
-                            <div className="fin-field">
-                              <span>Forma</span>
-                              <div className="fin-forma-toggle">
-                                <button
-                                  type="button"
-                                  className={form?.method === 'dinheiro' ? 'is-on is-light' : ''}
-                                  onClick={() => patchInline(dir.id, { method: 'dinheiro' })}
-                                >
-                                  R$ Dinheiro
-                                </button>
-                                <button
-                                  type="button"
-                                  className={form?.method === 'pix' ? 'is-on is-dark' : ''}
-                                  onClick={() => patchInline(dir.id, { method: 'pix' })}
-                                >
-                                  PIX
-                                </button>
-                              </div>
-                            </div>
-                            <div className="fin-field">
-                              <span>Comprovante</span>
-                              <button
-                                type="button"
-                                className="fin-attach"
-                                onClick={() => inlineFileRefs.current[dir.id]?.click()}
-                              >
-                                <Paperclip size={12} />
-                                <span className="fin-attach-text">
-                                  {form?.file?.name || 'Anexar imagem ou PDF'}
-                                </span>
-                              </button>
-                              <input
-                                ref={(el) => {
-                                  inlineFileRefs.current[dir.id] = el
-                                }}
-                                type="file"
-                                accept="image/jpeg,image/png,image/webp,application/pdf"
-                                hidden
-                                onChange={(e) =>
-                                  patchInline(dir.id, { file: e.target.files?.[0] ?? null })
-                                }
-                              />
-                            </div>
-                          </div>
-                          <div className="fin-inline-actions">
-                            <button
-                              type="button"
-                              className="fin-btn-ghost"
-                              onClick={() =>
-                                patchInline(dir.id, { amount: '', file: null })
-                              }
-                            >
-                              Cancelar
-                            </button>
-                            <button
-                              type="button"
-                              className="fin-cta fin-cta-sm"
-                              disabled={savingInline === dir.id}
-                              onClick={() => void submitInline(dir.id)}
-                            >
-                              {savingInline === dir.id ? 'Salvando…' : 'Confirmar pagamento'}
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {/* COORDINATORS TABLE */}
-                      {!resumos.length ? (
+                      {!blocos.length ? (
                         <p className="fin-empty-line">Nenhuma coordenação ativa nesta diretoria.</p>
                       ) : (
-                        <div className="fin-table-card">
-                          <div className="fin-table-scroll">
-                            <table className="fin-tbl">
-                              <thead>
-                                <tr>
-                                  <th>Coordenação</th>
-                                  <th className="is-center">Valor devido</th>
-                                  <th className="is-center">Pago</th>
-                                  <th className="is-center">Falta</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {resumos.map((r) => {
-                                  const devidoRow = devidos.find(
-                                    (d) =>
-                                      d.coordenador_id === r.coordenador_id &&
-                                      d.diretoria_id === dir.id,
-                                  )
-                                  const travado = Boolean(devidoRow?.travado)
-                                  const saving = savingDevido === r.coordenador_id
-                                  return (
-                                    <tr key={r.coordenador_id}>
-                                      <td className="fin-tbl-name">{r.nome}</td>
-                                      <td className="is-center">
-                                        <div className={`fin-due-row${travado ? ' is-locked' : ''}`}>
-                                          <div className="fin-due-box">
-                                            <span>R$</span>
-                                            <input
-                                              type="number"
-                                              step="0.01"
-                                              min="0"
-                                              value={devidoDraft[r.coordenador_id] ?? '0'}
-                                              disabled={travado || saving}
-                                              readOnly={travado}
-                                              onChange={(e) =>
-                                                setDevidoDraft((prev) => ({
-                                                  ...prev,
-                                                  [r.coordenador_id]: e.target.value,
-                                                }))
-                                              }
-                                              onKeyDown={(e) => {
-                                                if (e.key === 'Enter' && !travado) {
-                                                  e.preventDefault()
-                                                  void saveDevido(
-                                                    r.coordenador_id,
-                                                    dir.id,
-                                                    (e.target as HTMLInputElement).value,
-                                                  )
-                                                }
-                                              }}
-                                              aria-label={`Valor devido de ${r.nome}`}
-                                            />
-                                          </div>
-                                          {travado ? (
-                                            <button
-                                              type="button"
-                                              className="fin-lock-btn is-locked"
-                                              title="Destrancar valor"
-                                              disabled={saving}
-                                              onClick={() =>
-                                                void unlockDevido(r.coordenador_id, dir.id)
-                                              }
-                                            >
-                                              <Lock size={13} strokeWidth={2.4} />
-                                            </button>
-                                          ) : (
-                                            <>
-                                              <button
-                                                type="button"
-                                                className="fin-save-due"
-                                                disabled={saving}
-                                                onClick={() =>
-                                                  void saveDevido(r.coordenador_id, dir.id)
-                                                }
-                                              >
-                                                {saving ? '…' : 'Salvar'}
-                                              </button>
-                                              <button
-                                                type="button"
-                                                className="fin-lock-btn"
-                                                title="Destrancado"
-                                                disabled
-                                                aria-hidden
-                                              >
-                                                <LockOpen size={13} strokeWidth={2.2} />
-                                              </button>
-                                            </>
-                                          )}
-                                        </div>
-                                      </td>
-                                      <td className="is-center fin-tbl-pago">
-                                        {formatMoneyBRL(r.pago)}
-                                      </td>
-                                      <td
-                                        className={`is-center fin-tbl-falta${r.falta > 0 ? ' has-falta' : ''}`}
-                                      >
-                                        {formatMoneyBRL(r.falta)}
-                                      </td>
-                                    </tr>
-                                  )
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
+                        <div className="fin-coord-list">
+                          {blocos.map((b) => renderCoordCard(b, dir.id))}
                         </div>
                       )}
                     </div>
@@ -713,7 +922,6 @@ export function FinanceiroPage() {
             })}
           </div>
 
-          {/* RECENT LOGS */}
           <section className="fin-recent">
             <div className="fin-recent-head">
               <h2>Últimos lançamentos</h2>
@@ -729,7 +937,7 @@ export function FinanceiroPage() {
                 {recentList.map((l) => (
                   <div key={l.id} className="fin-log-card">
                     <div>
-                      <p className="fin-log-name">{l.coordenador_nome}</p>
+                      <p className="fin-log-name">{l.alvo_label}</p>
                       <p className="fin-log-meta">
                         {l.diretoria_nome} · {fmtWhen(l.created_at)}
                       </p>
@@ -767,7 +975,6 @@ export function FinanceiroPage() {
         </>
       )}
 
-      {/* GLOBAL PAYMENT MODAL */}
       {modalOpen ? (
         <div className="fin-modal-backdrop" role="presentation" onClick={closeModal}>
           <div
@@ -787,37 +994,57 @@ export function FinanceiroPage() {
               </button>
             </div>
             <form className="fin-modal-body" onSubmit={(e) => void submitModal(e)}>
-              <label className="fin-field">
-                <span>Diretoria</span>
-                <select
-                  value={modalDirId}
-                  onChange={(e) => {
-                    const id = e.target.value
-                    setModalDirId(id)
-                    const first = coordenadores.find((c) => c.diretoria_id === id)
-                    setModalCoordId(first?.id ?? '')
-                  }}
-                  disabled={Boolean(diretoriaScope)}
-                >
-                  {diretorias.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.nome}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {isAdmin ? (
+                <label className="fin-field">
+                  <span>Diretoria (agrupamento)</span>
+                  <select
+                    value={modalDirId}
+                    onChange={(e) => {
+                      const id = e.target.value
+                      setModalDirId(id)
+                      const first = coordenadores.find((c) => c.diretoria_id === id)
+                      setModalCoordId(first?.id ?? '')
+                      setModalLiderId('')
+                    }}
+                  >
+                    {diretorias.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.nome}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
 
               <label className="fin-field">
                 <span>Coordenação</span>
                 <select
                   value={modalCoordId}
-                  onChange={(e) => setModalCoordId(e.target.value)}
+                  onChange={(e) => {
+                    setModalCoordId(e.target.value)
+                    setModalLiderId('')
+                  }}
                   required
                 >
                   {!modalCoords.length ? <option value="">Sem coordenações</option> : null}
                   {modalCoords.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.nome}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="fin-field">
+                <span>Alvo do pagamento</span>
+                <select
+                  value={modalLiderId}
+                  onChange={(e) => setModalLiderId(e.target.value)}
+                >
+                  <option value="">Esta coordenação</option>
+                  {modalLideres.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      Liderança {l.nome}
                     </option>
                   ))}
                 </select>
@@ -883,7 +1110,6 @@ export function FinanceiroPage() {
         </div>
       ) : null}
 
-      {/* TOAST */}
       <div className={`fin-toast${toast ? ' is-on' : ''}`} role="status">
         <span className="fin-toast-dot" aria-hidden />
         <span>{toast ?? ''}</span>
