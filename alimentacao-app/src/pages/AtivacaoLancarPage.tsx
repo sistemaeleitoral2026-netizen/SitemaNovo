@@ -27,11 +27,9 @@ import {
 import { FormigasFotoField } from '../components/FormigasFotoField'
 import { FormigasLockChip, FormigasSectionLock } from '../components/FormigasSectionLock'
 import {
-  canEditCasaEndereco,
   claimNextAtivacao,
   fetchAtivacaoPessoa,
   casaStatusLabel,
-  hasCasaEnderecoPreenchido,
   hydrateFormigasSectionDates,
   releaseAtivacaoClaim,
   saveAtivacao,
@@ -143,17 +141,14 @@ export function AtivacaoLancarPage() {
 
   const isFormActive = selected !== null
   const waUrl = buildWhatsAppUrl(selected?.telefone)
-  // Qualquer formiga edita; o “cadeado” só mostra quem alterou por último
+  // Qualquer formiga edita qualquer parte; o cadeado só mostra quem alterou por último
   const editWa = true
   const editCarros = true
   const editCasa = true
   const editLinks = true
-  const isStaff = hasRole(profile, ['admin', 'diretoria'])
   // Endereço opcional (sim/talvez): mostra campos, sem obrigar CEP/rua
   const showCasaAddr = casaStatus === 'sim' || casaStatus === 'talvez'
-  // Endereço já preenchido: só dona da seção casa (ou admin/diretoria) altera
-  const editCasaAddr = editCasa && canEditCasaEndereco(selected, profile?.id, isStaff)
-  const casaAddrLocked = Boolean(selected && hasCasaEnderecoPreenchido(selected) && !editCasaAddr)
+  const editCasaAddr = editCasa
   const lockChipProps = {
     userId: profile?.id,
   }
@@ -992,24 +987,17 @@ export function AtivacaoLancarPage() {
               </div>
               {isFormActive && showCasaAddr && (
                 <div className="fl-casa-addr">
-                  {casaAddrLocked ? (
-                    <p className="fl-hint fl-lock-hint" role="status">
-                      Endereço já preenchido nesta ficha — outras formigas não alteram. Fotos podem ser vistas;
-                      para excluir uma foto salva, confirme e isso entra no histórico.
-                    </p>
-                  ) : (
-                    <p className="fl-hint">
-                      {casaStatus === 'talvez'
-                        ? 'Endereço opcional. Se quiser, informe CEP/rua para aparecer no mapa — basta marcar Talvez.'
-                        : (selected?.tipo === 'eleitor'
-                          ? `Endereço opcional. Para “Possui adesivo”, a foto já basta${
-                              (selected.cep || selected.endereco)
-                                ? ' (pode ajustar o endereço da ficha se quiser).'
-                                : '.'
-                            }`
-                          : 'Endereço opcional. Para “Possui adesivo”, a foto já basta; CEP/rua só se quiser no mapa.')}
-                    </p>
-                  )}
+                  <p className="fl-hint">
+                    {casaStatus === 'talvez'
+                      ? 'Endereço opcional. Qualquer formiga pode preencher ou corrigir. Remover foto salva pede confirmação e vai pro histórico.'
+                      : (selected?.tipo === 'eleitor'
+                        ? `Endereço opcional — qualquer formiga pode corrigir. Para “Possui adesivo”, a foto já basta${
+                            (selected.cep || selected.endereco)
+                              ? ' (pode ajustar o endereço da ficha se quiser).'
+                              : '.'
+                          }`
+                        : 'Endereço opcional — qualquer formiga pode preencher ou corrigir; CEP/rua só se quiser no mapa.')}
+                  </p>
                   <div className="fl-casa-addr-grid">
                     <label className="fl-field fl-casa-cep">
                       <span>CEP</span>
