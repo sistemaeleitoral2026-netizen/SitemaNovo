@@ -14,6 +14,7 @@ export function FormigasFotoField({
   onNewFilesChange,
   disabled,
   requiredHint,
+  confirmRemoveKept = true,
 }: {
   label: string
   keptPaths: string[]
@@ -22,12 +23,15 @@ export function FormigasFotoField({
   onNewFilesChange: (files: File[]) => void
   disabled?: boolean
   requiredHint?: string
+  /** Pede confirmação ao remover foto já salva (evita exclusão sem querer). */
+  confirmRemoveKept?: boolean
 }) {
   const inputId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const [kept, setKept] = useState<KeptFoto[]>([])
   const [news, setNews] = useState<NewFoto[]>([])
   const [lightbox, setLightbox] = useState<string | null>(null)
+  const [pendingRemove, setPendingRemove] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -76,8 +80,18 @@ export function FormigasFotoField({
     if (inputRef.current) inputRef.current.value = ''
   }
 
-  function removeKept(path: string) {
+  function requestRemoveKept(path: string) {
+    if (confirmRemoveKept) {
+      setPendingRemove(path)
+      return
+    }
     onKeptPathsChange(keptPaths.filter((p) => p !== path))
+  }
+
+  function confirmRemoveKeptPath() {
+    if (!pendingRemove) return
+    onKeptPathsChange(keptPaths.filter((p) => p !== pendingRemove))
+    setPendingRemove(null)
   }
 
   function removeNew(idx: number) {
@@ -101,7 +115,7 @@ export function FormigasFotoField({
               <img src={f.url} alt="" loading="lazy" decoding="async" />
             </button>
             {!disabled && (
-              <button type="button" className="fl-foto-remove" onClick={() => removeKept(f.path)} aria-label="Remover foto">
+              <button type="button" className="fl-foto-remove" onClick={() => requestRemoveKept(f.path)} aria-label="Remover foto">
                 <X size={12} />
               </button>
             )}
@@ -137,6 +151,34 @@ export function FormigasFotoField({
           </label>
         )}
       </div>
+
+      {pendingRemove
+        && createPortal(
+          <div className="fl-dirty-overlay" role="presentation" onClick={() => setPendingRemove(null)}>
+            <div
+              className="fl-dirty-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="fl-foto-remove-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 id="fl-foto-remove-title">Remover foto?</h3>
+              <p>
+                Essa foto já está salva na ficha. Se remover e salvar, ela some do registro e fica no histórico
+                quem tirou. Tem certeza?
+              </p>
+              <div className="fl-dirty-actions">
+                <button type="button" className="fl-btn-danger-outline" onClick={confirmRemoveKeptPath}>
+                  Sim, remover
+                </button>
+                <button type="button" className="fl-btn-secondary" onClick={() => setPendingRemove(null)}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {lightbox
         && createPortal(
