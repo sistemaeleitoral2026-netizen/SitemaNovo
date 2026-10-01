@@ -721,7 +721,8 @@ function makeAlvo(input: {
     valor_devido,
     pago,
     falta,
-    travado: Boolean(devidoRow?.travado),
+    // R$ 0 não fica “travado” na UI — senão o campo vira só texto
+    travado: Boolean(devidoRow?.travado) && valor_devido > 0,
   }
 }
 
