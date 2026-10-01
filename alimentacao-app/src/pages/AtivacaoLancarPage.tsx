@@ -313,11 +313,6 @@ export function AtivacaoLancarPage() {
       setError('Adicione pelo menos 1 foto da casa adesivada.')
       return false
     }
-    if (editWa && contatoStatus === 'sim' && !hasWhatsappPhone(selected.telefone)) {
-      setError('Não dá para marcar como acionada sem telefone cadastrado. Coloque o número na ficha ou marque Sem WhatsApp.')
-      return false
-    }
-
     setSaving(true)
     setError(null)
     const snapshot = selected
@@ -742,7 +737,7 @@ export function AtivacaoLancarPage() {
                 </p>
                 {!hasWhatsappPhone(selected.telefone) && (
                   <p className="fl-hint fl-lock-hint">
-                    Sem telefone na ficha não dá para marcar como acionada. Cadastre o número ou marque Sem WhatsApp.
+                    Sem telefone na ficha: dá para marcar “Já acionada”, mas o botão de enviar mensagem fica indisponível.
                   </p>
                 )}
                 {selected.formigas_wa_by ? (
@@ -773,17 +768,13 @@ export function AtivacaoLancarPage() {
                   <div className="fl-wa-segment fl-wa-segment-3">
                     <SegmentedControl
                       disabled={!editWa}
-                      disabledValues={hasWhatsappPhone(selected.telefone) ? [] : ['sim']}
                       options={[
                         { label: 'Não acionada', value: 'nao' },
                         { label: 'Já acionada', value: 'sim' },
                         { label: 'Sem WhatsApp', value: 'sem' },
                       ]}
                       value={contatoStatus}
-                      onChange={(v) => {
-                        if (v === 'sim' && !hasWhatsappPhone(selected.telefone)) return
-                        setContatoStatus(v as ContatoWhatsappStatus)
-                      }}
+                      onChange={(v) => setContatoStatus(v as ContatoWhatsappStatus)}
                     />
                   </div>
                 </div>
