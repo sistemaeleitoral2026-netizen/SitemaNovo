@@ -27,9 +27,11 @@ import {
 import { FormigasFotoField } from '../components/FormigasFotoField'
 import { FormigasLockChip, FormigasSectionLock } from '../components/FormigasSectionLock'
 import {
+  canEditCasaEndereco,
   claimNextAtivacao,
   fetchAtivacaoPessoa,
   casaStatusLabel,
+  hasCasaEnderecoPreenchido,
   hydrateFormigasSectionDates,
   releaseAtivacaoClaim,
   saveAtivacao,
@@ -146,9 +148,12 @@ export function AtivacaoLancarPage() {
   const editCarros = true
   const editCasa = true
   const editLinks = true
+  const isStaff = hasRole(profile, ['admin', 'diretoria'])
   // Endereço opcional (sim/talvez): mostra campos, sem obrigar CEP/rua
   const showCasaAddr = casaStatus === 'sim' || casaStatus === 'talvez'
-  const editCasaAddr = editCasa
+  // Endereço já preenchido: só dona da seção casa (ou admin/diretoria) altera
+  const editCasaAddr = editCasa && canEditCasaEndereco(selected, profile?.id, isStaff)
+  const casaAddrLocked = Boolean(selected && hasCasaEnderecoPreenchido(selected) && !editCasaAddr)
   const lockChipProps = {
     userId: profile?.id,
   }
@@ -969,22 +974,42 @@ export function AtivacaoLancarPage() {
                     { label: 'Possui adesivo', value: 'sim' },
                   ]}
                   value={casaStatus}
-                  onChange={(v) => setCasaStatus(v as AdesivosCasaStatus)}
+                  onChange={(v) => {
+                    const next = v as AdesivosCasaStatus
+                    if (
+                      next === 'nao'
+                      && (casaStatus === 'sim' || casaStatus === 'talvez')
+                      && (fotoCasaKeep.length > 0 || fotoCasaFiles.length > 0)
+                    ) {
+                      const ok = window.confirm(
+                        'Marcar “Não possui” remove as fotos do adesivo residencial ao salvar. Tem certeza?',
+                      )
+                      if (!ok) return
+                    }
+                    setCasaStatus(next)
+                  }}
                 />
               </div>
               {isFormActive && showCasaAddr && (
                 <div className="fl-casa-addr">
-                  <p className="fl-hint">
-                    {casaStatus === 'talvez'
-                      ? 'Endereço opcional. Se quiser, informe CEP/rua para aparecer no mapa — basta marcar Talvez.'
-                      : (selected?.tipo === 'eleitor'
-                        ? `Endereço opcional. Para “Possui adesivo”, a foto já basta${
-                            (selected.cep || selected.endereco)
-                              ? ' (pode ajustar o endereço da ficha se quiser).'
-                              : '.'
-                          }`
-                        : 'Endereço opcional. Para “Possui adesivo”, a foto já basta; CEP/rua só se quiser no mapa.')}
-                  </p>
+                  {casaAddrLocked ? (
+                    <p className="fl-hint fl-lock-hint" role="status">
+                      Endereço já preenchido nesta ficha — outras formigas não alteram. Fotos podem ser vistas;
+                      para excluir uma foto salva, confirme e isso entra no histórico.
+                    </p>
+                  ) : (
+                    <p className="fl-hint">
+                      {casaStatus === 'talvez'
+                        ? 'Endereço opcional. Se quiser, informe CEP/rua para aparecer no mapa — basta marcar Talvez.'
+                        : (selected?.tipo === 'eleitor'
+                          ? `Endereço opcional. Para “Possui adesivo”, a foto já basta${
+                              (selected.cep || selected.endereco)
+                                ? ' (pode ajustar o endereço da ficha se quiser).'
+                                : '.'
+                            }`
+                          : 'Endereço opcional. Para “Possui adesivo”, a foto já basta; CEP/rua só se quiser no mapa.')}
+                    </p>
+                  )}
                   <div className="fl-casa-addr-grid">
                     <label className="fl-field fl-casa-cep">
                       <span>CEP</span>
