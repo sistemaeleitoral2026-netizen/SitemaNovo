@@ -6922,13 +6922,22 @@ button.fichas-count.equipe-drill-count.zero:hover {
   line-height: 1.2;
   cursor: pointer;
   transition: .15s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
-.fl-segment button:hover { color: #334155; background: rgba(226, 232, 240, .6); }
+.fl-segment button:hover:not(:disabled) { color: #334155; background: rgba(226, 232, 240, .6); }
+.fl-segment button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
 .fl-segment button.is-active {
   background: #fff;
   color: #1e293b;
   border: 1px solid rgba(226, 232, 240, .8);
   box-shadow: 0 1px 2px rgba(15, 23, 42, .06);
+}
+.fl-segment button.is-active:disabled {
+  opacity: .7;
 }
 .fl-btn-wa {
   display: inline-flex;
