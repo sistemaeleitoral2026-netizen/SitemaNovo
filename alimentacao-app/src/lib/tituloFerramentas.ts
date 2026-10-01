@@ -125,15 +125,13 @@ export function documentoTitulo(row: Pick<TituloFicha, 'titulo' | 'cpf'>): { val
   return { valor: '—', tipo: '' }
 }
 
+/** Quem chega na ferramenta Título pode editar qualquer ficha da fila. */
 export function canEditarTitulo(
-  consulta: TituloConsulta | null,
+  _consulta: TituloConsulta | null,
   userId: string | undefined,
-  staff: boolean,
+  _staff: boolean,
 ): boolean {
-  if (staff) return true
-  if (!userId) return false
-  if (!consulta) return true
-  return consulta.consultado_por === userId
+  return Boolean(userId)
 }
 
 export async function fetchTituloLinhas(diretoriaId?: string | null): Promise<TituloLinha[]> {
