@@ -736,8 +736,8 @@ export function AtivacaoLancarPage() {
                   Abra a conversa e marque se essa pessoa já foi acionada pelo WhatsApp.
                 </p>
                 {!hasWhatsappPhone(selected.telefone) && (
-                  <p className="fl-hint fl-lock-hint">
-                    Sem telefone na ficha: dá para marcar “Já acionada”, mas o botão de enviar mensagem fica indisponível.
+                  <p className="fl-hint fl-lock-hint" role="status">
+                    Esta ficha não tem número de WhatsApp. Dá para marcar o status, mas não abre conversa daqui.
                   </p>
                 )}
                 {selected.formigas_wa_by ? (
@@ -761,7 +761,7 @@ export function AtivacaoLancarPage() {
                 ) : (
                   <button type="button" className="fl-btn-wa fl-btn-wa-main is-disabled" disabled>
                     <ExternalLink size={16} />
-                    Sem telefone
+                    Ficha sem WhatsApp
                   </button>
                 )}
                 <div className="fl-wa-row">
