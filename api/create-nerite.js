@@ -28,7 +28,7 @@ async function rest(path, { method = 'GET', body, token } = {}) {
   return { ok: res.ok, status: res.status, data }
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return json(res, 405, { error: 'Método não permitido.' })
   }
