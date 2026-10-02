@@ -56,7 +56,7 @@ async function resolveCallerCoordId(caller) {
   return row?.id ?? null
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== 'POST' && req.method !== 'DELETE') {
     return json(res, 405, { error: 'Método não permitido.' })
   }

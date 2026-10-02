@@ -153,13 +153,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }),
       })
 
-      const payload = await res.json().catch(() => ({}))
+      const contentType = res.headers.get('content-type') || ''
+      const raw = await res.text()
+      let payload: { error?: string; ok?: boolean } = {}
+      if (contentType.includes('application/json') || raw.trim().startsWith('{')) {
+        try {
+          payload = JSON.parse(raw) as { error?: string; ok?: boolean }
+        } catch {
+          payload = {}
+        }
+      } else {
+        // Vite/local ou rewrite SPA devolveu HTML — a função /api não está no ar
+        return {
+          error:
+            `API de login indisponível (HTTP ${res.status}). `
+            + 'No Vercel, confira se a pasta /api está no deploy e se SUPABASE_SERVICE_ROLE_KEY está nas variáveis.',
+        }
+      }
+
       if (!res.ok) {
-        return { error: payload.error || 'Não foi possível criar o usuário.' }
+        return { error: payload.error || `Não foi possível criar o usuário (HTTP ${res.status}).` }
       }
       return { error: null }
-    } catch {
-      return { error: 'Falha de conexão ao criar o usuário.' }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err)
+      const localHint = /Failed to fetch|NetworkError|Load failed/i.test(detail)
+        ? ' Se estiver no preview local (Vite), o login só funciona no site publicado no Vercel.'
+        : ''
+      return { error: `Falha de conexão ao criar o usuário (${detail}).${localHint}` }
     }
   }, [])
 
