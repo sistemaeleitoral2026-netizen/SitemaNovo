@@ -110,6 +110,18 @@ export function VotacaoLancarPage() {
       setLoadingScope(true)
       try {
         if (isAuxiliar && profile?.id) {
+          // Escopo = lideranças liberadas + coordenação do auxiliar (não vê outras coords).
+          if (profile.coordenador_id) {
+            const { data: coord } = await supabase
+              .from('coordenadores')
+              .select('id,nome')
+              .eq('id', profile.coordenador_id)
+              .maybeSingle()
+            if (!cancelled) {
+              setCoordNome(coord?.nome ?? null)
+              setSelectedCoordId(coord?.id ?? '')
+            }
+          }
           const nomes = await fetchAuxiliarLiderNomes(profile.id)
           if (!cancelled) {
             setLiderNomes(nomes)
@@ -244,8 +256,9 @@ export function VotacaoLancarPage() {
         try {
           const rows = await searchVotacaoFichas({
             query: q,
+            // Auxiliar: só as lideranças liberadas. Coord/staff: só a coordenação.
             liderNomes: isAuxiliar ? liderNomes : undefined,
-            coordenadorNome: (isCoordenador || isStaff) ? coordNome : undefined,
+            coordenadorNome: (isAuxiliar || isCoordenador || isStaff) ? coordNome : undefined,
           })
           if (!cancelled) setHits(rows)
         } catch (e) {
@@ -310,6 +323,14 @@ export function VotacaoLancarPage() {
             return
           }
         }
+        if ((isAuxiliar || isCoordenador) && coordNome) {
+          const sameCoord = (hit.coordenador || '').trim().toLowerCase() === coordNome.trim().toLowerCase()
+          if (!sameCoord) {
+            setError('Esta ficha não é da sua coordenação.')
+            navigate('/votacao/lancar', { replace: true })
+            return
+          }
+        }
         await openFicha(hit, false)
         navigate('/votacao/lancar', { replace: true })
       } catch (e) {
@@ -322,7 +343,7 @@ export function VotacaoLancarPage() {
     return () => { cancelled = true }
     // openFicha é estável o suficiente para este fluxo de deep-link
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingScope, searchParams, isAuxiliar, liderNomes, navigate])
+  }, [loadingScope, searchParams, isAuxiliar, isCoordenador, liderNomes, coordNome, navigate])
 
   async function openFicha(hit: VotacaoHit, onlyView: boolean) {
     setError(null)
@@ -387,6 +408,14 @@ export function VotacaoLancarPage() {
     if (!nome.trim()) {
       setError('Informe o nome da pessoa.')
       return
+    }
+    // Comprovante obrigatório só para auxiliar ao marcar "Votou".
+    if (isAuxiliar && votou === true) {
+      const temAnexo = Boolean(fotoFile) || (Boolean(selected.voto_foto_path) && !clearFoto)
+      if (!temAnexo) {
+        setError('Anexo do comprovante de voto é obrigatório para marcar Votou.')
+        return
+      }
     }
     setSaving(true)
     setError(null)
@@ -529,7 +558,9 @@ export function VotacaoLancarPage() {
                 <strong>{isAuxiliar ? 'Suas lideranças' : 'Lideranças'}</strong>
                 <span>
                   {liderNomes.length
-                    ? 'Toque para listar · ou pesquise acima'
+                    ? (isAuxiliar
+                      ? 'Toque para listar · ou pesquise acima'
+                      : 'Toque para abrir no Progresso · ou pesquise acima')
                     : 'Nenhuma liderança nesta coordenação'}
                 </span>
               </div>
@@ -543,6 +574,15 @@ export function VotacaoLancarPage() {
                       aria-selected={!searchActive && selectedLider === nome}
                       className={`vot-lider-chip${!searchActive && selectedLider === nome ? ' is-on' : ''}`}
                       onClick={() => {
+                        // Coord / diretoria / admin: abre Progresso filtrado nessa liderança.
+                        if (!isAuxiliar) {
+                          const params = new URLSearchParams()
+                          params.set('lider', nome)
+                          if (coordNome) params.set('coordenador', coordNome)
+                          navigate(`/votacao/progresso?${params.toString()}`)
+                          return
+                        }
+                        // Auxiliar: lista as fichas aqui no Lançar (só as liberadas).
                         setQuery('')
                         setStatusFiltro('todos')
                         setSelectedLider(nome)
@@ -679,8 +719,13 @@ export function VotacaoLancarPage() {
             </button>
           </div>
 
-          <div className="vot-foto">
-            <div className="vot-foto-label">Foto do lançamento</div>
+          <div className={`vot-foto${isAuxiliar && votou === true ? ' is-required' : ''}`}>
+            <div className="vot-foto-label">
+              Foto do comprovante{isAuxiliar && votou === true ? ' *' : ''}
+            </div>
+            {isAuxiliar && votou === true && (
+              <p className="vot-foto-req">Obrigatório anexar o comprovante de voto.</p>
+            )}
             {fotoPreview ? (
               <div className="vot-foto-preview">
                 <img src={fotoPreview} alt="Comprovante" />
@@ -699,7 +744,11 @@ export function VotacaoLancarPage() {
                 )}
               </div>
             ) : (
-              <p className="vot-muted">Nenhuma foto — tire com a câmera ou escolha da galeria.</p>
+              <p className="vot-muted">
+                {isAuxiliar && votou === true
+                  ? 'Tire a foto do comprovante com a câmera ou escolha da galeria.'
+                  : 'Nenhuma foto — tire com a câmera ou escolha da galeria.'}
+              </p>
             )}
             {!viewOnly && (
               <div className="vot-foto-btns">
