@@ -106,10 +106,7 @@ export function VotacaoLancarPage() {
   }, [profile, isAuxiliar, isCoordenador])
 
   useEffect(() => {
-    if (!fotoFile) {
-      setFotoPreview(null)
-      return
-    }
+    if (!fotoFile) return
     const url = URL.createObjectURL(fotoFile)
     setFotoPreview(url)
     return () => URL.revokeObjectURL(url)
@@ -193,10 +190,12 @@ export function VotacaoLancarPage() {
     setOkMsg(null)
   }
 
-  function onPickFile(file: File | null) {
+  function onPickFile(file: File | null, input?: HTMLInputElement | null) {
     if (!file) return
     setClearFoto(false)
     setFotoFile(file)
+    // Permite tirar/escolher de novo a mesma foto (senão o onChange não dispara).
+    if (input) input.value = ''
   }
 
   async function handleSave() {
@@ -413,29 +412,30 @@ export function VotacaoLancarPage() {
             )}
             {!viewOnly && (
               <div className="vot-foto-btns">
-                <button type="button" className="vot-btn" onClick={() => cameraRef.current?.click()}>
+                {/* label+input: abre a câmera com mais confiabilidade no celular do que button.click() */}
+                <label className="vot-btn">
                   <Camera size={18} /> Câmera
-                </button>
-                <button type="button" className="vot-btn ghost" onClick={() => galleryRef.current?.click()}>
+                  <input
+                    ref={cameraRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="sr-only"
+                    onChange={(e) => onPickFile(e.target.files?.[0] ?? null, e.target)}
+                  />
+                </label>
+                <label className="vot-btn ghost">
                   <ImagePlus size={18} /> Galeria
-                </button>
+                  <input
+                    ref={galleryRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,image/*"
+                    className="sr-only"
+                    onChange={(e) => onPickFile(e.target.files?.[0] ?? null, e.target)}
+                  />
+                </label>
               </div>
             )}
-            <input
-              ref={cameraRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              hidden
-              onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
-            />
-            <input
-              ref={galleryRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              hidden
-              onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
-            />
           </div>
 
           <div className="vot-fields">
