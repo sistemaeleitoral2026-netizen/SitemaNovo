@@ -13551,6 +13551,199 @@ button.fichas-count.equipe-drill-count.zero:hover {
   font-variant-numeric: tabular-nums;
   color: #1e2a3b;
 }
+.eq-aux-name-btn {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  max-width: 100%;
+}
+.eq-aux-name-btn strong {
+  color: #1d4ed8;
+  text-decoration: underline;
+  text-decoration-color: #bfdbfe;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+.eq-aux-name-btn:hover strong {
+  color: #1e40af;
+  text-decoration-color: #93c5fd;
+}
+.eq-aux-lider-count {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: .2rem .55rem;
+  font-size: .75rem;
+  font-weight: 700;
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+.eq-aux-lider-count.is-empty {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  color: #94a3b8;
+}
+.eq-aux-lider-count:hover {
+  border-color: #93c5fd;
+  background: #dbeafe;
+}
+.eq-aux-pop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  background: rgba(15, 23, 42, .45);
+  backdrop-filter: blur(2px);
+}
+.eq-aux-pop {
+  position: fixed;
+  z-index: 111;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(28rem, calc(100vw - 1.5rem));
+  max-height: min(85vh, 36rem);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, .22);
+  overflow: hidden;
+}
+.eq-aux-pop-head {
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
+  padding: 1rem 1rem .85rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #f8fbff, #fff);
+}
+.eq-aux-pop-avatar {
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: .78rem;
+  font-weight: 800;
+}
+.eq-aux-pop-titles {
+  flex: 1;
+  min-width: 0;
+}
+.eq-aux-pop-titles h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.eq-aux-pop-titles p {
+  margin: .2rem 0 0;
+  font-size: .78rem;
+  color: #64748b;
+  overflow-wrap: anywhere;
+}
+.eq-aux-pop-close {
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 0;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #475569;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.eq-aux-pop-close:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+.eq-aux-pop-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: .85rem 1rem;
+  -webkit-overflow-scrolling: touch;
+}
+.eq-aux-pop-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: .45rem;
+}
+.eq-aux-pop-list li {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .7rem .8rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: .88rem;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.eq-aux-pop-list li svg {
+  flex: none;
+  color: #2563eb;
+}
+.eq-aux-pop-empty {
+  margin: 0;
+  padding: 1.25rem 1rem;
+  text-align: center;
+  color: #64748b;
+  font-size: .88rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.eq-aux-pop-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: .5rem;
+  padding: .85rem 1rem 1rem;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+}
+.eq-aux-pop-foot .ui-button {
+  flex: 1 1 auto;
+  min-width: 7rem;
+}
+@media (max-width: 560px) {
+  .eq-aux-pop {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    transform: none;
+    width: 100%;
+    max-height: min(88vh, 100%);
+    border-radius: 18px 18px 0 0;
+  }
+  .eq-aux-pop-foot {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+  .eq-aux-pop-foot .ui-button {
+    flex: 1 1 calc(50% - .25rem);
+  }
+}
 .equipe-dir-meta em {
   display: block;
   margin-top: .1rem;
