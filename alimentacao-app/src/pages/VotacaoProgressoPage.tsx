@@ -249,8 +249,11 @@ export function VotacaoProgressoPage() {
             />
           </div>
 
-          <p className="vot-fields-hint">
-            Toque numa liderança para ver as fichas e abrir o anexo do lançamento.
+          <p className="vot-fields-hint vot-hint-mobile">
+            Toque numa liderança para ver as fichas e abrir o anexo.
+          </p>
+          <p className="vot-fields-hint vot-hint-desktop">
+            Abra uma liderança para ver as fichas e o anexo do lançamento.
           </p>
 
           {!tot.porLider.length ? (
