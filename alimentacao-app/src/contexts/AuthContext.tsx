@@ -163,10 +163,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const contentType = res.headers.get('content-type') || ''
       const raw = await res.text()
-      let payload: { error?: string; ok?: boolean } = {}
+      let payload: { error?: string; ok?: boolean; warning?: string } = {}
       if (contentType.includes('application/json') || raw.trim().startsWith('{')) {
         try {
-          payload = JSON.parse(raw) as { error?: string; ok?: boolean }
+          payload = JSON.parse(raw) as { error?: string; ok?: boolean; warning?: string }
         } catch {
           payload = {}
         }
@@ -182,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!res.ok) {
         return { error: payload.error || `Não foi possível criar o usuário (HTTP ${res.status}).` }
       }
+      // warning = vínculo secundário (lideranças); o login já foi criado.
       return { error: null }
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err)
