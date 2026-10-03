@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Pencil, Plus, Search, Trash2, UserPlus, Users, UserCog, Crown, ClipboardList, Megaphone, Briefcase, Handshake, X } from 'lucide-react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -15,7 +15,7 @@ import { formatPhone } from '../lib/normalize'
 import { fetchCadastroFichaStats, fetchOperatorCadastroStats } from '../lib/cadastros'
 import { cadastrosLinkForLider, countFichasForLider, resolveLimiteFichas, resolveLimiteLiderancas } from '../lib/liderFichas'
 import { META_COORDENADOR_LIDERANCAS, META_DIRETORIA_LIDERANCAS, META_LIDERANCA_FICHAS } from '../lib/meta'
-import { fetchAuxiliarLiderIds } from '../lib/votacao'
+import { fetchAuxiliarLiderIds, fetchVotacaoStatsPorLideres, type VotacaoProgressoLider } from '../lib/votacao'
 import { supabase } from '../lib/supabase'
 import type { Coordenador, Lider, Profile, UserRole } from '../types'
 import { FORMIGAS_WHATSAPP_EMAILS } from '../lib/formigasWhatsapp'
@@ -64,6 +64,7 @@ function ExtraRolesBadges({ roles }: { roles?: UserRole[] | null }) {
 
 export function EquipePage() {
   const { profile, createNerite } = useAuth()
+  const navigate = useNavigate()
   const isAdmin = profile?.role === 'admin'
   const isCoordenador = profile?.role === 'coordenador'
   const canManageTeam = isAdmin || profile?.role === 'diretoria'
@@ -162,6 +163,8 @@ export function EquipePage() {
   const [deleteAuxId, setDeleteAuxId] = useState<string | null>(null)
   /** Popup: lideranças do auxiliar ao clicar no nome. */
   const [viewAuxLideresId, setViewAuxLideresId] = useState<string | null>(null)
+  const [auxLiderStats, setAuxLiderStats] = useState<Record<string, VotacaoProgressoLider>>({})
+  const [auxLiderStatsLoading, setAuxLiderStatsLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -1445,6 +1448,30 @@ export function EquipePage() {
     }
   }, [viewAuxLideresId, auxiliares, auxiliarLiderMap, lideres, coordenadores])
 
+  useEffect(() => {
+    if (!viewAuxLideres?.liderNomes.length) {
+      setAuxLiderStats({})
+      setAuxLiderStatsLoading(false)
+      return
+    }
+    let cancelled = false
+    setAuxLiderStatsLoading(true)
+    void (async () => {
+      try {
+        const stats = await fetchVotacaoStatsPorLideres({
+          liderNomes: viewAuxLideres.liderNomes,
+          coordenadorNome: viewAuxLideres.coordNome,
+        })
+        if (!cancelled) setAuxLiderStats(stats)
+      } catch {
+        if (!cancelled) setAuxLiderStats({})
+      } finally {
+        if (!cancelled) setAuxLiderStatsLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [viewAuxLideres])
+
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
@@ -2281,14 +2308,50 @@ export function EquipePage() {
 
             <div className="eq-aux-pop-body">
               {viewAuxLideres.liderNomes.length ? (
-                <ul className="eq-aux-pop-list">
-                  {viewAuxLideres.liderNomes.map((nome) => (
-                    <li key={nome}>
-                      <Crown size={14} strokeWidth={2} aria-hidden />
-                      <span>{nome}</span>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <p className="eq-aux-pop-hint">
+                    Toque numa liderança para abrir no Progresso (filtrada).
+                  </p>
+                  {auxLiderStatsLoading && (
+                    <div className="eq-aux-pop-loading">
+                      <Spinner size={20} /> Carregando totais da votação…
+                    </div>
+                  )}
+                  <ul className="eq-aux-pop-list">
+                    {viewAuxLideres.liderNomes.map((nome) => {
+                      const st = auxLiderStats[nome]
+                      const total = st?.total ?? 0
+                      const votou = st?.votou ?? 0
+                      const params = new URLSearchParams()
+                      params.set('lider', nome)
+                      if (viewAuxLideres.coordNome) params.set('coordenador', viewAuxLideres.coordNome)
+                      return (
+                        <li key={nome}>
+                          <button
+                            type="button"
+                            className="eq-aux-pop-lider-btn"
+                            onClick={() => {
+                              setViewAuxLideresId(null)
+                              navigate(`/votacao/progresso?${params.toString()}`)
+                            }}
+                          >
+                            <span className="eq-aux-pop-lider-main">
+                              <Crown size={14} strokeWidth={2} aria-hidden />
+                              <strong>{nome}</strong>
+                            </span>
+                            <span className="eq-aux-pop-lider-stats">
+                              <em>{auxLiderStatsLoading ? '…' : total} na lista</em>
+                              <em className="is-yes">{auxLiderStatsLoading ? '…' : votou} votaram</em>
+                              {!auxLiderStatsLoading && st ? (
+                                <em className="is-pend">{st.pendente} pend.</em>
+                              ) : null}
+                            </span>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </>
               ) : (
                 <p className="eq-aux-pop-empty">
                   Este auxiliar ainda não tem lideranças. Use Editar para marcar.
