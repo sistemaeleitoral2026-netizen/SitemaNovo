@@ -15662,7 +15662,17 @@ button.fichas-count.equipe-drill-count.zero:hover {
     padding: .65rem .7rem;
   }
   .vot-lider-list-pick {
-    max-height: min(50vh, 22rem);
+    max-height: min(58dvh, 26rem);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+  .vot-list {
+    padding-bottom: .5rem;
+  }
+  .vot-lider-fichas {
+    max-height: min(55dvh, 22rem);
   }
   .vot-lider-row {
     min-height: 3.35rem;
@@ -15803,11 +15813,26 @@ button.fichas-count.equipe-drill-count.zero:hover {
   border: 1px solid #e2e8f0;
   border-radius: 14px;
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 .vot-lider-card.is-open {
   border-color: #86efac;
   box-shadow: 0 4px 14px rgba(22, 163, 74, .08);
+}
+.vot-lider-toggle-wrap {
+  position: relative;
+  display: grid;
+}
+.vot-lider-wa {
+  position: absolute;
+  top: .7rem;
+  left: .85rem;
+  z-index: 2;
+  /* Nome da liderança fica à direita do ícone */
+  pointer-events: auto;
+}
+.vot-lider-toggle-wrap:has(.vot-lider-wa) .vot-lider-name {
+  padding-left: 2rem;
 }
 .vot-lider-toggle {
   width: 100%;
@@ -15819,16 +15844,28 @@ button.fichas-count.equipe-drill-count.zero:hover {
   display: grid;
   gap: .45rem;
   color: inherit;
+  border-radius: 14px;
+}
+.vot-lider-card.is-open .vot-lider-toggle {
+  border-radius: 14px 14px 0 0;
 }
 .vot-lider-toggle:hover { background: #f8fafc; }
 .vot-lider-top {
   display: flex;
   justify-content: space-between;
   gap: .5rem;
-  align-items: baseline;
+  align-items: center;
 }
-.vot-lider-top strong { font-size: .95rem; color: #0f172a; }
-.vot-lider-top span { font-size: .75rem; color: #64748b; font-variant-numeric: tabular-nums; }
+.vot-lider-top strong,
+.vot-lider-name {
+  font-size: .95rem;
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  min-width: 0;
+}
+.vot-lider-top > span { font-size: .75rem; color: #64748b; font-variant-numeric: tabular-nums; }
 .vot-lider-bar {
   height: .45rem;
   border-radius: 99px;
@@ -15862,11 +15899,19 @@ button.fichas-count.equipe-drill-count.zero:hover {
   border-top: 1px solid #e2e8f0;
   background: #f8fafc;
   padding: .65rem .75rem .85rem;
+  border-radius: 0 0 14px 14px;
+  /* Lista própria com scroll — evita travar em alguns celulares */
+  max-height: min(62dvh, 28rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 .vot-ficha-mini-list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0 0 .25rem;
   display: grid;
   gap: .45rem;
 }
@@ -15879,10 +15924,31 @@ button.fichas-count.equipe-drill-count.zero:hover {
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  padding: .65rem .7rem;
+  padding: .55rem .65rem;
 }
-.vot-ficha-mini strong {
-  display: block;
+.vot-ficha-mini-open {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  flex: 1;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+.vot-ficha-mini-open:active { opacity: .85; }
+.vot-ficha-mini-main {
+  min-width: 0;
+  flex: 1;
+}
+.vot-ficha-mini strong,
+.vot-ficha-mini-name {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .3rem;
   font-size: .84rem;
   color: #0f172a;
 }
@@ -15895,11 +15961,71 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .vot-ficha-mini .vot-tag-aux {
   margin-top: .3rem;
 }
+.vot-ficha-go {
+  display: block;
+  margin-top: .28rem;
+  font-size: .68rem;
+  font-style: normal;
+  font-weight: 700;
+  color: #2563eb;
+}
 .vot-ficha-mini-side {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: .35rem;
+  flex-shrink: 0;
+}
+.vot-lista-anchor {
+  scroll-margin-top: 4.5rem;
+  height: 0;
+  overflow: hidden;
+}
+.vot-coord-line {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .35rem .45rem;
+}
+.vot-coord-pick-label {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+}
+.vot-wa-wrap {
+  display: inline-flex;
+  flex-shrink: 0;
+  line-height: 0;
+}
+.vot-progresso .vot-wa.whatsapp-link-inline {
+  width: 36px;
+  min-height: 36px;
+}
+.vot-progresso .vot-wa.whatsapp-link-inline .whatsapp-brand-icon {
+  width: 1.45rem;
+  height: 1.45rem;
+}
+@media (max-width: 767px) {
+  .vot-progresso .vot-wa.whatsapp-link-inline {
+    width: 44px;
+    min-height: 44px;
+  }
+  .vot-progresso .vot-wa.whatsapp-link-inline .whatsapp-brand-icon {
+    width: 1.55rem;
+    height: 1.55rem;
+  }
+  .vot-lider-wa {
+    top: .55rem;
+    left: .7rem;
+  }
+  .vot-ficha-mini {
+    align-items: flex-start;
+  }
+  .vot-ficha-mini-side {
+    width: 100%;
+    justify-content: flex-start;
+    padding-top: .15rem;
+  }
 }
 .vot-btn-xs {
   min-height: 2rem;
@@ -15968,7 +16094,11 @@ button.fichas-count.equipe-drill-count.zero:hover {
     padding: .65rem 0 5.5rem;
   }
   .vot-page.vot-has-bottom {
-    padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px));
+  }
+  .vot-progresso.vot-has-bottom {
+    /* Espaço extra no fim para a lista de eleitores não ficar atrás da barra */
+    padding-bottom: calc(8.5rem + env(safe-area-inset-bottom, 0px));
   }
   .vot-lancar,
   .vot-historico,

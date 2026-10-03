@@ -3,14 +3,14 @@ import { ClipboardCheck, History, ListChecks } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { hasRole } from '../../lib/roles'
 
-/** Barra inferior mobile. Auxiliar: Lançar + Histórico. Staff: + Progresso. */
+/** Barra inferior mobile — Lançar, Progresso e Histórico (auxiliar incluso). */
 export function VotacaoBottomNav() {
   const { profile } = useAuth()
-  const isAuxiliarOnly =
-    hasRole(profile, 'auxiliar') && !hasRole(profile, ['admin', 'diretoria', 'coordenador'])
-  const canSeeStaffTabs = hasRole(profile, ['admin', 'diretoria', 'coordenador'])
+  const canSee =
+    hasRole(profile, 'auxiliar')
+    || hasRole(profile, ['admin', 'diretoria', 'coordenador'])
 
-  if (!isAuxiliarOnly && !canSeeStaffTabs) return null
+  if (!canSee) return null
 
   return (
     <nav className="vot-bottom-nav" aria-label="Navegação votação">
@@ -18,12 +18,10 @@ export function VotacaoBottomNav() {
         <ClipboardCheck size={20} strokeWidth={2.2} />
         <span>Lançar</span>
       </NavLink>
-      {canSeeStaffTabs && (
-        <NavLink to="/votacao/progresso" className={({ isActive }) => `vot-tab${isActive ? ' is-on' : ''}`}>
-          <ListChecks size={20} strokeWidth={2.2} />
-          <span>Progresso</span>
-        </NavLink>
-      )}
+      <NavLink to="/votacao/progresso" className={({ isActive }) => `vot-tab${isActive ? ' is-on' : ''}`}>
+        <ListChecks size={20} strokeWidth={2.2} />
+        <span>Progresso</span>
+      </NavLink>
       <NavLink to="/votacao/historico" className={({ isActive }) => `vot-tab${isActive ? ' is-on' : ''}`}>
         <History size={20} strokeWidth={2.2} />
         <span>Histórico</span>

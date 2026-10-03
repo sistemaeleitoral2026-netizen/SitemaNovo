@@ -13,6 +13,13 @@ alter table public.profiles
 alter table public.coordenadores
   add column if not exists user_id uuid unique references public.profiles (id) on delete set null;
 
+-- Telefone do coordenador (WhatsApp no Progresso / Formigas)
+alter table public.coordenadores
+  add column if not exists telefone text;
+
+alter table public.lideres
+  add column if not exists telefone text;
+
 create index if not exists coordenadores_user_id_idx
   on public.coordenadores (user_id)
   where user_id is not null;
