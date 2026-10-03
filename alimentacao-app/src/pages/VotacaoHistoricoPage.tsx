@@ -1,15 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Eye, ImageIcon, Pencil, Search, X } from 'lucide-react'
+import { Eye, ImageIcon, Pencil, Search, Trash2, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Button } from '../components/ui/Button'
+import { Modal } from '../components/ui/Modal'
 import { VotacaoBottomNav } from '../components/votacao/VotacaoBottomNav'
 import { hasRole } from '../lib/roles'
+import { logAudit } from '../lib/audit'
 import {
+  excluirLancamentoVotacao,
   fetchAuxiliarLiderNomes,
   fetchVotacaoHistorico,
+  labelAdicionadoNoLancamento,
   signVotoFoto,
   type VotacaoHit,
 } from '../lib/votacao'
@@ -49,11 +53,16 @@ export function VotacaoHistoricoPage() {
   const [fotoUrl, setFotoUrl] = useState<string | null>(null)
   const [fotoTitle, setFotoTitle] = useState('')
   const [scopeReady, setScopeReady] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<VotacaoHit | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [okMsg, setOkMsg] = useState<string | null>(null)
 
   const isStaff = hasRole(profile, ['admin', 'diretoria'])
   const isCoordenador = hasRole(profile, 'coordenador')
   const isAuxiliar =
     hasRole(profile, 'auxiliar') && !hasRole(profile, ['admin', 'diretoria', 'coordenador'])
+  /** Coord / diretoria / admin podem tirar lançamento inválido do histórico. */
+  const canExcluirLancamento = isStaff || isCoordenador
 
   useEffect(() => {
     let cancelled = false
@@ -164,6 +173,71 @@ export function VotacaoHistoricoPage() {
     }
   }
 
+  async function handleExcluirLancamento() {
+    if (!deleteTarget || !canExcluirLancamento) return
+    setDeleting(true)
+    setError(null)
+    setOkMsg(null)
+    try {
+      const result = await excluirLancamentoVotacao(deleteTarget)
+      logAudit(
+        result.mode === 'deleted' ? 'excluir_ficha_lancamento' : 'reverter_lancamento_votacao',
+        'cadastros',
+        deleteTarget.id,
+        {
+          nome: deleteTarget.nome_completo,
+          adicionado_por_auxiliar: Boolean(deleteTarget.adicionado_por_auxiliar),
+        },
+      )
+      setRows((prev) => prev.filter((r) => r.id !== deleteTarget.id))
+      setOkMsg(
+        result.mode === 'deleted'
+          ? 'Ficha adicionada pelo auxiliar excluída do sistema.'
+          : 'Lançamento removido do histórico. A ficha voltou para pendente.',
+      )
+      setDeleteTarget(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível excluir o lançamento.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  function rowActions(h: VotacaoHit) {
+    return (
+      <div className="vot-hist-row-actions">
+        <Link to={`/votacao/lancar?edit=${encodeURIComponent(h.id)}`}>
+          <Button variant="ghost" size="sm" aria-label="Editar">
+            <Pencil size={16} />
+          </Button>
+        </Link>
+        {h.voto_foto_path ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label="Ver anexo"
+            onClick={() => void openFoto(h)}
+          >
+            <Eye size={16} />
+          </Button>
+        ) : null}
+        {canExcluirLancamento ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label="Excluir lançamento"
+            onClick={() => {
+              setOkMsg(null)
+              setDeleteTarget(h)
+            }}
+          >
+            <Trash2 size={16} />
+          </Button>
+        ) : null}
+      </div>
+    )
+  }
+
   const subtitle = useMemo(() => {
     if (isAuxiliar) {
       if (!liderNomes.length) return 'Sem lideranças atribuídas'
@@ -217,6 +291,7 @@ export function VotacaoHistoricoPage() {
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
+      {okMsg && <div className="alert alert-success">{okMsg}</div>}
 
       <div className="cadastros-table-card vot-hist-table-card">
         {loading && !rows.length ? (
@@ -267,6 +342,9 @@ export function VotacaoHistoricoPage() {
                         </td>
                         <td>
                           <strong className="vot-hist-td-name">{h.nome_completo}</strong>
+                          {labelAdicionadoNoLancamento(h) ? (
+                            <em className="vot-tag-aux">{labelAdicionadoNoLancamento(h)}</em>
+                          ) : null}
                         </td>
                         <td className="mono-cell">{h.titulo || '—'}</td>
                         <td>{h.zona || '—'}</td>
@@ -284,23 +362,7 @@ export function VotacaoHistoricoPage() {
                           <time className="vot-hist-when">{fmtWhen(h.voto_em)}</time>
                         </td>
                         <td className="sticky-actions-cell">
-                          <div className="vot-hist-row-actions">
-                            <Link to={`/votacao/lancar?edit=${encodeURIComponent(h.id)}`}>
-                              <Button variant="ghost" size="sm" aria-label="Editar">
-                                <Pencil size={16} />
-                              </Button>
-                            </Link>
-                            {h.voto_foto_path ? (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                aria-label="Ver anexo"
-                                onClick={() => void openFoto(h)}
-                              >
-                                <Eye size={16} />
-                              </Button>
-                            ) : null}
-                          </div>
+                          {rowActions(h)}
                         </td>
                       </tr>
                     )
@@ -322,24 +384,11 @@ export function VotacaoHistoricoPage() {
                           <time>{fmtWhen(h.voto_em)}</time>
                         </div>
                         <strong style={{ display: 'block', fontSize: '.88rem' }}>{h.nome_completo}</strong>
-                      </div>
-                      <div style={{ display: 'flex', gap: '.3rem' }}>
-                        <Link to={`/votacao/lancar?edit=${encodeURIComponent(h.id)}`}>
-                          <Button variant="ghost" size="sm" aria-label="Editar">
-                            <Pencil size={16} />
-                          </Button>
-                        </Link>
-                        {h.voto_foto_path ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            aria-label="Ver anexo"
-                            onClick={() => void openFoto(h)}
-                          >
-                            <Eye size={16} />
-                          </Button>
+                        {labelAdicionadoNoLancamento(h) ? (
+                          <em className="vot-tag-aux">{labelAdicionadoNoLancamento(h)}</em>
                         ) : null}
                       </div>
+                      {rowActions(h)}
                     </div>
                     <div className="mobile-card-meta vot-hist-mobile-grid">
                       <div>
@@ -396,6 +445,26 @@ export function VotacaoHistoricoPage() {
           </div>
         </div>
       )}
+
+      <Modal
+        open={!!deleteTarget}
+        title={
+          deleteTarget?.adicionado_por_auxiliar
+            ? 'Excluir ficha do auxiliar?'
+            : 'Remover lançamento do histórico?'
+        }
+        description={
+          deleteTarget?.adicionado_por_auxiliar
+            ? `A ficha "${deleteTarget.nome_completo}" foi adicionada pelo auxiliar e será apagada do sistema (some do histórico e do progresso).`
+            : `O lançamento de "${deleteTarget?.nome_completo ?? ''}" sai do histórico e a ficha volta para pendente. O cadastro permanece.`
+        }
+        onClose={() => { if (!deleting) setDeleteTarget(null) }}
+        onConfirm={() => void handleExcluirLancamento()}
+        confirmLabel={deleteTarget?.adicionado_por_auxiliar ? 'Excluir ficha' : 'Remover lançamento'}
+        cancelLabel="Cancelar"
+        confirmVariant="danger"
+        loading={deleting}
+      />
 
       <VotacaoBottomNav />
     </div>
