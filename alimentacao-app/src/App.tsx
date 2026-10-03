@@ -214,7 +214,7 @@ function AppRoutes() {
         <Route path="financeiro" element={<StaffRoute><FinanceiroPage /></StaffRoute>} />
         <Route path="votacao/lancar" element={<VotacaoRoute><VotacaoLancarPage /></VotacaoRoute>} />
         <Route path="votacao/progresso" element={<VotacaoProgressoRoute><VotacaoProgressoPage /></VotacaoProgressoRoute>} />
-        <Route path="votacao/historico" element={<VotacaoProgressoRoute><VotacaoHistoricoPage /></VotacaoProgressoRoute>} />
+        <Route path="votacao/historico" element={<VotacaoRoute><VotacaoHistoricoPage /></VotacaoRoute>} />
         <Route path="configuracoes" element={<StaffRoute><ConfiguracoesPage /></StaffRoute>} />
         <Route path="admin-only" element={<AdminOnlyRoute><DashboardPage /></AdminOnlyRoute>} />
       </Route>
