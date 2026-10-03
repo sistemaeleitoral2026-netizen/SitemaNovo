@@ -296,7 +296,7 @@ export function VotacaoLancarPage() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Nome ou título de eleitor"
+              placeholder="Nome, mãe, título, zona ou seção"
               autoComplete="off"
               enterKeyHint="search"
               disabled={semLiderancas}
@@ -323,7 +323,7 @@ export function VotacaoLancarPage() {
           )}
 
           {!semLiderancas && query.trim().length < 2 && (
-            <p className="vot-empty">Digite ao menos 2 letras do nome ou título.</p>
+            <p className="vot-empty">Digite nome (pode ser só partes), mãe, título, zona ou seção.</p>
           )}
 
           <ul className="vot-list">
@@ -335,7 +335,10 @@ export function VotacaoLancarPage() {
                     <span>
                       Título {h.titulo || '—'} · Zona {h.zona || '—'} · Seção {h.secao || '—'}
                     </span>
-                    <em>{h.lider || 'Sem liderança'}</em>
+                    <em>
+                      {h.lider || 'Sem liderança'}
+                      {h.nome_mae ? ` · Mãe: ${h.nome_mae}` : ''}
+                    </em>
                   </div>
                   <span className={`vot-badge${h.votou === true ? ' is-yes' : h.votou === false ? ' is-no' : ' is-pend'}`}>
                     {statusLabel(h.votou)}
