@@ -4,6 +4,7 @@ import { Eye, ImageIcon, Pencil, Search, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
+import { Button } from '../components/ui/Button'
 import { VotacaoBottomNav } from '../components/votacao/VotacaoBottomNav'
 import { hasRole } from '../lib/roles'
 import {
@@ -149,9 +150,9 @@ export function VotacaoHistoricoPage() {
   const subtitle = useMemo(() => {
     if (isAuxiliar) {
       if (!liderNomes.length) return 'Sem lideranças atribuídas'
-      return `Suas lideranças: ${liderNomes.join(', ')}`
+      return `Lançamentos das suas lideranças: ${liderNomes.join(', ')}`
     }
-    if (coordNome) return `Coordenação: ${coordNome}`
+    if (coordNome) return `Lançamentos da coordenação ${coordNome}`
     return 'Registros recentes salvos no sistema'
   }, [coordNome, isAuxiliar, liderNomes])
 
@@ -164,105 +165,202 @@ export function VotacaoHistoricoPage() {
   }
 
   return (
-    <div className="vot-page vot-historico vot-has-bottom">
-      <header className="vot-head vot-head-center">
-        <h1 className="vot-title">Histórico de lançamentos</h1>
-        <p className="vot-sub">{subtitle}</p>
-      </header>
+    <div className="vot-page vot-historico vot-historico-wide vot-has-bottom">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Histórico de lançamentos</h1>
+          <p className="page-subtitle">{subtitle}</p>
+        </div>
+        <div className="page-header-actions">
+          <Link to="/votacao/lancar">
+            <Button variant="secondary">Novo lançamento</Button>
+          </Link>
+        </div>
+      </div>
 
-      <div className="vot-search">
-        <Search size={18} aria-hidden />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Nome, mãe, título, zona ou seção…"
-          autoComplete="off"
-        />
-        {query ? (
-          <button type="button" className="vot-clear" onClick={() => setQuery('')} aria-label="Limpar">
-            <X size={16} />
-          </button>
-        ) : null}
+      <div className="filter-panel vot-hist-filter">
+        <div className="search-field">
+          <Search size={16} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Nome, mãe, título, zona ou seção…"
+            autoComplete="off"
+          />
+          {query ? (
+            <button type="button" className="vot-clear" onClick={() => setQuery('')} aria-label="Limpar">
+              <X size={16} />
+            </button>
+          ) : null}
+        </div>
+        <div className="vot-hist-count">
+          <strong>{rows.length}</strong>
+          <span> lançamento{rows.length === 1 ? '' : 's'}</span>
+        </div>
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      {loading && (
-        <div className="vot-center vot-muted">
-          <Spinner size={22} /> Atualizando…
-        </div>
-      )}
+      <div className="cadastros-table-card vot-hist-table-card">
+        {loading && !rows.length ? (
+          <div className="vot-hist-loading">
+            <Spinner size={36} />
+          </div>
+        ) : !rows.length ? (
+          <EmptyState
+            title="Nenhum lançamento"
+            description={
+              isAuxiliar
+                ? 'Ainda não há votos lançados nas suas lideranças.'
+                : 'Ainda não há votos registrados neste escopo.'
+            }
+          />
+        ) : (
+          <>
+            {loading ? (
+              <div className="vot-hist-loading thin">
+                <Spinner size={22} />
+              </div>
+            ) : null}
 
-      {!loading && !rows.length ? (
-        <EmptyState
-          title="Nenhum lançamento"
-          description={
-            isAuxiliar
-              ? 'Ainda não há votos lançados nas suas lideranças.'
-              : 'Ainda não há votos registrados neste escopo.'
-          }
-        />
-      ) : (
-        <ul className="vot-hist-list">
-          {rows.map((h) => {
-            const chip = statusChip(h.votou)
-            return (
-              <li key={h.id} className="vot-hist-card">
-                <div className="vot-hist-top">
-                  <span className={`vot-pill ${chip.cls}`}>{chip.label}</span>
-                  <time>{fmtWhen(h.voto_em)}</time>
-                </div>
-                <strong className="vot-hist-name">{h.nome_completo}</strong>
+            {/* Desktop: tabela com cabeçalhos iguais ao Todos os Cadastros */}
+            <div className="table-wrapper desktop-only">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Nome</th>
+                    <th>Título</th>
+                    <th>Zona</th>
+                    <th>Seção</th>
+                    <th>Nome da mãe</th>
+                    <th>Líder</th>
+                    <th>Coordenador</th>
+                    <th>Quando</th>
+                    <th className="sticky-actions-head">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((h) => {
+                    const chip = statusChip(h.votou)
+                    return (
+                      <tr key={h.id}>
+                        <td>
+                          <span className={`vot-pill ${chip.cls}`}>{chip.label}</span>
+                        </td>
+                        <td>
+                          <strong className="vot-hist-td-name">{h.nome_completo}</strong>
+                        </td>
+                        <td className="mono-cell">{h.titulo || '—'}</td>
+                        <td>{h.zona || '—'}</td>
+                        <td>{h.secao || '—'}</td>
+                        <td>
+                          <span className="vot-hist-muted">{h.nome_mae || '—'}</span>
+                        </td>
+                        <td>
+                          <span className="vot-hist-muted">{h.lider || '—'}</span>
+                        </td>
+                        <td>
+                          <span className="vot-hist-muted">{h.coordenador || '—'}</span>
+                        </td>
+                        <td>
+                          <time className="vot-hist-when">{fmtWhen(h.voto_em)}</time>
+                        </td>
+                        <td className="sticky-actions-cell">
+                          <div className="vot-hist-row-actions">
+                            <Link to={`/votacao/lancar?edit=${encodeURIComponent(h.id)}`}>
+                              <Button variant="ghost" size="sm" aria-label="Editar">
+                                <Pencil size={16} />
+                              </Button>
+                            </Link>
+                            {h.voto_foto_path ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                aria-label="Ver anexo"
+                                onClick={() => void openFoto(h)}
+                              >
+                                <Eye size={16} />
+                              </Button>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
 
-                <dl className="vot-hist-fields">
-                  <div>
-                    <dt>Título</dt>
-                    <dd>{h.titulo || '—'}</dd>
+            {/* Mobile: cards com os mesmos campos rotulados */}
+            <div className="mobile-cards">
+              {rows.map((h) => {
+                const chip = statusChip(h.votou)
+                return (
+                  <div className="mobile-card" key={h.id}>
+                    <div className="mobile-card-top">
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div className="vot-hist-mobile-status">
+                          <span className={`vot-pill ${chip.cls}`}>{chip.label}</span>
+                          <time>{fmtWhen(h.voto_em)}</time>
+                        </div>
+                        <strong style={{ display: 'block', fontSize: '.88rem' }}>{h.nome_completo}</strong>
+                      </div>
+                      <div style={{ display: 'flex', gap: '.3rem' }}>
+                        <Link to={`/votacao/lancar?edit=${encodeURIComponent(h.id)}`}>
+                          <Button variant="ghost" size="sm" aria-label="Editar">
+                            <Pencil size={16} />
+                          </Button>
+                        </Link>
+                        {h.voto_foto_path ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label="Ver anexo"
+                            onClick={() => void openFoto(h)}
+                          >
+                            <Eye size={16} />
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="mobile-card-meta vot-hist-mobile-grid">
+                      <div>
+                        <span>Título</span>
+                        <strong>{h.titulo || '—'}</strong>
+                      </div>
+                      <div>
+                        <span>Zona / Seção</span>
+                        <strong>{h.zona || '—'} / {h.secao || '—'}</strong>
+                      </div>
+                      <div>
+                        <span>Nome da mãe</span>
+                        <strong>{h.nome_mae || '—'}</strong>
+                      </div>
+                      <div>
+                        <span>Líder</span>
+                        <strong>{h.lider || '—'}</strong>
+                      </div>
+                      <div>
+                        <span>Coordenador</span>
+                        <strong>{h.coordenador || '—'}</strong>
+                      </div>
+                      {!h.voto_foto_path ? (
+                        <div>
+                          <span>Anexo</span>
+                          <strong className="vot-hist-no-foto">
+                            <ImageIcon size={12} /> Sem anexo
+                          </strong>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
-                  <div>
-                    <dt>Zona</dt>
-                    <dd>{h.zona || '—'}</dd>
-                  </div>
-                  <div>
-                    <dt>Seção</dt>
-                    <dd>{h.secao || '—'}</dd>
-                  </div>
-                  <div className="vot-hist-fields-wide">
-                    <dt>Nome da mãe</dt>
-                    <dd>{h.nome_mae || '—'}</dd>
-                  </div>
-                  <div>
-                    <dt>Liderança</dt>
-                    <dd>{h.lider || '—'}</dd>
-                  </div>
-                  <div>
-                    <dt>Coord.</dt>
-                    <dd>{h.coordenador || '—'}</dd>
-                  </div>
-                </dl>
-
-                <div className="vot-hist-actions">
-                  <Link
-                    to={`/votacao/lancar?edit=${encodeURIComponent(h.id)}`}
-                    className="vot-btn ghost vot-btn-xs"
-                  >
-                    <Pencil size={14} /> Editar
-                  </Link>
-                  {h.voto_foto_path ? (
-                    <button type="button" className="vot-btn ghost vot-btn-xs" onClick={() => void openFoto(h)}>
-                      <Eye size={14} /> Ver anexo
-                    </button>
-                  ) : (
-                    <span className="vot-muted vot-no-anexo">
-                      <ImageIcon size={12} /> Sem anexo
-                    </span>
-                  )}
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-      )}
+                )
+              })}
+            </div>
+          </>
+        )}
+      </div>
 
       {fotoUrl && (
         <div className="vot-foto-modal" role="dialog" aria-modal aria-label="Anexo">
