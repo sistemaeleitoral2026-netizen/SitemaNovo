@@ -13,6 +13,7 @@ import { Spinner } from '../components/ui/Spinner'
 import { VotacaoBottomNav } from '../components/votacao/VotacaoBottomNav'
 import {
   fetchAuxiliarLiderNomes,
+  fetchVotacaoFichasLider,
   fetchVotacaoFichasPorLiderNome,
   getVotacaoFicha,
   salvarLancamentoVotacao,
@@ -57,6 +58,8 @@ export function VotacaoLancarPage() {
 
   const [liderNomes, setLiderNomes] = useState<string[]>([])
   const [coordNome, setCoordNome] = useState<string | null>(null)
+  const [coordOptions, setCoordOptions] = useState<{ id: string; nome: string }[]>([])
+  const [selectedCoordId, setSelectedCoordId] = useState('')
   const [loadingScope, setLoadingScope] = useState(true)
   const [selectedLider, setSelectedLider] = useState<string | null>(null)
   const [liderLista, setLiderLista] = useState<VotacaoHit[]>([])
@@ -83,9 +86,23 @@ export function VotacaoLancarPage() {
   const [error, setError] = useState<string | null>(null)
   const [okMsg, setOkMsg] = useState<string | null>(null)
 
-  const isAuxiliar = hasRole(profile, 'auxiliar')
+  const isAuxiliar =
+    hasRole(profile, 'auxiliar') && !hasRole(profile, ['admin', 'diretoria', 'coordenador'])
   const isCoordenador = hasRole(profile, 'coordenador')
+  const isStaff = hasRole(profile, ['admin', 'diretoria'])
+  /** Auxiliar, coordenador, diretoria e admin: botões de liderança + lista. */
+  const useLiderBrowse = isAuxiliar || isCoordenador || isStaff
   const semLiderancas = isAuxiliar && !loadingScope && liderNomes.length === 0
+
+  async function loadLiderNomesByCoordId(coordId: string): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('lideres')
+      .select('nome')
+      .eq('coordenador_id', coordId)
+      .order('nome')
+    if (error) throw new Error(error.message)
+    return [...new Set((data ?? []).map((r) => String(r.nome ?? '').trim()).filter(Boolean))]
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -96,27 +113,83 @@ export function VotacaoLancarPage() {
           const nomes = await fetchAuxiliarLiderNomes(profile.id)
           if (!cancelled) {
             setLiderNomes(nomes)
-            // Uma liderança só: já seleciona; várias: usuário escolhe o botão.
             if (nomes.length === 1) setSelectedLider(nomes[0])
           }
         } else if (isCoordenador && profile?.id) {
           const { data } = await supabase
             .from('coordenadores')
-            .select('nome')
+            .select('id,nome')
             .or(`user_id.eq.${profile.id}${profile.coordenador_id ? `,id.eq.${profile.coordenador_id}` : ''}`)
             .limit(1)
             .maybeSingle()
-          if (!cancelled) setCoordNome(data?.nome ?? null)
+          if (cancelled) return
+          setCoordNome(data?.nome ?? null)
+          setSelectedCoordId(data?.id ?? '')
+          if (data?.id) {
+            const nomes = await loadLiderNomesByCoordId(data.id)
+            if (!cancelled) {
+              setLiderNomes(nomes)
+              if (nomes.length === 1) setSelectedLider(nomes[0])
+            }
+          }
+        } else if (isStaff) {
+          let q = supabase.from('coordenadores').select('id,nome').eq('ativo', true).order('nome')
+          if (hasRole(profile, 'diretoria') && profile?.id && !hasRole(profile, 'admin')) {
+            q = q.eq('diretoria_id', profile.id)
+          }
+          const { data: coords, error: err } = await q
+          if (err) throw new Error(err.message)
+          if (cancelled) return
+          const list = (coords ?? []) as { id: string; nome: string }[]
+          setCoordOptions(list)
+          const first = list[0]
+          if (first) {
+            setSelectedCoordId(first.id)
+            setCoordNome(first.nome)
+            const nomes = await loadLiderNomesByCoordId(first.id)
+            if (!cancelled) {
+              setLiderNomes(nomes)
+              setSelectedLider(nomes.length === 1 ? nomes[0] : null)
+            }
+          } else {
+            setLiderNomes([])
+            setCoordNome(null)
+          }
         }
       } catch {
-        if (!cancelled) setError('Não foi possível carregar suas lideranças.')
+        if (!cancelled) setError('Não foi possível carregar as lideranças.')
       } finally {
         if (!cancelled) setLoadingScope(false)
       }
     }
     void loadScope()
     return () => { cancelled = true }
-  }, [profile, isAuxiliar, isCoordenador])
+  }, [profile, isAuxiliar, isCoordenador, isStaff])
+
+  async function onPickStaffCoord(id: string) {
+    setSelectedCoordId(id)
+    const nome = coordOptions.find((c) => c.id === id)?.nome ?? ''
+    setCoordNome(nome || null)
+    setSelectedLider(null)
+    setLiderLista([])
+    setQuery('')
+    setStatusFiltro('todos')
+    if (!id) {
+      setLiderNomes([])
+      return
+    }
+    setSearching(true)
+    try {
+      const nomes = await loadLiderNomesByCoordId(id)
+      setLiderNomes(nomes)
+      if (nomes.length === 1) setSelectedLider(nomes[0])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Falha ao carregar lideranças.')
+      setLiderNomes([])
+    } finally {
+      setSearching(false)
+    }
+  }
 
   useEffect(() => {
     if (!fotoFile) return
@@ -125,9 +198,9 @@ export function VotacaoLancarPage() {
     return () => URL.revokeObjectURL(url)
   }, [fotoFile])
 
-  // Auxiliar: carrega lista completa da liderança escolhida.
+  // Carrega lista da liderança escolhida (auxiliar / coord / diretoria / admin).
   useEffect(() => {
-    if (!isAuxiliar || !selectedLider) {
+    if (!useLiderBrowse || !selectedLider) {
       setLiderLista([])
       return
     }
@@ -136,7 +209,9 @@ export function VotacaoLancarPage() {
     setError(null)
     void (async () => {
       try {
-        const rows = await fetchVotacaoFichasPorLiderNome(selectedLider)
+        const rows = coordNome
+          ? await fetchVotacaoFichasLider(coordNome, selectedLider)
+          : await fetchVotacaoFichasPorLiderNome(selectedLider)
         if (!cancelled) setLiderLista(rows)
       } catch (e) {
         if (!cancelled) {
@@ -148,11 +223,11 @@ export function VotacaoLancarPage() {
       }
     })()
     return () => { cancelled = true }
-  }, [isAuxiliar, selectedLider])
+  }, [useLiderBrowse, selectedLider, coordNome])
 
-  // Busca por texto: auxiliar filtra a lista da liderança; demais usam search API.
+  // Busca por texto só quando NÃO está no modo lista por liderança.
   useEffect(() => {
-    if (isAuxiliar) return
+    if (useLiderBrowse) return
     const q = query.trim()
     if (q.length < 2) {
       setHits([])
@@ -186,10 +261,10 @@ export function VotacaoLancarPage() {
       cancelled = true
       window.clearTimeout(t)
     }
-  }, [query, coordNome, isAuxiliar, isCoordenador])
+  }, [query, coordNome, useLiderBrowse, isCoordenador])
 
   const displayedHits = useMemo(() => {
-    if (isAuxiliar) {
+    if (useLiderBrowse) {
       if (!selectedLider) return []
       let rows = liderLista
       const q = query.trim().toLowerCase()
@@ -215,7 +290,7 @@ export function VotacaoLancarPage() {
       return rows
     }
     return hits
-  }, [isAuxiliar, selectedLider, liderLista, query, statusFiltro, hits])
+  }, [useLiderBrowse, selectedLider, liderLista, query, statusFiltro, hits])
 
   const liderCounts = useMemo(() => {
     const pend = liderLista.filter((h) => h.votou == null).length
@@ -382,11 +457,20 @@ export function VotacaoLancarPage() {
   const scopeHint = useMemo(() => {
     if (isAuxiliar) {
       if (!liderNomes.length) return 'Nenhuma liderança atribuída. Peça ao coordenador.'
-      return `Só as fichas das suas lideranças: ${liderNomes.join(', ')}`
+      return `Escolha uma liderança para ver a lista e lançar.`
     }
-    if (isCoordenador) return coordNome ? `Coordenação: ${coordNome}` : 'Coordenação não vinculada'
-    return 'Busca nas fichas (visão admin/diretoria).'
-  }, [isAuxiliar, isCoordenador, liderNomes, coordNome])
+    if (isCoordenador) {
+      return coordNome
+        ? `Coordenação: ${coordNome} · escolha uma liderança`
+        : 'Coordenação não vinculada'
+    }
+    if (isStaff) {
+      return coordNome
+        ? `Coordenação: ${coordNome} · escolha uma liderança`
+        : 'Selecione a coordenação e uma liderança'
+    }
+    return 'Busca nas fichas.'
+  }, [isAuxiliar, isCoordenador, isStaff, liderNomes.length, coordNome])
 
   if (loadingScope) {
     return (
@@ -421,41 +505,62 @@ export function VotacaoLancarPage() {
             </div>
           )}
 
-          {isAuxiliar && !semLiderancas && (
+          {isStaff && useLiderBrowse && (
+            <label className="vot-coord-pick">
+              Coordenador
+              <select
+                value={selectedCoordId}
+                onChange={(e) => void onPickStaffCoord(e.target.value)}
+              >
+                {!coordOptions.length && <option value="">Nenhuma coordenação</option>}
+                {coordOptions.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nome}</option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {useLiderBrowse && !semLiderancas && (
             <section className="vot-lider-pick">
               <div className="vot-lider-pick-head">
-                <strong>Suas lideranças</strong>
-                <span>Escolha uma para ver a lista</span>
+                <strong>{isAuxiliar ? 'Suas lideranças' : 'Lideranças'}</strong>
+                <span>
+                  {liderNomes.length
+                    ? 'Escolha uma para ver a lista'
+                    : 'Nenhuma liderança nesta coordenação'}
+                </span>
               </div>
-              <div className="vot-lider-chips" role="listbox" aria-label="Lideranças">
-                {liderNomes.map((nome) => (
-                  <button
-                    key={nome}
-                    type="button"
-                    role="option"
-                    aria-selected={selectedLider === nome}
-                    className={`vot-lider-chip${selectedLider === nome ? ' is-on' : ''}`}
-                    onClick={() => {
-                      setSelectedLider(nome)
-                      setQuery('')
-                      setStatusFiltro('todos')
-                    }}
-                  >
-                    {nome}
-                  </button>
-                ))}
-              </div>
+              {liderNomes.length > 0 && (
+                <div className="vot-lider-chips" role="listbox" aria-label="Lideranças">
+                  {liderNomes.map((nome) => (
+                    <button
+                      key={nome}
+                      type="button"
+                      role="option"
+                      aria-selected={selectedLider === nome}
+                      className={`vot-lider-chip${selectedLider === nome ? ' is-on' : ''}`}
+                      onClick={() => {
+                        setSelectedLider(nome)
+                        setQuery('')
+                        setStatusFiltro('todos')
+                      }}
+                    >
+                      {nome}
+                    </button>
+                  ))}
+                </div>
+              )}
             </section>
           )}
 
-          {(!isAuxiliar || selectedLider) && !semLiderancas && (
+          {((useLiderBrowse && selectedLider) || !useLiderBrowse) && !semLiderancas && (
             <div className="vot-search">
               <Search size={18} aria-hidden />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={
-                  isAuxiliar
+                  useLiderBrowse
                     ? 'Filtrar nesta liderança (nome, mãe, título…)'
                     : 'Nome, mãe, título, zona ou seção'
                 }
@@ -470,7 +575,7 @@ export function VotacaoLancarPage() {
             </div>
           )}
 
-          {isAuxiliar && selectedLider && !semLiderancas && (
+          {useLiderBrowse && selectedLider && !semLiderancas && (
             <div className="vot-status-chips" aria-label="Filtrar status">
               {(
                 [
@@ -496,15 +601,15 @@ export function VotacaoLancarPage() {
 
           {searching && (
             <div className="vot-center vot-muted">
-              <Spinner size={22} /> {isAuxiliar ? 'Carregando liderança…' : 'Buscando…'}
+              <Spinner size={22} /> {useLiderBrowse ? 'Carregando liderança…' : 'Buscando…'}
             </div>
           )}
 
-          {isAuxiliar && !semLiderancas && !selectedLider && (
+          {useLiderBrowse && !semLiderancas && !selectedLider && liderNomes.length > 0 && (
             <p className="vot-empty">Toque numa liderança acima para ver as fichas e lançar.</p>
           )}
 
-          {!searching && isAuxiliar && selectedLider && !displayedHits.length && (
+          {!searching && useLiderBrowse && selectedLider && !displayedHits.length && (
             <p className="vot-empty">
               {query.trim() || statusFiltro !== 'todos'
                 ? 'Nenhuma ficha com esse filtro nesta liderança.'
@@ -512,13 +617,13 @@ export function VotacaoLancarPage() {
             </p>
           )}
 
-          {!searching && !isAuxiliar && query.trim().length >= 2 && !displayedHits.length && (
+          {!searching && !useLiderBrowse && query.trim().length >= 2 && !displayedHits.length && (
             <p className="vot-empty">
               Nenhuma ficha para “{query.trim()}”.
             </p>
           )}
 
-          {!isAuxiliar && query.trim().length < 2 && (
+          {!useLiderBrowse && query.trim().length < 2 && (
             <p className="vot-empty">Digite nome (pode ser só partes), mãe, título, zona ou seção.</p>
           )}
 
