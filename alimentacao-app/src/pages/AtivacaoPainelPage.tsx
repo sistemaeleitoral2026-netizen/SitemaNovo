@@ -30,6 +30,7 @@ import { FormigasFichaPreviewModal } from '../components/FormigasFichaPreviewMod
 import { FormigasFotoThumbButton } from '../components/FormigasFotoField'
 import { useAuth } from '../contexts/AuthContext'
 import { downloadExcelSheet } from '../lib/exportExcel'
+import { downloadPdfTable } from '../lib/exportPdf'
 import { hasRole } from '../lib/roles'
 import { formatPhone } from '../lib/format'
 import {
@@ -294,7 +295,7 @@ export function AtivacaoPainelPage() {
     setPage(0)
   }
 
-  function exportExcel() {
+  function buildFormigasExport() {
     const headers = [
       'Tipo',
       'Nome',
@@ -341,11 +342,28 @@ export function AtivacaoPainelPage() {
       p.postagem_links.join(' | '),
       p.ativacao_notas,
     ])
+    return { headers, rows }
+  }
+
+  function exportExcel() {
+    const { headers, rows } = buildFormigasExport()
     downloadExcelSheet({
       filename: 'formigas-painel',
       sheetName: 'Formigas',
       headers,
       rows,
+    })
+  }
+
+  function exportPdf() {
+    const { headers, rows } = buildFormigasExport()
+    downloadPdfTable({
+      filename: 'formigas-painel',
+      title: 'Painel Formigas',
+      subtitle: `${rows.length.toLocaleString('pt-BR')} registro${rows.length === 1 ? '' : 's'} · gerado em ${new Date().toLocaleString('pt-BR')}`,
+      headers,
+      rows,
+      orientation: 'landscape',
     })
   }
 
@@ -568,9 +586,14 @@ export function AtivacaoPainelPage() {
           ]}
         />
 
-        <Button variant="secondary" onClick={exportExcel}>
-          <Download size={16} /> Exportar Excel
-        </Button>
+        <div className="export-actions">
+          <Button variant="secondary" onClick={exportExcel}>
+            <Download size={16} /> Excel
+          </Button>
+          <Button variant="secondary" onClick={exportPdf}>
+            <Download size={16} /> PDF A4
+          </Button>
+        </div>
         <button type="button" className="clear-filters" onClick={clearFilters} style={{ color: '#2f6fed' }}>
           <RotateCcw size={13} /> Limpar
         </button>
