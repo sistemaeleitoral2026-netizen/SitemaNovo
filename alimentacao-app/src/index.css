@@ -14466,6 +14466,111 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .vot-lancar { max-width: 32rem; width: 100%; }
 .vot-progresso { max-width: 64rem; width: 100%; }
 .vot-historico { max-width: 48rem; width: 100%; }
+.vot-historico-wide {
+  max-width: 80rem;
+  gap: 1rem;
+}
+.vot-historico-wide .page-header {
+  margin-bottom: 0;
+}
+.vot-hist-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .75rem 1rem;
+  padding: .85rem 1rem;
+}
+.vot-hist-filter .search-field {
+  flex: 1;
+  min-width: min(100%, 16rem);
+}
+.vot-hist-filter .search-field input {
+  width: 100%;
+  min-height: 42px;
+  padding: .62rem .75rem .62rem 2.15rem;
+  border: 1px solid var(--border-strong, #cbd5e1);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--text, #0f172a);
+  font-size: 16px;
+  outline: none;
+}
+.vot-hist-filter .search-field .vot-clear {
+  position: absolute;
+  right: .45rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+}
+.vot-hist-count {
+  font-size: .78rem;
+  color: #657084;
+  white-space: nowrap;
+}
+.vot-hist-count strong {
+  color: #263248;
+  font-size: .9rem;
+}
+.vot-hist-table-card {
+  margin-top: 0;
+}
+.vot-hist-table-card .table-wrapper {
+  max-height: calc(100vh - 280px);
+  min-height: 200px;
+  overflow: auto;
+}
+.vot-hist-loading {
+  display: flex;
+  justify-content: center;
+  padding: 3rem;
+}
+.vot-hist-loading.thin {
+  padding: .75rem;
+}
+.vot-hist-td-name {
+  font-weight: 600;
+  font-size: .8rem;
+  color: #0f172a;
+}
+.vot-hist-muted {
+  color: #6c788d;
+  font-size: .78rem;
+}
+.vot-hist-when {
+  font-size: .75rem;
+  color: #657084;
+  white-space: nowrap;
+}
+.vot-hist-row-actions {
+  display: flex;
+  gap: .35rem;
+  justify-content: flex-end;
+}
+.vot-hist-mobile-status {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .25rem;
+}
+.vot-hist-mobile-status time {
+  font-size: .7rem;
+  color: #8a95a7;
+}
+.vot-hist-mobile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .6rem .75rem;
+  margin-top: .8rem;
+  padding-top: .7rem;
+  border-top: 1px solid #e9edf4;
+}
+.vot-hist-no-foto {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  color: #94a3b8 !important;
+  font-weight: 500 !important;
+}
 .vot-head-center { text-align: left; }
 .vot-actions-grid {
   display: flex;
@@ -15235,8 +15340,29 @@ button.fichas-count.equipe-drill-count.zero:hover {
   }
   .vot-lancar,
   .vot-historico,
+  .vot-historico-wide,
   .vot-progresso {
     max-width: 100%;
+  }
+  .vot-historico-wide .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: .65rem;
+  }
+  .vot-historico-wide .page-header-actions {
+    width: 100%;
+  }
+  .vot-historico-wide .page-header-actions .ui-button,
+  .vot-historico-wide .page-header-actions a {
+    width: 100%;
+  }
+  .vot-hist-filter {
+    flex-direction: column;
+    align-items: stretch;
+    margin-bottom: .5rem;
+  }
+  .vot-hist-table-card .table-wrapper {
+    max-height: none;
   }
   .vot-head-center { text-align: center; }
   .vot-head-center .vot-sub {
