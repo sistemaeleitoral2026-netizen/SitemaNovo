@@ -412,7 +412,6 @@ export function VotacaoLancarPage() {
             )}
             {!viewOnly && (
               <div className="vot-foto-btns">
-                {/* label+input: abre a câmera com mais confiabilidade no celular do que button.click() */}
                 <label className="vot-btn">
                   <Camera size={18} /> Câmera
                   <input
@@ -420,7 +419,7 @@ export function VotacaoLancarPage() {
                     type="file"
                     accept="image/*"
                     capture="environment"
-                    className="sr-only"
+                    aria-label="Tirar foto com a câmera"
                     onChange={(e) => onPickFile(e.target.files?.[0] ?? null, e.target)}
                   />
                 </label>
@@ -430,7 +429,7 @@ export function VotacaoLancarPage() {
                     ref={galleryRef}
                     type="file"
                     accept="image/jpeg,image/png,image/webp,image/gif,image/*"
-                    className="sr-only"
+                    aria-label="Escolher foto da galeria"
                     onChange={(e) => onPickFile(e.target.files?.[0] ?? null, e.target)}
                   />
                 </label>
