@@ -168,6 +168,9 @@ export interface Cadastro {
   voto_foto_path?: string | null
   voto_em?: string | null
   voto_por?: string | null
+  /** Ficha criada pelo auxiliar no Lançar. */
+  adicionado_por_auxiliar?: boolean | null
+  criado_por?: string | null
   created_at: string
   updated_at: string
 }

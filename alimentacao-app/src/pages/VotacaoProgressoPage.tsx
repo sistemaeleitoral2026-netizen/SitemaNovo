@@ -9,6 +9,7 @@ import { hasRole } from '../lib/roles'
 import {
   fetchVotacaoFichasLider,
   fetchVotacaoProgresso,
+  labelAdicionadoNoLancamento,
   signVotoFoto,
   type VotacaoHit,
   type VotacaoProgresso,
@@ -334,6 +335,9 @@ export function VotacaoProgressoPage() {
                                   <span>
                                     Título {h.titulo || '—'} · Z {h.zona || '—'} · S {h.secao || '—'}
                                   </span>
+                                  {labelAdicionadoNoLancamento(h) ? (
+                                    <em className="vot-tag-aux">{labelAdicionadoNoLancamento(h)}</em>
+                                  ) : null}
                                 </div>
                                 <div className="vot-ficha-mini-side">
                                   <span className={`vot-badge${h.votou === true ? ' is-yes' : h.votou === false ? ' is-no' : ' is-pend'}`}>

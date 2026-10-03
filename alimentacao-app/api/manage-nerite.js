@@ -29,17 +29,24 @@ async function rest(path, { method = 'GET', body } = {}) {
 }
 
 async function getCaller(token) {
-  const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-    headers: { Authorization: `Bearer ${token}`, apikey: ANON_KEY },
-  })
-  if (!userRes.ok) return null
-  const user = await userRes.json()
-  const profileRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=id,role,ativo,diretoria_id,coordenador_id`,
-    { headers: { Authorization: `Bearer ${token}`, apikey: ANON_KEY } },
+  const keys = [...new Set([ANON_KEY, SERVICE_ROLE].filter(Boolean))]
+  let user = null
+  for (const apikey of keys) {
+    const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: { Authorization: `Bearer ${token}`, apikey },
+    })
+    if (userRes.ok) {
+      user = await userRes.json()
+      if (user?.id) break
+    }
+  }
+  if (!user?.id) return null
+
+  // Profile com service role — evita RLS bloquear a leitura do próprio perfil.
+  const profileRes = await rest(
+    `profiles?id=eq.${user.id}&select=id,role,ativo,diretoria_id,coordenador_id`,
   )
-  const profiles = await profileRes.json()
-  const profile = Array.isArray(profiles) ? profiles[0] : null
+  const profile = Array.isArray(profileRes.data) ? profileRes.data[0] : null
   if (!profile || !profile.ativo || !['admin', 'diretoria', 'coordenador'].includes(profile.role)) {
     return null
   }
