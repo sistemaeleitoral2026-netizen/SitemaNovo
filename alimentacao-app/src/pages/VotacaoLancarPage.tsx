@@ -13,11 +13,13 @@ import { Spinner } from '../components/ui/Spinner'
 import { VotacaoBottomNav } from '../components/votacao/VotacaoBottomNav'
 import {
   fetchAuxiliarLiderNomes,
+  fetchVotacaoFichasPorLiderNome,
   getVotacaoFicha,
   salvarLancamentoVotacao,
   searchVotacaoFichas,
   signVotoFoto,
   type VotacaoHit,
+  type VotacaoStatusFiltro,
 } from '../lib/votacao'
 import { supabase } from '../lib/supabase'
 import { hasRole } from '../lib/roles'
@@ -56,6 +58,9 @@ export function VotacaoLancarPage() {
   const [liderNomes, setLiderNomes] = useState<string[]>([])
   const [coordNome, setCoordNome] = useState<string | null>(null)
   const [loadingScope, setLoadingScope] = useState(true)
+  const [selectedLider, setSelectedLider] = useState<string | null>(null)
+  const [liderLista, setLiderLista] = useState<VotacaoHit[]>([])
+  const [statusFiltro, setStatusFiltro] = useState<VotacaoStatusFiltro>('todos')
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState<VotacaoHit[]>([])
   const [searching, setSearching] = useState(false)
@@ -89,7 +94,11 @@ export function VotacaoLancarPage() {
       try {
         if (isAuxiliar && profile?.id) {
           const nomes = await fetchAuxiliarLiderNomes(profile.id)
-          if (!cancelled) setLiderNomes(nomes)
+          if (!cancelled) {
+            setLiderNomes(nomes)
+            // Uma liderança só: já seleciona; várias: usuário escolhe o botão.
+            if (nomes.length === 1) setSelectedLider(nomes[0])
+          }
         } else if (isCoordenador && profile?.id) {
           const { data } = await supabase
             .from('coordenadores')
@@ -116,14 +125,36 @@ export function VotacaoLancarPage() {
     return () => URL.revokeObjectURL(url)
   }, [fotoFile])
 
+  // Auxiliar: carrega lista completa da liderança escolhida.
   useEffect(() => {
-    const q = query.trim()
-    if (q.length < 2) {
-      setHits([])
+    if (!isAuxiliar || !selectedLider) {
+      setLiderLista([])
       return
     }
-    // Auxiliar: só pesquisa dentro das lideranças alocadas a ele.
-    if (isAuxiliar && !liderNomes.length) {
+    let cancelled = false
+    setSearching(true)
+    setError(null)
+    void (async () => {
+      try {
+        const rows = await fetchVotacaoFichasPorLiderNome(selectedLider)
+        if (!cancelled) setLiderLista(rows)
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Falha ao carregar a liderança.')
+          setLiderLista([])
+        }
+      } finally {
+        if (!cancelled) setSearching(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [isAuxiliar, selectedLider])
+
+  // Busca por texto: auxiliar filtra a lista da liderança; demais usam search API.
+  useEffect(() => {
+    if (isAuxiliar) return
+    const q = query.trim()
+    if (q.length < 2) {
       setHits([])
       return
     }
@@ -135,7 +166,6 @@ export function VotacaoLancarPage() {
         try {
           const rows = await searchVotacaoFichas({
             query: q,
-            liderNomes: isAuxiliar ? liderNomes : undefined,
             coordenadorNome: isCoordenador ? coordNome : undefined,
           })
           if (!cancelled) setHits(rows)
@@ -156,7 +186,43 @@ export function VotacaoLancarPage() {
       cancelled = true
       window.clearTimeout(t)
     }
-  }, [query, liderNomes, coordNome, isAuxiliar, isCoordenador])
+  }, [query, coordNome, isAuxiliar, isCoordenador])
+
+  const displayedHits = useMemo(() => {
+    if (isAuxiliar) {
+      if (!selectedLider) return []
+      let rows = liderLista
+      const q = query.trim().toLowerCase()
+      if (q.length >= 1) {
+        const digits = q.replace(/\D/g, '')
+        rows = rows.filter((h) => {
+          const blob = [
+            h.nome_completo,
+            h.nome_mae,
+            h.titulo,
+            h.zona,
+            h.secao,
+            h.lider,
+          ].join(' ').toLowerCase()
+          if (blob.includes(q)) return true
+          if (digits.length >= 2 && (h.titulo || '').includes(digits)) return true
+          return false
+        })
+      }
+      if (statusFiltro === 'pendente') rows = rows.filter((h) => h.votou == null)
+      else if (statusFiltro === 'votou') rows = rows.filter((h) => h.votou === true)
+      else if (statusFiltro === 'nao') rows = rows.filter((h) => h.votou === false)
+      return rows
+    }
+    return hits
+  }, [isAuxiliar, selectedLider, liderLista, query, statusFiltro, hits])
+
+  const liderCounts = useMemo(() => {
+    const pend = liderLista.filter((h) => h.votou == null).length
+    const yes = liderLista.filter((h) => h.votou === true).length
+    const no = liderLista.filter((h) => h.votou === false).length
+    return { total: liderLista.length, pend, yes, no }
+  }, [liderLista])
 
   // Abre ficha em edição vinda do Histórico (?edit=id).
   useEffect(() => {
@@ -283,6 +349,7 @@ export function VotacaoLancarPage() {
       })
       setSelected(saved)
       setHits((prev) => prev.map((h) => (h.id === saved.id ? { ...h, ...saved } : h)))
+      setLiderLista((prev) => prev.map((h) => (h.id === saved.id ? { ...h, ...saved } : h)))
       setFotoFile(null)
       setClearFoto(false)
       if (saved.voto_foto_path) {
@@ -354,43 +421,109 @@ export function VotacaoLancarPage() {
             </div>
           )}
 
-          <div className="vot-search">
-            <Search size={18} aria-hidden />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Nome, mãe, título, zona ou seção"
-              autoComplete="off"
-              enterKeyHint="search"
-              disabled={semLiderancas}
-            />
-            {query && (
-              <button type="button" className="vot-clear" onClick={() => setQuery('')} aria-label="Limpar">
-                <X size={16} />
-              </button>
-            )}
-          </div>
+          {isAuxiliar && !semLiderancas && (
+            <section className="vot-lider-pick">
+              <div className="vot-lider-pick-head">
+                <strong>Suas lideranças</strong>
+                <span>Escolha uma para ver a lista</span>
+              </div>
+              <div className="vot-lider-chips" role="listbox" aria-label="Lideranças">
+                {liderNomes.map((nome) => (
+                  <button
+                    key={nome}
+                    type="button"
+                    role="option"
+                    aria-selected={selectedLider === nome}
+                    className={`vot-lider-chip${selectedLider === nome ? ' is-on' : ''}`}
+                    onClick={() => {
+                      setSelectedLider(nome)
+                      setQuery('')
+                      setStatusFiltro('todos')
+                    }}
+                  >
+                    {nome}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {(!isAuxiliar || selectedLider) && !semLiderancas && (
+            <div className="vot-search">
+              <Search size={18} aria-hidden />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={
+                  isAuxiliar
+                    ? 'Filtrar nesta liderança (nome, mãe, título…)'
+                    : 'Nome, mãe, título, zona ou seção'
+                }
+                autoComplete="off"
+                enterKeyHint="search"
+              />
+              {query && (
+                <button type="button" className="vot-clear" onClick={() => setQuery('')} aria-label="Limpar">
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+          )}
+
+          {isAuxiliar && selectedLider && !semLiderancas && (
+            <div className="vot-status-chips" aria-label="Filtrar status">
+              {(
+                [
+                  ['todos', `Todas (${liderCounts.total})`],
+                  ['pendente', `Pendente (${liderCounts.pend})`],
+                  ['votou', `Votou (${liderCounts.yes})`],
+                  ['nao', `Não votou (${liderCounts.no})`],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`vot-status-chip${statusFiltro === key ? ' is-on' : ''}`}
+                  onClick={() => setStatusFiltro(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {error && <div className="alert alert-error">{error}</div>}
 
           {searching && (
             <div className="vot-center vot-muted">
-              <Spinner size={22} /> Buscando…
+              <Spinner size={22} /> {isAuxiliar ? 'Carregando liderança…' : 'Buscando…'}
             </div>
           )}
 
-          {!searching && !semLiderancas && query.trim().length >= 2 && !hits.length && (
+          {isAuxiliar && !semLiderancas && !selectedLider && (
+            <p className="vot-empty">Toque numa liderança acima para ver as fichas e lançar.</p>
+          )}
+
+          {!searching && isAuxiliar && selectedLider && !displayedHits.length && (
             <p className="vot-empty">
-              Nenhuma ficha nas suas lideranças para “{query.trim()}”.
+              {query.trim() || statusFiltro !== 'todos'
+                ? 'Nenhuma ficha com esse filtro nesta liderança.'
+                : 'Nenhuma ficha nesta liderança.'}
             </p>
           )}
 
-          {!semLiderancas && query.trim().length < 2 && (
+          {!searching && !isAuxiliar && query.trim().length >= 2 && !displayedHits.length && (
+            <p className="vot-empty">
+              Nenhuma ficha para “{query.trim()}”.
+            </p>
+          )}
+
+          {!isAuxiliar && query.trim().length < 2 && (
             <p className="vot-empty">Digite nome (pode ser só partes), mãe, título, zona ou seção.</p>
           )}
 
           <ul className="vot-list">
-            {hits.map((h) => (
+            {displayedHits.map((h) => (
               <li key={h.id}>
                 <button type="button" className="vot-hit" onClick={() => void openFicha(h, false)}>
                   <div className="vot-hit-main">
