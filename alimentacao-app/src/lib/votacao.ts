@@ -533,6 +533,60 @@ export function labelAdicionadoNoLancamento(hit: Pick<VotacaoHit, 'adicionado_po
   return null
 }
 
+export type ExcluirLancamentoResult = {
+  /** `deleted` = ficha criada no Lançar pelo auxiliar; `reverted` = só limpa o voto. */
+  mode: 'deleted' | 'reverted'
+}
+
+/**
+ * Remove lançamento do Histórico (admin / diretoria / coordenador).
+ * - Ficha `adicionado_por_auxiliar`: apaga o cadastro.
+ * - Demais: zera votou/voto_em/voto_por/voto_foto_path (volta a pendente).
+ */
+export async function excluirLancamentoVotacao(
+  hit: Pick<VotacaoHit, 'id' | 'adicionado_por_auxiliar' | 'voto_foto_path'>,
+): Promise<ExcluirLancamentoResult> {
+  const fotoPath = hit.voto_foto_path?.trim() || null
+  const apagarFicha = Boolean(hit.adicionado_por_auxiliar)
+
+  if (apagarFicha) {
+    const { error } = await supabase.from('cadastros').delete().eq('id', hit.id)
+    if (error) {
+      if (/permission|policy|row-level|RLS/i.test(error.message)) {
+        throw new Error(
+          'Sem permissão para excluir esta ficha. Rode o SQL excluir_lancamento_votacao_run.sql no Supabase.',
+        )
+      }
+      throw new Error(error.message)
+    }
+  } else {
+    const patch = {
+      votou: null,
+      voto_em: null,
+      voto_por: null,
+      voto_foto_path: null,
+    }
+    const { error } = await supabase.from('cadastros').update(patch).eq('id', hit.id)
+    if (error) {
+      if (/permission|policy|row-level|RLS/i.test(error.message)) {
+        throw new Error('Sem permissão para remover este lançamento.')
+      }
+      if (/votou|voto_|column|schema/i.test(error.message)) {
+        throw new Error(
+          `${error.message} — rode o SQL coordenador_auxiliar_votacao_run.sql no Supabase.`,
+        )
+      }
+      throw new Error(error.message)
+    }
+  }
+
+  if (fotoPath) {
+    void supabase.storage.from(VOTACAO_FOTOS_BUCKET).remove([fotoPath])
+  }
+
+  return { mode: apagarFicha ? 'deleted' : 'reverted' }
+}
+
 /** Fichas de uma liderança (Progresso — ver status e anexo). */
 export async function fetchVotacaoFichasLider(
   coordenadorNome: string,
