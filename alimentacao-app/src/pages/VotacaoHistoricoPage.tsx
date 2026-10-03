@@ -60,18 +60,22 @@ export function VotacaoHistoricoPage() {
     async function resolveScope() {
       try {
         if (isAuxiliar && profile?.id) {
+          let cNome = ''
           if (profile.coordenador_id) {
             const { data: coord } = await supabase
               .from('coordenadores')
               .select('nome')
               .eq('id', profile.coordenador_id)
               .maybeSingle()
-            if (!cancelled) setCoordNome(coord?.nome ?? '')
+            cNome = (coord?.nome ?? '').trim()
           }
+          if (!cancelled) setCoordNome(cNome)
           const nomes = await fetchAuxiliarLiderNomes(profile.id)
           if (cancelled) return
           setLiderNomes(nomes)
-          if (!nomes.length) {
+          if (!cNome) {
+            setError('Coordenação não vinculada ao login. Peça ao coordenador ou à diretoria.')
+          } else if (!nomes.length) {
             setError('Nenhuma liderança atribuída. Peça ao coordenador em Equipe → Auxiliares.')
           }
         } else if (isCoordenador && profile?.id && !isStaff) {
@@ -107,7 +111,7 @@ export function VotacaoHistoricoPage() {
   useEffect(() => {
     if (!scopeReady) return
     if (isCoordenador && !isStaff && !coordNome) return
-    if (isAuxiliar && !liderNomes.length) {
+    if (isAuxiliar && (!coordNome || !liderNomes.length)) {
       setRows([])
       setLoading(false)
       return
@@ -129,7 +133,12 @@ export function VotacaoHistoricoPage() {
           })
           if (!cancelled) setRows(list)
         } catch (e) {
-          if (!cancelled) setError(e instanceof Error ? e.message : 'Falha ao carregar histórico.')
+          if (!cancelled) {
+            const msg = e instanceof Error ? e.message : 'Falha ao carregar histórico.'
+            setError(/votou|voto_|column|schema/i.test(msg)
+              ? `${msg} — rode o SQL coordenador_auxiliar_votacao_run.sql no Supabase.`
+              : msg)
+          }
         } finally {
           if (!cancelled) setLoading(false)
         }
