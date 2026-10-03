@@ -58,6 +58,8 @@ export function VotacaoLancarPage() {
   const cameraRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
   const editOpenedRef = useRef<string | null>(null)
+  const listaAnchorRef = useRef<HTMLDivElement | null>(null)
+  const liderPickRef = useRef<HTMLElement | null>(null)
 
   const [liderNomes, setLiderNomes] = useState<string[]>([])
   const [coordNome, setCoordNome] = useState<string | null>(null)
@@ -212,6 +214,13 @@ export function VotacaoLancarPage() {
     setLiderLista([])
     setQuery('')
     setStatusFiltro('todos')
+    // Sobe até os botões da liderança (e a lista, se só houver uma).
+    requestAnimationFrame(() => {
+      ;(liderPickRef.current ?? listaAnchorRef.current)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    })
     if (!id) {
       setLiderNomes([])
       setScopeDiretoriaId(hasRole(profile, 'diretoria') ? (profile?.id ?? null) : null)
@@ -251,7 +260,7 @@ export function VotacaoLancarPage() {
   /** Lista por liderança só quando não está pesquisando por texto. */
   const liderBrowseActive = useLiderBrowse && Boolean(selectedLider) && !searchActive
 
-  // Clique na liderança → carrega a lista dela.
+  // Clique na liderança → carrega a lista dela e sobe a tela até as fichas.
   useEffect(() => {
     if (!liderBrowseActive || !selectedLider) {
       if (!selectedLider) setLiderLista([])
@@ -265,7 +274,12 @@ export function VotacaoLancarPage() {
         const rows = coordNome
           ? await fetchVotacaoFichasLider(coordNome, selectedLider)
           : await fetchVotacaoFichasPorLiderNome(selectedLider)
-        if (!cancelled) setLiderLista(rows)
+        if (!cancelled) {
+          setLiderLista(rows)
+          requestAnimationFrame(() => {
+            listaAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          })
+        }
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : 'Falha ao carregar a liderança.')
@@ -711,7 +725,7 @@ export function VotacaoLancarPage() {
           )}
 
           {useLiderBrowse && !semLiderancas && (
-            <section className="vot-lider-pick">
+            <section className="vot-lider-pick" ref={liderPickRef}>
               <div className="vot-lider-pick-head">
                 <strong>Botões da liderança</strong>
                 <span>
@@ -744,6 +758,8 @@ export function VotacaoLancarPage() {
               )}
             </section>
           )}
+
+          <div ref={listaAnchorRef} className="vot-lista-anchor" aria-hidden={!searchActive && !liderBrowseActive} />
 
           {(searchActive || liderBrowseActive) && !semLiderancas && (
             <div className="vot-status-chips" aria-label="Filtrar status">
