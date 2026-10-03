@@ -558,31 +558,52 @@ export function VotacaoLancarPage() {
                 <strong>{isAuxiliar ? 'Suas lideranças' : 'Lideranças'}</strong>
                 <span>
                   {liderNomes.length
-                    ? 'Toque para ver as fichas · ou pesquise acima'
+                    ? `${liderNomes.length} · escolha uma para ver as fichas`
                     : 'Nenhuma liderança nesta coordenação'}
                 </span>
               </div>
               {liderNomes.length > 0 && (
-                <div className="vot-lider-chips" role="listbox" aria-label="Lideranças">
-                  {liderNomes.map((nome) => (
-                    <button
-                      key={nome}
-                      type="button"
-                      role="option"
-                      aria-selected={!searchActive && selectedLider === nome}
-                      className={`vot-lider-chip${!searchActive && selectedLider === nome ? ' is-on' : ''}`}
-                      onClick={() => {
-                        // Lançar: chip → lista de fichas → escolher → salvar (anexo etc.).
-                        // Progresso continua pela aba / Equipe.
+                <>
+                  {/* Select nativo: no celular abre o seletor do sistema (mais fácil que chips). */}
+                  <label className="vot-lider-select">
+                    <span>Escolher liderança</span>
+                    <select
+                      value={!searchActive && selectedLider ? selectedLider : ''}
+                      onChange={(e) => {
+                        const nome = e.target.value.trim()
                         setQuery('')
                         setStatusFiltro('todos')
-                        setSelectedLider((prev) => (prev === nome ? null : nome))
+                        setSelectedLider(nome || null)
                       }}
                     >
-                      {nome}
-                    </button>
-                  ))}
-                </div>
+                      <option value="">Toque para selecionar…</option>
+                      {liderNomes.map((nome) => (
+                        <option key={nome} value={nome}>{nome}</option>
+                      ))}
+                    </select>
+                  </label>
+                  {/* Lista vertical (alternativa ao select; boa no desktop e mobile). */}
+                  <ul className="vot-lider-list-pick" role="listbox" aria-label="Lideranças">
+                    {liderNomes.map((nome) => (
+                      <li key={nome}>
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={!searchActive && selectedLider === nome}
+                          className={`vot-lider-row${!searchActive && selectedLider === nome ? ' is-on' : ''}`}
+                          onClick={() => {
+                            setQuery('')
+                            setStatusFiltro('todos')
+                            setSelectedLider((prev) => (prev === nome ? null : nome))
+                          }}
+                        >
+                          <span>{nome}</span>
+                          {!searchActive && selectedLider === nome ? <Check size={18} aria-hidden /> : null}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </section>
           )}
@@ -619,7 +640,7 @@ export function VotacaoLancarPage() {
 
           {!semLiderancas && !searchActive && !selectedLider && useLiderBrowse && liderNomes.length > 0 && (
             <p className="vot-empty">
-              Pesquise o nome da pessoa ou toque numa liderança para ver as fichas e lançar.
+              Selecione a liderança acima ou pesquise o nome da pessoa.
             </p>
           )}
 
