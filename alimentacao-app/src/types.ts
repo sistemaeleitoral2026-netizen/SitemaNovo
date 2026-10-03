@@ -50,6 +50,7 @@ export interface Coordenador {
   diretoria_id: string
   nome: string
   ativo: boolean
+  telefone?: string | null
   /** Login vinculado (profiles.id com role coordenador). */
   user_id?: string | null
   /** Meta de lideranças previstas (padrão 20). Não bloqueia acima da meta. */
