@@ -129,9 +129,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     lider_id?: string | null
     lider_ids?: string[]
   }) => {
-    const { data: sessionData } = await supabase.auth.getSession()
-    const adminSession = sessionData.session
-    if (!adminSession) return { error: 'Sessão expirada.' }
+    // Renova o token antes de chamar a API (evita "Sessão inválida" com JWT expirado).
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
+    const adminSession = refreshed.session
+      ?? (await supabase.auth.getSession()).data.session
+    if (!adminSession?.access_token) {
+      return {
+        error: refreshError?.message
+          ? `Sessão expirada (${refreshError.message}). Saia e entre novamente.`
+          : 'Sessão expirada. Saia e entre novamente.',
+      }
+    }
 
     try {
       const res = await fetch('/api/create-nerite', {
