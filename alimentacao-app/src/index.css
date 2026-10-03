@@ -15339,6 +15339,10 @@ button.fichas-count.equipe-drill-count.zero:hover {
   min-width: 0;
   max-width: 100%;
 }
+.vot-status > .vot-foto-req {
+  grid-column: 1 / -1;
+  margin: 0;
+}
 .vot-choice {
   display: flex;
   align-items: center;
