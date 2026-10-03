@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Camera,
   Check,
@@ -46,8 +47,11 @@ function statusLabel(votou: boolean | null | undefined) {
 
 export function VotacaoLancarPage() {
   const { profile } = useAuth()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const cameraRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
+  const editOpenedRef = useRef<string | null>(null)
 
   const [liderNomes, setLiderNomes] = useState<string[]>([])
   const [coordNome, setCoordNome] = useState<string | null>(null)
@@ -153,6 +157,46 @@ export function VotacaoLancarPage() {
       window.clearTimeout(t)
     }
   }, [query, liderNomes, coordNome, isAuxiliar, isCoordenador])
+
+  // Abre ficha em edição vinda do Histórico (?edit=id).
+  useEffect(() => {
+    if (loadingScope) return
+    const editId = searchParams.get('edit')?.trim()
+    if (!editId || editOpenedRef.current === editId) return
+    if (isAuxiliar && !liderNomes.length) return
+
+    let cancelled = false
+    editOpenedRef.current = editId
+    void (async () => {
+      try {
+        const hit = await getVotacaoFicha(editId)
+        if (cancelled) return
+        if (!hit) {
+          setError('Ficha não encontrada para editar.')
+          navigate('/votacao/lancar', { replace: true })
+          return
+        }
+        if (isAuxiliar) {
+          const allowed = new Set(liderNomes.map((n) => n.trim().toLowerCase()))
+          if (!allowed.has((hit.lider || '').trim().toLowerCase())) {
+            setError('Esta ficha não está nas suas lideranças.')
+            navigate('/votacao/lancar', { replace: true })
+            return
+          }
+        }
+        await openFicha(hit, false)
+        navigate('/votacao/lancar', { replace: true })
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Não foi possível abrir a ficha.')
+          navigate('/votacao/lancar', { replace: true })
+        }
+      }
+    })()
+    return () => { cancelled = true }
+    // openFicha é estável o suficiente para este fluxo de deep-link
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingScope, searchParams, isAuxiliar, liderNomes, navigate])
 
   async function openFicha(hit: VotacaoHit, onlyView: boolean) {
     setError(null)
@@ -276,7 +320,7 @@ export function VotacaoLancarPage() {
   }
 
   return (
-    <div className={`vot-page vot-lancar${isAuxiliar ? '' : ' vot-has-bottom'}`}>
+    <div className="vot-page vot-lancar vot-has-bottom">
       <header className="vot-head vot-head-center">
         <h1 className="vot-title">Lançar votação</h1>
         <p className="vot-sub">{scopeHint}</p>

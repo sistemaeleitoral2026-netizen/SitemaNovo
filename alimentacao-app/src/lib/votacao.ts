@@ -399,11 +399,18 @@ async function fetchAllCadastrosCoord(coordenadorNome: string): Promise<Pick<Vot
 /** Lançamentos recentes (voto_em preenchido) — Histórico. */
 export async function fetchVotacaoHistorico(opts: {
   coordenadorNome?: string | null
+  /** Auxiliar: só fichas dessas lideranças. */
+  liderNomes?: string[]
   query?: string
   limit?: number
 }): Promise<VotacaoHit[]> {
   const limit = opts.limit ?? 60
   const q = sanitizeSearchTerm(opts.query ?? '')
+  const liderNomes = (opts.liderNomes ?? []).map((n) => n.trim()).filter(Boolean)
+  // Auxiliar precisa puxar mais linhas antes do filtro de liderança no client.
+  const fetchLimit = liderNomes.length
+    ? Math.min(400, Math.max(limit * 6, 120))
+    : Math.min(200, limit * 3)
 
   async function run(cols: string) {
     let request = supabase
@@ -411,10 +418,15 @@ export async function fetchVotacaoHistorico(opts: {
       .select(cols)
       .not('voto_em', 'is', null)
       .order('voto_em', { ascending: false })
-      .limit(Math.min(200, limit * 3))
+      .limit(fetchLimit)
 
     if (opts.coordenadorNome?.trim()) {
       request = request.ilike('coordenador', opts.coordenadorNome.trim())
+    }
+    if (liderNomes.length === 1) {
+      request = request.ilike('lider', liderNomes[0])
+    } else if (liderNomes.length > 1) {
+      request = request.or(liderNomes.map((n) => `lider.ilike.${n}`).join(','))
     }
     if (q.length >= 2) {
       const { orFilter } = buildVotacaoSearchOr(q)
@@ -429,6 +441,10 @@ export async function fetchVotacaoHistorico(opts: {
   }
   if (error) throw new Error(error.message)
   let rows = (data ?? []).map((r) => asHit(r as unknown as Record<string, unknown>))
+  if (liderNomes.length) {
+    const allowed = new Set(liderNomes.map(norm))
+    rows = rows.filter((r) => allowed.has(norm(r.lider)))
+  }
   if (q.length >= 2) {
     const { tokens, digits } = buildVotacaoSearchOr(q)
     rows = rows.filter((r) => matchesAllTokens(r, tokens, digits))
