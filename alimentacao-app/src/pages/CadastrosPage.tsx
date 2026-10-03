@@ -21,6 +21,7 @@ import {
   type CadastrosListSortKey,
 } from '../lib/cadastros'
 import { logAudit } from '../lib/audit'
+import { downloadExcelSheet } from '../lib/exportExcel'
 import { getPeriodFromPreset, type PeriodPreset } from '../lib/period'
 import { supabase } from '../lib/supabase'
 import type { Cadastro, Profile } from '../types'
@@ -367,11 +368,23 @@ export function CadastrosPage() {
     setDeleteId(null)
   }
 
-  async function exportCsv() {
+  async function exportExcel() {
     setExporting(true)
     try {
       const rowsData = await fetchCadastrosMatching(listQuery)
-      const header = ['Nome', 'Coordenador', 'Lideranca', 'Data nascimento', 'Nome da mae', 'Telefone', 'Titulo', 'Zona', 'Secao', 'CEP', 'Data']
+      const headers = [
+        'Nome',
+        'Coordenador',
+        'Liderança',
+        'Data nascimento',
+        'Nome da mãe',
+        'Telefone',
+        'Título',
+        'Zona',
+        'Seção',
+        'CEP',
+        'Data',
+      ]
       const rows = rowsData.map((c) => [
         c.nome_completo,
         c.coordenador || '',
@@ -385,16 +398,12 @@ export function CadastrosPage() {
         c.cep ?? '',
         formatDate(c.created_at),
       ])
-      const csv = [header, ...rows]
-        .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-        .join('\n')
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'cadastros.csv'
-      a.click()
-      URL.revokeObjectURL(url)
+      downloadExcelSheet({
+        filename: 'cadastros',
+        sheetName: 'Cadastros',
+        headers,
+        rows,
+      })
     } catch {
       setLoadError('Não foi possível exportar. Tente novamente.')
     } finally {
@@ -449,8 +458,8 @@ export function CadastrosPage() {
                   </div>
                 )}
               </div>
-              <Button variant="secondary" onClick={() => void exportCsv()} disabled={exporting}>
-                <Download size={15} /> {exporting ? 'Exportando…' : 'Exportar'}
+              <Button variant="secondary" onClick={() => void exportExcel()} disabled={exporting}>
+                <Download size={15} /> {exporting ? 'Exportando…' : 'Exportar Excel'}
               </Button>
             </>
           )}
