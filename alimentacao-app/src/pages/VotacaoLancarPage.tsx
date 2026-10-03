@@ -198,10 +198,14 @@ export function VotacaoLancarPage() {
     return () => URL.revokeObjectURL(url)
   }, [fotoFile])
 
-  // Carrega lista da liderança escolhida (auxiliar / coord / diretoria / admin).
+  const searchActive = query.trim().length >= 2
+  /** Lista por liderança só quando não está pesquisando por texto. */
+  const liderBrowseActive = useLiderBrowse && Boolean(selectedLider) && !searchActive
+
+  // Clique na liderança → carrega a lista dela.
   useEffect(() => {
-    if (!useLiderBrowse || !selectedLider) {
-      setLiderLista([])
+    if (!liderBrowseActive || !selectedLider) {
+      if (!selectedLider) setLiderLista([])
       return
     }
     let cancelled = false
@@ -223,11 +227,10 @@ export function VotacaoLancarPage() {
       }
     })()
     return () => { cancelled = true }
-  }, [useLiderBrowse, selectedLider, coordNome])
+  }, [liderBrowseActive, selectedLider, coordNome])
 
-  // Busca por texto só quando NÃO está no modo lista por liderança.
+  // Pesquisa sempre disponível (em paralelo aos botões de liderança).
   useEffect(() => {
-    if (useLiderBrowse) return
     const q = query.trim()
     if (q.length < 2) {
       setHits([])
@@ -241,7 +244,8 @@ export function VotacaoLancarPage() {
         try {
           const rows = await searchVotacaoFichas({
             query: q,
-            coordenadorNome: isCoordenador ? coordNome : undefined,
+            liderNomes: isAuxiliar ? liderNomes : undefined,
+            coordenadorNome: (isCoordenador || isStaff) ? coordNome : undefined,
           })
           if (!cancelled) setHits(rows)
         } catch (e) {
@@ -261,43 +265,24 @@ export function VotacaoLancarPage() {
       cancelled = true
       window.clearTimeout(t)
     }
-  }, [query, coordNome, useLiderBrowse, isCoordenador])
+  }, [query, coordNome, isAuxiliar, isCoordenador, isStaff, liderNomes])
+
+  const listSource = searchActive ? hits : (liderBrowseActive ? liderLista : [])
 
   const displayedHits = useMemo(() => {
-    if (useLiderBrowse) {
-      if (!selectedLider) return []
-      let rows = liderLista
-      const q = query.trim().toLowerCase()
-      if (q.length >= 1) {
-        const digits = q.replace(/\D/g, '')
-        rows = rows.filter((h) => {
-          const blob = [
-            h.nome_completo,
-            h.nome_mae,
-            h.titulo,
-            h.zona,
-            h.secao,
-            h.lider,
-          ].join(' ').toLowerCase()
-          if (blob.includes(q)) return true
-          if (digits.length >= 2 && (h.titulo || '').includes(digits)) return true
-          return false
-        })
-      }
-      if (statusFiltro === 'pendente') rows = rows.filter((h) => h.votou == null)
-      else if (statusFiltro === 'votou') rows = rows.filter((h) => h.votou === true)
-      else if (statusFiltro === 'nao') rows = rows.filter((h) => h.votou === false)
-      return rows
-    }
-    return hits
-  }, [useLiderBrowse, selectedLider, liderLista, query, statusFiltro, hits])
+    let rows = listSource
+    if (statusFiltro === 'pendente') rows = rows.filter((h) => h.votou == null)
+    else if (statusFiltro === 'votou') rows = rows.filter((h) => h.votou === true)
+    else if (statusFiltro === 'nao') rows = rows.filter((h) => h.votou === false)
+    return rows
+  }, [listSource, statusFiltro])
 
   const liderCounts = useMemo(() => {
-    const pend = liderLista.filter((h) => h.votou == null).length
-    const yes = liderLista.filter((h) => h.votou === true).length
-    const no = liderLista.filter((h) => h.votou === false).length
-    return { total: liderLista.length, pend, yes, no }
-  }, [liderLista])
+    const pend = listSource.filter((h) => h.votou == null).length
+    const yes = listSource.filter((h) => h.votou === true).length
+    const no = listSource.filter((h) => h.votou === false).length
+    return { total: listSource.length, pend, yes, no }
+  }, [listSource])
 
   // Abre ficha em edição vinda do Histórico (?edit=id).
   useEffect(() => {
@@ -520,50 +505,13 @@ export function VotacaoLancarPage() {
             </label>
           )}
 
-          {useLiderBrowse && !semLiderancas && (
-            <section className="vot-lider-pick">
-              <div className="vot-lider-pick-head">
-                <strong>{isAuxiliar ? 'Suas lideranças' : 'Lideranças'}</strong>
-                <span>
-                  {liderNomes.length
-                    ? 'Escolha uma para ver a lista'
-                    : 'Nenhuma liderança nesta coordenação'}
-                </span>
-              </div>
-              {liderNomes.length > 0 && (
-                <div className="vot-lider-chips" role="listbox" aria-label="Lideranças">
-                  {liderNomes.map((nome) => (
-                    <button
-                      key={nome}
-                      type="button"
-                      role="option"
-                      aria-selected={selectedLider === nome}
-                      className={`vot-lider-chip${selectedLider === nome ? ' is-on' : ''}`}
-                      onClick={() => {
-                        setSelectedLider(nome)
-                        setQuery('')
-                        setStatusFiltro('todos')
-                      }}
-                    >
-                      {nome}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-
-          {((useLiderBrowse && selectedLider) || !useLiderBrowse) && !semLiderancas && (
-            <div className="vot-search">
+          {!semLiderancas && (
+            <div className="vot-search vot-search-sticky">
               <Search size={18} aria-hidden />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder={
-                  useLiderBrowse
-                    ? 'Filtrar nesta liderança (nome, mãe, título…)'
-                    : 'Nome, mãe, título, zona ou seção'
-                }
+                placeholder="Pesquisar nome, mãe, título, zona ou seção"
                 autoComplete="off"
                 enterKeyHint="search"
               />
@@ -575,7 +523,40 @@ export function VotacaoLancarPage() {
             </div>
           )}
 
-          {useLiderBrowse && selectedLider && !semLiderancas && (
+          {useLiderBrowse && !semLiderancas && (
+            <section className="vot-lider-pick">
+              <div className="vot-lider-pick-head">
+                <strong>{isAuxiliar ? 'Suas lideranças' : 'Lideranças'}</strong>
+                <span>
+                  {liderNomes.length
+                    ? 'Toque para listar · ou pesquise acima'
+                    : 'Nenhuma liderança nesta coordenação'}
+                </span>
+              </div>
+              {liderNomes.length > 0 && (
+                <div className="vot-lider-chips" role="listbox" aria-label="Lideranças">
+                  {liderNomes.map((nome) => (
+                    <button
+                      key={nome}
+                      type="button"
+                      role="option"
+                      aria-selected={!searchActive && selectedLider === nome}
+                      className={`vot-lider-chip${!searchActive && selectedLider === nome ? ' is-on' : ''}`}
+                      onClick={() => {
+                        setQuery('')
+                        setStatusFiltro('todos')
+                        setSelectedLider(nome)
+                      }}
+                    >
+                      {nome}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {(searchActive || liderBrowseActive) && !semLiderancas && (
             <div className="vot-status-chips" aria-label="Filtrar status">
               {(
                 [
@@ -601,30 +582,28 @@ export function VotacaoLancarPage() {
 
           {searching && (
             <div className="vot-center vot-muted">
-              <Spinner size={22} /> {useLiderBrowse ? 'Carregando liderança…' : 'Buscando…'}
+              <Spinner size={22} /> {searchActive ? 'Buscando…' : 'Carregando liderança…'}
             </div>
           )}
 
-          {useLiderBrowse && !semLiderancas && !selectedLider && liderNomes.length > 0 && (
-            <p className="vot-empty">Toque numa liderança acima para ver as fichas e lançar.</p>
+          {!semLiderancas && !searchActive && !selectedLider && useLiderBrowse && liderNomes.length > 0 && (
+            <p className="vot-empty">Pesquise acima ou toque numa liderança para ver a lista.</p>
           )}
 
-          {!searching && useLiderBrowse && selectedLider && !displayedHits.length && (
+          {!searching && searchActive && !displayedHits.length && (
+            <p className="vot-empty">Nenhuma ficha para “{query.trim()}”.</p>
+          )}
+
+          {!searching && liderBrowseActive && !displayedHits.length && (
             <p className="vot-empty">
-              {query.trim() || statusFiltro !== 'todos'
+              {statusFiltro !== 'todos'
                 ? 'Nenhuma ficha com esse filtro nesta liderança.'
                 : 'Nenhuma ficha nesta liderança.'}
             </p>
           )}
 
-          {!searching && !useLiderBrowse && query.trim().length >= 2 && !displayedHits.length && (
-            <p className="vot-empty">
-              Nenhuma ficha para “{query.trim()}”.
-            </p>
-          )}
-
-          {!useLiderBrowse && query.trim().length < 2 && (
-            <p className="vot-empty">Digite nome (pode ser só partes), mãe, título, zona ou seção.</p>
+          {!useLiderBrowse && !searchActive && (
+            <p className="vot-empty">Digite ao menos 2 letras para pesquisar.</p>
           )}
 
           <ul className="vot-list">
