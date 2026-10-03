@@ -77,7 +77,7 @@ function VotacaoRoute({ children }: { children: React.ReactNode }) {
 function VotacaoProgressoRoute({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
   if (loading) return <Spinner />
-  if (!hasRole(profile, ['admin', 'diretoria', 'coordenador'])) {
+  if (!hasRole(profile, ['admin', 'diretoria', 'coordenador', 'auxiliar'])) {
     return <Navigate to={homeForProfile(profile)} replace />
   }
   return children
