@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Check, ChevronDown, Copy, Lock, Search, Trash2, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Copy, Lock, Search, Trash2, X } from 'lucide-react'
 import { Spinner } from '../ui/Spinner'
 import type { UserRole } from '../../types'
 import { ATRIBUICAO_OPTIONS, labelRole } from '../../lib/roles'
@@ -94,26 +94,41 @@ export function EquipeMemberModal({
   const [pwdOpen, setPwdOpen] = useState(mode === 'create')
   const [copied, setCopied] = useState(false)
   const [liderSearch, setLiderSearch] = useState('')
+  /** Selecionadas ficam fora da lista de escolha (não atrapalham). */
+  const [showSelectedLideres, setShowSelectedLideres] = useState(false)
 
   useEffect(() => {
     if (open) {
       setPwdOpen(mode === 'create')
       setLiderSearch('')
+      setShowSelectedLideres(false)
     }
   }, [open, mode])
 
-  const filteredLideres = useMemo(() => {
+  const liderIds = form.lider_ids ?? []
+  const selectedSet = useMemo(() => new Set(liderIds), [liderIds])
+
+  const selectedLideres = useMemo(
+    () => liderMultiOptions.filter((l) => selectedSet.has(l.value)),
+    [liderMultiOptions, selectedSet],
+  )
+
+  const availableLideres = useMemo(() => {
     const q = liderSearch.trim().toLowerCase()
-    if (!q) return liderMultiOptions
-    return liderMultiOptions.filter((l) => l.label.toLowerCase().includes(q))
-  }, [liderMultiOptions, liderSearch])
+    return liderMultiOptions.filter((l) => {
+      if (selectedSet.has(l.value)) return false
+      if (!q) return true
+      return l.label.toLowerCase().includes(q)
+    })
+  }, [liderMultiOptions, selectedSet, liderSearch])
 
   if (!open) return null
 
   const isEdit = mode === 'edit'
   const isAuxiliar = kind === 'auxiliar'
   const roleLabel = labelRole(kind)
-  const liderIds = form.lider_ids ?? []
+  const totalLideres = liderMultiOptions.length
+  const selectedCount = liderIds.length
   const roleOptions = ATRIBUICAO_OPTIONS.filter((opt) => {
     if (opt.value === kind) return true
     if (!allowAdminRole && opt.value === 'administrativo') return false
@@ -309,68 +324,111 @@ export function EquipeMemberModal({
             <section className="eqm-section">
               <div className="eqm-section-head">
                 <h3 className="eqm-section-title">Lideranças da votação</h3>
-                <span className="eqm-section-note">
-                  {liderIds.length
-                    ? `${liderIds.length} selecionada${liderIds.length === 1 ? '' : 's'}`
-                    : 'Nenhuma ainda'}
+                <span className={`eqm-lider-count${selectedCount ? ' has-sel' : ''}`}>
+                  {selectedCount
+                    ? `${selectedCount} de ${totalLideres} selecionada${selectedCount === 1 ? '' : 's'}`
+                    : `0 de ${totalLideres}`}
                 </span>
               </div>
               <p className="eqm-hint">
-                Marque as lideranças cujas fichas este auxiliar poderá lançar no celular.
+                Toque para escolher. As marcadas saem da lista e ficam em “Selecionadas”, pra não atrapalhar.
               </p>
-              {liderMultiOptions.length > 6 && (
+
+              {selectedCount > 0 && (
+                <div className="eqm-lider-selected">
+                  <button
+                    type="button"
+                    className="eqm-lider-selected-toggle"
+                    onClick={() => setShowSelectedLideres((v) => !v)}
+                    aria-expanded={showSelectedLideres}
+                  >
+                    <span>
+                      <Check size={14} strokeWidth={2.4} />
+                      <strong>{selectedCount}</strong> selecionada{selectedCount === 1 ? '' : 's'}
+                      <em>(ocultas na lista)</em>
+                    </span>
+                    {showSelectedLideres ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </button>
+                  {showSelectedLideres && (
+                    <div className="eqm-lider-chips">
+                      {selectedLideres.map((l) => (
+                        <button
+                          key={l.value}
+                          type="button"
+                          className="eqm-lider-chip"
+                          title="Remover desta seleção"
+                          onClick={() => onChange({ lider_ids: toggleLider(liderIds, l.value) })}
+                        >
+                          <span>{l.label}</span>
+                          <X size={13} strokeWidth={2.2} />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {totalLideres > 4 && availableLideres.length > 0 && (
                 <div className="eqm-lider-search">
                   <Search size={15} aria-hidden />
                   <input
                     value={liderSearch}
                     onChange={(e) => setLiderSearch(e.target.value)}
-                    placeholder="Buscar liderança…"
+                    placeholder="Buscar liderança disponível…"
                     autoComplete="off"
                   />
                 </div>
               )}
-              {!liderMultiOptions.length ? (
+
+              {!totalLideres ? (
                 <p className="eqm-hint" style={{ marginTop: 0 }}>
                   Nenhuma liderança nesta coordenação. Cadastre lideranças antes.
                 </p>
-              ) : !filteredLideres.length ? (
-                <p className="eqm-hint" style={{ marginTop: 0 }}>Nenhuma liderança com esse nome.</p>
+              ) : !availableLideres.length ? (
+                <p className="eqm-lider-empty">
+                  {selectedCount === totalLideres
+                    ? 'Todas as lideranças já foram selecionadas.'
+                    : 'Nenhuma liderança disponível com esse nome.'}
+                </p>
               ) : (
                 <div className="eqm-lideres">
-                  {filteredLideres.map((l) => {
-                    const checked = liderIds.includes(l.value)
-                    return (
-                      <button
-                        key={l.value}
-                        type="button"
-                        className={`eqm-lider-card${checked ? ' is-on' : ''}`}
-                        onClick={() => onChange({ lider_ids: toggleLider(liderIds, l.value) })}
-                      >
-                        <span className={`eqm-check${checked ? ' is-on' : ''}`}>
-                          {checked ? <Check size={12} strokeWidth={2.5} /> : null}
-                        </span>
-                        <strong>{l.label}</strong>
-                      </button>
-                    )
-                  })}
+                  {availableLideres.map((l) => (
+                    <button
+                      key={l.value}
+                      type="button"
+                      className="eqm-lider-card"
+                      onClick={() => onChange({ lider_ids: toggleLider(liderIds, l.value) })}
+                    >
+                      <span className="eqm-check" />
+                      <strong>{l.label}</strong>
+                    </button>
+                  ))}
                 </div>
               )}
-              {liderMultiOptions.length > 0 && (
+
+              {totalLideres > 0 && (
                 <div className="eqm-lider-actions">
                   <button
                     type="button"
                     className="eqm-btn-ghost eqm-btn-sm"
-                    onClick={() => onChange({ lider_ids: liderMultiOptions.map((l) => l.value) })}
+                    onClick={() => {
+                      onChange({ lider_ids: liderMultiOptions.map((l) => l.value) })
+                      setShowSelectedLideres(true)
+                    }}
+                    disabled={selectedCount === totalLideres}
                   >
                     Marcar todas
                   </button>
                   <button
                     type="button"
                     className="eqm-btn-ghost eqm-btn-sm"
-                    onClick={() => onChange({ lider_ids: [] })}
-                    disabled={!liderIds.length}
+                    onClick={() => {
+                      onChange({ lider_ids: [] })
+                      setShowSelectedLideres(false)
+                    }}
+                    disabled={!selectedCount}
                   >
-                    Limpar
+                    Limpar seleção
                   </button>
                 </div>
               )}
