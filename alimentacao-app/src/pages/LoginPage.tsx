@@ -4,7 +4,6 @@ import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Spinner } from '../components/ui/Spinner'
-import { CheckCircle2, LockKeyhole } from 'lucide-react'
 
 export function LoginPage() {
   const { session, profile, loading, signIn } = useAuth()
@@ -45,27 +44,17 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
-      <section className="login-intro" aria-label="Apresentação do sistema">
-        <div className="login-intro-content">
-          <div className="login-wordmark"><span>N</span>Nerites</div>
-          <h1>Gestão de cadastros<br />com visão territorial.</h1>
-          <p>Centralize a operação, acompanhe a equipe e visualize os dados coletados em um único ambiente.</p>
-          <ul>
-            <li><CheckCircle2 size={17} /> Gestão organizada da equipe</li>
-            <li><CheckCircle2 size={17} /> Indicadores e relatórios consolidados</li>
-            <li><CheckCircle2 size={17} /> Leitura geográfica dos cadastros</li>
-          </ul>
-        </div>
-      </section>
       <div className="login-card">
         <div className="login-brand">
-          <div className="login-card-icon"><LockKeyhole size={22} /></div>
-          <span className="login-kicker">Acesso ao sistema</span>
-          <h1>Bem-vindo</h1>
-          <p>Entre com suas credenciais para continuar.</p>
+          <div className="login-wordmark" aria-hidden>
+            <span>N</span>
+            Nerites
+          </div>
+          <h1>Entrar</h1>
+          <p>Use seu e-mail e senha para acessar.</p>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <form className="login-form" onSubmit={handleSubmit}>
           <Input
             label="E-mail"
             type="email"
@@ -73,10 +62,11 @@ export function LoginPage() {
             onChange={(e) => setEmail(e.target.value)}
             required
             autoComplete="username"
+            inputMode="email"
           />
           <Input
             label="Senha"
-            type="text"
+            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required

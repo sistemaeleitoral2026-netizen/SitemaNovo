@@ -11,7 +11,7 @@ function json(res, status, body) {
 async function rest(path, { method = 'GET', body, token } = {}) {
   const headers = {
     Authorization: `Bearer ${token || SERVICE_ROLE}`,
-    apikey: token && token !== SERVICE_ROLE ? ANON_KEY : SERVICE_ROLE,
+    apikey: token && token !== SERVICE_ROLE ? (ANON_KEY || SERVICE_ROLE) : SERVICE_ROLE,
   }
   if (body !== undefined) {
     headers['Content-Type'] = 'application/json'
@@ -28,13 +28,43 @@ async function rest(path, { method = 'GET', body, token } = {}) {
   return { ok: res.ok, status: res.status, data }
 }
 
+/** Valida o JWT do usuário (tenta anon e service role como apikey). */
+async function getAuthUser(token) {
+  const keys = [...new Set([ANON_KEY, SERVICE_ROLE].filter(Boolean))]
+  let lastStatus = 0
+  for (const apikey of keys) {
+    const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey,
+      },
+    })
+    lastStatus = userRes.status
+    if (userRes.ok) {
+      const user = await userRes.json()
+      if (user?.id) return { user, error: null }
+    }
+  }
+  return {
+    user: null,
+    error: lastStatus === 401 || lastStatus === 403
+      ? 'Sessão inválida. Saia e entre novamente.'
+      : `Falha ao validar sessão (HTTP ${lastStatus || '—'}).`,
+  }
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return json(res, 405, { error: 'Método não permitido.' })
   }
 
-  if (!SUPABASE_URL || !SERVICE_ROLE || !ANON_KEY) {
-    return json(res, 500, { error: 'Variáveis do servidor incompletas.' })
+  if (!SUPABASE_URL || !SERVICE_ROLE) {
+    return json(res, 500, { error: 'Variáveis do servidor incompletas (SUPABASE_URL / SERVICE_ROLE).' })
+  }
+  if (!ANON_KEY) {
+    return json(res, 500, {
+      error: 'VITE_SUPABASE_ANON_KEY (ou SUPABASE_ANON_KEY) não configurada no Vercel.',
+    })
   }
 
   const authHeader = req.headers.authorization || ''
@@ -44,28 +74,16 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        apikey: ANON_KEY,
-      },
-    })
-    if (!userRes.ok) {
-      return json(res, 401, { error: 'Sessão inválida.' })
+    const { user, error: authError } = await getAuthUser(token)
+    if (!user) {
+      return json(res, 401, { error: authError || 'Sessão inválida. Saia e entre novamente.' })
     }
-    const user = await userRes.json()
 
-    const profileRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=id,role,ativo,diretoria_id,coordenador_id`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          apikey: ANON_KEY,
-        },
-      },
+    // Profile com service role — evita falha por RLS no token do usuário.
+    const profileRes = await rest(
+      `profiles?id=eq.${user.id}&select=id,role,ativo,diretoria_id,coordenador_id`,
     )
-    const profiles = await profileRes.json()
-    const profile = Array.isArray(profiles) ? profiles[0] : null
+    const profile = Array.isArray(profileRes.data) ? profileRes.data[0] : null
     if (!profile || !profile.ativo || !['admin', 'diretoria', 'coordenador'].includes(profile.role)) {
       return json(res, 403, { error: 'Sem permissão para criar usuários.' })
     }
@@ -148,6 +166,20 @@ module.exports = async function handler(req, res) {
         return json(res, 403, { error: 'Sem permissão para este coordenador.' })
       }
       body.diretoria_id = row.diretoria_id
+    }
+
+    // Auxiliar: valida coordenação e amarra diretoria (especialmente para a diretora).
+    if (role === 'auxiliar' && coordenadorId) {
+      const check = await rest(`coordenadores?id=eq.${coordenadorId}&select=id,diretoria_id,nome`)
+      const row = Array.isArray(check.data) ? check.data[0] : null
+      if (!row) return json(res, 404, { error: 'Coordenação não encontrada.' })
+      if (profile.role === 'diretoria' && row.diretoria_id !== profile.id) {
+        return json(res, 403, { error: 'Esta coordenação não pertence à sua diretoria.' })
+      }
+      if (profile.role === 'coordenador' && row.id !== coordenadorId) {
+        return json(res, 403, { error: 'Sem permissão para esta coordenação.' })
+      }
+      body.diretoria_id = row.diretoria_id || body.diretoria_id || diretoriaId
     }
 
     const createRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {

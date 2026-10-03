@@ -5,6 +5,7 @@ import {
   Check,
   Eye,
   ImagePlus,
+  Plus,
   Search,
   X,
 } from 'lucide-react'
@@ -12,10 +13,12 @@ import { useAuth } from '../contexts/AuthContext'
 import { Spinner } from '../components/ui/Spinner'
 import { VotacaoBottomNav } from '../components/votacao/VotacaoBottomNav'
 import {
+  criarCadastroLancamentoVotacao,
   fetchAuxiliarLiderNomes,
   fetchVotacaoFichasLider,
   fetchVotacaoFichasPorLiderNome,
   getVotacaoFicha,
+  labelAdicionadoNoLancamento,
   salvarLancamentoVotacao,
   searchVotacaoFichas,
   signVotoFoto,
@@ -68,7 +71,9 @@ export function VotacaoLancarPage() {
   const [hits, setHits] = useState<VotacaoHit[]>([])
   const [searching, setSearching] = useState(false)
   const [selected, setSelected] = useState<VotacaoHit | null>(null)
+  const [modoNovo, setModoNovo] = useState(false)
   const [viewOnly, setViewOnly] = useState(false)
+  const [scopeDiretoriaId, setScopeDiretoriaId] = useState<string | null>(null)
 
   const [votou, setVotou] = useState<boolean | null>(null)
   const [fotoFile, setFotoFile] = useState<File | null>(null)
@@ -90,9 +95,13 @@ export function VotacaoLancarPage() {
     hasRole(profile, 'auxiliar') && !hasRole(profile, ['admin', 'diretoria', 'coordenador'])
   const isCoordenador = hasRole(profile, 'coordenador')
   const isStaff = hasRole(profile, ['admin', 'diretoria'])
+  /** Auxiliar não altera dados de ficha existente — em ficha nova pode preencher. */
+  const cadastroSomenteLeitura = isAuxiliar && !modoNovo
   /** Auxiliar, coordenador, diretoria e admin: botões de liderança + lista. */
   const useLiderBrowse = isAuxiliar || isCoordenador || isStaff
   const semLiderancas = isAuxiliar && !loadingScope && liderNomes.length === 0
+  const liderParaNovo = selectedLider || (liderNomes.length === 1 ? liderNomes[0] : null)
+  const podeAdicionarNovo = useLiderBrowse && !semLiderancas && liderNomes.length > 0
 
   async function loadLiderNomesByCoordId(coordId: string): Promise<string[]> {
     const { data, error } = await supabase
@@ -114,13 +123,20 @@ export function VotacaoLancarPage() {
           if (profile.coordenador_id) {
             const { data: coord } = await supabase
               .from('coordenadores')
-              .select('id,nome')
+              .select('id,nome,diretoria_id')
               .eq('id', profile.coordenador_id)
               .maybeSingle()
             if (!cancelled) {
               setCoordNome(coord?.nome ?? null)
               setSelectedCoordId(coord?.id ?? '')
+              setScopeDiretoriaId(
+                (coord?.diretoria_id as string | null | undefined)
+                  ?? profile.diretoria_id
+                  ?? null,
+              )
             }
+          } else if (!cancelled) {
+            setScopeDiretoriaId(profile.diretoria_id ?? null)
           }
           const nomes = await fetchAuxiliarLiderNomes(profile.id)
           if (!cancelled) {
@@ -130,13 +146,16 @@ export function VotacaoLancarPage() {
         } else if (isCoordenador && profile?.id) {
           const { data } = await supabase
             .from('coordenadores')
-            .select('id,nome')
+            .select('id,nome,diretoria_id')
             .or(`user_id.eq.${profile.id}${profile.coordenador_id ? `,id.eq.${profile.coordenador_id}` : ''}`)
             .limit(1)
             .maybeSingle()
           if (cancelled) return
           setCoordNome(data?.nome ?? null)
           setSelectedCoordId(data?.id ?? '')
+          setScopeDiretoriaId(
+            (data?.diretoria_id as string | null | undefined) ?? profile.diretoria_id ?? null,
+          )
           if (data?.id) {
             const nomes = await loadLiderNomesByCoordId(data.id)
             if (!cancelled) {
@@ -145,19 +164,25 @@ export function VotacaoLancarPage() {
             }
           }
         } else if (isStaff) {
-          let q = supabase.from('coordenadores').select('id,nome').eq('ativo', true).order('nome')
+          let q = supabase.from('coordenadores').select('id,nome,diretoria_id').eq('ativo', true).order('nome')
           if (hasRole(profile, 'diretoria') && profile?.id && !hasRole(profile, 'admin')) {
             q = q.eq('diretoria_id', profile.id)
           }
           const { data: coords, error: err } = await q
           if (err) throw new Error(err.message)
           if (cancelled) return
-          const list = (coords ?? []) as { id: string; nome: string }[]
-          setCoordOptions(list)
+          const list = (coords ?? []) as { id: string; nome: string; diretoria_id?: string | null }[]
+          setCoordOptions(list.map((c) => ({ id: c.id, nome: c.nome })))
           const first = list[0]
           if (first) {
             setSelectedCoordId(first.id)
             setCoordNome(first.nome)
+            setScopeDiretoriaId(
+              first.diretoria_id
+                || (profile && hasRole(profile, 'diretoria') ? profile.id : null)
+                || profile?.diretoria_id
+                || null,
+            )
             const nomes = await loadLiderNomesByCoordId(first.id)
             if (!cancelled) {
               setLiderNomes(nomes)
@@ -166,6 +191,7 @@ export function VotacaoLancarPage() {
           } else {
             setLiderNomes([])
             setCoordNome(null)
+            setScopeDiretoriaId(profile && hasRole(profile, 'diretoria') ? profile.id : null)
           }
         }
       } catch {
@@ -188,10 +214,21 @@ export function VotacaoLancarPage() {
     setStatusFiltro('todos')
     if (!id) {
       setLiderNomes([])
+      setScopeDiretoriaId(hasRole(profile, 'diretoria') ? (profile?.id ?? null) : null)
       return
     }
     setSearching(true)
     try {
+      const { data: coord } = await supabase
+        .from('coordenadores')
+        .select('diretoria_id')
+        .eq('id', id)
+        .maybeSingle()
+      const dirFromCoord = (coord?.diretoria_id as string | null | undefined) || null
+      const dirFromProfile = profile && hasRole(profile, 'diretoria')
+        ? profile.id
+        : (profile?.diretoria_id ?? null)
+      setScopeDiretoriaId(dirFromCoord || dirFromProfile)
       const nomes = await loadLiderNomesByCoordId(id)
       setLiderNomes(nomes)
       if (nomes.length === 1) setSelectedLider(nomes[0])
@@ -348,6 +385,7 @@ export function VotacaoLancarPage() {
   async function openFicha(hit: VotacaoHit, onlyView: boolean) {
     setError(null)
     setOkMsg(null)
+    setModoNovo(false)
     setViewOnly(onlyView)
     setSelected(hit)
     setVotou(hit.votou ?? null)
@@ -374,6 +412,7 @@ export function VotacaoLancarPage() {
 
   function cancelFicha() {
     setSelected(null)
+    setModoNovo(false)
     setViewOnly(false)
     setFotoFile(null)
     setFotoPreview(null)
@@ -391,6 +430,55 @@ export function VotacaoLancarPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  function startNovo() {
+    if (!podeAdicionarNovo) return
+    const lider = liderParaNovo
+    if (!lider) {
+      setError('Selecione a liderança nos botões antes de adicionar uma pessoa.')
+      return
+    }
+    if (!coordNome) {
+      setError(isStaff ? 'Selecione a coordenação antes de adicionar.' : 'Coordenação não vinculada ao seu login.')
+      return
+    }
+    setError(null)
+    setOkMsg(null)
+    setModoNovo(true)
+    setViewOnly(false)
+    setQuery('')
+    setSelectedLider(lider)
+    setSelected({
+      id: '',
+      nome_completo: '',
+      titulo: '',
+      zona: '',
+      secao: '',
+      nome_mae: '',
+      data_nascimento: null,
+      telefone: '',
+      coordenador: coordNome,
+      lider,
+      votou: null,
+      voto_foto_path: null,
+      voto_em: null,
+      voto_por: null,
+      diretoria_id: scopeDiretoriaId,
+      adicionado_por_auxiliar: isAuxiliar,
+      criado_por: profile?.id ?? null,
+    })
+    setVotou(null)
+    setFotoFile(null)
+    setFotoPreview(null)
+    setClearFoto(false)
+    setNome('')
+    setTitulo('')
+    setZona('')
+    setSecao('')
+    setNomeMae('')
+    setNascimento('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   function onPickFile(file: File | null, input?: HTMLInputElement | null) {
     if (!file) return
     setClearFoto(false)
@@ -405,13 +493,17 @@ export function VotacaoLancarPage() {
       setError('Selecione Votou ou Não votou.')
       return
     }
-    if (!nome.trim()) {
+    if ((modoNovo || !cadastroSomenteLeitura) && !nome.trim()) {
       setError('Informe o nome da pessoa.')
+      return
+    }
+    if (modoNovo && nome.trim().split(/\s+/).filter(Boolean).length < 2) {
+      setError('Informe nome e sobrenome.')
       return
     }
     // Comprovante obrigatório só para auxiliar ao marcar "Votou".
     if (isAuxiliar && votou === true) {
-      const temAnexo = Boolean(fotoFile) || (Boolean(selected.voto_foto_path) && !clearFoto)
+      const temAnexo = Boolean(fotoFile) || (!modoNovo && Boolean(selected.voto_foto_path) && !clearFoto)
       if (!temAnexo) {
         setError('Anexo do comprovante de voto é obrigatório para marcar Votou.')
         return
@@ -421,24 +513,55 @@ export function VotacaoLancarPage() {
     setError(null)
     setOkMsg(null)
     try {
-      const saved = await salvarLancamentoVotacao({
-        cadastroId: selected.id,
-        userId: profile.id,
-        votou,
-        fotoFile,
-        clearFoto: clearFoto && !fotoFile,
-        correcoes: {
-          nome_completo: nome,
+      let saved: VotacaoHit
+      if (modoNovo) {
+        saved = await criarCadastroLancamentoVotacao({
+          userId: profile.id,
+          diretoriaId: scopeDiretoriaId ?? profile.diretoria_id ?? null,
+          coordenadorNome: coordNome || selected.coordenador,
+          liderNome: selected.lider || liderParaNovo || '',
+          nomeCompleto: nome,
           titulo,
           zona,
           secao,
-          nome_mae: nomeMae,
-          data_nascimento: nascimento || null,
-        },
-      })
+          nomeMae,
+          dataNascimento: nascimento || null,
+          votou,
+          fotoFile,
+          porAuxiliar: isAuxiliar,
+        })
+        setModoNovo(false)
+        setLiderLista((prev) => [saved, ...prev.filter((h) => h.id !== saved.id)])
+        setHits((prev) => [saved, ...prev.filter((h) => h.id !== saved.id)])
+      } else {
+        saved = await salvarLancamentoVotacao({
+          cadastroId: selected.id,
+          userId: profile.id,
+          votou,
+          fotoFile,
+          clearFoto: clearFoto && !fotoFile,
+          // Auxiliar não pode alterar nome, título, zona, seção, mãe nem nascimento.
+          correcoes: cadastroSomenteLeitura
+            ? undefined
+            : {
+                nome_completo: nome,
+                titulo,
+                zona,
+                secao,
+                nome_mae: nomeMae,
+                data_nascimento: nascimento || null,
+              },
+        })
+        setHits((prev) => prev.map((h) => (h.id === saved.id ? { ...h, ...saved } : h)))
+        setLiderLista((prev) => prev.map((h) => (h.id === saved.id ? { ...h, ...saved } : h)))
+      }
       setSelected(saved)
-      setHits((prev) => prev.map((h) => (h.id === saved.id ? { ...h, ...saved } : h)))
-      setLiderLista((prev) => prev.map((h) => (h.id === saved.id ? { ...h, ...saved } : h)))
+      setNome(saved.nome_completo ?? '')
+      setTitulo(saved.titulo ?? '')
+      setZona(saved.zona ?? '')
+      setSecao(saved.secao ?? '')
+      setNomeMae(saved.nome_mae ?? '')
+      setNascimento(toInputDate(saved.data_nascimento))
       setFotoFile(null)
       setClearFoto(false)
       if (saved.voto_foto_path) {
@@ -448,11 +571,19 @@ export function VotacaoLancarPage() {
           /* lançamento ok; anexo pode falhar só na visualização */
         }
       }
-      setOkMsg('Lançamento salvo. Você pode editar os dados se precisar corrigir.')
+      setOkMsg(
+        labelAdicionadoNoLancamento(saved)
+          ? 'Pessoa adicionada e lançamento salvo.'
+          : isAuxiliar
+            ? 'Lançamento salvo.'
+            : 'Lançamento salvo. Você pode editar os dados se precisar corrigir.',
+      )
       setViewOnly(true)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Não foi possível salvar.'
-      if (/votou|voto_|column|schema|bucket|storage/i.test(msg)) {
+      if (/auxiliar_adicionar|adicionado_por_auxiliar|criado_por/i.test(msg)) {
+        setError(msg)
+      } else if (/votou|voto_|column|schema|bucket|storage/i.test(msg)) {
         setError(`${msg} — rode o SQL coordenador_auxiliar_votacao_run.sql no Supabase.`)
       } else {
         setError(msg)
@@ -471,17 +602,17 @@ export function VotacaoLancarPage() {
   const scopeHint = useMemo(() => {
     if (isAuxiliar) {
       if (!liderNomes.length) return 'Nenhuma liderança atribuída. Peça ao coordenador.'
-      return `Escolha uma liderança para ver a lista e lançar.`
+      return 'Clique no botão da liderança para listar as fichas.'
     }
     if (isCoordenador) {
       return coordNome
-        ? `Coordenação: ${coordNome} · escolha uma liderança`
+        ? `Coordenação: ${coordNome} · clique no botão da liderança`
         : 'Coordenação não vinculada'
     }
     if (isStaff) {
       return coordNome
-        ? `Coordenação: ${coordNome} · escolha uma liderança`
-        : 'Selecione a coordenação e uma liderança'
+        ? `Coordenação: ${coordNome} · clique no botão da liderança`
+        : 'Selecione a coordenação e clique no botão da liderança'
     }
     return 'Busca nas fichas.'
   }, [isAuxiliar, isCoordenador, isStaff, liderNomes.length, coordNome])
@@ -501,13 +632,17 @@ export function VotacaoLancarPage() {
           <h1 className="page-title">Lançar votação</h1>
           <p className="page-subtitle">{scopeHint}</p>
         </div>
-        {selected ? (
-          <div className="page-header-actions">
+        <div className="page-header-actions">
+          {selected ? (
             <button type="button" className="vot-btn ghost" onClick={cancelFicha} disabled={saving}>
               <X size={16} /> Cancelar
             </button>
-          </div>
-        ) : null}
+          ) : podeAdicionarNovo ? (
+            <button type="button" className="vot-btn" onClick={startNovo}>
+              <Plus size={16} /> Adicionar novo
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {!selected && (
@@ -555,55 +690,34 @@ export function VotacaoLancarPage() {
           {useLiderBrowse && !semLiderancas && (
             <section className="vot-lider-pick">
               <div className="vot-lider-pick-head">
-                <strong>{isAuxiliar ? 'Suas lideranças' : 'Lideranças'}</strong>
+                <strong>Botões da liderança</strong>
                 <span>
                   {liderNomes.length
-                    ? `${liderNomes.length} · escolha uma para ver as fichas`
+                    ? 'Clique para listar as fichas'
                     : 'Nenhuma liderança nesta coordenação'}
                 </span>
               </div>
               {liderNomes.length > 0 && (
-                <>
-                  {/* Select nativo: no celular abre o seletor do sistema (mais fácil que chips). */}
-                  <label className="vot-lider-select">
-                    <span>Escolher liderança</span>
-                    <select
-                      value={!searchActive && selectedLider ? selectedLider : ''}
-                      onChange={(e) => {
-                        const nome = e.target.value.trim()
-                        setQuery('')
-                        setStatusFiltro('todos')
-                        setSelectedLider(nome || null)
-                      }}
-                    >
-                      <option value="">Toque para selecionar…</option>
-                      {liderNomes.map((nome) => (
-                        <option key={nome} value={nome}>{nome}</option>
-                      ))}
-                    </select>
-                  </label>
-                  {/* Lista vertical (alternativa ao select; boa no desktop e mobile). */}
-                  <ul className="vot-lider-list-pick" role="listbox" aria-label="Lideranças">
-                    {liderNomes.map((nome) => (
-                      <li key={nome}>
-                        <button
-                          type="button"
-                          role="option"
-                          aria-selected={!searchActive && selectedLider === nome}
-                          className={`vot-lider-row${!searchActive && selectedLider === nome ? ' is-on' : ''}`}
-                          onClick={() => {
-                            setQuery('')
-                            setStatusFiltro('todos')
-                            setSelectedLider((prev) => (prev === nome ? null : nome))
-                          }}
-                        >
-                          <span>{nome}</span>
-                          {!searchActive && selectedLider === nome ? <Check size={18} aria-hidden /> : null}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </>
+                <ul className="vot-lider-list-pick" role="listbox" aria-label="Botões da liderança">
+                  {liderNomes.map((nome) => (
+                    <li key={nome}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={!searchActive && selectedLider === nome}
+                        className={`vot-lider-row${!searchActive && selectedLider === nome ? ' is-on' : ''}`}
+                        onClick={() => {
+                          setQuery('')
+                          setStatusFiltro('todos')
+                          setSelectedLider((prev) => (prev === nome ? null : nome))
+                        }}
+                      >
+                        <span>{nome}</span>
+                        {!searchActive && selectedLider === nome ? <Check size={18} aria-hidden /> : null}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </section>
           )}
@@ -640,7 +754,7 @@ export function VotacaoLancarPage() {
 
           {!semLiderancas && !searchActive && !selectedLider && useLiderBrowse && liderNomes.length > 0 && (
             <p className="vot-empty">
-              Selecione a liderança acima ou pesquise o nome da pessoa.
+              Clique num botão da liderança para listar as fichas, ou pesquise o nome.
             </p>
           )}
 
@@ -652,12 +766,20 @@ export function VotacaoLancarPage() {
             <p className="vot-empty">
               {statusFiltro !== 'todos'
                 ? 'Nenhuma ficha com esse filtro nesta liderança.'
-                : 'Nenhuma ficha nesta liderança.'}
+                : podeAdicionarNovo
+                  ? 'Nenhuma ficha nesta liderança. Use Adicionar novo se precisar cadastrar alguém.'
+                  : 'Nenhuma ficha nesta liderança.'}
             </p>
           )}
 
           {!useLiderBrowse && !searchActive && (
             <p className="vot-empty">Digite ao menos 2 letras para pesquisar.</p>
+          )}
+
+          {podeAdicionarNovo && liderBrowseActive && !searchActive && (
+            <button type="button" className="vot-btn vot-add-novo" onClick={startNovo}>
+              <Plus size={18} /> Adicionar novo nesta liderança
+            </button>
           )}
 
           <ul className="vot-list">
@@ -673,6 +795,9 @@ export function VotacaoLancarPage() {
                       {h.lider || 'Sem liderança'}
                       {h.nome_mae ? ` · Mãe: ${h.nome_mae}` : ''}
                     </em>
+                    {labelAdicionadoNoLancamento(h) ? (
+                      <em className="vot-tag-aux">{labelAdicionadoNoLancamento(h)}</em>
+                    ) : null}
                   </div>
                   <span className={`vot-badge${h.votou === true ? ' is-yes' : h.votou === false ? ' is-no' : ' is-pend'}`}>
                     {statusLabel(h.votou)}
@@ -688,10 +813,10 @@ export function VotacaoLancarPage() {
         <div className="vot-ficha">
           <div className="vot-ficha-bar">
             <button type="button" className="vot-back" onClick={cancelFicha} disabled={saving}>
-              <X size={16} /> Cancelar · buscar outra pessoa
+              <X size={16} /> {modoNovo ? 'Cancelar · voltar' : 'Cancelar · buscar outra pessoa'}
             </button>
             <div className="vot-ficha-actions">
-              {viewOnly ? (
+              {!modoNovo && (viewOnly ? (
                 <button type="button" className="vot-btn ghost" onClick={() => setViewOnly(false)}>
                   Editar
                 </button>
@@ -699,16 +824,27 @@ export function VotacaoLancarPage() {
                 <button type="button" className="vot-btn ghost" onClick={() => void refreshSelected().then(() => setViewOnly(true))}>
                   <Eye size={16} /> Ver
                 </button>
-              )}
+              ))}
             </div>
           </div>
 
           <div className="vot-ficha-person">
-            <span className="vot-ficha-person-label">Pessoa selecionada</span>
-            <strong>{selected.nome_completo}</strong>
-            <span>
-              Título {selected.titulo || '—'} · Zona {selected.zona || '—'} · Seção {selected.secao || '—'}
+            <span className="vot-ficha-person-label">
+              {modoNovo ? 'Nova pessoa' : 'Pessoa selecionada'}
             </span>
+            <strong>{modoNovo ? (nome.trim() || 'Preencha os dados abaixo') : selected.nome_completo}</strong>
+            <span>
+              {modoNovo
+                ? `Liderança ${selected.lider || '—'} · Coord. ${selected.coordenador || '—'}`
+                : `Título ${selected.titulo || '—'} · Zona ${selected.zona || '—'} · Seção ${selected.secao || '—'}`}
+            </span>
+            {(modoNovo || labelAdicionadoNoLancamento(selected)) && (
+              <em className="vot-tag-aux">
+                {modoNovo
+                  ? (isAuxiliar ? 'Adicionado pelo auxiliar' : 'Adicionado no lançamento')
+                  : labelAdicionadoNoLancamento(selected)}
+              </em>
+            )}
           </div>
 
           {okMsg && <div className="alert alert-success">{okMsg}</div>}
@@ -791,40 +927,68 @@ export function VotacaoLancarPage() {
             )}
           </div>
 
-          <div className="vot-fields">
+          <div className={`vot-fields${cadastroSomenteLeitura ? ' is-locked' : ''}`}>
             <p className="vot-fields-hint">
-              {viewOnly
-                ? 'Toque em Editar para corrigir Nome, Título, Zona, Seção, Nome da mãe ou Nascimento.'
-                : 'Corrija os dados errados abaixo antes de salvar o lançamento.'}
+              {modoNovo
+                ? 'Preencha os dados. Diretoria, coordenação e liderança já vêm da sua liberação.'
+                : cadastroSomenteLeitura
+                  ? 'Dados da ficha só para consulta — auxiliar não pode alterar.'
+                  : viewOnly
+                    ? 'Toque em Editar para corrigir Nome, Título, Zona, Seção, Nome da mãe ou Nascimento.'
+                    : 'Corrija os dados errados abaixo antes de salvar o lançamento.'}
             </p>
             <label>
               Nome
-              <input value={nome} disabled={viewOnly} onChange={(e) => setNome(e.target.value)} autoComplete="name" />
+              <input
+                value={nome}
+                disabled={cadastroSomenteLeitura || viewOnly}
+                onChange={(e) => setNome(e.target.value)}
+                autoComplete="name"
+              />
             </label>
             <label>
               Título
-              <input value={titulo} disabled={viewOnly} inputMode="numeric" onChange={(e) => setTitulo(e.target.value)} />
+              <input
+                value={titulo}
+                disabled={cadastroSomenteLeitura || viewOnly}
+                inputMode="numeric"
+                onChange={(e) => setTitulo(e.target.value)}
+              />
             </label>
             <div className="vot-row2">
               <label>
                 Zona
-                <input value={zona} disabled={viewOnly} inputMode="numeric" onChange={(e) => setZona(e.target.value)} />
+                <input
+                  value={zona}
+                  disabled={cadastroSomenteLeitura || viewOnly}
+                  inputMode="numeric"
+                  onChange={(e) => setZona(e.target.value)}
+                />
               </label>
               <label>
                 Seção
-                <input value={secao} disabled={viewOnly} inputMode="numeric" onChange={(e) => setSecao(e.target.value)} />
+                <input
+                  value={secao}
+                  disabled={cadastroSomenteLeitura || viewOnly}
+                  inputMode="numeric"
+                  onChange={(e) => setSecao(e.target.value)}
+                />
               </label>
             </div>
             <label>
               Nome da mãe
-              <input value={nomeMae} disabled={viewOnly} onChange={(e) => setNomeMae(e.target.value)} />
+              <input
+                value={nomeMae}
+                disabled={cadastroSomenteLeitura || viewOnly}
+                onChange={(e) => setNomeMae(e.target.value)}
+              />
             </label>
             <label>
               Data de nascimento
               <input
                 type="date"
                 value={nascimento}
-                disabled={viewOnly}
+                disabled={cadastroSomenteLeitura || viewOnly}
                 onChange={(e) => setNascimento(e.target.value)}
               />
             </label>
@@ -850,7 +1014,7 @@ export function VotacaoLancarPage() {
             {!viewOnly ? (
               <button type="button" className="vot-save" disabled={saving} onClick={() => void handleSave()}>
                 <Check size={18} strokeWidth={2.6} />
-                {saving ? 'Salvando…' : 'Salvar lançamento'}
+                {saving ? 'Salvando…' : modoNovo ? 'Salvar nova pessoa' : 'Salvar lançamento'}
               </button>
             ) : (
               <button type="button" className="vot-save" onClick={() => setViewOnly(false)}>

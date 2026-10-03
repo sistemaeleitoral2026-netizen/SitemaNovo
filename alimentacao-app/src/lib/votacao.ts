@@ -22,6 +22,8 @@ export type VotacaoHit = Pick<
   | 'voto_em'
   | 'voto_por'
   | 'diretoria_id'
+  | 'adicionado_por_auxiliar'
+  | 'criado_por'
 >
 
 export type VotacaoStatusFiltro = 'todos' | 'pendente' | 'votou' | 'nao'
@@ -44,6 +46,10 @@ export type VotacaoProgresso = {
 }
 
 const SELECT_COLS =
+  'id,nome_completo,titulo,zona,secao,nome_mae,data_nascimento,telefone,coordenador,lider,votou,voto_foto_path,voto_em,voto_por,diretoria_id,adicionado_por_auxiliar,criado_por'
+
+/** Com voto, sem colunas de “adicionado pelo auxiliar”. */
+const SELECT_VOTO =
   'id,nome_completo,titulo,zona,secao,nome_mae,data_nascimento,telefone,coordenador,lider,votou,voto_foto_path,voto_em,voto_por,diretoria_id'
 
 /** Sem colunas de voto — fallback se o SQL ainda não rodou. */
@@ -136,7 +142,22 @@ function asHit(row: Record<string, unknown>): VotacaoHit {
     voto_em: (row.voto_em as string | null | undefined) ?? null,
     voto_por: (row.voto_por as string | null | undefined) ?? null,
     diretoria_id: (row.diretoria_id as string) ?? null,
+    adicionado_por_auxiliar: Boolean(row.adicionado_por_auxiliar),
+    criado_por: (row.criado_por as string | null | undefined) ?? null,
   }
+}
+
+/** Select com fallback se colunas novas ainda não existirem no Supabase. */
+async function selectCadastro(id: string) {
+  let { data, error } = await supabase.from('cadastros').select(SELECT_COLS).eq('id', id).maybeSingle()
+  if (error && /adicionado_por_auxiliar|criado_por|column|schema/i.test(error.message)) {
+    ;({ data, error } = await supabase.from('cadastros').select(SELECT_VOTO).eq('id', id).maybeSingle())
+  }
+  if (error && /votou|voto_|column|schema/i.test(error.message)) {
+    ;({ data, error } = await supabase.from('cadastros').select(SELECT_BASIC).eq('id', id).maybeSingle())
+  }
+  if (error) throw new Error(error.message)
+  return data ? asHit(data as unknown as Record<string, unknown>) : null
 }
 
 export async function fetchAuxiliarLiderNomes(auxiliarId: string): Promise<string[]> {
@@ -196,6 +217,9 @@ export async function searchVotacaoFichas(opts: {
   }
 
   let { data, error } = await run(SELECT_COLS)
+  if (error && /adicionado_por_auxiliar|criado_por|column|schema/i.test(error.message)) {
+    ;({ data, error } = await run(SELECT_VOTO))
+  }
   if (error && /votou|voto_|column|schema/i.test(error.message)) {
     ;({ data, error } = await run(SELECT_BASIC))
   }
@@ -220,21 +244,7 @@ export async function searchVotacaoFichas(opts: {
 }
 
 export async function getVotacaoFicha(id: string): Promise<VotacaoHit | null> {
-  let { data, error } = await supabase
-    .from('cadastros')
-    .select(SELECT_COLS)
-    .eq('id', id)
-    .maybeSingle()
-  if (error && /votou|voto_|column|schema/i.test(error.message)) {
-    ;({ data, error } = await supabase
-      .from('cadastros')
-      .select(SELECT_BASIC)
-      .eq('id', id)
-      .maybeSingle())
-    if (!error && data) return asHit(data as unknown as Record<string, unknown>)
-  }
-  if (error) throw new Error(error.message)
-  return data ? asHit(data as unknown as Record<string, unknown>) : null
+  return selectCadastro(id)
 }
 
 async function uploadVotoFoto(userId: string, file: File): Promise<string> {
@@ -315,12 +325,10 @@ export async function salvarLancamentoVotacao(input: VotacaoSaveInput): Promise<
     patch.voto_foto_path = null
   }
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('cadastros')
     .update(patch)
     .eq('id', input.cadastroId)
-    .select(SELECT_COLS)
-    .maybeSingle()
 
   if (error) {
     if (newFotoPath) {
@@ -334,8 +342,111 @@ export async function salvarLancamentoVotacao(input: VotacaoSaveInput): Promise<
     }
     throw new Error(error.message)
   }
-  if (!data) throw new Error('Ficha não encontrada ou sem permissão para salvar.')
-  return asHit(data as unknown as Record<string, unknown>)
+  const saved = await selectCadastro(input.cadastroId)
+  if (!saved) throw new Error('Ficha não encontrada ou sem permissão para salvar.')
+  return saved
+}
+
+export type VotacaoNovoCadastroInput = {
+  userId: string
+  diretoriaId: string | null
+  coordenadorNome: string
+  liderNome: string
+  nomeCompleto: string
+  titulo?: string
+  zona?: string
+  secao?: string
+  nomeMae?: string
+  dataNascimento?: string | null
+  votou: boolean
+  fotoFile?: File | null
+  /** true = auxiliar (badge específico); false = coord/diretoria/admin */
+  porAuxiliar?: boolean
+}
+
+/** Cria ficha no Lançar já vinculada à coordenação/liderança e registra o voto. */
+export async function criarCadastroLancamentoVotacao(
+  input: VotacaoNovoCadastroInput,
+): Promise<VotacaoHit> {
+  const nome = input.nomeCompleto.trim()
+  const coord = input.coordenadorNome.trim()
+  const lider = input.liderNome.trim()
+  const porAuxiliar = Boolean(input.porAuxiliar)
+  if (!nome || nome.split(/\s+/).filter(Boolean).length < 2) {
+    throw new Error('Informe nome e sobrenome.')
+  }
+  if (!coord) throw new Error('Selecione a coordenação antes de adicionar.')
+  if (!lider) throw new Error('Selecione a liderança antes de adicionar.')
+
+  let fotoPath: string | null = null
+  if (input.fotoFile) {
+    fotoPath = await uploadVotoFoto(input.userId, input.fotoFile)
+  }
+
+  const payload: Record<string, unknown> = {
+    nome_completo: nome,
+    titulo: (input.titulo ?? '').trim() || null,
+    zona: (input.zona ?? '').trim(),
+    secao: (input.secao ?? '').trim(),
+    nome_mae: (input.nomeMae ?? '').trim(),
+    data_nascimento: input.dataNascimento?.trim() || null,
+    telefone: '',
+    coordenador: coord,
+    lider,
+    diretoria_id: input.diretoriaId,
+    operator_id: null,
+    adicionado_por_auxiliar: porAuxiliar,
+    criado_por: input.userId,
+    votou: input.votou,
+    voto_em: new Date().toISOString(),
+    voto_por: input.userId,
+    voto_foto_path: fotoPath,
+  }
+
+  const { data, error } = await supabase
+    .from('cadastros')
+    .insert(payload)
+    .select('id')
+    .maybeSingle()
+
+  if (error) {
+    if (fotoPath) void supabase.storage.from(VOTACAO_FOTOS_BUCKET).remove([fotoPath])
+    if (/adicionado_por_auxiliar|criado_por|column|schema/i.test(error.message)) {
+      throw new Error(
+        `${error.message} — rode o SQL auxiliar_adicionar_ficha_votacao_run.sql no Supabase.`,
+      )
+    }
+    if (/unique|duplicate|titulo/i.test(error.message)) {
+      throw new Error('Este título de eleitor já existe em outra ficha. Confira o número e tente de novo.')
+    }
+    if (/permission|policy|row-level|RLS/i.test(error.message)) {
+      throw new Error(
+        'Sem permissão para adicionar ficha. Confira coordenação/liderança e rode o SQL auxiliar_adicionar_ficha_votacao_run.sql.',
+      )
+    }
+    throw new Error(error.message)
+  }
+  if (!data?.id) throw new Error('Não foi possível criar a ficha.')
+  const saved = await selectCadastro(String(data.id))
+  if (!saved) throw new Error('Ficha criada, mas não foi possível recarregar.')
+  return {
+    ...saved,
+    adicionado_por_auxiliar: porAuxiliar || Boolean(saved.adicionado_por_auxiliar),
+    criado_por: saved.criado_por ?? input.userId,
+  }
+}
+
+/** @deprecated use criarCadastroLancamentoVotacao */
+export async function criarCadastroLancamentoAuxiliar(
+  input: VotacaoNovoCadastroInput,
+): Promise<VotacaoHit> {
+  return criarCadastroLancamentoVotacao({ ...input, porAuxiliar: true })
+}
+
+export function labelAdicionadoNoLancamento(hit: Pick<VotacaoHit, 'adicionado_por_auxiliar' | 'criado_por'>) {
+  if (hit.adicionado_por_auxiliar) return 'Adicionado pelo auxiliar'
+  if (hit.criado_por) return 'Adicionado no lançamento'
+  return null
 }
 
 /** Fichas de uma liderança (Progresso — ver status e anexo). */
@@ -363,6 +474,9 @@ export async function fetchVotacaoFichasLider(
     }
 
     let { data, error } = await run(SELECT_COLS)
+    if (error && /adicionado_por_auxiliar|criado_por|column|schema/i.test(error.message)) {
+      ;({ data, error } = await run(SELECT_VOTO))
+    }
     if (error && /votou|voto_|column|schema/i.test(error.message)) {
       ;({ data, error } = await run(SELECT_BASIC))
     }
@@ -394,6 +508,9 @@ export async function fetchVotacaoFichasPorLiderNome(liderNome: string): Promise
         .range(from, from + PAGE - 1)
     }
     let { data, error } = await run(SELECT_COLS)
+    if (error && /adicionado_por_auxiliar|criado_por|column|schema/i.test(error.message)) {
+      ;({ data, error } = await run(SELECT_VOTO))
+    }
     if (error && /votou|voto_|column|schema/i.test(error.message)) {
       ;({ data, error } = await run(SELECT_BASIC))
     }
@@ -464,6 +581,9 @@ export async function fetchVotacaoHistorico(opts: {
   }
 
   let { data, error } = await run(SELECT_COLS)
+  if (error && /adicionado_por_auxiliar|criado_por|column|schema/i.test(error.message)) {
+    ;({ data, error } = await run(SELECT_VOTO))
+  }
   if (error && /votou|voto_|column|schema/i.test(error.message)) {
     throw new Error(`${error.message} — rode o SQL coordenador_auxiliar_votacao_run.sql no Supabase.`)
   }
