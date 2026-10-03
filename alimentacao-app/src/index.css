@@ -14968,6 +14968,14 @@ button.fichas-count.equipe-drill-count.zero:hover {
   display: flex;
   gap: .35rem;
   justify-content: flex-end;
+  align-items: center;
+  flex-shrink: 0;
+}
+.vot-hist-row-actions button[aria-label="Excluir lançamento"] {
+  color: var(--color-danger);
+}
+.vot-hist-row-actions button[aria-label="Excluir lançamento"]:hover:not(:disabled) {
+  background: #fef2f2;
 }
 .vot-hist-mobile-status {
   display: flex;
