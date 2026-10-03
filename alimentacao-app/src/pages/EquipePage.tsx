@@ -673,9 +673,10 @@ export function EquipePage() {
   }
 
   async function manageNeriteRequest(method: 'POST' | 'DELETE', body: Record<string, unknown>) {
-    const { data: sessionData } = await supabase.auth.getSession()
-    const token = sessionData.session?.access_token
-    if (!token) return { error: 'Sessão expirada.' }
+    const { data: refreshed } = await supabase.auth.refreshSession()
+    const token = refreshed.session?.access_token
+      ?? (await supabase.auth.getSession()).data.session?.access_token
+    if (!token) return { error: 'Sessão expirada. Saia e entre novamente.' }
 
     try {
       const res = await fetch('/api/manage-nerite', {
