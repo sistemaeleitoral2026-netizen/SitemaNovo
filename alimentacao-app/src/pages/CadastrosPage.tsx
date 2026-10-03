@@ -22,6 +22,7 @@ import {
 } from '../lib/cadastros'
 import { logAudit } from '../lib/audit'
 import { downloadExcelSheet } from '../lib/exportExcel'
+import { downloadPdfTable } from '../lib/exportPdf'
 import { getPeriodFromPreset, type PeriodPreset } from '../lib/period'
 import { supabase } from '../lib/supabase'
 import type { Cadastro, Profile } from '../types'
@@ -368,36 +369,41 @@ export function CadastrosPage() {
     setDeleteId(null)
   }
 
+  async function buildCadastrosExport() {
+    const rowsData = await fetchCadastrosMatching(listQuery)
+    const headers = [
+      'Nome',
+      'Coordenador',
+      'Liderança',
+      'Data nascimento',
+      'Nome da mãe',
+      'Telefone',
+      'Título',
+      'Zona',
+      'Seção',
+      'CEP',
+      'Data',
+    ]
+    const rows = rowsData.map((c) => [
+      c.nome_completo,
+      c.coordenador || '',
+      c.lider || '',
+      c.data_nascimento ? formatDate(c.data_nascimento) : '',
+      c.nome_mae || '',
+      c.telefone,
+      c.titulo,
+      c.zona,
+      c.secao,
+      c.cep ?? '',
+      formatDate(c.created_at),
+    ])
+    return { headers, rows, total: rowsData.length }
+  }
+
   async function exportExcel() {
     setExporting(true)
     try {
-      const rowsData = await fetchCadastrosMatching(listQuery)
-      const headers = [
-        'Nome',
-        'Coordenador',
-        'Liderança',
-        'Data nascimento',
-        'Nome da mãe',
-        'Telefone',
-        'Título',
-        'Zona',
-        'Seção',
-        'CEP',
-        'Data',
-      ]
-      const rows = rowsData.map((c) => [
-        c.nome_completo,
-        c.coordenador || '',
-        c.lider || '',
-        c.data_nascimento ? formatDate(c.data_nascimento) : '',
-        c.nome_mae || '',
-        c.telefone,
-        c.titulo,
-        c.zona,
-        c.secao,
-        c.cep ?? '',
-        formatDate(c.created_at),
-      ])
+      const { headers, rows } = await buildCadastrosExport()
       downloadExcelSheet({
         filename: 'cadastros',
         sheetName: 'Cadastros',
@@ -406,6 +412,25 @@ export function CadastrosPage() {
       })
     } catch {
       setLoadError('Não foi possível exportar. Tente novamente.')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  async function exportPdf() {
+    setExporting(true)
+    try {
+      const { headers, rows, total } = await buildCadastrosExport()
+      downloadPdfTable({
+        filename: 'cadastros',
+        title: 'Cadastros',
+        subtitle: `${total.toLocaleString('pt-BR')} registro${total === 1 ? '' : 's'} · gerado em ${new Date().toLocaleString('pt-BR')}`,
+        headers,
+        rows,
+        orientation: 'landscape',
+      })
+    } catch {
+      setLoadError('Não foi possível exportar o PDF. Tente novamente.')
     } finally {
       setExporting(false)
     }
@@ -458,9 +483,14 @@ export function CadastrosPage() {
                   </div>
                 )}
               </div>
-              <Button variant="secondary" onClick={() => void exportExcel()} disabled={exporting}>
-                <Download size={15} /> {exporting ? 'Exportando…' : 'Exportar Excel'}
-              </Button>
+              <div className="export-actions">
+                <Button variant="secondary" onClick={() => void exportExcel()} disabled={exporting}>
+                  <Download size={15} /> {exporting ? 'Exportando…' : 'Excel'}
+                </Button>
+                <Button variant="secondary" onClick={() => void exportPdf()} disabled={exporting}>
+                  <Download size={15} /> {exporting ? 'Exportando…' : 'PDF A4'}
+                </Button>
+              </div>
             </>
           )}
         </div>
