@@ -14459,11 +14459,13 @@ button.fichas-count.equipe-drill-count.zero:hover {
   gap: .85rem;
   width: 100%;
   max-width: 72rem;
+  min-width: 0;
+  box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
 }
-.vot-lancar { max-width: 32rem; }
-.vot-progresso { max-width: 64rem; }
-.vot-historico { max-width: 48rem; }
+.vot-lancar { max-width: 32rem; width: 100%; }
+.vot-progresso { max-width: 64rem; width: 100%; }
+.vot-historico { max-width: 48rem; width: 100%; }
 .vot-head-center { text-align: left; }
 .vot-actions-grid {
   display: flex;
@@ -14674,12 +14676,19 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .vot-ficha {
   display: grid;
   gap: .9rem;
+  min-width: 0;
+  max-width: 100%;
 }
 .vot-ficha-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: .5rem;
+  min-width: 0;
+}
+.vot-ficha-actions {
+  flex: none;
+  min-width: 0;
 }
 .vot-back {
   border: 0;
@@ -14691,20 +14700,25 @@ button.fichas-count.equipe-drill-count.zero:hover {
 }
 .vot-status {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: .55rem;
+  min-width: 0;
+  max-width: 100%;
 }
 .vot-choice {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: .4rem;
+  gap: .35rem;
   min-height: 3.1rem;
+  min-width: 0;
+  width: 100%;
+  padding: .55rem .4rem;
   border-radius: 14px;
   border: 2px solid #e2e8f0;
   background: #fff;
   font-weight: 700;
-  font-size: .95rem;
+  font-size: .9rem;
   color: #334155;
 }
 .vot-choice.yes.active {
@@ -14731,6 +14745,8 @@ button.fichas-count.equipe-drill-count.zero:hover {
   border: 1px solid #e2e8f0;
   border-radius: 16px;
   padding: .9rem;
+  min-width: 0;
+  max-width: 100%;
 }
 .vot-fields label {
   display: grid;
@@ -14740,8 +14756,13 @@ button.fichas-count.equipe-drill-count.zero:hover {
   text-transform: uppercase;
   letter-spacing: .04em;
   color: #64748b;
+  min-width: 0;
+  max-width: 100%;
 }
 .vot-fields input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   border: 1.5px solid #cbd5e1;
   border-radius: 12px;
   padding: .7rem .75rem;
@@ -14759,14 +14780,18 @@ button.fichas-count.equipe-drill-count.zero:hover {
 }
 .vot-row2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: .55rem;
+  min-width: 0;
+  max-width: 100%;
 }
 .vot-meta {
   display: grid;
   gap: .2rem;
   font-size: .78rem;
   color: #64748b;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .vot-foto {
   display: grid;
@@ -14776,6 +14801,8 @@ button.fichas-count.equipe-drill-count.zero:hover {
   border-radius: 16px;
   padding: .9rem;
   box-shadow: 0 1px 3px rgba(22, 163, 74, .08);
+  min-width: 0;
+  max-width: 100%;
 }
 .vot-foto-label {
   font-size: .78rem;
@@ -14811,22 +14838,40 @@ button.fichas-count.equipe-drill-count.zero:hover {
 }
 .vot-foto-btns {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: .5rem;
+  min-width: 0;
+  max-width: 100%;
 }
 .vot-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: .4rem;
+  width: 100%;
+  min-width: 0;
   min-height: 2.75rem;
+  padding: .55rem .5rem;
   border-radius: 12px;
   border: 1.5px solid #0f172a;
   background: #0f172a;
   color: #fff;
   font-weight: 700;
-  font-size: .9rem;
+  font-size: .88rem;
   cursor: pointer;
+  overflow: hidden;
+}
+/* Input de arquivo cobrindo o botão — evita overflow do file input no iOS */
+.vot-btn > input[type='file'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 0;
 }
 .vot-btn.ghost {
   background: #fff;
@@ -14835,7 +14880,9 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .vot-save {
   position: sticky;
   bottom: .85rem;
+  z-index: 5;
   width: 100%;
+  max-width: 100%;
   min-height: 3.35rem;
   border: 0;
   border-radius: 14px;
@@ -15136,29 +15183,32 @@ button.fichas-count.equipe-drill-count.zero:hover {
 /* —— Mobile only (celular) —— */
 @media (max-width: 767px) {
   .vot-page {
-    max-width: 28rem;
-    padding: .75rem .9rem 5.5rem;
+    max-width: 100%;
+    width: 100%;
+    padding: .65rem 0 5.5rem;
   }
   .vot-page.vot-has-bottom {
-    padding-bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
   }
   .vot-lancar,
   .vot-historico,
   .vot-progresso {
-    max-width: 28rem;
+    max-width: 100%;
   }
   .vot-head-center { text-align: center; }
   .vot-head-center .vot-sub {
     margin-left: auto;
     margin-right: auto;
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
   .vot-actions-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
   .vot-kpi-row,
   .vot-kpi-2x2 {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
   .vot-bottom-nav {
     display: flex;
@@ -15170,6 +15220,8 @@ button.fichas-count.equipe-drill-count.zero:hover {
     align-items: center;
     justify-content: space-around;
     gap: .25rem;
+    width: 100%;
+    max-width: 100%;
     padding: .45rem .75rem calc(.45rem + env(safe-area-inset-bottom, 0px));
     background: #fff;
     border-top: 1px solid #e2e8f0;
@@ -15179,8 +15231,14 @@ button.fichas-count.equipe-drill-count.zero:hover {
     bottom: calc(4.6rem + env(safe-area-inset-bottom, 0px));
   }
   .vot-fields input { font-size: 16px; }
+  .vot-choice { font-size: .85rem; }
   .vot-progresso .vot-head {
     flex-direction: column;
+  }
+  .vot-ficha-actions .vot-btn {
+    width: auto;
+    min-width: 5.5rem;
+    padding: .45rem .7rem;
   }
 }
 
