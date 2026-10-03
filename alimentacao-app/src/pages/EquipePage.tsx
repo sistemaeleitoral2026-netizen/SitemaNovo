@@ -1240,7 +1240,11 @@ export function EquipePage() {
       })
       setSaving(false)
       if (err) {
-        setError(err)
+        const hint = /auxiliar|coordenador|constraint|check|role|SQL|permiss/i.test(err)
+          && !/coordenador_auxiliar_votacao_run/i.test(err)
+          ? ' Rode o SQL coordenador_auxiliar_votacao_run.sql no Supabase e tente de novo.'
+          : ''
+        setError(`${err}${hint}`)
         return
       }
     }

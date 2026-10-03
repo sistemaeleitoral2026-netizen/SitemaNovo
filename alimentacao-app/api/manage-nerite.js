@@ -40,17 +40,32 @@ async function getCaller(token) {
       if (user?.id) break
     }
   }
-  if (!user?.id) return null
+  if (!user?.id) return { profile: null, error: 'Sessão inválida. Saia e entre novamente.' }
 
   // Profile com service role — evita RLS bloquear a leitura do próprio perfil.
-  const profileRes = await rest(
+  let profileRes = await rest(
     `profiles?id=eq.${user.id}&select=id,role,ativo,diretoria_id,coordenador_id`,
   )
-  const profile = Array.isArray(profileRes.data) ? profileRes.data[0] : null
-  if (!profile || !profile.ativo || !['admin', 'diretoria', 'coordenador'].includes(profile.role)) {
-    return null
+  if (!profileRes.ok) {
+    const msg = typeof profileRes.data === 'object' && profileRes.data?.message
+      ? profileRes.data.message
+      : `HTTP ${profileRes.status}`
+    if (/coordenador_id|column|schema/i.test(String(msg))) {
+      profileRes = await rest(`profiles?id=eq.${user.id}&select=id,role,ativo,diretoria_id`)
+    } else {
+      return { profile: null, error: `Não foi possível ler o perfil (${msg}).` }
+    }
   }
-  return profile
+  const profile = Array.isArray(profileRes.data) ? profileRes.data[0] : null
+  if (!profile) return { profile: null, error: 'Perfil não encontrado. Saia e entre novamente.' }
+  if (profile.ativo === false) return { profile: null, error: 'Seu usuário está inativo.' }
+  if (!['admin', 'diretoria', 'coordenador'].includes(profile.role)) {
+    return {
+      profile: null,
+      error: `Sem permissão (perfil: ${profile.role || 'desconhecido'}).`,
+    }
+  }
+  return { profile, error: null }
 }
 
 async function resolveCallerCoordId(caller) {
@@ -77,8 +92,8 @@ module.exports = async function handler(req, res) {
   if (!token) return json(res, 401, { error: 'Não autenticado.' })
 
   try {
-    const caller = await getCaller(token)
-    if (!caller) return json(res, 403, { error: 'Sem permissão.' })
+    const { profile: caller, error: callerError } = await getCaller(token)
+    if (!caller) return json(res, 403, { error: callerError || 'Sem permissão.' })
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
     const neriteId = String(body.id || '').trim()
@@ -102,7 +117,8 @@ module.exports = async function handler(req, res) {
     if (target.role === 'administrativo' && caller.role !== 'admin') {
       return json(res, 403, { error: 'Somente o admin gerencia usuários administrativos.' })
     }
-    if (caller.role === 'diretoria' && target.diretoria_id !== caller.id) {
+    const sameId = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase()
+    if (caller.role === 'diretoria' && target.diretoria_id && !sameId(target.diretoria_id, caller.id)) {
       return json(res, 403, { error: 'Sem permissão para este usuário.' })
     }
     if (caller.role === 'coordenador') {
@@ -110,7 +126,7 @@ module.exports = async function handler(req, res) {
         return json(res, 403, { error: 'Coordenador só gerencia auxiliares.' })
       }
       const myCoord = await resolveCallerCoordId(caller)
-      if (!myCoord || target.coordenador_id !== myCoord) {
+      if (!myCoord || !sameId(target.coordenador_id, myCoord)) {
         return json(res, 403, { error: 'Sem permissão para este auxiliar.' })
       }
     }
