@@ -14463,7 +14463,16 @@ button.fichas-count.equipe-drill-count.zero:hover {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
 }
-.vot-lancar { max-width: 32rem; width: 100%; }
+.vot-lancar { max-width: 36rem; width: 100%; }
+.vot-lancar-editing { max-width: 40rem; }
+.vot-lancar-header {
+  margin-bottom: 0;
+  gap: .75rem;
+}
+.vot-lancar-header .page-header-actions .vot-btn {
+  width: auto;
+  min-width: 0;
+}
 .vot-progresso { max-width: 64rem; width: 100%; }
 .vot-historico { max-width: 48rem; width: 100%; }
 .vot-historico-wide {
@@ -14833,18 +14842,54 @@ button.fichas-count.equipe-drill-count.zero:hover {
   justify-content: space-between;
   gap: .5rem;
   min-width: 0;
+  flex-wrap: wrap;
 }
 .vot-ficha-actions {
   flex: none;
   min-width: 0;
 }
 .vot-back {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
   border: 0;
   background: transparent;
   color: #2563eb;
-  font-weight: 600;
-  font-size: .9rem;
-  padding: .25rem 0;
+  font-weight: 700;
+  font-size: .88rem;
+  padding: .35rem 0;
+  cursor: pointer;
+  text-align: left;
+}
+.vot-back:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+.vot-ficha-person {
+  display: grid;
+  gap: .15rem;
+  padding: .75rem .85rem;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  min-width: 0;
+}
+.vot-ficha-person-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.vot-ficha-person strong {
+  font-size: .95rem;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+.vot-ficha-person span {
+  font-size: .75rem;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
 }
 .vot-status {
   display: grid;
@@ -15025,28 +15070,54 @@ button.fichas-count.equipe-drill-count.zero:hover {
   background: #fff;
   color: #0f172a;
 }
-.vot-save {
+.vot-actions-bar {
   position: sticky;
   bottom: .85rem;
   z-index: 5;
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.4fr);
+  gap: .55rem;
   width: 100%;
   max-width: 100%;
+  padding-top: .25rem;
+}
+.vot-cancel {
   min-height: 3.35rem;
+  border-radius: 14px;
+  border: 1.5px solid #cbd5e1;
+  background: #fff;
+  color: #475569;
+  font-weight: 800;
+  font-size: .9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, .06);
+}
+.vot-cancel:active { transform: scale(.98); }
+.vot-cancel:disabled { opacity: .65; cursor: not-allowed; transform: none; }
+.vot-save {
+  min-height: 3.35rem;
+  width: 100%;
+  max-width: 100%;
   border: 0;
   border-radius: 14px;
   background: #16a34a;
   color: #fff;
   font-weight: 800;
-  font-size: .95rem;
+  font-size: .92rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: .45rem;
   box-shadow: 0 10px 24px rgba(22, 163, 74, .3);
+  cursor: pointer;
 }
 .vot-save:active { transform: scale(.98); }
-.vot-save:disabled { opacity: .65; transform: none; }
-.vot-lancar .vot-save {
+.vot-save:disabled { opacity: .65; transform: none; cursor: not-allowed; }
+.vot-lancar .vot-actions-bar {
   bottom: .85rem;
 }
 
@@ -15396,8 +15467,29 @@ button.fichas-count.equipe-drill-count.zero:hover {
     border-top: 1px solid #e2e8f0;
     box-shadow: 0 -8px 24px rgba(15, 23, 42, .06);
   }
-  .vot-lancar.vot-has-bottom .vot-save {
+  .vot-lancar.vot-has-bottom .vot-actions-bar {
     bottom: calc(4.6rem + env(safe-area-inset-bottom, 0px));
+  }
+  .vot-lancar-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .vot-lancar-header .page-header-actions {
+    width: 100%;
+  }
+  .vot-lancar-header .page-header-actions .vot-btn {
+    width: 100%;
+  }
+  .vot-actions-bar {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+  }
+  .vot-cancel,
+  .vot-save {
+    font-size: .85rem;
+    min-height: 3.1rem;
+  }
+  .vot-back {
+    font-size: .82rem;
   }
   .vot-fields input { font-size: 16px; }
   .vot-choice { font-size: .85rem; }
@@ -15424,4 +15516,16 @@ button.fichas-count.equipe-drill-count.zero:hover {
   .vot-hint-desktop { display: block; }
   .vot-hint-mobile { display: none; }
   .vot-bottom-nav { display: none !important; }
+  .vot-lancar-editing { max-width: 44rem; }
+  .vot-actions-bar {
+    grid-template-columns: minmax(9rem, 12rem) minmax(0, 1fr);
+    bottom: 1rem;
+  }
+  .vot-ficha-person {
+    grid-template-columns: auto 1fr;
+    column-gap: .75rem;
+    align-items: baseline;
+  }
+  .vot-ficha-person-label { grid-column: 1 / -1; }
+  .vot-ficha-person strong { font-size: 1.05rem; }
 }
