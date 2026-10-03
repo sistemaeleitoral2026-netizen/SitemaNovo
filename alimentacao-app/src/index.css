@@ -14826,6 +14826,7 @@ button.fichas-count.equipe-drill-count.zero:hover {
   color: #fff;
   font-weight: 700;
   font-size: .9rem;
+  cursor: pointer;
 }
 .vot-btn.ghost {
   background: #fff;
