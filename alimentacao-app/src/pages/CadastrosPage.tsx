@@ -73,6 +73,9 @@ export function CadastrosPage() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const isOwnOnly = location.pathname === '/meus-cadastros'
+  /** Coordenador de campo: fichas só da própria coordenação (não pode limpar/trocar). */
+  const isCoordScoped =
+    hasRole(profile, 'coordenador') && !hasRole(profile, ['admin', 'diretoria'])
 
   const [pageItems, setPageItems] = useState<Cadastro[]>([])
   const [total, setTotal] = useState(0)
@@ -82,6 +85,8 @@ export function CadastrosPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [operatorFilter, setOperatorFilter] = useState(() => searchParams.get('operator') ?? '')
   const [coordenadorFilter, setCoordenadorFilter] = useState(() => searchParams.get('coordenador') ?? '')
+  const [lockedCoordNome, setLockedCoordNome] = useState<string | null>(null)
+  const [coordScopeReady, setCoordScopeReady] = useState(!isCoordScoped)
   const [liderFilter, setLiderFilter] = useState(() => searchParams.get('lider') ?? '')
   const [diretoriaFilter, setDiretoriaFilter] = useState(() => searchParams.get('diretoria') ?? '')
   const [zonaFilter, setZonaFilter] = useState(() => searchParams.get('zona') ?? '')
@@ -137,25 +142,42 @@ export function CadastrosPage() {
   }, [search])
 
   useEffect(() => {
-    if (!hasRole(profile, 'coordenador') || !profile?.id) return
-    if (searchParams.get('coordenador')) return
+    if (!isCoordScoped || !profile?.id) {
+      setCoordScopeReady(true)
+      return
+    }
     let cancelled = false
+    setCoordScopeReady(false)
     void (async () => {
       const q = profile.coordenador_id
         ? supabase.from('coordenadores').select('nome').eq('id', profile.coordenador_id).maybeSingle()
         : supabase.from('coordenadores').select('nome').eq('user_id', profile.id).maybeSingle()
-      const { data } = await q
-      if (!cancelled && data?.nome) {
-        setCoordenadorFilter(data.nome)
-        setSearchParams((prev) => {
-          const next = new URLSearchParams(prev)
-          next.set('coordenador', data.nome)
-          return next
-        }, { replace: true })
+      const { data, error } = await q
+      if (cancelled) return
+      if (error || !data?.nome) {
+        setLockedCoordNome(null)
+        setLoadError('Coordenação não vinculada ao login. Peça à diretoria para vincular seu usuário.')
+        setCoordScopeReady(true)
+        setLoading(false)
+        return
       }
+      setLockedCoordNome(data.nome)
+      setCoordenadorFilter(data.nome)
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev)
+        next.set('coordenador', data.nome)
+        return next
+      }, { replace: true })
+      setCoordScopeReady(true)
     })()
     return () => { cancelled = true }
-  }, [profile, searchParams, setSearchParams])
+  }, [profile, isCoordScoped, setSearchParams])
+
+  // Impede limpar/trocar a coordenação travada (URL ou UI).
+  useEffect(() => {
+    if (!lockedCoordNome) return
+    if (coordenadorFilter !== lockedCoordNome) setCoordenadorFilter(lockedCoordNome)
+  }, [lockedCoordNome, coordenadorFilter])
 
   const scopeOperatorId = isOwnOnly ? profile?.id : undefined
 
@@ -205,7 +227,7 @@ export function CadastrosPage() {
       operatorId: scopeOperatorId || operatorFilter || undefined,
       diretoriaId: !operatorFilter && diretoriaFilter ? diretoriaFilter : undefined,
       diretoriaOperatorIds,
-      coordenador: coordenadorFilter || undefined,
+      coordenador: (lockedCoordNome || coordenadorFilter) || undefined,
       lider: liderFilter || undefined,
       zona: zonaFilter || undefined,
       secao: secaoFilter || undefined,
@@ -222,7 +244,7 @@ export function CadastrosPage() {
       sortDir,
     }
   }, [
-    scopeOperatorId, operatorFilter, diretoriaFilter, diretoriaOperatorIds, coordenadorFilter, liderFilter,
+    scopeOperatorId, operatorFilter, diretoriaFilter, diretoriaOperatorIds, coordenadorFilter, lockedCoordNome, liderFilter,
     zonaFilter, secaoFilter, debouncedSearch, period, dateFrom, dateTo, cepFilter, tituloFilter,
     geoFilter, view, dupFilter, activeDupTitulos, sortKey, sortDir,
   ])
@@ -232,9 +254,16 @@ export function CadastrosPage() {
   }, [loadMeta])
 
   useEffect(() => {
+    if (!coordScopeReady) return
+    if (isCoordScoped && !lockedCoordNome && !coordenadorFilter) {
+      setPageItems([])
+      setTotal(0)
+      setLoading(false)
+      return
+    }
     let cancelled = false
     setLoading(true)
-    setLoadError(null)
+    setLoadError((prev) => (lockedCoordNome ? null : prev))
     void (async () => {
       try {
         const { rows, total: count } = await fetchCadastrosPage({
@@ -254,7 +283,7 @@ export function CadastrosPage() {
       }
     })()
     return () => { cancelled = true }
-  }, [listQuery, page, pageSize, reloadKey])
+  }, [listQuery, page, pageSize, reloadKey, coordScopeReady, isCoordScoped, lockedCoordNome, coordenadorFilter])
 
   useEffect(() => {
     const next = new URLSearchParams()
@@ -287,7 +316,8 @@ export function CadastrosPage() {
   ])
 
   const hasFilters = Boolean(
-    search || operatorFilter || coordenadorFilter || liderFilter || diretoriaFilter
+    search || operatorFilter || liderFilter || diretoriaFilter
+    || (!isCoordScoped && coordenadorFilter)
     || zonaFilter || secaoFilter || geoFilter || periodPreset !== 'all'
     || dateFrom || dateTo || cepFilter || tituloFilter || dupFilter || view !== 'todos',
   )
@@ -324,7 +354,6 @@ export function CadastrosPage() {
     setSearch('')
     setDebouncedSearch('')
     setOperatorFilter('')
-    setCoordenadorFilter('')
     setLiderFilter('')
     setDiretoriaFilter('')
     setZonaFilter('')
@@ -337,7 +366,13 @@ export function CadastrosPage() {
     setTituloFilter('')
     setDupFilter('')
     setView('todos')
-    setSearchParams({}, { replace: true })
+    if (lockedCoordNome) {
+      setCoordenadorFilter(lockedCoordNome)
+      setSearchParams({ coordenador: lockedCoordNome }, { replace: true })
+    } else {
+      setCoordenadorFilter('')
+      setSearchParams({}, { replace: true })
+    }
   }
 
   const canEdit = (_c: Cadastro) =>
@@ -550,7 +585,7 @@ export function CadastrosPage() {
                 aria-label="Nerite"
               />
             )}
-            {!isOwnOnly && (
+            {!isOwnOnly && !isCoordScoped && (
               <Select
                 value={coordenadorFilter}
                 onChange={(e) => setCoordenadorFilter(e.target.value)}
@@ -558,6 +593,12 @@ export function CadastrosPage() {
                 placeholder="Todos os coordenadores"
                 aria-label="Coordenador"
               />
+            )}
+            {!isOwnOnly && isCoordScoped && lockedCoordNome && (
+              <div className="cadastros-locked-coord" aria-label="Coordenação">
+                <span>Coordenação</span>
+                <strong>{lockedCoordNome}</strong>
+              </div>
             )}
             {!isOwnOnly && (
               <Select
@@ -570,7 +611,7 @@ export function CadastrosPage() {
                   }
                   const [lider, coord = ''] = raw.split('\u001f')
                   setLiderFilter(lider)
-                  if (coord) setCoordenadorFilter(coord)
+                  if (coord && !isCoordScoped) setCoordenadorFilter(coord)
                 }}
                 options={lideresOpts.map((opt) => ({ value: opt.value, label: opt.label }))}
                 placeholder="Todas as lideranças"

@@ -638,13 +638,14 @@ export function VotacaoLancarPage() {
 
   const scopeHint = useMemo(() => {
     if (isAuxiliar) {
-      if (!liderNomes.length) return 'Nenhuma liderança atribuída. Peça ao coordenador.'
+      if (!coordNome) return 'Coordenação não vinculada ao login.'
+      if (!liderNomes.length) return 'Nenhuma liderança atribuída. Peça ao coordenador em Equipe → Auxiliares.'
       return 'Clique no botão da liderança para listar as fichas.'
     }
     if (isCoordenador) {
       return coordNome
         ? `Coordenação: ${coordNome} · clique no botão da liderança`
-        : 'Coordenação não vinculada'
+        : 'Coordenação não vinculada ao login. Peça à diretoria para vincular seu usuário.'
     }
     if (isStaff) {
       return coordNome
@@ -684,6 +685,18 @@ export function VotacaoLancarPage() {
 
       {!selected && (
         <>
+          {isAuxiliar && !coordNome && (
+            <div className="alert alert-error">
+              Coordenação não vinculada ao seu login. Peça ao coordenador ou à diretoria.
+            </div>
+          )}
+
+          {isCoordenador && !coordNome && (
+            <div className="alert alert-error">
+              Coordenação não vinculada ao login. Peça à diretoria para vincular seu usuário ao coordenador.
+            </div>
+          )}
+
           {semLiderancas && (
             <div className="alert alert-error">
               Seu coordenador ainda não liberou nenhuma liderança para você.
