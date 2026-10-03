@@ -19,7 +19,6 @@ export function downloadExcelSheet(opts: {
   ]
 
   const worksheet = XLSX.utils.aoa_to_sheet(aoa)
-  // Largura aproximada por coluna (ajuda a abrir já legível no Excel).
   worksheet['!cols'] = opts.headers.map((header, colIdx) => {
     let max = header.length
     for (const row of opts.rows) {
