@@ -400,9 +400,9 @@ export function VotacaoLancarPage() {
     if (hit.voto_foto_path) {
       try {
         setFotoPreview(await signVotoFoto(hit.voto_foto_path))
-      } catch (e) {
+      } catch {
+        // Não bloqueia o lançamento se só a prévia do anexo falhar.
         setFotoPreview(null)
-        setError(e instanceof Error ? e.message : 'Não foi possível abrir o anexo.')
       }
     } else {
       setFotoPreview(null)
@@ -552,24 +552,47 @@ export function VotacaoLancarPage() {
                 data_nascimento: nascimento || null,
               },
         })
-        setHits((prev) => prev.map((h) => (h.id === saved.id ? { ...h, ...saved } : h)))
-        setLiderLista((prev) => prev.map((h) => (h.id === saved.id ? { ...h, ...saved } : h)))
       }
-      setSelected(saved)
-      setNome(saved.nome_completo ?? '')
-      setTitulo(saved.titulo ?? '')
-      setZona(saved.zona ?? '')
-      setSecao(saved.secao ?? '')
-      setNomeMae(saved.nome_mae ?? '')
-      setNascimento(toInputDate(saved.data_nascimento))
+      // Preserva campos da tela se o reload vier parcial (ex.: auxiliar sem correções no retorno).
+      const nomeOk = (saved.nome_completo || nome).trim()
+      const tituloOk = saved.titulo || titulo
+      const zonaOk = saved.zona || zona
+      const secaoOk = saved.secao || secao
+      const maeOk = saved.nome_mae || nomeMae
+      const nascOk = saved.data_nascimento || nascimento || null
+      const merged: VotacaoHit = {
+        ...selected,
+        ...saved,
+        nome_completo: nomeOk || saved.nome_completo,
+        titulo: tituloOk,
+        zona: zonaOk,
+        secao: secaoOk,
+        nome_mae: maeOk,
+        data_nascimento: nascOk,
+        coordenador: saved.coordenador || selected.coordenador,
+        lider: saved.lider || selected.lider,
+        votou: saved.votou ?? votou,
+        voto_foto_path: saved.voto_foto_path ?? (clearFoto && !fotoFile ? null : selected.voto_foto_path),
+      }
+      setSelected(merged)
+      setNome(merged.nome_completo ?? '')
+      setTitulo(merged.titulo ?? '')
+      setZona(merged.zona ?? '')
+      setSecao(merged.secao ?? '')
+      setNomeMae(merged.nome_mae ?? '')
+      setNascimento(toInputDate(merged.data_nascimento))
+      setHits((prev) => prev.map((h) => (h.id === merged.id ? { ...h, ...merged } : h)))
+      setLiderLista((prev) => prev.map((h) => (h.id === merged.id ? { ...h, ...merged } : h)))
       setFotoFile(null)
       setClearFoto(false)
-      if (saved.voto_foto_path) {
+      if (merged.voto_foto_path) {
         try {
-          setFotoPreview(await signVotoFoto(saved.voto_foto_path))
+          setFotoPreview(await signVotoFoto(merged.voto_foto_path))
         } catch {
           /* lançamento ok; anexo pode falhar só na visualização */
         }
+      } else if (!fotoFile) {
+        setFotoPreview(null)
       }
       setOkMsg(
         labelAdicionadoNoLancamento(saved)

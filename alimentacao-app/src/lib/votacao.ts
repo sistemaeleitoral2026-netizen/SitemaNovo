@@ -248,7 +248,13 @@ export async function getVotacaoFicha(id: string): Promise<VotacaoHit | null> {
 }
 
 async function uploadVotoFoto(userId: string, file: File): Promise<string> {
-  const prepared = await prepareImageForUpload(file)
+  if (!userId) throw new Error('Usuário não identificado para enviar o anexo.')
+  let prepared: File
+  try {
+    prepared = await prepareImageForUpload(file)
+  } catch (e) {
+    throw new Error(e instanceof Error ? e.message : 'Não foi possível preparar a foto do comprovante.')
+  }
   const ext = prepared.type === 'image/png'
     ? 'png'
     : prepared.type === 'image/webp'
@@ -256,6 +262,7 @@ async function uploadVotoFoto(userId: string, file: File): Promise<string> {
       : prepared.type === 'image/gif'
         ? 'gif'
         : 'jpg'
+  // Pasta = auth user id (exigido pelas policies do bucket votacao-fotos).
   const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
   const { error } = await supabase.storage.from(VOTACAO_FOTOS_BUCKET).upload(path, prepared, {
     cacheControl: '86400',
@@ -267,6 +274,9 @@ async function uploadVotoFoto(userId: string, file: File): Promise<string> {
       throw new Error(
         `${error.message} — confira o bucket votacao-fotos (SQL coordenador_auxiliar_votacao_run.sql).`,
       )
+    }
+    if (/permission|policy|row-level|RLS|not allowed/i.test(error.message)) {
+      throw new Error('Sem permissão para enviar o anexo. Entre novamente e tente de novo.')
     }
     throw new Error(error.message)
   }
@@ -325,10 +335,25 @@ export async function salvarLancamentoVotacao(input: VotacaoSaveInput): Promise<
     patch.voto_foto_path = null
   }
 
-  const { error } = await supabase
-    .from('cadastros')
-    .update(patch)
-    .eq('id', input.cadastroId)
+  async function runUpdate(cols: string) {
+    return supabase
+      .from('cadastros')
+      .update(patch)
+      .eq('id', input.cadastroId)
+      .select(cols)
+      .maybeSingle()
+  }
+
+  let { data, error } = await runUpdate(SELECT_COLS)
+  if (error && /adicionado_por_auxiliar|criado_por|column|schema/i.test(error.message)) {
+    ;({ data, error } = await runUpdate(SELECT_VOTO))
+  }
+  if (error && /votou|voto_|column|schema/i.test(error.message)) {
+    // Colunas de voto ausentes: ainda tenta gravar sem select tipado.
+    const bare = await supabase.from('cadastros').update(patch).eq('id', input.cadastroId)
+    error = bare.error
+    data = null
+  }
 
   if (error) {
     if (newFotoPath) {
@@ -342,9 +367,36 @@ export async function salvarLancamentoVotacao(input: VotacaoSaveInput): Promise<
     }
     throw new Error(error.message)
   }
-  const saved = await selectCadastro(input.cadastroId)
-  if (!saved) throw new Error('Ficha não encontrada ou sem permissão para salvar.')
-  return saved
+  if (data) return asHit(data as unknown as Record<string, unknown>)
+
+  // Update ok sem linha no select (RLS/RETURNING) — tenta reload; se falhar, snapshot mínimo.
+  try {
+    const saved = await selectCadastro(input.cadastroId)
+    if (saved) return saved
+  } catch {
+    /* fallback abaixo */
+  }
+  const c = input.correcoes
+  return {
+    id: input.cadastroId,
+    nome_completo: c?.nome_completo?.trim() ?? '',
+    titulo: c?.titulo?.trim() ?? '',
+    zona: c?.zona?.trim() ?? '',
+    secao: c?.secao?.trim() ?? '',
+    nome_mae: c?.nome_mae?.trim() ?? '',
+    data_nascimento: c?.data_nascimento ?? null,
+    telefone: '',
+    coordenador: '',
+    lider: '',
+    votou: input.votou,
+    // Sem path no retorno: a tela preserva o path anterior via merge.
+    voto_foto_path: newFotoPath,
+    voto_em: String(patch.voto_em),
+    voto_por: input.userId,
+    diretoria_id: null,
+    adicionado_por_auxiliar: false,
+    criado_por: null,
+  }
 }
 
 export type VotacaoNovoCadastroInput = {
@@ -383,7 +435,7 @@ export async function criarCadastroLancamentoVotacao(
     fotoPath = await uploadVotoFoto(input.userId, input.fotoFile)
   }
 
-  const payload: Record<string, unknown> = {
+  const basePayload: Record<string, unknown> = {
     nome_completo: nome,
     titulo: (input.titulo ?? '').trim() || null,
     zona: (input.zona ?? '').trim(),
@@ -395,19 +447,26 @@ export async function criarCadastroLancamentoVotacao(
     lider,
     diretoria_id: input.diretoriaId,
     operator_id: null,
-    adicionado_por_auxiliar: porAuxiliar,
-    criado_por: input.userId,
     votou: input.votou,
     voto_em: new Date().toISOString(),
     voto_por: input.userId,
     voto_foto_path: fotoPath,
   }
+  // Colunas de marcação (opcionais) — se o SQL ainda não rodou, tenta de novo sem elas.
+  const fullPayload: Record<string, unknown> = {
+    ...basePayload,
+    adicionado_por_auxiliar: porAuxiliar,
+    criado_por: input.userId,
+  }
 
-  const { data, error } = await supabase
-    .from('cadastros')
-    .insert(payload)
-    .select('id')
-    .maybeSingle()
+  async function tryInsert(payload: Record<string, unknown>) {
+    return supabase.from('cadastros').insert(payload).select('id').maybeSingle()
+  }
+
+  let { data, error } = await tryInsert(fullPayload)
+  if (error && /adicionado_por_auxiliar|criado_por|column|schema/i.test(error.message)) {
+    ;({ data, error } = await tryInsert(basePayload))
+  }
 
   if (error) {
     if (fotoPath) void supabase.storage.from(VOTACAO_FOTOS_BUCKET).remove([fotoPath])
@@ -427,12 +486,37 @@ export async function criarCadastroLancamentoVotacao(
     throw new Error(error.message)
   }
   if (!data?.id) throw new Error('Não foi possível criar a ficha.')
-  const saved = await selectCadastro(String(data.id))
-  if (!saved) throw new Error('Ficha criada, mas não foi possível recarregar.')
+  const id = String(data.id)
+  try {
+    const saved = await selectCadastro(id)
+    if (saved) {
+      return {
+        ...saved,
+        adicionado_por_auxiliar: porAuxiliar || Boolean(saved.adicionado_por_auxiliar),
+        criado_por: saved.criado_por ?? input.userId,
+      }
+    }
+  } catch {
+    /* ficha já criada — devolve snapshot mínimo */
+  }
   return {
-    ...saved,
-    adicionado_por_auxiliar: porAuxiliar || Boolean(saved.adicionado_por_auxiliar),
-    criado_por: saved.criado_por ?? input.userId,
+    id,
+    nome_completo: nome,
+    titulo: String(basePayload.titulo ?? ''),
+    zona: String(basePayload.zona ?? ''),
+    secao: String(basePayload.secao ?? ''),
+    nome_mae: String(basePayload.nome_mae ?? ''),
+    data_nascimento: (basePayload.data_nascimento as string | null) ?? null,
+    telefone: '',
+    coordenador: coord,
+    lider,
+    votou: input.votou,
+    voto_foto_path: fotoPath,
+    voto_em: String(basePayload.voto_em),
+    voto_por: input.userId,
+    diretoria_id: input.diretoriaId,
+    adicionado_por_auxiliar: porAuxiliar,
+    criado_por: input.userId,
   }
 }
 
