@@ -558,9 +558,7 @@ export function VotacaoLancarPage() {
                 <strong>{isAuxiliar ? 'Suas lideranças' : 'Lideranças'}</strong>
                 <span>
                   {liderNomes.length
-                    ? (isAuxiliar
-                      ? 'Toque para listar · ou pesquise acima'
-                      : 'Toque para abrir no Progresso · ou pesquise acima')
+                    ? 'Toque para ver as fichas · ou pesquise acima'
                     : 'Nenhuma liderança nesta coordenação'}
                 </span>
               </div>
@@ -574,18 +572,11 @@ export function VotacaoLancarPage() {
                       aria-selected={!searchActive && selectedLider === nome}
                       className={`vot-lider-chip${!searchActive && selectedLider === nome ? ' is-on' : ''}`}
                       onClick={() => {
-                        // Coord / diretoria / admin: abre Progresso filtrado nessa liderança.
-                        if (!isAuxiliar) {
-                          const params = new URLSearchParams()
-                          params.set('lider', nome)
-                          if (coordNome) params.set('coordenador', coordNome)
-                          navigate(`/votacao/progresso?${params.toString()}`)
-                          return
-                        }
-                        // Auxiliar: lista as fichas aqui no Lançar (só as liberadas).
+                        // Lançar: chip → lista de fichas → escolher → salvar (anexo etc.).
+                        // Progresso continua pela aba / Equipe.
                         setQuery('')
                         setStatusFiltro('todos')
-                        setSelectedLider(nome)
+                        setSelectedLider((prev) => (prev === nome ? null : nome))
                       }}
                     >
                       {nome}
@@ -627,7 +618,9 @@ export function VotacaoLancarPage() {
           )}
 
           {!semLiderancas && !searchActive && !selectedLider && useLiderBrowse && liderNomes.length > 0 && (
-            <p className="vot-empty">Pesquise acima ou toque numa liderança para ver a lista.</p>
+            <p className="vot-empty">
+              Pesquise o nome da pessoa ou toque numa liderança para ver as fichas e lançar.
+            </p>
           )}
 
           {!searching && searchActive && !displayedHits.length && (
