@@ -504,7 +504,7 @@ export function VotacaoLancarPage() {
   async function handleSave() {
     if (!selected || !profile?.id) return
     if (votou === null) {
-      setError('Selecione Votou ou Não votou.')
+      setError('Selecione Votou ou Não votou antes de salvar.')
       return
     }
     if ((modoNovo || !cadastroSomenteLeitura) && !nome.trim()) {
@@ -515,13 +515,11 @@ export function VotacaoLancarPage() {
       setError('Informe nome e sobrenome.')
       return
     }
-    // Comprovante obrigatório só para auxiliar ao marcar "Votou".
-    if (isAuxiliar && votou === true) {
-      const temAnexo = Boolean(fotoFile) || (!modoNovo && Boolean(selected.voto_foto_path) && !clearFoto)
-      if (!temAnexo) {
-        setError('Anexo do comprovante de voto é obrigatório para marcar Votou.')
-        return
-      }
+    // Comprovante obrigatório em todo lançamento (Votou ou Não votou).
+    const temAnexo = Boolean(fotoFile) || (!modoNovo && Boolean(selected.voto_foto_path) && !clearFoto)
+    if (!temAnexo) {
+      setError('Tire a foto do comprovante (câmera) ou anexe da galeria antes de salvar.')
+      return
     }
     setSaving(true)
     setError(null)
@@ -567,55 +565,36 @@ export function VotacaoLancarPage() {
               },
         })
       }
-      // Preserva campos da tela se o reload vier parcial (ex.: auxiliar sem correções no retorno).
-      const nomeOk = (saved.nome_completo || nome).trim()
-      const tituloOk = saved.titulo || titulo
-      const zonaOk = saved.zona || zona
-      const secaoOk = saved.secao || secao
-      const maeOk = saved.nome_mae || nomeMae
-      const nascOk = saved.data_nascimento || nascimento || null
+      // Preserva campos se o reload vier parcial; atualiza listas e volta à escolha.
       const merged: VotacaoHit = {
         ...selected,
         ...saved,
-        nome_completo: nomeOk || saved.nome_completo,
-        titulo: tituloOk,
-        zona: zonaOk,
-        secao: secaoOk,
-        nome_mae: maeOk,
-        data_nascimento: nascOk,
+        nome_completo: (saved.nome_completo || nome).trim() || saved.nome_completo,
+        titulo: saved.titulo || titulo,
+        zona: saved.zona || zona,
+        secao: saved.secao || secao,
+        nome_mae: saved.nome_mae || nomeMae,
+        data_nascimento: saved.data_nascimento || nascimento || null,
         coordenador: saved.coordenador || selected.coordenador,
         lider: saved.lider || selected.lider,
         votou: saved.votou ?? votou,
         voto_foto_path: saved.voto_foto_path ?? (clearFoto && !fotoFile ? null : selected.voto_foto_path),
       }
-      setSelected(merged)
-      setNome(merged.nome_completo ?? '')
-      setTitulo(merged.titulo ?? '')
-      setZona(merged.zona ?? '')
-      setSecao(merged.secao ?? '')
-      setNomeMae(merged.nome_mae ?? '')
-      setNascimento(toInputDate(merged.data_nascimento))
-      setHits((prev) => prev.map((h) => (h.id === merged.id ? { ...h, ...merged } : h)))
-      setLiderLista((prev) => prev.map((h) => (h.id === merged.id ? { ...h, ...merged } : h)))
-      setFotoFile(null)
-      setClearFoto(false)
-      if (merged.voto_foto_path) {
-        try {
-          setFotoPreview(await signVotoFoto(merged.voto_foto_path))
-        } catch {
-          /* lançamento ok; anexo pode falhar só na visualização */
-        }
-      } else if (!fotoFile) {
-        setFotoPreview(null)
-      }
+      setHits((prev) => {
+        const rest = prev.filter((h) => h.id !== merged.id)
+        return [merged, ...rest]
+      })
+      setLiderLista((prev) => {
+        const rest = prev.filter((h) => h.id !== merged.id)
+        return [merged, ...rest]
+      })
+      const nomeSalvo = (merged.nome_completo || '').trim()
+      cancelFicha()
       setOkMsg(
         labelAdicionadoNoLancamento(saved)
-          ? 'Pessoa adicionada e lançamento salvo.'
-          : isAuxiliar
-            ? 'Lançamento salvo.'
-            : 'Lançamento salvo. Você pode editar os dados se precisar corrigir.',
+          ? `${nomeSalvo || 'Pessoa'} adicionada. Escolha a próxima.`
+          : `${nomeSalvo || 'Lançamento'} salvo. Escolha a próxima pessoa.`,
       )
-      setViewOnly(true)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Não foi possível salvar.'
       if (/auxiliar_adicionar|adicionado_por_auxiliar|criado_por/i.test(msg)) {
@@ -685,6 +664,9 @@ export function VotacaoLancarPage() {
 
       {!selected && (
         <>
+          {okMsg && <div className="alert alert-success">{okMsg}</div>}
+          {error && <div className="alert alert-error">{error}</div>}
+
           {isAuxiliar && !coordNome && (
             <div className="alert alert-error">
               Coordenação não vinculada ao seu login. Peça ao coordenador ou à diretoria.
@@ -899,10 +881,10 @@ export function VotacaoLancarPage() {
             )}
           </div>
 
-          {okMsg && <div className="alert alert-success">{okMsg}</div>}
           {error && <div className="alert alert-error">{error}</div>}
 
           <div className="vot-status">
+            <p className="vot-foto-req">Obrigatório: selecione Votou ou Não votou.</p>
             <button
               type="button"
               disabled={viewOnly}
@@ -921,13 +903,11 @@ export function VotacaoLancarPage() {
             </button>
           </div>
 
-          <div className={`vot-foto${isAuxiliar && votou === true ? ' is-required' : ''}`}>
+          <div className="vot-foto is-required">
             <div className="vot-foto-label">
-              Foto do comprovante{isAuxiliar && votou === true ? ' *' : ''}
+              Foto do comprovante *
             </div>
-            {isAuxiliar && votou === true && (
-              <p className="vot-foto-req">Obrigatório anexar o comprovante de voto.</p>
-            )}
+            <p className="vot-foto-req">Obrigatório tirar a foto do comprovante (ou anexar da galeria).</p>
             {fotoPreview ? (
               <div className="vot-foto-preview">
                 <img src={fotoPreview} alt="Comprovante" />
@@ -947,9 +927,7 @@ export function VotacaoLancarPage() {
               </div>
             ) : (
               <p className="vot-muted">
-                {isAuxiliar && votou === true
-                  ? 'Tire a foto do comprovante com a câmera ou escolha da galeria.'
-                  : 'Nenhuma foto — tire com a câmera ou escolha da galeria.'}
+                Tire a foto do comprovante com a câmera ou escolha da galeria.
               </p>
             )}
             {!viewOnly && (
