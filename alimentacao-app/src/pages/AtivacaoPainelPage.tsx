@@ -29,6 +29,7 @@ import { FormigasFichaHistoricoDrawer } from '../components/FormigasFichaHistori
 import { FormigasFichaPreviewModal } from '../components/FormigasFichaPreviewModal'
 import { FormigasFotoThumbButton } from '../components/FormigasFotoField'
 import { useAuth } from '../contexts/AuthContext'
+import { downloadExcelSheet } from '../lib/exportExcel'
 import { hasRole } from '../lib/roles'
 import { formatPhone } from '../lib/format'
 import {
@@ -293,11 +294,27 @@ export function AtivacaoPainelPage() {
     setPage(0)
   }
 
-  function exportCsv() {
-    const header = [
-      'Tipo', 'Nome', 'Titulo', 'Zona', 'Bairro', 'Telefone',
-      'Coordenador', 'Lideranca', 'Carros', 'Motos', 'Casa', 'Endereco', 'Numero', 'CEP', 'Mapa',
-      'Postagens', 'Contato WA', 'Links', 'Notas',
+  function exportExcel() {
+    const headers = [
+      'Tipo',
+      'Nome',
+      'Título',
+      'Zona',
+      'Bairro',
+      'Telefone',
+      'Coordenador',
+      'Liderança',
+      'Carros',
+      'Motos',
+      'Casa',
+      'Endereço',
+      'Número',
+      'CEP',
+      'Mapa',
+      'Postagens',
+      'Contato WA',
+      'Links',
+      'Notas',
     ]
     const rows = items.map((p) => [
       p.tipoLabel,
@@ -308,32 +325,28 @@ export function AtivacaoPainelPage() {
       p.telefone,
       p.coordenador,
       p.lider,
-      String(p.carros_adesivados),
-      String(p.motos_adesivadas),
+      p.carros_adesivados,
+      p.motos_adesivadas,
       casaCsvLabel(p),
       hasCasaAddr(p) ? p.endereco : '',
       hasCasaAddr(p) ? p.numero : '',
       hasCasaAddr(p) ? p.cep : '',
       hasCasaAddr(p) ? (mapsUrlForPessoa(p) ?? '') : '',
-      String(p.postagem_links.length || p.postagens),
+      p.postagem_links.length || p.postagens,
       p.contato_whatsapp_status === 'sim'
-        ? 'Ja acionada'
+        ? 'Já acionada'
         : p.contato_whatsapp_status === 'sem'
-          ? 'Nao tem WhatsApp'
-          : 'Nao acionada',
+          ? 'Não tem WhatsApp'
+          : 'Não acionada',
       p.postagem_links.join(' | '),
       p.ativacao_notas,
     ])
-    const csv = [header, ...rows]
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';'))
-      .join('\n')
-    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'formigas-painel.csv'
-    a.click()
-    URL.revokeObjectURL(url)
+    downloadExcelSheet({
+      filename: 'formigas-painel',
+      sheetName: 'Formigas',
+      headers,
+      rows,
+    })
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -555,8 +568,8 @@ export function AtivacaoPainelPage() {
           ]}
         />
 
-        <Button variant="secondary" onClick={exportCsv}>
-          <Download size={16} /> Exportar página
+        <Button variant="secondary" onClick={exportExcel}>
+          <Download size={16} /> Exportar Excel
         </Button>
         <button type="button" className="clear-filters" onClick={clearFilters} style={{ color: '#2f6fed' }}>
           <RotateCcw size={13} /> Limpar
