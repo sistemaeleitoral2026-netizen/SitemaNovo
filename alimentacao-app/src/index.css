@@ -15352,6 +15352,16 @@ button.fichas-count.equipe-drill-count.zero:hover {
   letter-spacing: .04em;
   color: #166534;
 }
+.vot-foto.is-required {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 1px rgba(22, 163, 74, .15);
+}
+.vot-foto-req {
+  margin: 0;
+  font-size: .78rem;
+  font-weight: 700;
+  color: #166534;
+}
 .vot-foto-preview {
   position: relative;
   border-radius: 12px;
