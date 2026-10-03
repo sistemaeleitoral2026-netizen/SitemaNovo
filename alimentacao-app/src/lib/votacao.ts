@@ -56,6 +56,62 @@ function norm(s: string | null | undefined) {
   return (s ?? '').trim().toLowerCase()
 }
 
+/** Partículas que não entram no AND da busca por nome. */
+const SEARCH_STOP = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'a', 'o', 'as', 'os'])
+
+/** Tokens úteis da busca (nome em partes, zona/seção, etc.). */
+function searchTokens(query: string): string[] {
+  const raw = query.split(/\s+/).map((t) => t.trim()).filter((t) => t.length >= 2)
+  const meaningful = raw.filter((t) => !SEARCH_STOP.has(norm(t)))
+  return meaningful.length ? meaningful : raw.slice(0, 1)
+}
+
+function searchableBlob(row: Pick<VotacaoHit, 'nome_completo' | 'nome_mae' | 'titulo' | 'lider' | 'zona' | 'secao'>) {
+  return norm([row.nome_completo, row.nome_mae, row.titulo, row.lider, row.zona, row.secao].join(' '))
+}
+
+/** OR no PostgREST: cada token em nome, mãe, título, liderança, zona ou seção. */
+function buildVotacaoSearchOr(query: string): { orFilter: string; tokens: string[]; digits: string } {
+  const tokens = searchTokens(query)
+  const digits = query.replace(/\D/g, '')
+  const parts: string[] = []
+  for (const t of tokens) {
+    parts.push(
+      `nome_completo.ilike.%${t}%`,
+      `nome_mae.ilike.%${t}%`,
+      `titulo.ilike.%${t}%`,
+      `lider.ilike.%${t}%`,
+      `zona.ilike.%${t}%`,
+      `secao.ilike.%${t}%`,
+    )
+  }
+  // Zona/seção/título só com números (ex.: 089, 229, pedaço do título).
+  if (digits.length >= 2) {
+    parts.push(`titulo.ilike.%${digits}%`, `zona.ilike.%${digits}%`, `secao.ilike.%${digits}%`)
+  }
+  // Fallback se sanitize deixou pouco conteúdo.
+  if (!parts.length && query.length >= 2) {
+    parts.push(`nome_completo.ilike.%${query}%`, `titulo.ilike.%${query}%`)
+  }
+  return { orFilter: parts.join(','), tokens, digits }
+}
+
+/** Exige que todos os tokens apareçam em algum dos campos (AND entre partes do nome). */
+function matchesAllTokens(
+  row: Pick<VotacaoHit, 'nome_completo' | 'nome_mae' | 'titulo' | 'lider' | 'zona' | 'secao'>,
+  tokens: string[],
+  digits: string,
+) {
+  const hay = searchableBlob(row)
+  if (tokens.length) {
+    return tokens.every((t) => hay.includes(norm(t)))
+  }
+  if (digits.length >= 2) {
+    return hay.includes(digits)
+  }
+  return true
+}
+
 function matchesStatus(row: Pick<VotacaoHit, 'votou'>, filtro: VotacaoStatusFiltro) {
   if (filtro === 'todos') return true
   if (filtro === 'pendente') return row.votou == null
@@ -119,21 +175,16 @@ export async function searchVotacaoFichas(opts: {
   const q = sanitizeSearchTerm(opts.query)
   if (q.length < 2) return []
   const limit = opts.limit ?? 40
-  // Busca a mais para filtrar liderança/status no client (case-insensitive).
-  const fetchLimit = Math.min(200, Math.max(limit * 4, 80))
-  const digits = q.replace(/\D/g, '')
-  const parts = [
-    `nome_completo.ilike.%${q}%`,
-    `titulo.ilike.%${q}%`,
-    `lider.ilike.%${q}%`,
-  ]
-  if (digits.length >= 4) parts.push(`titulo.ilike.%${digits}%`)
+  // Busca a mais para filtrar partes do nome / liderança / status no client.
+  const fetchLimit = Math.min(250, Math.max(limit * 5, 100))
+  const { orFilter, tokens, digits } = buildVotacaoSearchOr(q)
+  if (!orFilter) return []
 
   async function run(selectCols: string) {
     let request = supabase
       .from('cadastros')
       .select(selectCols)
-      .or(parts.join(','))
+      .or(orFilter)
       .order('nome_completo')
       .limit(fetchLimit)
 
@@ -151,6 +202,9 @@ export async function searchVotacaoFichas(opts: {
   if (error) throw new Error(error.message)
 
   let rows = (data ?? []).map((r) => asHit(r as unknown as Record<string, unknown>))
+
+  // "ADALBERTO SILVA" → exige as duas partes (ordem livre, ignora de/da/do).
+  rows = rows.filter((r) => matchesAllTokens(r, tokens, digits))
 
   if (opts.liderNomes?.length) {
     const allowed = new Set(opts.liderNomes.map(norm).filter(Boolean))
@@ -363,10 +417,8 @@ export async function fetchVotacaoHistorico(opts: {
       request = request.ilike('coordenador', opts.coordenadorNome.trim())
     }
     if (q.length >= 2) {
-      const digits = q.replace(/\D/g, '')
-      const parts = [`nome_completo.ilike.%${q}%`, `titulo.ilike.%${q}%`, `lider.ilike.%${q}%`]
-      if (digits.length >= 4) parts.push(`titulo.ilike.%${digits}%`)
-      request = request.or(parts.join(','))
+      const { orFilter } = buildVotacaoSearchOr(q)
+      if (orFilter) request = request.or(orFilter)
     }
     return request
   }
@@ -376,7 +428,12 @@ export async function fetchVotacaoHistorico(opts: {
     throw new Error(`${error.message} — rode o SQL coordenador_auxiliar_votacao_run.sql no Supabase.`)
   }
   if (error) throw new Error(error.message)
-  return (data ?? []).map((r) => asHit(r as unknown as Record<string, unknown>)).slice(0, limit)
+  let rows = (data ?? []).map((r) => asHit(r as unknown as Record<string, unknown>))
+  if (q.length >= 2) {
+    const { tokens, digits } = buildVotacaoSearchOr(q)
+    rows = rows.filter((r) => matchesAllTokens(r, tokens, digits))
+  }
+  return rows.slice(0, limit)
 }
 
 export async function fetchVotacaoProgresso(coordenadorNome: string): Promise<VotacaoProgresso> {
