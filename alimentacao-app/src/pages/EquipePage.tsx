@@ -19,7 +19,7 @@ import { fetchAuxiliarLiderIds, fetchVotacaoStatsPorLideres, type VotacaoProgres
 import { supabase } from '../lib/supabase'
 import type { Coordenador, Lider, Profile, UserRole } from '../types'
 import { FORMIGAS_WHATSAPP_EMAILS } from '../lib/formigasWhatsapp'
-import { labelRole, normalizeExtraRoles } from '../lib/roles'
+import { hasRole, labelRole, normalizeExtraRoles } from '../lib/roles'
 
 type Tab = 'nerites' | 'coordenadores' | 'lideres' | 'mobilizadores' | 'administrativos' | 'auxiliares'
 
@@ -65,11 +65,12 @@ function ExtraRolesBadges({ roles }: { roles?: UserRole[] | null }) {
 export function EquipePage() {
   const { profile, createNerite } = useAuth()
   const navigate = useNavigate()
-  const isAdmin = profile?.role === 'admin'
-  const isCoordenador = profile?.role === 'coordenador'
-  const canManageTeam = isAdmin || profile?.role === 'diretoria'
+  const isAdmin = hasRole(profile, 'admin')
+  const isDiretoria = hasRole(profile, 'diretoria') && !isAdmin
+  const isCoordenador = hasRole(profile, 'coordenador') && !isAdmin && !isDiretoria
+  const canManageTeam = isAdmin || isDiretoria
   const canManageAuxiliares = canManageTeam || isCoordenador
-  const diretoriaId = profile?.role === 'diretoria' ? profile.id : null
+  const diretoriaId = isDiretoria ? (profile?.id ?? null) : null
   const [searchParams, setSearchParams] = useSearchParams()
   const [myCoordenadorId, setMyCoordenadorId] = useState<string | null>(
     profile?.coordenador_id ?? null,
@@ -1189,6 +1190,10 @@ export function EquipePage() {
     const targetDir = isAdmin
       ? (auxForm.diretoria_id || coordRow?.diretoria_id || '')
       : (isCoordenador ? (coordRow?.diretoria_id || profile?.diretoria_id || '') : (diretoriaId || ''))
+    if (isCoordenador && !coordId) {
+      setError('Coordenação não vinculada ao login. Peça à diretoria para vincular seu usuário.')
+      return
+    }
     if (!auxForm.nome.trim() || !coordId) {
       setError('Informe o nome e o coordenador.')
       return
@@ -1240,7 +1245,7 @@ export function EquipePage() {
       })
       setSaving(false)
       if (err) {
-        const hint = /auxiliar|coordenador|constraint|check|role|SQL|permiss/i.test(err)
+        const hint = /auxiliar|coordenador|constraint|check|role|SQL|permiss|column|schema/i.test(err)
           && !/coordenador_auxiliar_votacao_run/i.test(err)
           ? ' Rode o SQL coordenador_auxiliar_votacao_run.sql no Supabase e tente de novo.'
           : ''
@@ -1529,7 +1534,11 @@ export function EquipePage() {
       {isCoordenador && (
         <div className="ficha-setup-banner">
           <strong>Sua coordenação</strong>
-          <span>Cadastre auxiliares e escolha quais lideranças cada um lança no dia da votação. Você também vê suas lideranças e fichas.</span>
+          <span>
+            {myCoordenadorId
+              ? 'Cadastre auxiliares e escolha quais lideranças cada um lança no dia da votação. Você também vê suas lideranças e fichas.'
+              : 'Coordenação não vinculada ao login. Peça à diretoria para vincular seu usuário ao coordenador antes de cadastrar auxiliares.'}
+          </span>
         </div>
       )}
 

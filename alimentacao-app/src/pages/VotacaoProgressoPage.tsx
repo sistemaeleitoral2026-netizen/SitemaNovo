@@ -11,7 +11,6 @@ import { buildWhatsAppUrl } from '../lib/whatsapp'
 import {
   fetchAuxiliarLiderNomes,
   fetchVotacaoFichasLider,
-  fetchVotacaoFichasPorLiderNome,
   fetchVotacaoProgresso,
   fetchVotacaoStatsPorLideres,
   labelAdicionadoNoLancamento,
@@ -143,8 +142,16 @@ export function VotacaoProgressoPage() {
               .select('id,nome')
               .eq('id', cId)
               .maybeSingle()
-            cNome = row?.nome ?? ''
+            cNome = (row?.nome ?? '').trim()
             cId = row?.id ?? cId
+          }
+          // Sem coordenação vinculada: não busca stats globais por nome de liderança.
+          if (!cNome) {
+            setCoordNome('')
+            setSelectedCoord('')
+            setData(null)
+            setError('Coordenação não vinculada ao login. Peça ao coordenador ou à diretoria.')
+            return
           }
           setCoordNome(cNome)
           setSelectedCoord(cId ?? '')
@@ -161,7 +168,7 @@ export function VotacaoProgressoPage() {
           } else {
             const stats = await fetchVotacaoStatsPorLideres({
               liderNomes: nomes,
-              coordenadorNome: cNome || null,
+              coordenadorNome: cNome,
             })
             if (!cancelled) setData(buildProgressoFromStats(cNome, stats))
           }
@@ -230,15 +237,35 @@ export function VotacaoProgressoPage() {
     setFichas([])
     try {
       if (isAuxiliar && profile?.id) {
+        const target = (nome ?? coordNome).trim()
+        if (!target) {
+          setError('Coordenação não vinculada ao login. Peça ao coordenador ou à diretoria.')
+          setData(null)
+          return
+        }
         const nomes = allowedLideres ?? await fetchAuxiliarLiderNomes(profile.id)
+        if (!nomes.length) {
+          setData({
+            coordenadorNome: target,
+            total: 0,
+            pendente: 0,
+            votou: 0,
+            naoVotou: 0,
+            porLider: [],
+          })
+          return
+        }
         const stats = await fetchVotacaoStatsPorLideres({
           liderNomes: nomes,
-          coordenadorNome: (nome ?? coordNome) || null,
+          coordenadorNome: target,
         })
-        setData(buildProgressoFromStats(nome ?? coordNome, stats))
+        setData(buildProgressoFromStats(target, stats))
       } else {
         const target = (nome ?? coordNome).trim()
-        if (!target) return
+        if (!target) {
+          setError('Coordenação não vinculada ao login.')
+          return
+        }
         setData(await fetchVotacaoProgresso(target))
       }
     } catch (e) {
@@ -275,10 +302,12 @@ export function VotacaoProgressoPage() {
     setLoadingFichas(true)
     setError(null)
     try {
-      const rows = coordNome
-        ? await fetchVotacaoFichasLider(coordNome, lider)
-        : await fetchVotacaoFichasPorLiderNome(lider)
-      setFichas(rows)
+      if (!coordNome.trim()) {
+        setFichas([])
+        setError('Coordenação não vinculada — não é possível listar as fichas.')
+        return
+      }
+      setFichas(await fetchVotacaoFichasLider(coordNome, lider))
       requestAnimationFrame(() => {
         openCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       })
