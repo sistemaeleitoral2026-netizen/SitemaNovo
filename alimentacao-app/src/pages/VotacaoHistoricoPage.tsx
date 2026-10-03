@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Eye, ImageIcon, Search, X } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Eye, ImageIcon, Pencil, Search, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { VotacaoBottomNav } from '../components/votacao/VotacaoBottomNav'
 import { hasRole } from '../lib/roles'
 import {
+  fetchAuxiliarLiderNomes,
   fetchVotacaoHistorico,
   signVotoFoto,
   type VotacaoHit,
@@ -41,6 +43,7 @@ export function VotacaoHistoricoPage() {
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<VotacaoHit[]>([])
   const [coordNome, setCoordNome] = useState('')
+  const [liderNomes, setLiderNomes] = useState<string[]>([])
   const [query, setQuery] = useState('')
   const [fotoUrl, setFotoUrl] = useState<string | null>(null)
   const [fotoTitle, setFotoTitle] = useState('')
@@ -48,12 +51,21 @@ export function VotacaoHistoricoPage() {
 
   const isStaff = hasRole(profile, ['admin', 'diretoria'])
   const isCoordenador = hasRole(profile, 'coordenador')
+  const isAuxiliar =
+    hasRole(profile, 'auxiliar') && !hasRole(profile, ['admin', 'diretoria', 'coordenador'])
 
   useEffect(() => {
     let cancelled = false
     async function resolveScope() {
       try {
-        if (isCoordenador && profile?.id && !isStaff) {
+        if (isAuxiliar && profile?.id) {
+          const nomes = await fetchAuxiliarLiderNomes(profile.id)
+          if (cancelled) return
+          setLiderNomes(nomes)
+          if (!nomes.length) {
+            setError('Nenhuma liderança atribuída. Peça ao coordenador em Equipe → Auxiliares.')
+          }
+        } else if (isCoordenador && profile?.id && !isStaff) {
           const { data: row } = await supabase
             .from('coordenadores')
             .select('nome')
@@ -81,11 +93,16 @@ export function VotacaoHistoricoPage() {
     }
     void resolveScope()
     return () => { cancelled = true }
-  }, [profile, isCoordenador, isStaff])
+  }, [profile, isCoordenador, isStaff, isAuxiliar])
 
   useEffect(() => {
     if (!scopeReady) return
     if (isCoordenador && !isStaff && !coordNome) return
+    if (isAuxiliar && !liderNomes.length) {
+      setRows([])
+      setLoading(false)
+      return
+    }
     const q = query.trim()
     if (q.length === 1) return
 
@@ -97,6 +114,7 @@ export function VotacaoHistoricoPage() {
         try {
           const list = await fetchVotacaoHistorico({
             coordenadorNome: isCoordenador && !isStaff ? coordNome : null,
+            liderNomes: isAuxiliar ? liderNomes : undefined,
             query: q,
             limit: 80,
           })
@@ -113,7 +131,7 @@ export function VotacaoHistoricoPage() {
       cancelled = true
       window.clearTimeout(t)
     }
-  }, [scopeReady, query, coordNome, isCoordenador, isStaff])
+  }, [scopeReady, query, coordNome, liderNomes, isCoordenador, isStaff, isAuxiliar])
 
   async function openFoto(hit: VotacaoHit) {
     if (!hit.voto_foto_path) return
@@ -129,9 +147,13 @@ export function VotacaoHistoricoPage() {
   }
 
   const subtitle = useMemo(() => {
+    if (isAuxiliar) {
+      if (!liderNomes.length) return 'Sem lideranças atribuídas'
+      return `Suas lideranças: ${liderNomes.join(', ')}`
+    }
     if (coordNome) return `Coordenação: ${coordNome}`
     return 'Registros recentes salvos no sistema'
-  }, [coordNome])
+  }, [coordNome, isAuxiliar, liderNomes])
 
   if (!scopeReady || (loading && !rows.length && !error)) {
     return (
@@ -153,7 +175,7 @@ export function VotacaoHistoricoPage() {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar por nome ou título…"
+          placeholder="Nome, mãe, título, zona ou seção…"
           autoComplete="off"
         />
         {query ? (
@@ -174,7 +196,11 @@ export function VotacaoHistoricoPage() {
       {!loading && !rows.length ? (
         <EmptyState
           title="Nenhum lançamento"
-          description="Ainda não há votos registrados neste escopo."
+          description={
+            isAuxiliar
+              ? 'Ainda não há votos lançados nas suas lideranças.'
+              : 'Ainda não há votos registrados neste escopo.'
+          }
         />
       ) : (
         <ul className="vot-hist-list">
@@ -187,18 +213,41 @@ export function VotacaoHistoricoPage() {
                   <time>{fmtWhen(h.voto_em)}</time>
                 </div>
                 <strong className="vot-hist-name">{h.nome_completo}</strong>
-                <p className="vot-hist-meta">
-                  Título: {h.titulo || '—'} · Zona: {h.zona || '—'} · Seção: {h.secao || '—'}
-                </p>
-                <div className="vot-hist-foot">
-                  <span>
-                    Lid.: <b>{h.lider || '—'}</b>
-                  </span>
-                  <span>
-                    Coord.: <b>{h.coordenador || '—'}</b>
-                  </span>
-                </div>
+
+                <dl className="vot-hist-fields">
+                  <div>
+                    <dt>Título</dt>
+                    <dd>{h.titulo || '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Zona</dt>
+                    <dd>{h.zona || '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Seção</dt>
+                    <dd>{h.secao || '—'}</dd>
+                  </div>
+                  <div className="vot-hist-fields-wide">
+                    <dt>Nome da mãe</dt>
+                    <dd>{h.nome_mae || '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Liderança</dt>
+                    <dd>{h.lider || '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Coord.</dt>
+                    <dd>{h.coordenador || '—'}</dd>
+                  </div>
+                </dl>
+
                 <div className="vot-hist-actions">
+                  <Link
+                    to={`/votacao/lancar?edit=${encodeURIComponent(h.id)}`}
+                    className="vot-btn ghost vot-btn-xs"
+                  >
+                    <Pencil size={14} /> Editar
+                  </Link>
                   {h.voto_foto_path ? (
                     <button type="button" className="vot-btn ghost vot-btn-xs" onClick={() => void openFoto(h)}>
                       <Eye size={14} /> Ver anexo

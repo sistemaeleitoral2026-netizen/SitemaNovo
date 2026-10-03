@@ -71,9 +71,9 @@ const navGroups: NavGroup[] = [
     roles: ['auxiliar', 'coordenador'],
     items: [
       { to: '/votacao/lancar', label: 'Lançar', icon: ClipboardCheck, roles: ['auxiliar', 'coordenador'] },
-      // Auxiliar NÃO vê Progresso nem Histórico
+      // Auxiliar vê Histórico (editar); Progresso só coordenador
       { to: '/votacao/progresso', label: 'Progresso', icon: ListChecks, roles: ['coordenador'] },
-      { to: '/votacao/historico', label: 'Histórico', icon: History, roles: ['coordenador'] },
+      { to: '/votacao/historico', label: 'Histórico', icon: History, roles: ['auxiliar', 'coordenador'] },
       { to: '/equipe?tab=lideres', label: 'Lideranças', icon: Crown, roles: ['coordenador'] },
       { to: '/equipe?tab=auxiliares', label: 'Auxiliares', icon: Users, roles: ['coordenador'] },
       { to: '/cadastros', label: 'Fichas', icon: ClipboardList, roles: ['coordenador'] },
