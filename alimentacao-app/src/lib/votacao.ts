@@ -378,6 +378,34 @@ export async function fetchVotacaoFichasLider(
   return all
 }
 
+/** Lista fichas só pela liderança (Lançar do auxiliar). */
+export async function fetchVotacaoFichasPorLiderNome(liderNome: string): Promise<VotacaoHit[]> {
+  const lider = liderNome.trim()
+  if (!lider) return []
+  const all: VotacaoHit[] = []
+  let from = 0
+  for (;;) {
+    async function run(cols: string) {
+      return supabase
+        .from('cadastros')
+        .select(cols)
+        .ilike('lider', lider)
+        .order('nome_completo')
+        .range(from, from + PAGE - 1)
+    }
+    let { data, error } = await run(SELECT_COLS)
+    if (error && /votou|voto_|column|schema/i.test(error.message)) {
+      ;({ data, error } = await run(SELECT_BASIC))
+    }
+    if (error) throw new Error(error.message)
+    const chunk = (data ?? []).map((r) => asHit(r as unknown as Record<string, unknown>))
+    all.push(...chunk.filter((r) => norm(r.lider) === norm(lider)))
+    if (chunk.length < PAGE) break
+    from += PAGE
+  }
+  return all
+}
+
 async function fetchAllCadastrosCoord(coordenadorNome: string): Promise<Pick<VotacaoHit, 'lider' | 'votou'>[]> {
   const all: Pick<VotacaoHit, 'lider' | 'votou'>[] = []
   let from = 0
