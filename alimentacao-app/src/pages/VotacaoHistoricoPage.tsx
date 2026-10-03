@@ -60,6 +60,14 @@ export function VotacaoHistoricoPage() {
     async function resolveScope() {
       try {
         if (isAuxiliar && profile?.id) {
+          if (profile.coordenador_id) {
+            const { data: coord } = await supabase
+              .from('coordenadores')
+              .select('nome')
+              .eq('id', profile.coordenador_id)
+              .maybeSingle()
+            if (!cancelled) setCoordNome(coord?.nome ?? '')
+          }
           const nomes = await fetchAuxiliarLiderNomes(profile.id)
           if (cancelled) return
           setLiderNomes(nomes)
@@ -114,7 +122,7 @@ export function VotacaoHistoricoPage() {
         setError(null)
         try {
           const list = await fetchVotacaoHistorico({
-            coordenadorNome: isCoordenador && !isStaff ? coordNome : null,
+            coordenadorNome: ((isCoordenador && !isStaff) || isAuxiliar) ? coordNome : null,
             liderNomes: isAuxiliar ? liderNomes : undefined,
             query: q,
             limit: 80,

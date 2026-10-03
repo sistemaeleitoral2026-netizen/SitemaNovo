@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { ChevronDown, ChevronUp, ClipboardCheck, Eye, ImageIcon, RefreshCw, Search, X } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { ChevronDown, ChevronUp, Eye, ImageIcon, RefreshCw, Search, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -223,9 +223,6 @@ export function VotacaoProgressoPage() {
       </header>
 
       <div className="vot-progresso-actions vot-actions-grid">
-        <Link to="/votacao/lancar" className="vot-btn">
-          <ClipboardCheck size={16} /> Lançar
-        </Link>
         <button type="button" className="vot-btn ghost" onClick={() => void reload()} disabled={loading}>
           <RefreshCw size={16} className={loading ? 'vot-spin' : undefined} /> Atualizar
         </button>
@@ -356,13 +353,6 @@ export function VotacaoProgressoPage() {
                                       <ImageIcon size={12} /> Sem anexo
                                     </span>
                                   )}
-                                  <Link
-                                    to="/votacao/lancar"
-                                    className="vot-btn ghost vot-btn-xs"
-                                    title="Abrir no Lançar para editar"
-                                  >
-                                    Lançar
-                                  </Link>
                                 </div>
                               </li>
                             ))}
