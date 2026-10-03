@@ -225,13 +225,23 @@ export function VotacaoLancarPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  function closeFicha() {
+  function cancelFicha() {
     setSelected(null)
     setViewOnly(false)
     setFotoFile(null)
     setFotoPreview(null)
     setClearFoto(false)
     setOkMsg(null)
+    setError(null)
+    setVotou(null)
+    setNome('')
+    setTitulo('')
+    setZona('')
+    setSecao('')
+    setNomeMae('')
+    setNascimento('')
+    // Mantém a busca para escolher outro nome da lista.
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   function onPickFile(file: File | null, input?: HTMLInputElement | null) {
@@ -320,11 +330,20 @@ export function VotacaoLancarPage() {
   }
 
   return (
-    <div className="vot-page vot-lancar vot-has-bottom">
-      <header className="vot-head vot-head-center">
-        <h1 className="vot-title">Lançar votação</h1>
-        <p className="vot-sub">{scopeHint}</p>
-      </header>
+    <div className={`vot-page vot-lancar vot-has-bottom${selected ? ' vot-lancar-editing' : ''}`}>
+      <div className="page-header vot-lancar-header">
+        <div>
+          <h1 className="page-title">Lançar votação</h1>
+          <p className="page-subtitle">{scopeHint}</p>
+        </div>
+        {selected ? (
+          <div className="page-header-actions">
+            <button type="button" className="vot-btn ghost" onClick={cancelFicha} disabled={saving}>
+              <X size={16} /> Cancelar
+            </button>
+          </div>
+        ) : null}
+      </div>
 
       {!selected && (
         <>
@@ -397,8 +416,8 @@ export function VotacaoLancarPage() {
       {selected && (
         <div className="vot-ficha">
           <div className="vot-ficha-bar">
-            <button type="button" className="vot-back" onClick={closeFicha}>
-              ← Voltar
+            <button type="button" className="vot-back" onClick={cancelFicha} disabled={saving}>
+              <X size={16} /> Cancelar · buscar outra pessoa
             </button>
             <div className="vot-ficha-actions">
               {viewOnly ? (
@@ -411,6 +430,14 @@ export function VotacaoLancarPage() {
                 </button>
               )}
             </div>
+          </div>
+
+          <div className="vot-ficha-person">
+            <span className="vot-ficha-person-label">Pessoa selecionada</span>
+            <strong>{selected.nome_completo}</strong>
+            <span>
+              Título {selected.titulo || '—'} · Zona {selected.zona || '—'} · Seção {selected.secao || '—'}
+            </span>
           </div>
 
           {okMsg && <div className="alert alert-success">{okMsg}</div>}
@@ -530,12 +557,28 @@ export function VotacaoLancarPage() {
             </div>
           </div>
 
-          {!viewOnly && (
-            <button type="button" className="vot-save" disabled={saving} onClick={() => void handleSave()}>
-              <Check size={18} strokeWidth={2.6} />
-              {saving ? 'Salvando…' : 'Salvar lançamento'}
+          <div className="vot-actions-bar">
+            <button
+              type="button"
+              className="vot-cancel"
+              disabled={saving}
+              onClick={cancelFicha}
+            >
+              <X size={18} />
+              Cancelar
             </button>
-          )}
+            {!viewOnly ? (
+              <button type="button" className="vot-save" disabled={saving} onClick={() => void handleSave()}>
+                <Check size={18} strokeWidth={2.6} />
+                {saving ? 'Salvando…' : 'Salvar lançamento'}
+              </button>
+            ) : (
+              <button type="button" className="vot-save" onClick={() => setViewOnly(false)}>
+                <Eye size={18} />
+                Editar lançamento
+              </button>
+            )}
+          </div>
         </div>
       )}
 
