@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ChevronDown, ChevronUp, ClipboardCheck, Eye, ImageIcon, RefreshCw, Search, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Spinner } from '../components/ui/Spinner'
@@ -23,13 +23,15 @@ function statusLabel(votou: boolean | null | undefined) {
 
 export function VotacaoProgressoPage() {
   const { profile } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const deepLinkDone = useRef(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [coordNome, setCoordNome] = useState('')
   const [data, setData] = useState<VotacaoProgresso | null>(null)
   const [coordOptions, setCoordOptions] = useState<{ id: string; nome: string }[]>([])
   const [selectedCoord, setSelectedCoord] = useState('')
-  const [liderFiltro, setLiderFiltro] = useState('')
+  const [liderFiltro, setLiderFiltro] = useState(() => searchParams.get('lider') ?? '')
   const [expandedLider, setExpandedLider] = useState<string | null>(null)
   const [fichas, setFichas] = useState<VotacaoHit[]>([])
   const [loadingFichas, setLoadingFichas] = useState(false)
@@ -39,6 +41,8 @@ export function VotacaoProgressoPage() {
 
   const isStaff = hasRole(profile, ['admin', 'diretoria'])
   const isCoordenador = hasRole(profile, 'coordenador')
+  const deepLider = (searchParams.get('lider') ?? '').trim()
+  const deepCoord = (searchParams.get('coordenador') ?? '').trim()
 
   useEffect(() => {
     let cancelled = false
@@ -71,7 +75,10 @@ export function VotacaoProgressoPage() {
           if (cancelled) return
           const list = (coords ?? []) as { id: string; nome: string }[]
           setCoordOptions(list)
-          const first = list[0]
+          const fromUrl = deepCoord
+            ? list.find((c) => c.nome.trim().toLowerCase() === deepCoord.toLowerCase())
+            : null
+          const first = fromUrl ?? list[0]
           if (first) {
             setSelectedCoord(first.id)
             setCoordNome(first.nome)
@@ -137,6 +144,25 @@ export function VotacaoProgressoPage() {
       setLoadingFichas(false)
     }
   }
+
+  // Deep-link: /votacao/progresso?lider=X&coordenador=Y (vindo da Equipe).
+  useEffect(() => {
+    if (!data || !deepLider || deepLinkDone.current || loading) return
+    const match = data.porLider.find(
+      (l) => l.lider.trim().toLowerCase() === deepLider.toLowerCase(),
+    )
+    setLiderFiltro(deepLider)
+    deepLinkDone.current = true
+    if (match) {
+      void toggleLider(match.lider)
+    }
+    // Limpa a URL sem perder o filtro na tela.
+    const next = new URLSearchParams(searchParams)
+    next.delete('lider')
+    next.delete('coordenador')
+    setSearchParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, deepLider, loading])
 
   async function openFoto(hit: VotacaoHit) {
     if (!hit.voto_foto_path) return

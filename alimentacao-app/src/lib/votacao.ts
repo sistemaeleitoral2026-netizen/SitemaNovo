@@ -502,3 +502,60 @@ export async function fetchVotacaoProgresso(coordenadorNome: string): Promise<Vo
     porLider,
   }
 }
+
+/**
+ * Totais de fichas / votaram por nome de liderança (Equipe → popup do auxiliar).
+ * Se passar coordenador, limita a essa coordenação.
+ */
+export async function fetchVotacaoStatsPorLideres(opts: {
+  liderNomes: string[]
+  coordenadorNome?: string | null
+}): Promise<Record<string, VotacaoProgressoLider>> {
+  const nomes = [...new Set(opts.liderNomes.map((n) => n.trim()).filter(Boolean))]
+  const empty: Record<string, VotacaoProgressoLider> = {}
+  for (const lider of nomes) {
+    empty[lider] = { lider, total: 0, pendente: 0, votou: 0, naoVotou: 0 }
+  }
+  if (!nomes.length) return empty
+
+  const byKey = new Map(nomes.map((n) => [norm(n), empty[n]!]))
+  const coord = opts.coordenadorNome?.trim() ?? ''
+
+  if (coord) {
+    const rows = await fetchAllCadastrosCoord(coord)
+    for (const r of rows) {
+      const key = norm(r.lider)
+      const cur = byKey.get(key)
+      if (!cur) continue
+      cur.total += 1
+      if (r.votou === true) cur.votou += 1
+      else if (r.votou === false) cur.naoVotou += 1
+      else cur.pendente += 1
+    }
+    return empty
+  }
+
+  // Sem coord: busca por cada liderança (ilike exato).
+  for (const lider of nomes) {
+    let from = 0
+    const cur = empty[lider]!
+    for (;;) {
+      const { data, error } = await supabase
+        .from('cadastros')
+        .select('votou')
+        .ilike('lider', lider)
+        .range(from, from + PAGE - 1)
+      if (error) throw new Error(error.message)
+      const chunk = data ?? []
+      for (const r of chunk) {
+        cur.total += 1
+        if (r.votou === true) cur.votou += 1
+        else if (r.votou === false) cur.naoVotou += 1
+        else cur.pendente += 1
+      }
+      if (chunk.length < PAGE) break
+      from += PAGE
+    }
+  }
+  return empty
+}
