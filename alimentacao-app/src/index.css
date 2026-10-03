@@ -121,6 +121,25 @@ table {
   flex-wrap: wrap;
 }
 
+.export-actions {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  flex-wrap: wrap;
+}
+.export-actions .ui-button {
+  min-height: 2.4rem;
+}
+@media (max-width: 560px) {
+  .export-actions {
+    width: 100%;
+  }
+  .export-actions .ui-button {
+    flex: 1 1 calc(50% - .25rem);
+    justify-content: center;
+  }
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
