@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Spinner } from '../components/ui/Spinner'
+import { VotacaoBottomNav } from '../components/votacao/VotacaoBottomNav'
 import {
   fetchAuxiliarLiderNomes,
   getVotacaoFicha,
@@ -171,8 +172,12 @@ export function VotacaoLancarPage() {
     setNomeMae(hit.nome_mae ?? '')
     setNascimento(toInputDate(hit.data_nascimento))
     if (hit.voto_foto_path) {
-      const url = await signVotoFoto(hit.voto_foto_path)
-      setFotoPreview(url)
+      try {
+        setFotoPreview(await signVotoFoto(hit.voto_foto_path))
+      } catch (e) {
+        setFotoPreview(null)
+        setError(e instanceof Error ? e.message : 'Não foi possível abrir o anexo.')
+      }
     } else {
       setFotoPreview(null)
     }
@@ -200,6 +205,10 @@ export function VotacaoLancarPage() {
       setError('Selecione Votou ou Não votou.')
       return
     }
+    if (!nome.trim()) {
+      setError('Informe o nome da pessoa.')
+      return
+    }
     setSaving(true)
     setError(null)
     setOkMsg(null)
@@ -224,9 +233,13 @@ export function VotacaoLancarPage() {
       setFotoFile(null)
       setClearFoto(false)
       if (saved.voto_foto_path) {
-        setFotoPreview(await signVotoFoto(saved.voto_foto_path))
+        try {
+          setFotoPreview(await signVotoFoto(saved.voto_foto_path))
+        } catch {
+          /* lançamento ok; anexo pode falhar só na visualização */
+        }
       }
-      setOkMsg('Lançamento salvo.')
+      setOkMsg('Lançamento salvo. Você pode editar os dados se precisar corrigir.')
       setViewOnly(true)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Não foi possível salvar.'
@@ -264,8 +277,8 @@ export function VotacaoLancarPage() {
   }
 
   return (
-    <div className="vot-page vot-lancar">
-      <header className="vot-head">
+    <div className={`vot-page vot-lancar${isAuxiliar ? '' : ' vot-has-bottom'}`}>
+      <header className="vot-head vot-head-center">
         <h1 className="vot-title">Lançar votação</h1>
         <p className="vot-sub">{scopeHint}</p>
       </header>
@@ -426,9 +439,14 @@ export function VotacaoLancarPage() {
           </div>
 
           <div className="vot-fields">
+            <p className="vot-fields-hint">
+              {viewOnly
+                ? 'Toque em Editar para corrigir Nome, Título, Zona, Seção, Nome da mãe ou Nascimento.'
+                : 'Corrija os dados errados abaixo antes de salvar o lançamento.'}
+            </p>
             <label>
               Nome
-              <input value={nome} disabled={viewOnly} onChange={(e) => setNome(e.target.value)} />
+              <input value={nome} disabled={viewOnly} onChange={(e) => setNome(e.target.value)} autoComplete="name" />
             </label>
             <label>
               Título
@@ -468,11 +486,14 @@ export function VotacaoLancarPage() {
 
           {!viewOnly && (
             <button type="button" className="vot-save" disabled={saving} onClick={() => void handleSave()}>
+              <Check size={18} strokeWidth={2.6} />
               {saving ? 'Salvando…' : 'Salvar lançamento'}
             </button>
           )}
         </div>
       )}
+
+      <VotacaoBottomNav />
     </div>
   )
 }

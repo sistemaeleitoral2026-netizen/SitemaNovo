@@ -71,7 +71,9 @@ const navGroups: NavGroup[] = [
     roles: ['auxiliar', 'coordenador'],
     items: [
       { to: '/votacao/lancar', label: 'Lançar', icon: ClipboardCheck, roles: ['auxiliar', 'coordenador'] },
+      // Auxiliar NÃO vê Progresso nem Histórico
       { to: '/votacao/progresso', label: 'Progresso', icon: ListChecks, roles: ['coordenador'] },
+      { to: '/votacao/historico', label: 'Histórico', icon: History, roles: ['coordenador'] },
       { to: '/equipe?tab=lideres', label: 'Lideranças', icon: Crown, roles: ['coordenador'] },
       { to: '/equipe?tab=auxiliares', label: 'Auxiliares', icon: Users, roles: ['coordenador'] },
       { to: '/cadastros', label: 'Fichas', icon: ClipboardList, roles: ['coordenador'] },
@@ -104,6 +106,7 @@ const navGroups: NavGroup[] = [
       { to: '/importar', label: 'Importar Planilha', icon: Upload, roles: ['operador'] },
       { to: '/votacao/lancar', label: 'Lançar votação', icon: ClipboardCheck, roles: ['admin', 'diretoria'] },
       { to: '/votacao/progresso', label: 'Progresso votação', icon: ListChecks, roles: ['admin', 'diretoria'] },
+      { to: '/votacao/historico', label: 'Histórico votação', icon: History, roles: ['admin', 'diretoria'] },
     ],
   },
   {
