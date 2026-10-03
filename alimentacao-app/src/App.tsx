@@ -29,6 +29,7 @@ import { GaragemHistoricoPage } from './pages/GaragemHistoricoPage'
 import { FinanceiroPage } from './pages/FinanceiroPage'
 import { VotacaoLancarPage } from './pages/VotacaoLancarPage'
 import { VotacaoProgressoPage } from './pages/VotacaoProgressoPage'
+import { VotacaoHistoricoPage } from './pages/VotacaoHistoricoPage'
 import { TvDashboardPage } from './pages/TvDashboardPage'
 import { canSeeFormigasWhatsapp } from './lib/formigasWhatsapp'
 import { hasRole } from './lib/roles'
@@ -213,6 +214,7 @@ function AppRoutes() {
         <Route path="financeiro" element={<StaffRoute><FinanceiroPage /></StaffRoute>} />
         <Route path="votacao/lancar" element={<VotacaoRoute><VotacaoLancarPage /></VotacaoRoute>} />
         <Route path="votacao/progresso" element={<VotacaoProgressoRoute><VotacaoProgressoPage /></VotacaoProgressoRoute>} />
+        <Route path="votacao/historico" element={<VotacaoProgressoRoute><VotacaoHistoricoPage /></VotacaoProgressoRoute>} />
         <Route path="configuracoes" element={<StaffRoute><ConfiguracoesPage /></StaffRoute>} />
         <Route path="admin-only" element={<AdminOnlyRoute><DashboardPage /></AdminOnlyRoute>} />
       </Route>
