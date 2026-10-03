@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Pencil, Plus, Search, Trash2, UserPlus, Users, UserCog, Crown, ClipboardList, Megaphone, Briefcase, Handshake } from 'lucide-react'
+import { Pencil, Plus, Search, Trash2, UserPlus, Users, UserCog, Crown, ClipboardList, Megaphone, Briefcase, Handshake, X } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Card } from '../components/ui/Card'
@@ -160,6 +160,8 @@ export function EquipePage() {
   const [deleteCoordId, setDeleteCoordId] = useState<string | null>(null)
   const [deleteLiderId, setDeleteLiderId] = useState<string | null>(null)
   const [deleteAuxId, setDeleteAuxId] = useState<string | null>(null)
+  /** Popup: lideranças do auxiliar ao clicar no nome. */
+  const [viewAuxLideresId, setViewAuxLideresId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -1427,6 +1429,21 @@ export function EquipePage() {
   const deleteCoordName = coordenadores.find((c) => c.id === deleteCoordId)?.nome
   const deleteLiderName = lideres.find((l) => l.id === deleteLiderId)?.nome
   const deleteAuxName = auxiliares.find((a) => a.id === deleteAuxId)?.nome
+  const viewAuxLideres = useMemo(() => {
+    if (!viewAuxLideresId) return null
+    const aux = auxiliares.find((a) => a.id === viewAuxLideresId)
+    if (!aux) return null
+    const liderIds = auxiliarLiderMap[aux.id] ?? []
+    const liderNomes = liderIds
+      .map((id) => lideres.find((l) => l.id === id)?.nome)
+      .filter((n): n is string => Boolean(n))
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+    return {
+      aux,
+      liderNomes,
+      coordNome: coordenadores.find((c) => c.id === aux.coordenador_id)?.nome ?? null,
+    }
+  }, [viewAuxLideresId, auxiliares, auxiliarLiderMap, lideres, coordenadores])
 
   if (loading) {
     return (
@@ -1870,56 +1887,128 @@ export function EquipePage() {
               action={<Button onClick={openNewAux}><UserPlus size={16} /> Novo auxiliar</Button>}
             />
           ) : (
-            <div className="table-wrapper">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Nome</th>
-                    <th>Email</th>
-                    {!isCoordenador && <th>Coordenador</th>}
-                    <th>Lideranças</th>
-                    <th>Status</th>
-                    <th>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAuxiliares.map((a) => {
-                    const liderIds = auxiliarLiderMap[a.id] ?? []
-                    const liderNomes = liderIds
-                      .map((id) => lideres.find((l) => l.id === id)?.nome)
-                      .filter(Boolean)
-                    return (
-                      <tr key={a.id}>
-                        <td><strong>{a.nome}</strong></td>
-                        <td>{a.email}</td>
-                        {!isCoordenador && (
-                          <td>{coordenadores.find((c) => c.id === a.coordenador_id)?.nome ?? '—'}</td>
-                        )}
-                        <td>
-                          {liderNomes.length
-                            ? <span style={{ fontSize: '.82rem' }}>{liderNomes.join(', ')}</span>
-                            : <span style={{ color: '#94a3b8', fontSize: '.82rem' }}>Nenhuma</span>}
-                        </td>
-                        <td>
-                          <span className={`status-pill${a.ativo ? ' active' : ''}`}>
-                            {a.ativo ? 'Ativo' : 'Inativo'}
+            <div className="cadastros-table-card eq-aux-list-card">
+              <div className="table-wrapper desktop-only">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Nome</th>
+                      <th>Email</th>
+                      {!isCoordenador && <th>Coordenador</th>}
+                      <th>Lideranças</th>
+                      <th>Status</th>
+                      <th className="sticky-actions-head">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredAuxiliares.map((a) => {
+                      const liderIds = auxiliarLiderMap[a.id] ?? []
+                      const liderCount = liderIds.length
+                      return (
+                        <tr key={a.id}>
+                          <td>
+                            <button
+                              type="button"
+                              className="eq-aux-name-btn"
+                              onClick={() => setViewAuxLideresId(a.id)}
+                              title="Ver lideranças"
+                            >
+                              <strong>{a.nome}</strong>
+                            </button>
+                          </td>
+                          <td>{a.email}</td>
+                          {!isCoordenador && (
+                            <td>{coordenadores.find((c) => c.id === a.coordenador_id)?.nome ?? '—'}</td>
+                          )}
+                          <td>
+                            <button
+                              type="button"
+                              className={`eq-aux-lider-count${liderCount ? '' : ' is-empty'}`}
+                              onClick={() => setViewAuxLideresId(a.id)}
+                            >
+                              {liderCount
+                                ? `${liderCount} liderança${liderCount === 1 ? '' : 's'}`
+                                : 'Nenhuma'}
+                            </button>
+                          </td>
+                          <td>
+                            <span className={`status-pill${a.ativo ? ' active' : ''}`}>
+                              {a.ativo ? 'Ativo' : 'Inativo'}
+                            </span>
+                          </td>
+                          <td className="sticky-actions-cell">
+                            <div style={{ display: 'flex', gap: '0.35rem' }}>
+                              <Button variant="ghost" size="sm" aria-label="Editar" onClick={() => void openEditAux(a)}>
+                                <Pencil size={16} />
+                              </Button>
+                              <Button variant="ghost" size="sm" aria-label="Excluir" onClick={() => { setError(null); setDeleteAuxId(a.id) }}>
+                                <Trash2 size={16} color="var(--color-danger)" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mobile-cards">
+                {filteredAuxiliares.map((a) => {
+                  const liderIds = auxiliarLiderMap[a.id] ?? []
+                  const liderCount = liderIds.length
+                  return (
+                    <div className="mobile-card" key={a.id}>
+                      <div className="mobile-card-top">
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <button
+                            type="button"
+                            className="eq-aux-name-btn"
+                            onClick={() => setViewAuxLideresId(a.id)}
+                          >
+                            <strong style={{ fontSize: '.9rem' }}>{a.nome}</strong>
+                          </button>
+                          <span style={{ display: 'block', color: '#8a95a7', fontSize: '.72rem', marginTop: '.15rem' }}>
+                            {a.email}
                           </span>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '0.35rem' }}>
-                            <Button variant="ghost" size="sm" aria-label="Editar" onClick={() => void openEditAux(a)}>
-                              <Pencil size={16} />
-                            </Button>
-                            <Button variant="ghost" size="sm" aria-label="Excluir" onClick={() => { setError(null); setDeleteAuxId(a.id) }}>
-                              <Trash2 size={16} color="var(--color-danger)" />
-                            </Button>
+                        </div>
+                        <div style={{ display: 'flex', gap: '.3rem' }}>
+                          <Button variant="ghost" size="sm" aria-label="Editar" onClick={() => void openEditAux(a)}>
+                            <Pencil size={16} />
+                          </Button>
+                          <Button variant="ghost" size="sm" aria-label="Excluir" onClick={() => { setError(null); setDeleteAuxId(a.id) }}>
+                            <Trash2 size={16} color="var(--color-danger)" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="mobile-card-meta" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.6rem .75rem', marginTop: '.8rem', paddingTop: '.7rem', borderTop: '1px solid #e9edf4' }}>
+                        {!isCoordenador && (
+                          <div>
+                            <span>Coordenador</span>
+                            <strong>{coordenadores.find((c) => c.id === a.coordenador_id)?.nome ?? '—'}</strong>
                           </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                        )}
+                        <div>
+                          <span>Lideranças</span>
+                          <button
+                            type="button"
+                            className={`eq-aux-lider-count${liderCount ? '' : ' is-empty'}`}
+                            onClick={() => setViewAuxLideresId(a.id)}
+                          >
+                            {liderCount
+                              ? `${liderCount} liderança${liderCount === 1 ? '' : 's'}`
+                              : 'Nenhuma'}
+                          </button>
+                        </div>
+                        <div>
+                          <span>Status</span>
+                          <strong>{a.ativo ? 'Ativo' : 'Inativo'}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )
         )}
@@ -2150,6 +2239,80 @@ export function EquipePage() {
           {error && <div className="alert alert-error">{error}</div>}
         </div>
       </Modal>
+
+      {viewAuxLideres && (
+        <>
+          <div
+            className="eq-aux-pop-overlay"
+            onClick={() => setViewAuxLideresId(null)}
+            aria-hidden
+          />
+          <div
+            className="eq-aux-pop"
+            role="dialog"
+            aria-modal
+            aria-labelledby="eq-aux-pop-title"
+          >
+            <header className="eq-aux-pop-head">
+              <div className="eq-aux-pop-avatar" aria-hidden>
+                {(viewAuxLideres.aux.nome.trim().split(/\s+/).filter(Boolean).length > 1
+                  ? `${viewAuxLideres.aux.nome.trim().split(/\s+/)[0][0]}${viewAuxLideres.aux.nome.trim().split(/\s+/).slice(-1)[0][0]}`
+                  : viewAuxLideres.aux.nome.slice(0, 2)
+                ).toUpperCase()}
+              </div>
+              <div className="eq-aux-pop-titles">
+                <h2 id="eq-aux-pop-title">Lideranças de {viewAuxLideres.aux.nome.split(/\s+/)[0]}</h2>
+                <p>
+                  {viewAuxLideres.liderNomes.length
+                    ? `${viewAuxLideres.liderNomes.length} liderança${viewAuxLideres.liderNomes.length === 1 ? '' : 's'} na votação`
+                    : 'Nenhuma liderança atribuída'}
+                  {viewAuxLideres.coordNome ? ` · Coord.: ${viewAuxLideres.coordNome}` : ''}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="eq-aux-pop-close"
+                onClick={() => setViewAuxLideresId(null)}
+                aria-label="Fechar"
+              >
+                <X size={18} />
+              </button>
+            </header>
+
+            <div className="eq-aux-pop-body">
+              {viewAuxLideres.liderNomes.length ? (
+                <ul className="eq-aux-pop-list">
+                  {viewAuxLideres.liderNomes.map((nome) => (
+                    <li key={nome}>
+                      <Crown size={14} strokeWidth={2} aria-hidden />
+                      <span>{nome}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="eq-aux-pop-empty">
+                  Este auxiliar ainda não tem lideranças. Use Editar para marcar.
+                </p>
+              )}
+            </div>
+
+            <footer className="eq-aux-pop-foot">
+              <Button variant="secondary" onClick={() => setViewAuxLideresId(null)}>
+                Fechar
+              </Button>
+              <Button
+                onClick={() => {
+                  const aux = viewAuxLideres.aux
+                  setViewAuxLideresId(null)
+                  void openEditAux(aux)
+                }}
+              >
+                <Pencil size={15} /> Editar auxiliar
+              </Button>
+            </footer>
+          </div>
+        </>
+      )}
 
       <EquipeMemberModal
         open={auxOpen}
