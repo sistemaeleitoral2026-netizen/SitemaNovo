@@ -1,12 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ClipboardCheck, RefreshCw, Search } from 'lucide-react'
+import { ChevronDown, ChevronUp, ClipboardCheck, Eye, ImageIcon, RefreshCw, Search, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
+import { VotacaoBottomNav } from '../components/votacao/VotacaoBottomNav'
 import { hasRole } from '../lib/roles'
-import { fetchVotacaoProgresso, type VotacaoProgresso } from '../lib/votacao'
+import {
+  fetchVotacaoFichasLider,
+  fetchVotacaoProgresso,
+  signVotoFoto,
+  type VotacaoHit,
+  type VotacaoProgresso,
+} from '../lib/votacao'
 import { supabase } from '../lib/supabase'
+
+function statusLabel(votou: boolean | null | undefined) {
+  if (votou === true) return 'Votou'
+  if (votou === false) return 'Não votou'
+  return 'Pendente'
+}
 
 export function VotacaoProgressoPage() {
   const { profile } = useAuth()
@@ -17,6 +30,12 @@ export function VotacaoProgressoPage() {
   const [coordOptions, setCoordOptions] = useState<{ id: string; nome: string }[]>([])
   const [selectedCoord, setSelectedCoord] = useState('')
   const [liderFiltro, setLiderFiltro] = useState('')
+  const [expandedLider, setExpandedLider] = useState<string | null>(null)
+  const [fichas, setFichas] = useState<VotacaoHit[]>([])
+  const [loadingFichas, setLoadingFichas] = useState(false)
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null)
+  const [fotoTitle, setFotoTitle] = useState('')
+  const [fotoBusy, setFotoBusy] = useState(false)
 
   const isStaff = hasRole(profile, ['admin', 'diretoria'])
   const isCoordenador = hasRole(profile, 'coordenador')
@@ -81,6 +100,8 @@ export function VotacaoProgressoPage() {
     if (!target) return
     setLoading(true)
     setError(null)
+    setExpandedLider(null)
+    setFichas([])
     try {
       setData(await fetchVotacaoProgresso(target))
     } catch (e) {
@@ -96,6 +117,41 @@ export function VotacaoProgressoPage() {
     setCoordNome(nome)
     setLiderFiltro('')
     await reload(nome)
+  }
+
+  async function toggleLider(lider: string) {
+    if (expandedLider === lider) {
+      setExpandedLider(null)
+      setFichas([])
+      return
+    }
+    setExpandedLider(lider)
+    setLoadingFichas(true)
+    setError(null)
+    try {
+      setFichas(await fetchVotacaoFichasLider(coordNome, lider))
+    } catch (e) {
+      setFichas([])
+      setError(e instanceof Error ? e.message : 'Não foi possível carregar as fichas.')
+    } finally {
+      setLoadingFichas(false)
+    }
+  }
+
+  async function openFoto(hit: VotacaoHit) {
+    if (!hit.voto_foto_path) return
+    setFotoBusy(true)
+    setError(null)
+    try {
+      const url = await signVotoFoto(hit.voto_foto_path)
+      if (!url) throw new Error('Anexo indisponível.')
+      setFotoUrl(url)
+      setFotoTitle(hit.nome_completo)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível abrir o anexo.')
+    } finally {
+      setFotoBusy(false)
+    }
   }
 
   const lideresFiltrados = useMemo(() => {
@@ -128,7 +184,7 @@ export function VotacaoProgressoPage() {
     : 0
 
   return (
-    <div className="vot-page vot-progresso">
+    <div className="vot-page vot-progresso vot-has-bottom">
       <header className="vot-head">
         <div>
           <h1 className="vot-title">Progresso da votação</h1>
@@ -138,15 +194,16 @@ export function VotacaoProgressoPage() {
               : 'Selecione a coordenação'}
           </p>
         </div>
-        <div className="vot-progresso-actions">
-          <Link to="/votacao/lancar" className="vot-btn">
-            <ClipboardCheck size={16} /> Lançar
-          </Link>
-          <button type="button" className="vot-btn ghost" onClick={() => void reload()} disabled={loading}>
-            <RefreshCw size={16} className={loading ? 'vot-spin' : undefined} /> Atualizar
-          </button>
-        </div>
       </header>
+
+      <div className="vot-progresso-actions vot-actions-grid">
+        <Link to="/votacao/lancar" className="vot-btn">
+          <ClipboardCheck size={16} /> Lançar
+        </Link>
+        <button type="button" className="vot-btn ghost" onClick={() => void reload()} disabled={loading}>
+          <RefreshCw size={16} className={loading ? 'vot-spin' : undefined} /> Atualizar
+        </button>
+      </div>
 
       {isStaff && coordOptions.length > 0 && (
         <label className="vot-coord-pick">
@@ -163,7 +220,7 @@ export function VotacaoProgressoPage() {
 
       {tot && (
         <>
-          <div className="vot-kpi-row">
+          <div className="vot-kpi-row vot-kpi-2x2">
             <div className="vot-kpi">
               <em>Total</em>
               <strong>{tot.total}</strong>
@@ -192,6 +249,10 @@ export function VotacaoProgressoPage() {
             />
           </div>
 
+          <p className="vot-fields-hint">
+            Toque numa liderança para ver as fichas e abrir o anexo do lançamento.
+          </p>
+
           {!tot.porLider.length ? (
             <EmptyState
               title="Nenhuma ficha"
@@ -200,13 +261,19 @@ export function VotacaoProgressoPage() {
           ) : !lideresFiltrados.length ? (
             <p className="vot-empty">Nenhuma liderança com esse nome.</p>
           ) : (
-            <>
-              <ul className="vot-lider-list">
-                {lideresFiltrados.map((l) => {
-                  const done = l.votou + l.naoVotou
-                  const pct = l.total ? Math.round((done / l.total) * 100) : 0
-                  return (
-                    <li key={l.lider} className="vot-lider-card">
+            <ul className="vot-lider-list">
+              {lideresFiltrados.map((l) => {
+                const done = l.votou + l.naoVotou
+                const pct = l.total ? Math.round((done / l.total) * 100) : 0
+                const open = expandedLider === l.lider
+                return (
+                  <li key={l.lider} className={`vot-lider-card${open ? ' is-open' : ''}`}>
+                    <button
+                      type="button"
+                      className="vot-lider-toggle"
+                      onClick={() => void toggleLider(l.lider)}
+                      aria-expanded={open}
+                    >
                       <div className="vot-lider-top">
                         <strong>{l.lider}</strong>
                         <span>{done}/{l.total} · {pct}%</span>
@@ -218,46 +285,89 @@ export function VotacaoProgressoPage() {
                         <span className="is-pend">{l.pendente} pend.</span>
                         <span className="is-yes">{l.votou} votou</span>
                         <span className="is-no">{l.naoVotou} não votou</span>
+                        <span className="vot-lider-chevron" aria-hidden>
+                          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        </span>
                       </div>
-                    </li>
-                  )
-                })}
-              </ul>
+                    </button>
 
-              <div className="vot-desktop-table-wrap">
-                <table className="vot-desktop-table">
-                  <thead>
-                    <tr>
-                      <th>Liderança</th>
-                      <th>Total</th>
-                      <th>Pendente</th>
-                      <th>Votou</th>
-                      <th>Não votou</th>
-                      <th>%</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lideresFiltrados.map((l) => {
-                      const done = l.votou + l.naoVotou
-                      const pct = l.total ? Math.round((done / l.total) * 100) : 0
-                      return (
-                        <tr key={l.lider}>
-                          <td><strong>{l.lider}</strong></td>
-                          <td>{l.total}</td>
-                          <td className="is-pend">{l.pendente}</td>
-                          <td className="is-yes">{l.votou}</td>
-                          <td className="is-no">{l.naoVotou}</td>
-                          <td>{pct}%</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
+                    {open && (
+                      <div className="vot-lider-fichas">
+                        {loadingFichas ? (
+                          <div className="vot-center vot-muted">
+                            <Spinner size={22} /> Carregando fichas…
+                          </div>
+                        ) : !fichas.length ? (
+                          <p className="vot-empty">Nenhuma ficha nesta liderança.</p>
+                        ) : (
+                          <ul className="vot-ficha-mini-list">
+                            {fichas.map((h) => (
+                              <li key={h.id} className="vot-ficha-mini">
+                                <div>
+                                  <strong>{h.nome_completo}</strong>
+                                  <span>
+                                    Título {h.titulo || '—'} · Z {h.zona || '—'} · S {h.secao || '—'}
+                                  </span>
+                                </div>
+                                <div className="vot-ficha-mini-side">
+                                  <span className={`vot-badge${h.votou === true ? ' is-yes' : h.votou === false ? ' is-no' : ' is-pend'}`}>
+                                    {statusLabel(h.votou)}
+                                  </span>
+                                  {h.voto_foto_path ? (
+                                    <button
+                                      type="button"
+                                      className="vot-btn ghost vot-btn-xs"
+                                      disabled={fotoBusy}
+                                      onClick={() => void openFoto(h)}
+                                    >
+                                      <Eye size={14} /> Ver anexo
+                                    </button>
+                                  ) : (
+                                    <span className="vot-muted vot-no-anexo">
+                                      <ImageIcon size={12} /> Sem anexo
+                                    </span>
+                                  )}
+                                  <Link
+                                    to="/votacao/lancar"
+                                    className="vot-btn ghost vot-btn-xs"
+                                    title="Abrir no Lançar para editar"
+                                  >
+                                    Lançar
+                                  </Link>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
           )}
         </>
       )}
+
+      {fotoUrl && (
+        <div className="vot-foto-modal" role="dialog" aria-modal aria-label="Anexo do lançamento">
+          <button type="button" className="vot-foto-modal-backdrop" onClick={() => setFotoUrl(null)} aria-label="Fechar" />
+          <div className="vot-foto-modal-card">
+            <div className="vot-foto-modal-head">
+              <strong>{fotoTitle}</strong>
+              <button type="button" className="vot-clear" onClick={() => setFotoUrl(null)} aria-label="Fechar">
+                <X size={18} />
+              </button>
+            </div>
+            <img src={fotoUrl} alt={`Anexo de ${fotoTitle}`} />
+            <a className="vot-btn" href={fotoUrl} target="_blank" rel="noopener noreferrer">
+              Abrir em nova aba
+            </a>
+          </div>
+        </div>
+      )}
+
+      <VotacaoBottomNav />
     </div>
   )
 }

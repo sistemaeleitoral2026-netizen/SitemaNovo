@@ -1,4 +1,4 @@
-import { compressImageForUpload } from './imageCompress'
+import { prepareImageForUpload } from './imageCompress'
 import { sanitizeSearchTerm } from './search'
 import { supabase } from './supabase'
 import type { Cadastro } from '../types'
@@ -49,6 +49,8 @@ const SELECT_COLS =
 /** Sem colunas de voto — fallback se o SQL ainda não rodou. */
 const SELECT_BASIC =
   'id,nome_completo,titulo,zona,secao,nome_mae,data_nascimento,telefone,coordenador,lider,diretoria_id'
+
+const PAGE = 1000
 
 function norm(s: string | null | undefined) {
   return (s ?? '').trim().toLowerCase()
@@ -164,27 +166,46 @@ export async function searchVotacaoFichas(opts: {
 }
 
 export async function getVotacaoFicha(id: string): Promise<VotacaoHit | null> {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('cadastros')
     .select(SELECT_COLS)
     .eq('id', id)
     .maybeSingle()
+  if (error && /votou|voto_|column|schema/i.test(error.message)) {
+    ;({ data, error } = await supabase
+      .from('cadastros')
+      .select(SELECT_BASIC)
+      .eq('id', id)
+      .maybeSingle())
+    if (!error && data) return asHit(data as unknown as Record<string, unknown>)
+  }
   if (error) throw new Error(error.message)
-  return (data as VotacaoHit | null) ?? null
+  return data ? asHit(data as unknown as Record<string, unknown>) : null
 }
 
 async function uploadVotoFoto(userId: string, file: File): Promise<string> {
-  const prepared = await compressImageForUpload(file)
-  const ext = prepared.type === 'image/jpeg'
-    ? 'jpg'
-    : (prepared.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
-  const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext || 'jpg'}`
+  const prepared = await prepareImageForUpload(file)
+  const ext = prepared.type === 'image/png'
+    ? 'png'
+    : prepared.type === 'image/webp'
+      ? 'webp'
+      : prepared.type === 'image/gif'
+        ? 'gif'
+        : 'jpg'
+  const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
   const { error } = await supabase.storage.from(VOTACAO_FOTOS_BUCKET).upload(path, prepared, {
     cacheControl: '86400',
     upsert: false,
     contentType: prepared.type || 'image/jpeg',
   })
-  if (error) throw new Error(error.message)
+  if (error) {
+    if (/bucket|not found|mime|allowed/i.test(error.message)) {
+      throw new Error(
+        `${error.message} — confira o bucket votacao-fotos (SQL coordenador_auxiliar_votacao_run.sql).`,
+      )
+    }
+    throw new Error(error.message)
+  }
   return path
 }
 
@@ -193,7 +214,7 @@ export async function signVotoFoto(path: string | null | undefined): Promise<str
   const { data, error } = await supabase.storage
     .from(VOTACAO_FOTOS_BUCKET)
     .createSignedUrl(path, 60 * 60)
-  if (error) return null
+  if (error) throw new Error(error.message || 'Não foi possível abrir o anexo.')
   return data?.signedUrl ?? null
 }
 
@@ -251,13 +272,57 @@ export async function salvarLancamentoVotacao(input: VotacaoSaveInput): Promise<
     if (newFotoPath) {
       void supabase.storage.from(VOTACAO_FOTOS_BUCKET).remove([newFotoPath])
     }
+    if (/unique|duplicate|titulo/i.test(error.message)) {
+      throw new Error('Este título de eleitor já existe em outra ficha. Confira o número e tente de novo.')
+    }
+    if (/permission|policy|row-level|RLS/i.test(error.message)) {
+      throw new Error('Sem permissão nesta ficha. Confira se a liderança está liberada para você.')
+    }
     throw new Error(error.message)
   }
-  if (!data) throw new Error('Ficha não encontrada ou sem permissão.')
-  return data as VotacaoHit
+  if (!data) throw new Error('Ficha não encontrada ou sem permissão para salvar.')
+  return asHit(data as unknown as Record<string, unknown>)
 }
 
-const PAGE = 1000
+/** Fichas de uma liderança (Progresso — ver status e anexo). */
+export async function fetchVotacaoFichasLider(
+  coordenadorNome: string,
+  liderNome: string,
+): Promise<VotacaoHit[]> {
+  const coord = coordenadorNome.trim()
+  const lider = liderNome.trim()
+  if (!coord || !lider) return []
+  const semLider = lider === 'Sem liderança'
+
+  const all: VotacaoHit[] = []
+  let from = 0
+  for (;;) {
+    async function run(cols: string) {
+      let q = supabase
+        .from('cadastros')
+        .select(cols)
+        .ilike('coordenador', coord)
+        .order('nome_completo')
+        .range(from, from + PAGE - 1)
+      if (!semLider) q = q.ilike('lider', lider)
+      return q
+    }
+
+    let { data, error } = await run(SELECT_COLS)
+    if (error && /votou|voto_|column|schema/i.test(error.message)) {
+      ;({ data, error } = await run(SELECT_BASIC))
+    }
+    if (error) throw new Error(error.message)
+    const chunk = (data ?? []).map((r) => asHit(r as unknown as Record<string, unknown>))
+    const exact = chunk.filter((r) =>
+      semLider ? !norm(r.lider) : norm(r.lider) === norm(lider),
+    )
+    all.push(...exact)
+    if (chunk.length < PAGE) break
+    from += PAGE
+  }
+  return all
+}
 
 async function fetchAllCadastrosCoord(coordenadorNome: string): Promise<Pick<VotacaoHit, 'lider' | 'votou'>[]> {
   const all: Pick<VotacaoHit, 'lider' | 'votou'>[] = []
@@ -275,6 +340,43 @@ async function fetchAllCadastrosCoord(coordenadorNome: string): Promise<Pick<Vot
     from += PAGE
   }
   return all
+}
+
+/** Lançamentos recentes (voto_em preenchido) — Histórico. */
+export async function fetchVotacaoHistorico(opts: {
+  coordenadorNome?: string | null
+  query?: string
+  limit?: number
+}): Promise<VotacaoHit[]> {
+  const limit = opts.limit ?? 60
+  const q = sanitizeSearchTerm(opts.query ?? '')
+
+  async function run(cols: string) {
+    let request = supabase
+      .from('cadastros')
+      .select(cols)
+      .not('voto_em', 'is', null)
+      .order('voto_em', { ascending: false })
+      .limit(Math.min(200, limit * 3))
+
+    if (opts.coordenadorNome?.trim()) {
+      request = request.ilike('coordenador', opts.coordenadorNome.trim())
+    }
+    if (q.length >= 2) {
+      const digits = q.replace(/\D/g, '')
+      const parts = [`nome_completo.ilike.%${q}%`, `titulo.ilike.%${q}%`, `lider.ilike.%${q}%`]
+      if (digits.length >= 4) parts.push(`titulo.ilike.%${digits}%`)
+      request = request.or(parts.join(','))
+    }
+    return request
+  }
+
+  let { data, error } = await run(SELECT_COLS)
+  if (error && /votou|voto_|column|schema/i.test(error.message)) {
+    throw new Error(`${error.message} — rode o SQL coordenador_auxiliar_votacao_run.sql no Supabase.`)
+  }
+  if (error) throw new Error(error.message)
+  return (data ?? []).map((r) => asHit(r as unknown as Record<string, unknown>)).slice(0, limit)
 }
 
 export async function fetchVotacaoProgresso(coordenadorNome: string): Promise<VotacaoProgresso> {
