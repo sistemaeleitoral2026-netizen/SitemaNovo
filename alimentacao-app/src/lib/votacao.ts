@@ -791,29 +791,29 @@ async function fetchAllCadastrosCoord(coordenadorNome: string): Promise<Pick<Vot
   return all
 }
 
-/** Lançamentos recentes (voto_em preenchido) — Histórico. */
+/** Lançamentos (voto_em preenchido) — Histórico, paginado. */
 export async function fetchVotacaoHistorico(opts: {
   coordenadorNome?: string | null
   /** Auxiliar: só fichas dessas lideranças. */
   liderNomes?: string[]
   query?: string
-  limit?: number
-}): Promise<VotacaoHit[]> {
-  const limit = opts.limit ?? 60
+  page?: number
+  pageSize?: number
+}): Promise<{ rows: VotacaoHit[]; total: number }> {
+  const page = Math.max(0, opts.page ?? 0)
+  const pageSize = Math.min(100, Math.max(10, opts.pageSize ?? 25))
+  const from = page * pageSize
+  const to = from + pageSize - 1
   const q = sanitizeSearchTerm(opts.query ?? '')
   const liderNomes = (opts.liderNomes ?? []).map((n) => n.trim()).filter(Boolean)
-  // Auxiliar precisa puxar mais linhas antes do filtro de liderança no client.
-  const fetchLimit = liderNomes.length
-    ? Math.min(400, Math.max(limit * 6, 120))
-    : Math.min(200, limit * 3)
 
   async function run(cols: string) {
     let request = supabase
       .from('cadastros')
-      .select(cols)
+      .select(cols, { count: 'exact' })
       .not('voto_em', 'is', null)
       .order('voto_em', { ascending: false })
-      .limit(fetchLimit)
+      .range(from, to)
 
     if (opts.coordenadorNome?.trim()) {
       request = request.ilike('coordenador', opts.coordenadorNome.trim())
@@ -821,7 +821,10 @@ export async function fetchVotacaoHistorico(opts: {
     if (liderNomes.length === 1) {
       request = request.ilike('lider', liderNomes[0])
     } else if (liderNomes.length > 1) {
-      request = request.or(liderNomes.map((n) => `lider.ilike.${n}`).join(','))
+      // PostgREST: valores com espaço/vírgula precisam de aspas.
+      request = request.or(
+        liderNomes.map((n) => `lider.ilike."${n.replace(/"/g, '')}"`).join(','),
+      )
     }
     if (q.length >= 2) {
       const { orFilter } = buildVotacaoSearchOr(q)
@@ -830,9 +833,9 @@ export async function fetchVotacaoHistorico(opts: {
     return request
   }
 
-  let { data, error } = await run(SELECT_COLS)
+  let { data, error, count } = await run(SELECT_COLS)
   if (error && /adicionado_por_auxiliar|criado_por|column|schema/i.test(error.message)) {
-    ;({ data, error } = await run(SELECT_VOTO))
+    ;({ data, error, count } = await run(SELECT_VOTO))
   }
   if (error && /votou|voto_|column|schema/i.test(error.message)) {
     throw new Error(`${error.message} — rode o SQL coordenador_auxiliar_votacao_run.sql no Supabase.`)
@@ -847,26 +850,106 @@ export async function fetchVotacaoHistorico(opts: {
     const { tokens, digits } = buildVotacaoSearchOr(q)
     rows = rows.filter((r) => matchesAllTokens(r, tokens, digits))
   }
-  return rows.slice(0, limit)
+  return {
+    rows,
+    total: typeof count === 'number' ? count : rows.length,
+  }
 }
 
-export async function fetchVotacaoProgresso(coordenadorNome: string): Promise<VotacaoProgresso> {
-  const nome = coordenadorNome.trim()
-  if (!nome) {
-    return { coordenadorNome: '', total: 0, pendente: 0, votou: 0, naoVotou: 0, porLider: [] }
+type ProgressoAggRow = {
+  coordenador: string
+  lider: string
+  total: number | string
+  pendente: number | string
+  votou: number | string
+  nao_votou: number | string
+}
+
+function nAgg(v: number | string | null | undefined) {
+  const n = Number(v)
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0
+}
+
+function sortPorLider(a: VotacaoProgressoLider, b: VotacaoProgressoLider) {
+  if (b.pendente !== a.pendente) return b.pendente - a.pendente
+  const ca = (a.coordenador ?? '').localeCompare(b.coordenador ?? '', 'pt-BR')
+  if (ca !== 0) return ca
+  return a.lider.localeCompare(b.lider, 'pt-BR')
+}
+
+/** Agregação no Postgres (votacao_progresso_agg_run.sql). null = função ainda não existe. */
+async function fetchProgressoViaRpc(opts: {
+  coordenadores?: string[] | null
+  lideres?: string[] | null
+  label: string
+  includeCoordOnLider?: boolean
+}): Promise<VotacaoProgresso | null> {
+  const coords = (opts.coordenadores ?? []).map((n) => n.trim()).filter(Boolean)
+  const liders = (opts.lideres ?? []).map((n) => n.trim()).filter(Boolean)
+  const { data, error } = await supabase.rpc('votacao_progresso_agg', {
+    p_coordenadores: coords.length ? coords : null,
+    p_lideres: liders.length ? liders : null,
+  })
+  if (error) {
+    if (/votacao_progresso_agg|function|schema|pgrst|404|does not exist/i.test(error.message)) {
+      return null
+    }
+    throw new Error(error.message)
   }
+  const rows = (data ?? []) as ProgressoAggRow[]
+  const wantCoords = coords.length ? new Set(coords.map(norm)) : null
+  const wantLiders = liders.length ? new Set(liders.map(norm)) : null
+  const multiCoord = opts.includeCoordOnLider || (coords.length > 1)
 
-  const rows = await fetchAllCadastrosCoord(nome)
-  const byLider = new Map<string, VotacaoProgressoLider>()
-
+  let total = 0
   let pendente = 0
   let votou = 0
   let naoVotou = 0
+  const porLider: VotacaoProgressoLider[] = []
 
+  for (const r of rows) {
+    const coordNome = (r.coordenador ?? '').trim() || 'Sem coordenação'
+    const liderNome = (r.lider ?? '').trim() || 'Sem liderança'
+    if (wantCoords && !wantCoords.has(norm(coordNome))) continue
+    if (wantLiders && !wantLiders.has(norm(liderNome))) continue
+    const item: VotacaoProgressoLider = {
+      lider: liderNome,
+      ...(multiCoord ? { coordenador: coordNome } : {}),
+      total: nAgg(r.total),
+      pendente: nAgg(r.pendente),
+      votou: nAgg(r.votou),
+      naoVotou: nAgg(r.nao_votou),
+    }
+    total += item.total
+    pendente += item.pendente
+    votou += item.votou
+    naoVotou += item.naoVotou
+    porLider.push(item)
+  }
+  porLider.sort(sortPorLider)
+  return {
+    coordenadorNome: opts.label,
+    total,
+    pendente,
+    votou,
+    naoVotou,
+    porLider,
+  }
+}
+
+function aggregateRowsClient(
+  rows: Pick<VotacaoHit, 'lider' | 'votou'>[],
+  opts: { coordenadorNome?: string; label: string },
+): VotacaoProgresso {
+  const byLider = new Map<string, VotacaoProgressoLider>()
+  let pendente = 0
+  let votou = 0
+  let naoVotou = 0
   for (const r of rows) {
     const lider = (r.lider ?? '').trim() || 'Sem liderança'
     const cur = byLider.get(lider) ?? {
       lider,
+      ...(opts.coordenadorNome ? { coordenador: opts.coordenadorNome } : {}),
       total: 0,
       pendente: 0,
       votou: 0,
@@ -885,20 +968,46 @@ export async function fetchVotacaoProgresso(coordenadorNome: string): Promise<Vo
     }
     byLider.set(lider, cur)
   }
-
-  const porLider = [...byLider.values()].sort((a, b) => {
-    if (b.pendente !== a.pendente) return b.pendente - a.pendente
-    return a.lider.localeCompare(b.lider, 'pt-BR')
-  })
-
   return {
-    coordenadorNome: nome,
+    coordenadorNome: opts.label,
     total: rows.length,
     pendente,
     votou,
     naoVotou,
-    porLider,
+    porLider: [...byLider.values()].sort(sortPorLider),
   }
+}
+
+async function mapPool<T, R>(items: T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length)
+  let next = 0
+  async function worker() {
+    for (;;) {
+      const i = next++
+      if (i >= items.length) return
+      out[i] = await fn(items[i])
+    }
+  }
+  const n = Math.max(1, Math.min(concurrency, items.length))
+  await Promise.all(Array.from({ length: n }, () => worker()))
+  return out
+}
+
+export async function fetchVotacaoProgresso(coordenadorNome: string): Promise<VotacaoProgresso> {
+  const nome = coordenadorNome.trim()
+  if (!nome) {
+    return { coordenadorNome: '', total: 0, pendente: 0, votou: 0, naoVotou: 0, porLider: [] }
+  }
+
+  const viaRpc = await fetchProgressoViaRpc({
+    coordenadores: [nome],
+    label: nome,
+    includeCoordOnLider: false,
+  })
+  if (viaRpc) return viaRpc
+
+  const rows = await fetchAllCadastrosCoord(nome)
+  return aggregateRowsClient(rows, { label: nome })
 }
 
 /** Progresso agregado de várias coordenações (admin / diretoria — “Todas”). */
@@ -918,47 +1027,42 @@ export async function fetchVotacaoProgressoVarios(
   }
   if (nomes.length === 1) return fetchVotacaoProgresso(nomes[0])
 
+  const viaRpc = await fetchProgressoViaRpc({
+    coordenadores: nomes,
+    label: 'Todas as coordenações',
+    includeCoordOnLider: true,
+  })
+  if (viaRpc) return viaRpc
+
+  // Fallback: baixa por coordenação em paralelo (limitado) e agrega.
+  const parts = await mapPool(nomes, 3, async (coord) => {
+    const rows = await fetchAllCadastrosCoord(coord)
+    return aggregateRowsClient(rows, { coordenadorNome: coord, label: coord })
+  })
+
   const byKey = new Map<string, VotacaoProgressoLider>()
   let total = 0
   let pendente = 0
   let votou = 0
   let naoVotou = 0
-
-  for (const coord of nomes) {
-    const rows = await fetchAllCadastrosCoord(coord)
-    for (const r of rows) {
-      const lider = (r.lider ?? '').trim() || 'Sem liderança'
-      const key = `${norm(coord)}\u001f${norm(lider)}`
-      const cur = byKey.get(key) ?? {
-        lider,
-        coordenador: coord,
-        total: 0,
-        pendente: 0,
-        votou: 0,
-        naoVotou: 0,
+  for (const part of parts) {
+    total += part.total
+    pendente += part.pendente
+    votou += part.votou
+    naoVotou += part.naoVotou
+    for (const l of part.porLider) {
+      const key = `${norm(l.coordenador)}\u001f${norm(l.lider)}`
+      const cur = byKey.get(key)
+      if (!cur) {
+        byKey.set(key, { ...l })
+        continue
       }
-      cur.total += 1
-      total += 1
-      if (r.votou === true) {
-        cur.votou += 1
-        votou += 1
-      } else if (r.votou === false) {
-        cur.naoVotou += 1
-        naoVotou += 1
-      } else {
-        cur.pendente += 1
-        pendente += 1
-      }
-      byKey.set(key, cur)
+      cur.total += l.total
+      cur.pendente += l.pendente
+      cur.votou += l.votou
+      cur.naoVotou += l.naoVotou
     }
   }
-
-  const porLider = [...byKey.values()].sort((a, b) => {
-    if (b.pendente !== a.pendente) return b.pendente - a.pendente
-    const ca = (a.coordenador ?? '').localeCompare(b.coordenador ?? '', 'pt-BR')
-    if (ca !== 0) return ca
-    return a.lider.localeCompare(b.lider, 'pt-BR')
-  })
 
   return {
     coordenadorNome: 'Todas as coordenações',
@@ -966,7 +1070,7 @@ export async function fetchVotacaoProgressoVarios(
     pendente,
     votou,
     naoVotou,
-    porLider,
+    porLider: [...byKey.values()].sort(sortPorLider),
   }
 }
 
@@ -985,8 +1089,30 @@ export async function fetchVotacaoStatsPorLideres(opts: {
   }
   if (!nomes.length) return empty
 
-  const byKey = new Map(nomes.map((n) => [norm(n), empty[n]!]))
   const coord = opts.coordenadorNome?.trim() ?? ''
+  const viaRpc = await fetchProgressoViaRpc({
+    coordenadores: coord ? [coord] : null,
+    lideres: nomes,
+    label: coord || '—',
+    includeCoordOnLider: false,
+  })
+  if (viaRpc) {
+    for (const l of viaRpc.porLider) {
+      const key = norm(l.lider)
+      const original = nomes.find((n) => norm(n) === key)
+      if (!original) continue
+      empty[original] = {
+        lider: original,
+        total: l.total,
+        pendente: l.pendente,
+        votou: l.votou,
+        naoVotou: l.naoVotou,
+      }
+    }
+    return empty
+  }
+
+  const byKey = new Map(nomes.map((n) => [norm(n), empty[n]!]))
 
   if (coord) {
     const rows = await fetchAllCadastrosCoord(coord)
@@ -1002,8 +1128,7 @@ export async function fetchVotacaoStatsPorLideres(opts: {
     return empty
   }
 
-  // Sem coord: busca por cada liderança (ilike exato).
-  for (const lider of nomes) {
+  await mapPool(nomes, 4, async (lider) => {
     let from = 0
     const cur = empty[lider]!
     for (;;) {
@@ -1023,6 +1148,54 @@ export async function fetchVotacaoStatsPorLideres(opts: {
       if (chunk.length < PAGE) break
       from += PAGE
     }
-  }
+  })
   return empty
+}
+
+/** Página de fichas de uma liderança (Progresso — não baixa tudo de uma vez). */
+export async function fetchVotacaoFichasLiderPage(opts: {
+  coordenadorNome: string
+  liderNome: string
+  page?: number
+  pageSize?: number
+  status?: 'votou' | 'nao' | 'pendente' | null
+}): Promise<{ rows: VotacaoHit[]; total: number }> {
+  const coord = opts.coordenadorNome.trim()
+  const lider = opts.liderNome.trim()
+  const page = Math.max(0, opts.page ?? 0)
+  const pageSize = Math.min(100, Math.max(10, opts.pageSize ?? 25))
+  if (!coord || !lider) return { rows: [], total: 0 }
+  const semLider = lider === 'Sem liderança'
+  const from = page * pageSize
+  const to = from + pageSize - 1
+
+  async function run(cols: string) {
+    let q = supabase
+      .from('cadastros')
+      .select(cols, { count: 'exact' })
+      .ilike('coordenador', coord)
+      .order('nome_completo')
+      .range(from, to)
+    if (!semLider) q = q.ilike('lider', lider)
+    else q = q.or('lider.is.null,lider.eq.')
+    if (opts.status === 'votou') q = q.eq('votou', true)
+    else if (opts.status === 'nao') q = q.eq('votou', false)
+    else if (opts.status === 'pendente') q = q.is('votou', null)
+    return q
+  }
+
+  let { data, error, count } = await run(SELECT_COLS)
+  if (error && /adicionado_por_auxiliar|criado_por|column|schema/i.test(error.message)) {
+    ;({ data, error, count } = await run(SELECT_VOTO))
+  }
+  if (error && /votou|voto_|column|schema/i.test(error.message)) {
+    ;({ data, error, count } = await run(SELECT_BASIC))
+  }
+  if (error) throw new Error(error.message)
+
+  let rows = (data ?? []).map((r) => asHit(r as unknown as Record<string, unknown>))
+  rows = rows.filter((r) =>
+    semLider ? !norm(r.lider) : norm(r.lider) === norm(lider),
+  )
+  return { rows, total: typeof count === 'number' ? count : rows.length }
 }
