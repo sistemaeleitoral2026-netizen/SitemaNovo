@@ -15850,6 +15850,30 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .vot-kpi.is-pend strong { color: #b45309; }
 .vot-kpi.is-yes strong { color: #166534; }
 .vot-kpi.is-no strong { color: #991b1b; }
+button.vot-kpi-btn {
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color .12s ease, box-shadow .12s ease, background .12s ease;
+}
+button.vot-kpi-btn:hover {
+  border-color: #94a3b8;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .06);
+}
+button.vot-kpi-btn:active { transform: scale(.98); }
+button.vot-kpi-btn.is-yes.is-on {
+  border-color: #22c55e;
+  background: #f0fdf4;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, .18);
+}
+button.vot-kpi-btn.is-no.is-on {
+  border-color: #f87171;
+  background: #fef2f2;
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, .18);
+}
 .vot-lider-list {
   list-style: none;
   margin: 0;
