@@ -3,6 +3,9 @@ import { digitsOnly } from './normalize'
 /** Mensagem padrão ao abrir o WhatsApp a partir da ficha. */
 export const WHATSAPP_FICHA_MESSAGE = 'Oi tudo bem, aqui é Matheus do Beiju'
 
+/** Mensagem no dia da votação (Progresso / Lançar — auxiliar e coordenador). */
+export const WHATSAPP_VOTACAO_MESSAGE = 'Oi, tudo bem?'
+
 /**
  * Monta link wa.me com DDI Brasil (55).
  * Aceita 10/11 dígitos (DDD+número) ou já com 55.
