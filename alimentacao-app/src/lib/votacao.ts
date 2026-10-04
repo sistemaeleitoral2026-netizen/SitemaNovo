@@ -1,5 +1,7 @@
 import { prepareImageForUpload } from './imageCompress'
 import { uniqueLiderNomes } from './liderFichas'
+import { loadLocaisVotacaoMa, lookupLocalVotacao } from './locaisVotacao'
+import { normalizeSecao, normalizeZona } from './normalize'
 import { sanitizeSearchTerm } from './search'
 import { supabase } from './supabase'
 import type { Cadastro } from '../types'
@@ -1198,4 +1200,182 @@ export async function fetchVotacaoFichasLiderPage(opts: {
     semLider ? !norm(r.lider) : norm(r.lider) === norm(lider),
   )
   return { rows, total: typeof count === 'number' ? count : rows.length }
+}
+
+/** Linha agregada por zona (relatório A4 — sem nomes). */
+export type VotacaoRelatorioZona = {
+  zona: string
+  total: number
+  votou: number
+  naoVotou: number
+  pendente: number
+  pctSim: number
+  pctLancado: number
+}
+
+/** Linha agregada por seção + local TSE (relatório A4 — sem nomes). */
+export type VotacaoRelatorioSecao = {
+  zona: string
+  secao: string
+  local: string
+  /** Vazio = achou local TSE. Senão explica por que não cruzou. */
+  localMotivo: '' | 'sem_zona_secao' | 'fora_tse'
+  bairro: string
+  endereco: string
+  total: number
+  votou: number
+  naoVotou: number
+  pendente: number
+  pctSim: number
+  pctLancado: number
+}
+
+export type VotacaoRelatorioDetalhe = {
+  porZona: VotacaoRelatorioZona[]
+  porSecao: VotacaoRelatorioSecao[]
+  secoesSemLocal: number
+}
+
+type RelatorioRow = {
+  zona: string | null
+  secao: string | null
+  votou: boolean | null
+  lider: string | null
+  coordenador: string | null
+}
+
+function pct(n: number, d: number) {
+  if (!d) return 0
+  return Math.round((n / d) * 1000) / 10
+}
+
+/** Uma passada paginada (leve) — só zona/seção/voto. */
+async function fetchRelatorioRowsPaged(coordenadorNome?: string | null): Promise<RelatorioRow[]> {
+  const all: RelatorioRow[] = []
+  let from = 0
+  const coord = (coordenadorNome ?? '').trim()
+  for (;;) {
+    let q = supabase
+      .from('cadastros')
+      .select('zona,secao,votou,lider,coordenador')
+      .range(from, from + PAGE - 1)
+    if (coord) q = q.ilike('coordenador', coord)
+    const { data, error } = await q
+    if (error) throw new Error(error.message)
+    const chunk = (data ?? []) as RelatorioRow[]
+    all.push(...chunk)
+    if (chunk.length < PAGE) break
+    from += PAGE
+  }
+  return all
+}
+
+/**
+ * Relatório completo do Progresso: totais por zona e por seção,
+ * com local de votação TSE (mesmo JSON do mapa). Sem nomes.
+ */
+export async function fetchVotacaoRelatorioDetalhe(opts: {
+  coordenadores?: string[] | null
+  lideres?: string[] | null
+  /** true = não filtra por nome de coordenação (usa o que o RLS já deixa ver). */
+  todasCoordenacoes?: boolean
+}): Promise<VotacaoRelatorioDetalhe> {
+  const coords = [...new Set((opts.coordenadores ?? []).map((n) => n.trim()).filter(Boolean))]
+  const wantLiders = (opts.lideres ?? []).map((n) => n.trim()).filter(Boolean)
+  const liderSet = wantLiders.length ? new Set(wantLiders.map(norm)) : null
+  const todas = Boolean(opts.todasCoordenacoes)
+
+  if (!todas && !coords.length) {
+    return { porZona: [], porSecao: [], secoesSemLocal: 0 }
+  }
+
+  // 1 coord → filtra no banco. "Todas" → uma varredura (RLS limita) sem filtro de nome.
+  // Locais TSE em paralelo (mesmo arquivo do Mapa).
+  const [rowsRaw, locais] = await Promise.all([
+    fetchRelatorioRowsPaged(!todas && coords.length === 1 ? coords[0] : null),
+    loadLocaisVotacaoMa().catch(() => new Map()),
+  ])
+
+  const rows = rowsRaw.filter((r) => {
+    if (liderSet && !liderSet.has(norm(r.lider))) return false
+    if (!todas && coords.length > 1) {
+      const want = new Set(coords.map(norm))
+      if (!want.has(norm(r.coordenador))) return false
+    }
+    return true
+  })
+
+  const byZona = new Map<string, { total: number; votou: number; naoVotou: number; pendente: number }>()
+  const bySecao = new Map<string, { zona: string; secao: string; total: number; votou: number; naoVotou: number; pendente: number }>()
+
+  for (const r of rows) {
+    const zona = normalizeZona(r.zona) || '—'
+    const secao = normalizeSecao(r.secao) || '—'
+    const z = byZona.get(zona) ?? { total: 0, votou: 0, naoVotou: 0, pendente: 0 }
+    z.total += 1
+    if (r.votou === true) z.votou += 1
+    else if (r.votou === false) z.naoVotou += 1
+    else z.pendente += 1
+    byZona.set(zona, z)
+
+    const key = `${zona}|${secao}`
+    const s = bySecao.get(key) ?? { zona, secao, total: 0, votou: 0, naoVotou: 0, pendente: 0 }
+    s.total += 1
+    if (r.votou === true) s.votou += 1
+    else if (r.votou === false) s.naoVotou += 1
+    else s.pendente += 1
+    bySecao.set(key, s)
+  }
+
+  const porZona: VotacaoRelatorioZona[] = [...byZona.entries()]
+    .map(([zona, v]) => ({
+      zona,
+      total: v.total,
+      votou: v.votou,
+      naoVotou: v.naoVotou,
+      pendente: v.pendente,
+      pctSim: pct(v.votou, v.total),
+      pctLancado: pct(v.votou + v.naoVotou, v.total),
+    }))
+    .sort((a, b) => b.votou - a.votou || b.total - a.total || a.zona.localeCompare(b.zona, 'pt-BR'))
+
+  const porSecao: VotacaoRelatorioSecao[] = [...bySecao.values()]
+    .map((v) => {
+      const semZs = v.zona === '—' || v.secao === '—'
+      const ref = semZs ? null : lookupLocalVotacao(locais, v.zona, v.secao)
+      const nomeLocal = ref?.local?.trim() || ''
+      let localMotivo: VotacaoRelatorioSecao['localMotivo'] = ''
+      let local = nomeLocal
+      if (!nomeLocal) {
+        if (semZs) {
+          localMotivo = 'sem_zona_secao'
+          local = 'Sem zona/seção na ficha'
+        } else {
+          localMotivo = 'fora_tse'
+          local = `Não consta no TSE (${v.zona}/${v.secao})`
+        }
+      }
+      return {
+        zona: v.zona,
+        secao: v.secao,
+        local,
+        localMotivo,
+        bairro: ref?.bairro?.trim() || '—',
+        endereco: ref?.endereco?.trim() || '—',
+        total: v.total,
+        votou: v.votou,
+        naoVotou: v.naoVotou,
+        pendente: v.pendente,
+        pctSim: pct(v.votou, v.total),
+        pctLancado: pct(v.votou + v.naoVotou, v.total),
+      }
+    })
+    .sort((a, b) =>
+      b.votou - a.votou
+      || a.local.localeCompare(b.local, 'pt-BR')
+      || a.secao.localeCompare(b.secao, 'pt-BR', { numeric: true }),
+    )
+
+  const secoesSemLocal = porSecao.filter((s) => s.localMotivo).length
+  return { porZona, porSecao, secoesSemLocal }
 }

@@ -8,6 +8,11 @@ import {
   type ReactNode,
 } from 'react'
 import type { Session } from '@supabase/supabase-js'
+import {
+  canLogin,
+  LOGIN_ADMIN_ONLY,
+  LOGIN_ADMIN_ONLY_MESSAGE,
+} from '../lib/roles'
 import { supabase } from '../lib/supabase'
 import type { Profile, UserRole } from '../types'
 
@@ -46,6 +51,14 @@ async function fetchProfile(userId: string): Promise<Profile | null> {
   return data as Profile
 }
 
+/** Se não for admin (quando o bloqueio estiver ligado), encerra a sessão. */
+async function enforceLoginGate(profile: Profile | null): Promise<Profile | null> {
+  if (!LOGIN_ADMIN_ONLY) return profile
+  if (canLogin(profile)) return profile
+  await supabase.auth.signOut()
+  return null
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -57,8 +70,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(null)
       return
     }
-    const p = await fetchProfile(user.id)
+    const p = await enforceLoginGate(await fetchProfile(user.id))
     setProfile(p)
+    if (!p) setSession(null)
   }, [])
 
   useEffect(() => {
@@ -69,10 +83,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession()
       .then(async ({ data: { session: s } }) => {
         if (!mounted) return
-        setSession(s)
         if (s?.user) {
-          const p = await fetchProfile(s.user.id)
-          if (mounted) setProfile(p)
+          const p = await enforceLoginGate(await fetchProfile(s.user.id))
+          if (!mounted) return
+          if (!p) {
+            setSession(null)
+            setProfile(null)
+            return
+          }
+          setSession(s)
+          setProfile(p)
+        } else {
+          setSession(null)
+          setProfile(null)
         }
       })
       .catch(() => {
@@ -84,12 +107,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       if (!mounted) return
-      setSession(s)
       if (s?.user) {
         fetchProfile(s.user.id)
-          .then((p) => { if (mounted) setProfile(p) })
+          .then(async (raw) => {
+            const p = await enforceLoginGate(raw)
+            if (!mounted) return
+            if (!p) {
+              setSession(null)
+              setProfile(null)
+              return
+            }
+            setSession(s)
+            setProfile(p)
+          })
           .catch(() => { /* mantém o perfil atual se a rede oscilar */ })
       } else {
+        setSession(null)
         setProfile(null)
       }
     })
@@ -101,8 +134,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) return { error: error.message }
+    const userId = data.user?.id
+    if (!userId) return { error: 'Não foi possível identificar o usuário.' }
+    const p = await fetchProfile(userId)
+    if (!canLogin(p)) {
+      await supabase.auth.signOut()
+      setSession(null)
+      setProfile(null)
+      return { error: LOGIN_ADMIN_ONLY_MESSAGE }
+    }
     return { error: null }
   }, [])
 

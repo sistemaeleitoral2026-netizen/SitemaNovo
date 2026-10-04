@@ -1,5 +1,14 @@
 import type { Profile, UserRole } from '../types'
 
+/**
+ * Bloqueio temporário: só admin consegue logar / manter sessão.
+ * Para reabrir o sistema aos demais cargos, mude para `false`.
+ */
+export const LOGIN_ADMIN_ONLY = true
+
+export const LOGIN_ADMIN_ONLY_MESSAGE =
+  'Acesso temporariamente restrito. Somente administrador pode entrar.'
+
 /** Cargos de campo que podem ser atribuídos além do papel principal. */
 export const ATRIBUICAO_OPTIONS: { value: UserRole; label: string; hint: string }[] = [
   { value: 'operador', label: 'Nerite', hint: 'Cadastros e fichas' },
@@ -22,6 +31,11 @@ export function hasRole(
   const roles = profileRoles(profile)
   const needed = Array.isArray(role) ? role : [role]
   return needed.some((r) => roles.includes(r))
+}
+
+export function canLogin(profile: Pick<Profile, 'role' | 'extra_roles'> | null | undefined): boolean {
+  if (!LOGIN_ADMIN_ONLY) return true
+  return hasRole(profile, 'admin')
 }
 
 export function normalizeExtraRoles(
