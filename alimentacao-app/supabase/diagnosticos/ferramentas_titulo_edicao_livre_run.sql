@@ -2,23 +2,45 @@
 -- Libera a ferramenta Título: quem tem o menu pode editar qualquer ficha
 -- (acaba com "Sem permissão para alterar cadastro de outra nerite").
 
+-- Mantém auxiliar/coordenador liberados (não sobrescrever com versão antiga).
 create or replace function public.enforce_cadastro_operator()
 returns trigger
 language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_ok boolean := false;
 begin
   if auth.uid() is null then
     return new;
   end if;
 
-  if public.is_admin()
-     or public.is_diretoria()
-     or public.is_mobilizador()
-     or public.titulo_pode_ferramentas() then
+  if public.is_auxiliar() or public.is_coordenador()
+     or public.is_admin() or public.is_diretoria() then
+    v_ok := true;
+  else
+    begin
+      v_ok := public.is_mobilizador();
+    exception when undefined_function then
+      v_ok := false;
+    end;
+    if not v_ok then
+      begin
+        v_ok := public.titulo_pode_ferramentas();
+      exception when undefined_function then
+        v_ok := false;
+      end;
+    end if;
+  end if;
+
+  if v_ok then
     if tg_op = 'INSERT' and new.operator_id is null then
-      new.operator_id := auth.uid();
+      if coalesce(new.adicionado_por_auxiliar, false) = true or new.criado_por is not null then
+        null;
+      else
+        new.operator_id := auth.uid();
+      end if;
     elsif tg_op = 'UPDATE' then
       new.operator_id := old.operator_id;
     end if;

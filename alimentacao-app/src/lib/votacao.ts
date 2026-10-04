@@ -366,11 +366,13 @@ export async function salvarLancamentoVotacao(input: VotacaoSaveInput): Promise<
     }
     if (/outra nerite/i.test(error.message)) {
       throw new Error(
-        'Sem permissão nesta ficha. Rode o SQL auxiliar_coord_edita_ficha_lideranca_run.sql no Supabase (auxiliar pode editar as lideranças liberadas).',
+        'Bloqueio do banco (trigger). Peça à diretoria para rodar no Supabase o SQL auxiliar_coord_edita_ficha_lideranca_run.sql e tente de novo.',
       )
     }
     if (/permission|policy|row-level|RLS/i.test(error.message)) {
-      throw new Error('Sem permissão nesta ficha. Confira se a liderança está liberada para você.')
+      throw new Error(
+        'Sem permissão nesta ficha. Confira se a liderança está liberada em Equipe → Auxiliares e se o nome da liderança na ficha bate com o cadastro.',
+      )
     }
     throw new Error(error.message)
   }
@@ -484,6 +486,11 @@ export async function criarCadastroLancamentoVotacao(
     }
     if (/unique|duplicate|titulo/i.test(error.message)) {
       throw new Error('Este título de eleitor já existe em outra ficha. Confira o número e tente de novo.')
+    }
+    if (/outra nerite/i.test(error.message)) {
+      throw new Error(
+        'Bloqueio do banco (trigger). Rode o SQL auxiliar_coord_edita_ficha_lideranca_run.sql no Supabase.',
+      )
     }
     if (/permission|policy|row-level|RLS/i.test(error.message)) {
       throw new Error(
