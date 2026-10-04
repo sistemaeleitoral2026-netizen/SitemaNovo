@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ChevronDown, ChevronUp, Eye, ImageIcon, RefreshCw, Search, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, Eye, ImageIcon, Printer, RefreshCw, Search, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -14,12 +15,14 @@ import {
   fetchVotacaoFichasLiderPage,
   fetchVotacaoProgresso,
   fetchVotacaoProgressoVarios,
+  fetchVotacaoRelatorioDetalhe,
   fetchVotacaoStatsPorLideres,
   labelAdicionadoNoLancamento,
   signVotoFoto,
   type VotacaoHit,
   type VotacaoProgresso,
   type VotacaoProgressoLider,
+  type VotacaoRelatorioDetalhe,
 } from '../lib/votacao'
 
 const STAFF_ALL_COORDS = '__all__'
@@ -101,6 +104,9 @@ export function VotacaoProgressoPage() {
   const [kpiFiltro, setKpiFiltro] = useState<'votou' | 'nao' | null>(null)
   const [liderPage, setLiderPage] = useState(0)
   const [liderPageSize, setLiderPageSize] = useState(20)
+  const [relDetalhe, setRelDetalhe] = useState<VotacaoRelatorioDetalhe | null>(null)
+  const [relLoading, setRelLoading] = useState(false)
+  const [relError, setRelError] = useState<string | null>(null)
 
   const isStaff = hasRole(profile, ['admin', 'diretoria'])
   const isCoordenador = hasRole(profile, 'coordenador')
@@ -136,6 +142,48 @@ export function VotacaoProgressoPage() {
       map[normName(nome)] = tel
     }
     setLiderPhones(map)
+  }
+
+  async function gerarRelatorioA4() {
+    const recorte = data?.coordenadorNome?.trim() ?? ''
+    if (!recorte) {
+      setRelError('Selecione a coordenação antes de gerar o relatório.')
+      return
+    }
+    setRelLoading(true)
+    setRelError(null)
+    try {
+      let coordenadores: string[] = []
+      let lideres: string[] | null = null
+      let todasCoordenacoes = false
+      if (isAuxiliar) {
+        const cNome = coordNome.trim()
+        if (!cNome) throw new Error('Coordenação não vinculada ao login.')
+        coordenadores = [cNome]
+        lideres = allowedLideres ?? []
+      } else if (recorte === 'Todas as coordenações') {
+        todasCoordenacoes = true
+      } else {
+        coordenadores = [recorte]
+      }
+      const det = await fetchVotacaoRelatorioDetalhe({
+        coordenadores,
+        lideres,
+        todasCoordenacoes,
+      })
+      if (!det.porSecao.length) {
+        throw new Error('Nenhum dado de seção neste recorte para imprimir.')
+      }
+      flushSync(() => {
+        setRelDetalhe(det)
+      })
+      window.print()
+    } catch (e) {
+      setRelDetalhe(null)
+      setRelError(e instanceof Error ? e.message : 'Falha ao gerar relatório.')
+    } finally {
+      setRelLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -252,6 +300,8 @@ export function VotacaoProgressoPage() {
   async function reload(nome?: string) {
     setLoading(true)
     setError(null)
+    setRelDetalhe(null)
+    setRelError(null)
     setExpandedLider(null)
     setExpandedLiderNome(null)
     setFichas([])
@@ -314,6 +364,8 @@ export function VotacaoProgressoPage() {
     setFichasPage(0)
     setLiderPage(0)
     setKpiFiltro(null)
+    setRelDetalhe(null)
+    setRelError(null)
     if (id === STAFF_ALL_COORDS) {
       setCoordNome('Todas as coordenações')
       await loadLiderPhones({})
@@ -497,15 +549,28 @@ export function VotacaoProgressoPage() {
   const pctGeral = tot && tot.total
     ? Math.round(((tot.votou + tot.naoVotou) / tot.total) * 100)
     : 0
+  const recorteLabel = tot?.coordenadorNome
+    ? (tot.coordenadorNome === 'Todas as coordenações'
+      ? 'Todas as coordenações'
+      : `Coordenação: ${tot.coordenadorNome}`)
+    : ''
+  const emitidoEm = new Date().toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 
   return (
     <div className="vot-page vot-progresso vot-has-bottom">
+      <div className="vot-rel-no-print">
       <header className="vot-head">
         <div>
           <h1 className="vot-title">Progresso da votação</h1>
           <p className="vot-sub">
             {tot?.coordenadorNome
-              ? `${tot.coordenadorNome === 'Todas as coordenações' ? 'Todas as coordenações' : `Coordenação: ${tot.coordenadorNome}`} · ${pctGeral}% lançado`
+              ? `${recorteLabel} · ${pctGeral}% lançado`
               : 'Selecione a coordenação'}
           </p>
         </div>
@@ -515,7 +580,16 @@ export function VotacaoProgressoPage() {
         <button type="button" className="vot-btn ghost" onClick={() => void reload()} disabled={loading}>
           <RefreshCw size={16} className={loading ? 'vot-spin' : undefined} /> Atualizar
         </button>
+        <button
+          type="button"
+          className="vot-btn"
+          disabled={!tot || loading || relLoading}
+          onClick={() => void gerarRelatorioA4()}
+        >
+          <Printer size={16} /> {relLoading ? 'Gerando…' : 'Gerar relatório A4'}
+        </button>
       </div>
+      {relError ? <div className="alert alert-error">{relError}</div> : null}
 
       {isStaff && coordOptions.length > 0 && (
         <label className="vot-coord-pick">
@@ -781,6 +855,74 @@ export function VotacaoProgressoPage() {
       )}
 
       <VotacaoBottomNav />
+      </div>
+
+      {tot && relDetalhe && relDetalhe.porSecao.length > 0 ? (
+        <div className="vot-rel-a4 vot-rel-print-only" aria-hidden>
+          <section className="vot-rel-sheet">
+            <header className="vot-rel-head">
+              <div>
+                <p className="vot-rel-kicker">Sistema de votação</p>
+                <h2>Relatório de Progresso da Votação</h2>
+                <p className="vot-rel-sub">{recorteLabel}</p>
+              </div>
+              <div className="vot-rel-meta">
+                <span>Emitido em</span>
+                <strong>{emitidoEm}</strong>
+              </div>
+            </header>
+
+            <p className="vot-rel-resumo">
+              Total: <strong>{tot.total}</strong>
+              {' · '}
+              Votaram (SIM): <strong>{tot.votou}</strong>
+              {' · '}
+              Pendentes: <strong>{tot.pendente}</strong>
+              {' · '}
+              Não votaram: <strong>{tot.naoVotou}</strong>
+              {' · '}
+              Lançados: <strong>{pctGeral}%</strong>
+            </p>
+
+            <h3 className="vot-rel-section-title">Local de votação e zona/seção (mais votos SIM → menos)</h3>
+            {relDetalhe.secoesSemLocal > 0 ? (
+              <p className="vot-rel-note">
+                {relDetalhe.secoesSemLocal} linha(s) sem local TSE (ficha sem zona/seção ou par fora da base).
+              </p>
+            ) : null}
+            <table className="vot-rel-table vot-rel-table-local">
+              <thead>
+                <tr>
+                  <th>Local de votação</th>
+                  <th>Zona/Seção</th>
+                  <th>Votos SIM</th>
+                </tr>
+              </thead>
+              <tbody>
+                {relDetalhe.porSecao.map((s) => (
+                  <tr key={`${s.zona}-${s.secao}`} className={s.localMotivo ? 'is-missing-local' : undefined}>
+                    <td className="vot-rel-local">{s.local}</td>
+                    <td>
+                      {s.zona === '—' && s.secao === '—'
+                        ? '—'
+                        : `${s.zona === '—' ? '—' : s.zona}/${s.secao === '—' ? '—' : s.secao}`}
+                    </td>
+                    <td>{s.votou}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <footer className="vot-rel-foot">
+              Documento gerado pelo sistema · uso interno
+              {' · '}
+              {relDetalhe.porSecao.length} zona/seção(ões)
+              {' · '}
+              Local pela base TSE
+            </footer>
+          </section>
+        </div>
+      ) : null}
     </div>
   )
 }
