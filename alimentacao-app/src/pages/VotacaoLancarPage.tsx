@@ -27,6 +27,7 @@ import {
   type VotacaoHit,
   type VotacaoStatusFiltro,
 } from '../lib/votacao'
+import { criarNotifVotacaoAuxiliar } from '../lib/votacaoNotif'
 import { supabase } from '../lib/supabase'
 import { hasRole } from '../lib/roles'
 
@@ -616,6 +617,18 @@ export function VotacaoLancarPage() {
         return [merged, ...rest]
       })
       const nomeSalvo = (merged.nome_completo || '').trim()
+      if (isAuxiliar && votou === true && profile?.id) {
+        void criarNotifVotacaoAuxiliar({
+          cadastroId: merged.id,
+          auxiliarId: profile.id,
+          auxiliarNome: profile.nome,
+          eleitorNome: nomeSalvo || merged.nome_completo,
+          lider: merged.lider,
+          coordenador: merged.coordenador,
+          diretoriaId: scopeDiretoriaId ?? profile.diretoria_id ?? merged.diretoria_id ?? null,
+          votou: true,
+        })
+      }
       cancelFicha()
       setOkMsg(
         labelAdicionadoNoLancamento(saved)

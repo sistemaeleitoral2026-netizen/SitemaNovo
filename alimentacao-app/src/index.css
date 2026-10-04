@@ -714,6 +714,133 @@ table {
 
 .header-icon-btn { border: 0; background: transparent; color: #647187; display: grid; place-items: center; padding: .45rem; border-radius: 9px; cursor: pointer; }
 .header-icon-btn:hover { background: #f0f3f8; color: var(--color-text); }
+
+/* Notificação: quem votou (auxiliar) — header admin/diretoria */
+.vot-notif {
+  position: relative;
+  flex: 0 0 auto;
+}
+.vot-notif-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  border: 1px solid #d7dee8;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 650;
+  letter-spacing: .01em;
+  padding: .4rem .65rem;
+  border-radius: 9px;
+  cursor: pointer;
+  line-height: 1.1;
+}
+.vot-notif-btn:hover,
+.vot-notif-btn.is-open {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+.vot-notif-btn.has-unread {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+.vot-notif-label { white-space: nowrap; }
+.vot-notif-badge {
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 .3rem;
+  border-radius: 999px;
+  background: #166534;
+  color: #fff;
+  font-size: .68rem;
+  font-weight: 750;
+  display: inline-grid;
+  place-items: center;
+  font-variant-numeric: tabular-nums;
+}
+.vot-notif-panel {
+  position: absolute;
+  top: calc(100% + .4rem);
+  right: 0;
+  width: min(22rem, calc(100vw - 1.5rem));
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, .1);
+  z-index: 80;
+  overflow: hidden;
+}
+.vot-notif-head {
+  padding: .75rem .9rem .55rem;
+  border-bottom: 1px solid #eef2f7;
+  display: grid;
+  gap: .1rem;
+}
+.vot-notif-head strong {
+  font-size: .9rem;
+  font-weight: 750;
+  color: #0f172a;
+}
+.vot-notif-head span {
+  font-size: .72rem;
+  color: #64748b;
+}
+.vot-notif-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: min(22rem, 55vh);
+  overflow: auto;
+}
+.vot-notif-item {
+  display: grid;
+  gap: .15rem;
+  padding: .7rem .9rem;
+  text-decoration: none;
+  color: inherit;
+  border-bottom: 1px solid #f1f5f9;
+}
+.vot-notif-item:hover { background: #f8fafc; }
+.vot-notif-eleitor {
+  font-size: .88rem;
+  font-weight: 750;
+  color: #0f172a;
+  line-height: 1.25;
+}
+.vot-notif-meta {
+  font-size: .72rem;
+  color: #475569;
+  line-height: 1.3;
+}
+.vot-notif-when {
+  font-size: .68rem;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+.vot-notif-empty {
+  margin: 0;
+  padding: 1rem .9rem;
+  font-size: .8rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+.vot-notif-footer {
+  display: block;
+  padding: .65rem .9rem;
+  text-align: center;
+  font-size: .78rem;
+  font-weight: 650;
+  color: #1d4ed8;
+  text-decoration: none;
+  border-top: 1px solid #eef2f7;
+  background: #fafbfc;
+}
+.vot-notif-footer:hover { background: #f1f5f9; }
+@media (max-width: 720px) {
+  .vot-notif-label { font-size: .72rem; }
+  .vot-notif-btn { padding: .35rem .5rem; }
+}
 .header-avatar {
   width: 32px;
   height: 32px;
