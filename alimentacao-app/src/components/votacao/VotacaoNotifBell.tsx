@@ -61,7 +61,7 @@ export function VotacaoNotifBell() {
       if (vistoEmRef.current === undefined) {
         vistoEmRef.current = await fetchVotacaoNotifVistoEm(profile.id)
       }
-      const [list, count] = await Promise.all([
+      const [listRes, count] = await Promise.all([
         fetchNotifVotacao({
           isAdmin,
           diretoriaId: isAdmin ? null : diretoriaId,
@@ -73,7 +73,7 @@ export function VotacaoNotifBell() {
           diretoriaId: isAdmin ? null : diretoriaId,
         }),
       ])
-      setItems(list)
+      setItems(listRes.rows)
       setUnread(count)
       if (opts?.playSound !== false && baselineRef.current && count > lastUnreadRef.current) {
         playToque()
@@ -157,9 +157,7 @@ export function VotacaoNotifBell() {
             <p className="vot-notif-empty">Carregando…</p>
           ) : !items.length ? (
             <p className="vot-notif-empty">
-              Nenhum voto lançado por auxiliar ainda.
-              {` `}
-              Se acabou de configurar, rode o SQL votacao_notif_run.sql.
+              Nenhum voto de auxiliar por aqui ainda.
             </p>
           ) : (
             <ul className="vot-notif-list">

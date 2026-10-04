@@ -47,11 +47,17 @@ export async function criarNotifVotacaoAuxiliar(input: {
   }
 }
 
+export type FetchNotifResult = {
+  rows: VotacaoNotif[]
+  /** true = tabela/coluna ainda não existe no Supabase */
+  missingSchema?: boolean
+}
+
 export async function fetchNotifVotacao(opts: {
   diretoriaId?: string | null
   isAdmin?: boolean
   limit?: number
-}): Promise<VotacaoNotif[]> {
+}): Promise<FetchNotifResult> {
   const limit = Math.min(40, Math.max(5, opts.limit ?? 20))
   let q = supabase
     .from('votacao_notif')
@@ -68,10 +74,12 @@ export async function fetchNotifVotacao(opts: {
 
   const { data, error } = await q
   if (error) {
-    if (/votacao_notif|schema|relation|does not exist|column/i.test(error.message)) return []
+    if (/votacao_notif|schema|relation|does not exist|column/i.test(error.message)) {
+      return { rows: [], missingSchema: true }
+    }
     throw new Error(error.message)
   }
-  return (data ?? []) as VotacaoNotif[]
+  return { rows: (data ?? []) as VotacaoNotif[] }
 }
 
 export async function countNotifVotacaoNaoLidas(opts: {
