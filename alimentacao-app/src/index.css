@@ -15911,8 +15911,18 @@ button.fichas-count.equipe-drill-count.zero:hover {
   color: #0f172a;
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: .35rem;
   min-width: 0;
+}
+.vot-lider-coord-tag {
+  font-size: .68rem;
+  font-style: normal;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  border-radius: 999px;
+  padding: .12rem .45rem;
 }
 .vot-lider-top > span { font-size: .75rem; color: #64748b; font-variant-numeric: tabular-nums; }
 .vot-lider-bar {
