@@ -362,6 +362,11 @@ export async function salvarLancamentoVotacao(input: VotacaoSaveInput): Promise<
     if (/unique|duplicate|titulo/i.test(error.message)) {
       throw new Error('Este título de eleitor já existe em outra ficha. Confira o número e tente de novo.')
     }
+    if (/outra nerite/i.test(error.message)) {
+      throw new Error(
+        'Sem permissão nesta ficha. Rode o SQL auxiliar_coord_edita_ficha_lideranca_run.sql no Supabase (auxiliar pode editar as lideranças liberadas).',
+      )
+    }
     if (/permission|policy|row-level|RLS/i.test(error.message)) {
       throw new Error('Sem permissão nesta ficha. Confira se a liderança está liberada para você.')
     }
