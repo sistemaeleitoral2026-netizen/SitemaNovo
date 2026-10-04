@@ -30,6 +30,8 @@ export type VotacaoStatusFiltro = 'todos' | 'pendente' | 'votou' | 'nao'
 
 export type VotacaoProgressoLider = {
   lider: string
+  /** Preenchido na visão “todas as coordenações” (admin/diretoria). */
+  coordenador?: string
   total: number
   pendente: number
   votou: number
@@ -787,6 +789,75 @@ export async function fetchVotacaoProgresso(coordenadorNome: string): Promise<Vo
   return {
     coordenadorNome: nome,
     total: rows.length,
+    pendente,
+    votou,
+    naoVotou,
+    porLider,
+  }
+}
+
+/** Progresso agregado de várias coordenações (admin / diretoria — “Todas”). */
+export async function fetchVotacaoProgressoVarios(
+  coordenadorNomes: string[],
+): Promise<VotacaoProgresso> {
+  const nomes = [...new Set(coordenadorNomes.map((n) => n.trim()).filter(Boolean))]
+  if (!nomes.length) {
+    return {
+      coordenadorNome: 'Todas as coordenações',
+      total: 0,
+      pendente: 0,
+      votou: 0,
+      naoVotou: 0,
+      porLider: [],
+    }
+  }
+  if (nomes.length === 1) return fetchVotacaoProgresso(nomes[0])
+
+  const byKey = new Map<string, VotacaoProgressoLider>()
+  let total = 0
+  let pendente = 0
+  let votou = 0
+  let naoVotou = 0
+
+  for (const coord of nomes) {
+    const rows = await fetchAllCadastrosCoord(coord)
+    for (const r of rows) {
+      const lider = (r.lider ?? '').trim() || 'Sem liderança'
+      const key = `${norm(coord)}\u001f${norm(lider)}`
+      const cur = byKey.get(key) ?? {
+        lider,
+        coordenador: coord,
+        total: 0,
+        pendente: 0,
+        votou: 0,
+        naoVotou: 0,
+      }
+      cur.total += 1
+      total += 1
+      if (r.votou === true) {
+        cur.votou += 1
+        votou += 1
+      } else if (r.votou === false) {
+        cur.naoVotou += 1
+        naoVotou += 1
+      } else {
+        cur.pendente += 1
+        pendente += 1
+      }
+      byKey.set(key, cur)
+    }
+  }
+
+  const porLider = [...byKey.values()].sort((a, b) => {
+    if (b.pendente !== a.pendente) return b.pendente - a.pendente
+    const ca = (a.coordenador ?? '').localeCompare(b.coordenador ?? '', 'pt-BR')
+    if (ca !== 0) return ca
+    return a.lider.localeCompare(b.lider, 'pt-BR')
+  })
+
+  return {
+    coordenadorNome: 'Todas as coordenações',
+    total,
     pendente,
     votou,
     naoVotou,
