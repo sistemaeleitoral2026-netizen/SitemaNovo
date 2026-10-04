@@ -59,6 +59,8 @@ export function VotacaoLancarPage() {
   const [searchParams] = useSearchParams()
   const cameraRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
+  const fotoFileRef = useRef<File | null>(null)
+  const fotoSectionRef = useRef<HTMLDivElement | null>(null)
   const editOpenedRef = useRef<string | null>(null)
   const listaAnchorRef = useRef<HTMLDivElement | null>(null)
   const liderPickRef = useRef<HTMLElement | null>(null)
@@ -405,6 +407,7 @@ export function VotacaoLancarPage() {
     setViewOnly(onlyView)
     setSelected(hit)
     setVotou(hit.votou ?? null)
+    fotoFileRef.current = null
     setFotoFile(null)
     setClearFoto(false)
     setNome(hit.nome_completo ?? '')
@@ -430,6 +433,7 @@ export function VotacaoLancarPage() {
     setSelected(null)
     setModoNovo(false)
     setViewOnly(false)
+    fotoFileRef.current = null
     setFotoFile(null)
     setFotoPreview(null)
     setClearFoto(false)
@@ -483,6 +487,7 @@ export function VotacaoLancarPage() {
       criado_por: profile?.id ?? null,
     })
     setVotou(null)
+    fotoFileRef.current = null
     setFotoFile(null)
     setFotoPreview(null)
     setClearFoto(false)
@@ -496,11 +501,32 @@ export function VotacaoLancarPage() {
   }
 
   function onPickFile(file: File | null, input?: HTMLInputElement | null) {
-    if (!file) return
+    if (!file) {
+      setError('Não foi possível ler a foto. Tire de novo pela câmera ou escolha na galeria.')
+      return
+    }
+    // Cópia estável: no iOS limpar o input no mesmo tick pode “perder” o File.
+    const stable = new File(
+      [file],
+      file.name?.trim() || `comprovante-${Date.now()}.jpg`,
+      { type: file.type || 'image/jpeg', lastModified: file.lastModified || Date.now() },
+    )
+    fotoFileRef.current = stable
     setClearFoto(false)
-    setFotoFile(file)
-    // Permite tirar/escolher de novo a mesma foto (senão o onChange não dispara).
-    if (input) input.value = ''
+    setFotoFile(stable)
+    setError(null)
+    setOkMsg('Foto do comprovante anexada. Pode salvar o lançamento.')
+    try {
+      setFotoPreview(URL.createObjectURL(stable))
+    } catch {
+      /* useEffect também gera preview */
+    }
+    // Limpa depois, para poder escolher a mesma foto de novo sem perder o arquivo.
+    if (input) {
+      window.setTimeout(() => {
+        try { input.value = '' } catch { /* ignore */ }
+      }, 0)
+    }
   }
 
   async function handleSave() {
@@ -517,10 +543,12 @@ export function VotacaoLancarPage() {
       setError('Informe nome e sobrenome.')
       return
     }
-    // Comprovante obrigatório em todo lançamento (Votou ou Não votou).
-    const temAnexo = Boolean(fotoFile) || (!modoNovo && Boolean(selected.voto_foto_path) && !clearFoto)
+    // Ref evita estado “atrasado” no celular após tirar a foto.
+    const arquivoFoto = fotoFileRef.current || fotoFile
+    const temAnexo = Boolean(arquivoFoto) || (!modoNovo && Boolean(selected.voto_foto_path) && !clearFoto)
     if (!temAnexo) {
       setError('Tire a foto do comprovante (câmera) ou anexe da galeria antes de salvar.')
+      fotoSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       return
     }
     setSaving(true)
@@ -541,7 +569,7 @@ export function VotacaoLancarPage() {
           nomeMae,
           dataNascimento: nascimento || null,
           votou,
-          fotoFile,
+          fotoFile: arquivoFoto,
           porAuxiliar: isAuxiliar,
         })
         setModoNovo(false)
@@ -552,8 +580,8 @@ export function VotacaoLancarPage() {
           cadastroId: selected.id,
           userId: profile.id,
           votou,
-          fotoFile,
-          clearFoto: clearFoto && !fotoFile,
+          fotoFile: arquivoFoto,
+          clearFoto: clearFoto && !arquivoFoto,
           // Auxiliar não pode alterar nome, título, zona, seção, mãe nem nascimento.
           correcoes: cadastroSomenteLeitura
             ? undefined
@@ -580,7 +608,7 @@ export function VotacaoLancarPage() {
         coordenador: saved.coordenador || selected.coordenador,
         lider: saved.lider || selected.lider,
         votou: saved.votou ?? votou,
-        voto_foto_path: saved.voto_foto_path ?? (clearFoto && !fotoFile ? null : selected.voto_foto_path),
+        voto_foto_path: saved.voto_foto_path ?? (clearFoto && !arquivoFoto ? null : selected.voto_foto_path),
       }
       setHits((prev) => {
         const rest = prev.filter((h) => h.id !== merged.id)
@@ -918,11 +946,12 @@ export function VotacaoLancarPage() {
             </button>
           </div>
 
-          <div className="vot-foto is-required">
+          <div className="vot-foto is-required" ref={fotoSectionRef}>
             <div className="vot-foto-label">
               Foto do comprovante *
             </div>
             <p className="vot-foto-req">Obrigatório tirar a foto do comprovante (ou anexar da galeria).</p>
+            {okMsg && selected ? <div className="alert alert-success">{okMsg}</div> : null}
             {fotoPreview ? (
               <div className="vot-foto-preview">
                 <img src={fotoPreview} alt="Comprovante" />
@@ -931,9 +960,11 @@ export function VotacaoLancarPage() {
                     type="button"
                     className="vot-foto-remove"
                     onClick={() => {
+                      fotoFileRef.current = null
                       setFotoFile(null)
                       setFotoPreview(null)
                       setClearFoto(true)
+                      setOkMsg(null)
                     }}
                   >
                     Remover
@@ -942,7 +973,7 @@ export function VotacaoLancarPage() {
               </div>
             ) : (
               <p className="vot-muted">
-                Tire a foto do comprovante com a câmera ou escolha da galeria.
+                Tire a foto do comprovante com a câmera ou escolha da galeria. Espere aparecer a prévia antes de salvar.
               </p>
             )}
             {!viewOnly && (
@@ -1057,7 +1088,16 @@ export function VotacaoLancarPage() {
               Cancelar
             </button>
             {!viewOnly ? (
-              <button type="button" className="vot-save" disabled={saving} onClick={() => void handleSave()}>
+              <button
+                type="button"
+                className="vot-save"
+                disabled={
+                  saving
+                  || votou === null
+                  || !(fotoFileRef.current || fotoFile || (!modoNovo && selected.voto_foto_path && !clearFoto))
+                }
+                onClick={() => void handleSave()}
+              >
                 <Check size={18} strokeWidth={2.6} />
                 {saving ? 'Salvando…' : modoNovo ? 'Salvar nova pessoa' : 'Salvar lançamento'}
               </button>
