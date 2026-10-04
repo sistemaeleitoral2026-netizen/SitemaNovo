@@ -49,4 +49,7 @@ create policy votacao_notif_insert
 drop policy if exists votacao_notif_update on public.votacao_notif;
 drop policy if exists votacao_notif_delete on public.votacao_notif;
 
+grant select, insert on public.votacao_notif to authenticated;
+grant update (votacao_notif_visto_em) on public.profiles to authenticated;
+
 notify pgrst, 'reload schema';
