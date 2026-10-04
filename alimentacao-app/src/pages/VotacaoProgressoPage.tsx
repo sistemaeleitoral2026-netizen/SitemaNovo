@@ -12,12 +12,16 @@ import {
   fetchAuxiliarLiderNomes,
   fetchVotacaoFichasLider,
   fetchVotacaoProgresso,
+  fetchVotacaoProgressoVarios,
   fetchVotacaoStatsPorLideres,
   labelAdicionadoNoLancamento,
   signVotoFoto,
   type VotacaoHit,
   type VotacaoProgresso,
+  type VotacaoProgressoLider,
 } from '../lib/votacao'
+
+const STAFF_ALL_COORDS = '__all__'
 import { supabase } from '../lib/supabase'
 
 function statusLabel(votou: boolean | null | undefined) {
@@ -206,12 +210,17 @@ export function VotacaoProgressoPage() {
           const fromUrl = deepCoord
             ? list.find((c) => c.nome.trim().toLowerCase() === deepCoord.toLowerCase())
             : null
-          const first = fromUrl ?? list[0]
-          if (first) {
-            setSelectedCoord(first.id)
-            setCoordNome(first.nome)
-            await loadLiderPhones({ coordenadorId: first.id })
-            setData(await fetchVotacaoProgresso(first.nome))
+          if (fromUrl) {
+            setSelectedCoord(fromUrl.id)
+            setCoordNome(fromUrl.nome)
+            await loadLiderPhones({ coordenadorId: fromUrl.id })
+            setData(await fetchVotacaoProgresso(fromUrl.nome))
+          } else if (list.length) {
+            // Admin/diretoria: por padrão vê todas as coordenações.
+            setSelectedCoord(STAFF_ALL_COORDS)
+            setCoordNome('Todas as coordenações')
+            await loadLiderPhones({})
+            setData(await fetchVotacaoProgressoVarios(list.map((c) => c.nome)))
           } else {
             setData(null)
           }
@@ -261,10 +270,16 @@ export function VotacaoProgressoPage() {
           coordenadorNome: target,
         })
         setData(buildProgressoFromStats(target, stats))
+      } else if (
+        isStaff
+        && (nome === STAFF_ALL_COORDS || ((!nome || nome === 'Todas as coordenações') && selectedCoord === STAFF_ALL_COORDS))
+      ) {
+        setCoordNome('Todas as coordenações')
+        setData(await fetchVotacaoProgressoVarios(coordOptions.map((c) => c.nome)))
       } else {
-        const target = (nome ?? coordNome).trim()
-        if (!target) {
-          setError('Coordenação não vinculada ao login.')
+        const target = (nome && nome !== STAFF_ALL_COORDS ? nome : coordNome).trim()
+        if (!target || target === 'Todas as coordenações') {
+          setError('Selecione a coordenação.')
           return
         }
         setData(await fetchVotacaoProgresso(target))
@@ -278,16 +293,29 @@ export function VotacaoProgressoPage() {
 
   async function onPickCoord(id: string) {
     setSelectedCoord(id)
+    setLiderFiltro('')
+    setExpandedLider(null)
+    setFichas([])
+    if (id === STAFF_ALL_COORDS) {
+      setCoordNome('Todas as coordenações')
+      await loadLiderPhones({})
+      await reload(STAFF_ALL_COORDS)
+      return
+    }
     const row = coordOptions.find((c) => c.id === id)
     const nome = row?.nome ?? ''
     setCoordNome(nome)
-    setLiderFiltro('')
     await loadLiderPhones({ coordenadorId: id })
     await reload(nome)
   }
 
-  async function toggleLider(lider: string) {
-    if (expandedLider === lider) {
+  function liderCardKey(l: VotacaoProgressoLider) {
+    return l.coordenador ? `${l.coordenador}\u001f${l.lider}` : l.lider
+  }
+
+  async function toggleLider(lider: string, coordenadorDaLider?: string) {
+    const key = coordenadorDaLider ? `${coordenadorDaLider}\u001f${lider}` : lider
+    if (expandedLider === key) {
       setExpandedLider(null)
       setFichas([])
       return
@@ -299,16 +327,17 @@ export function VotacaoProgressoPage() {
         return
       }
     }
-    setExpandedLider(lider)
+    const coordTarget = (coordenadorDaLider || coordNome).trim()
+    setExpandedLider(key)
     setLoadingFichas(true)
     setError(null)
     try {
-      if (!coordNome.trim()) {
+      if (!coordTarget || coordTarget === 'Todas as coordenações') {
         setFichas([])
         setError('Coordenação não vinculada — não é possível listar as fichas.')
         return
       }
-      setFichas(await fetchVotacaoFichasLider(coordNome, lider))
+      setFichas(await fetchVotacaoFichasLider(coordTarget, lider))
       requestAnimationFrame(() => {
         openCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       })
@@ -333,7 +362,7 @@ export function VotacaoProgressoPage() {
     setLiderFiltro(deepLider)
     deepLinkDone.current = true
     if (match) {
-      void toggleLider(match.lider)
+      void toggleLider(match.lider, match.coordenador)
     }
     // Limpa a URL sem perder o filtro na tela.
     const next = new URLSearchParams(searchParams)
@@ -363,7 +392,10 @@ export function VotacaoProgressoPage() {
     const list = data?.porLider ?? []
     const q = liderFiltro.trim().toLowerCase()
     if (!q) return list
-    return list.filter((l) => l.lider.toLowerCase().includes(q))
+    return list.filter((l) =>
+      l.lider.toLowerCase().includes(q)
+      || (l.coordenador ?? '').toLowerCase().includes(q),
+    )
   }, [data, liderFiltro])
 
   if (loading && !data) {
@@ -395,7 +427,7 @@ export function VotacaoProgressoPage() {
           <h1 className="vot-title">Progresso da votação</h1>
           <p className="vot-sub">
             {tot?.coordenadorNome
-              ? `Coordenação: ${tot.coordenadorNome} · ${pctGeral}% lançado`
+              ? `${tot.coordenadorNome === 'Todas as coordenações' ? 'Todas as coordenações' : `Coordenação: ${tot.coordenadorNome}`} · ${pctGeral}% lançado`
               : 'Selecione a coordenação'}
           </p>
         </div>
@@ -411,6 +443,7 @@ export function VotacaoProgressoPage() {
         <label className="vot-coord-pick">
           Coordenador
           <select value={selectedCoord} onChange={(e) => void onPickCoord(e.target.value)}>
+            <option value={STAFF_ALL_COORDS}>Todas as coordenações</option>
             {coordOptions.map((c) => (
               <option key={c.id} value={c.id}>{c.nome}</option>
             ))}
@@ -422,31 +455,38 @@ export function VotacaoProgressoPage() {
 
       {tot && (
         <>
-          <div className="vot-kpi-row vot-kpi-2x2">
+          <div className="vot-kpi-row vot-kpi-2x2" aria-label="Contagem de eleitores (fichas)">
             <div className="vot-kpi">
-              <em>Total</em>
+              <em>Eleitores</em>
               <strong>{tot.total}</strong>
             </div>
             <div className="vot-kpi is-pend">
-              <em>Pendente</em>
+              <em>Pendentes</em>
               <strong>{tot.pendente}</strong>
             </div>
             <div className="vot-kpi is-yes">
-              <em>Votou</em>
+              <em>Votaram</em>
               <strong>{tot.votou}</strong>
             </div>
             <div className="vot-kpi is-no">
-              <em>Não votou</em>
+              <em>Não votaram</em>
               <strong>{tot.naoVotou}</strong>
             </div>
           </div>
+          <p className="vot-fields-hint">
+            Números de eleitores (fichas). Abaixo, cada card é uma liderança com a contagem dela.
+          </p>
 
           <div className="vot-search vot-progresso-search">
             <Search size={18} aria-hidden />
             <input
               value={liderFiltro}
               onChange={(e) => setLiderFiltro(e.target.value)}
-              placeholder="Filtrar liderança"
+              placeholder={
+                selectedCoord === STAFF_ALL_COORDS
+                  ? 'Filtrar liderança ou coordenação'
+                  : 'Filtrar liderança'
+              }
               autoComplete="off"
             />
           </div>
@@ -478,11 +518,12 @@ export function VotacaoProgressoPage() {
               {lideresFiltrados.map((l) => {
                 const done = l.votou + l.naoVotou
                 const pct = l.total ? Math.round((done / l.total) * 100) : 0
-                const open = expandedLider === l.lider
+                const cardKey = liderCardKey(l)
+                const open = expandedLider === cardKey
                 const liderTel = liderPhones[normName(l.lider)]
                 return (
                   <li
-                    key={l.lider}
+                    key={cardKey}
                     ref={open ? openCardRef : undefined}
                     className={`vot-lider-card${open ? ' is-open' : ''}`}
                   >
@@ -490,12 +531,15 @@ export function VotacaoProgressoPage() {
                       <button
                         type="button"
                         className="vot-lider-toggle"
-                        onClick={() => void toggleLider(l.lider)}
+                        onClick={() => void toggleLider(l.lider, l.coordenador)}
                         aria-expanded={open}
                       >
                         <div className="vot-lider-top">
                           <strong className="vot-lider-name">
                             <span>{l.lider}</span>
+                            {l.coordenador ? (
+                              <em className="vot-lider-coord-tag">{l.coordenador}</em>
+                            ) : null}
                           </strong>
                           <span>{done}/{l.total} · {pct}%</span>
                         </div>
