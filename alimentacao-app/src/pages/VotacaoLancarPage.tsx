@@ -516,11 +516,8 @@ export function VotacaoLancarPage() {
     setFotoFile(stable)
     setError(null)
     setOkMsg('Foto do comprovante anexada. Pode salvar o lançamento.')
-    try {
-      setFotoPreview(URL.createObjectURL(stable))
-    } catch {
-      /* useEffect também gera preview */
-    }
+    // A prévia é gerada (e revogada) pelo useEffect([fotoFile]); não criar
+    // outra object URL aqui evita vazamento ao anexar várias fotos seguidas.
     // Limpa depois, para poder escolher a mesma foto de novo sem perder o arquivo.
     if (input) {
       window.setTimeout(() => {
@@ -807,8 +804,6 @@ export function VotacaoLancarPage() {
               ))}
             </div>
           )}
-
-          {error && <div className="alert alert-error">{error}</div>}
 
           {searching && (
             <div className="vot-center vot-muted">

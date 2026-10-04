@@ -1,4 +1,5 @@
 import { prepareImageForUpload } from './imageCompress'
+import { uniqueLiderNomes } from './liderFichas'
 import { sanitizeSearchTerm } from './search'
 import { supabase } from './supabase'
 import type { Cadastro } from '../types'
@@ -62,6 +63,56 @@ const PAGE = 1000
 
 function norm(s: string | null | undefined) {
   return (s ?? '').trim().toLowerCase()
+}
+
+function sleep(ms: number) {
+  return new Promise<void>((r) => setTimeout(r, ms))
+}
+
+/** uuid no cliente (idempotência do "Adicionar novo"); com fallback p/ WebView antigo. */
+function novoId(): string {
+  try {
+    const c = (globalThis as { crypto?: Crypto }).crypto
+    if (c?.randomUUID) return c.randomUUID()
+  } catch {
+    /* fallback abaixo */
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => {
+    const r = (Math.random() * 16) | 0
+    const v = ch === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
+/** Falha transitória (rede do celular caiu, timeout, servidor ocupado) — vale repetir. */
+function isTransient(msg: string | null | undefined): boolean {
+  return /failed to fetch|fetch|networkerror|load failed|timeout|timed out|connection|socket|temporarily|unavailable|too many|rate limit|\b429\b|\b50[234]\b/i.test(
+    String(msg ?? ''),
+  )
+}
+
+type SupaResult<T> = { data: T; error: { message: string } | null }
+
+/** Repete a operação Supabase só em erro transitório (backoff 0,5s / 1,2s). */
+async function comRetry<T>(
+  op: () => PromiseLike<SupaResult<T>>,
+  tries = 3,
+): Promise<SupaResult<T>> {
+  let res: SupaResult<T>
+  try {
+    res = await op()
+  } catch (e) {
+    res = { data: null as T, error: { message: e instanceof Error ? e.message : String(e) } }
+  }
+  for (let i = 1; i < tries && res.error && isTransient(res.error.message); i++) {
+    await sleep(i === 1 ? 500 : 1200)
+    try {
+      res = await op()
+    } catch (e) {
+      res = { data: null as T, error: { message: e instanceof Error ? e.message : String(e) } }
+    }
+  }
+  return res
 }
 
 /** Partículas que não entram no AND da busca por nome. */
@@ -168,15 +219,13 @@ export async function fetchAuxiliarLiderNomes(auxiliarId: string): Promise<strin
     .select('lider_id, lideres(nome)')
     .eq('auxiliar_id', auxiliarId)
   if (error) throw new Error(error.message)
-  const nomes = (data ?? [])
-    .map((row) => {
-      const lideres = (row as { lideres?: { nome?: string } | { nome?: string }[] | null }).lideres
-      if (Array.isArray(lideres)) return lideres[0]?.nome ?? ''
-      return lideres?.nome ?? ''
-    })
-    .map((n) => n.trim())
-    .filter(Boolean)
-  return [...new Set(nomes)]
+  const nomes = (data ?? []).map((row) => {
+    const lideres = (row as { lideres?: { nome?: string } | { nome?: string }[] | null }).lideres
+    if (Array.isArray(lideres)) return lideres[0]?.nome ?? ''
+    return lideres?.nome ?? ''
+  })
+  // Case/espaço: "Maria" e "maria " contam como a mesma liderança.
+  return uniqueLiderNomes(nomes)
 }
 
 export async function fetchAuxiliarLiderIds(auxiliarId: string): Promise<string[]> {
@@ -266,11 +315,14 @@ async function uploadVotoFoto(userId: string, file: File): Promise<string> {
         : 'jpg'
   // Pasta = auth user id (exigido pelas policies do bucket votacao-fotos).
   const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-  const { error } = await supabase.storage.from(VOTACAO_FOTOS_BUCKET).upload(path, prepared, {
-    cacheControl: '86400',
-    upsert: false,
-    contentType: prepared.type || 'image/jpeg',
-  })
+  // upsert:true + path fixo = reenvio seguro se a rede cair no meio (não duplica).
+  const { error } = await comRetry(() =>
+    supabase.storage.from(VOTACAO_FOTOS_BUCKET).upload(path, prepared, {
+      cacheControl: '86400',
+      upsert: true,
+      contentType: prepared.type || 'image/jpeg',
+    }),
+  )
   if (error) {
     if (/bucket|not found|mime|allowed/i.test(error.message)) {
       throw new Error(
@@ -346,19 +398,39 @@ export async function salvarLancamentoVotacao(input: VotacaoSaveInput): Promise<
       .maybeSingle()
   }
 
-  let { data, error } = await runUpdate(SELECT_COLS)
+  let { data, error } = await comRetry(() => runUpdate(SELECT_COLS))
   if (error && /adicionado_por_auxiliar|criado_por|column|schema/i.test(error.message)) {
-    ;({ data, error } = await runUpdate(SELECT_VOTO))
+    ;({ data, error } = await comRetry(() => runUpdate(SELECT_VOTO)))
   }
   if (error && /votou|voto_|column|schema/i.test(error.message)) {
     // Colunas de voto ausentes: ainda tenta gravar sem select tipado.
-    const bare = await supabase.from('cadastros').update(patch).eq('id', input.cadastroId)
+    const bare = await comRetry(() =>
+      supabase.from('cadastros').update(patch).eq('id', input.cadastroId),
+    )
     error = bare.error
     data = null
   }
 
+  // Rede caiu depois de salvar? Confirma no banco antes de dar erro ao auxiliar.
+  if (error && isTransient(error.message)) {
+    try {
+      const check = await selectCadastro(input.cadastroId)
+      const salvoAgora =
+        check
+        && check.votou === input.votou
+        && check.voto_por === input.userId
+        && check.voto_em
+        && Date.now() - Date.parse(check.voto_em) < 120_000
+      if (salvoAgora && check) return check
+    } catch {
+      /* mantém o erro original abaixo */
+    }
+  }
+
   if (error) {
-    if (newFotoPath) {
+    // Só descarta a foto em falha definitiva; em erro transitório a gravação
+    // pode ter ocorrido e apagar o anexo quebraria a ficha salva.
+    if (newFotoPath && !isTransient(error.message)) {
       void supabase.storage.from(VOTACAO_FOTOS_BUCKET).remove([newFotoPath])
     }
     if (/unique|duplicate|titulo/i.test(error.message)) {
@@ -444,7 +516,11 @@ export async function criarCadastroLancamentoVotacao(
     fotoPath = await uploadVotoFoto(input.userId, input.fotoFile)
   }
 
+  // id gerado no cliente = insert idempotente: se o auxiliar reenviar após a
+  // rede cair, cai no mesmo id e nunca cria uma segunda ficha.
+  const novoCadastroId = novoId()
   const basePayload: Record<string, unknown> = {
+    id: novoCadastroId,
     nome_completo: nome,
     titulo: (input.titulo ?? '').trim() || null,
     zona: (input.zona ?? '').trim(),
@@ -472,13 +548,35 @@ export async function criarCadastroLancamentoVotacao(
     return supabase.from('cadastros').insert(payload).select('id').maybeSingle()
   }
 
-  let { data, error } = await tryInsert(fullPayload)
+  let { data, error } = await comRetry(() => tryInsert(fullPayload))
   if (error && /adicionado_por_auxiliar|criado_por|column|schema/i.test(error.message)) {
-    ;({ data, error } = await tryInsert(basePayload))
+    ;({ data, error } = await comRetry(() => tryInsert(basePayload)))
+  }
+
+  // Erro transitório (rede caiu) ou conflito do nosso próprio id (o 1º envio
+  // gravou e o 2º bateu na PK): confirma pelo id e devolve a ficha já criada —
+  // idempotente, jamais duplica. Conflito de título não bate no nosso id.
+  if (error && (isTransient(error.message) || /duplicate|unique|already exists|conflict/i.test(error.message))) {
+    let jaCriada: VotacaoHit | null = null
+    try {
+      jaCriada = await selectCadastro(novoCadastroId)
+    } catch {
+      jaCriada = null
+    }
+    if (jaCriada && norm(jaCriada.nome_completo) === norm(nome)) {
+      return {
+        ...jaCriada,
+        adicionado_por_auxiliar: porAuxiliar || Boolean(jaCriada.adicionado_por_auxiliar),
+        criado_por: jaCriada.criado_por ?? input.userId,
+      }
+    }
   }
 
   if (error) {
-    if (fotoPath) void supabase.storage.from(VOTACAO_FOTOS_BUCKET).remove([fotoPath])
+    // Foto só é descartada em falha definitiva (ver salvarLancamentoVotacao).
+    if (fotoPath && !isTransient(error.message)) {
+      void supabase.storage.from(VOTACAO_FOTOS_BUCKET).remove([fotoPath])
+    }
     if (/adicionado_por_auxiliar|criado_por|column|schema/i.test(error.message)) {
       throw new Error(
         `${error.message} — rode o SQL auxiliar_adicionar_ficha_votacao_run.sql no Supabase.`,
