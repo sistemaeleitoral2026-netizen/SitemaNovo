@@ -544,7 +544,8 @@ export function VotacaoLancarPage() {
     // Ref evita estado “atrasado” no celular após tirar a foto.
     const arquivoFoto = fotoFileRef.current || fotoFile
     const temAnexo = Boolean(arquivoFoto) || (!modoNovo && Boolean(selected.voto_foto_path) && !clearFoto)
-    if (!temAnexo) {
+    // Anexo obrigatório só em "Votou". Em "Não votou" é opcional — grava só se anexar.
+    if (votou === true && !temAnexo) {
       setError('Tire a foto do comprovante (câmera) ou anexe da galeria antes de salvar.')
       fotoSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       return
@@ -954,11 +955,15 @@ export function VotacaoLancarPage() {
             </button>
           </div>
 
-          <div className="vot-foto is-required" ref={fotoSectionRef}>
+          <div className={`vot-foto${votou === true ? ' is-required' : ''}`} ref={fotoSectionRef}>
             <div className="vot-foto-label">
-              Foto do comprovante *
+              {votou === false ? 'Foto do comprovante (opcional)' : 'Foto do comprovante *'}
             </div>
-            <p className="vot-foto-req">Obrigatório tirar a foto do comprovante (ou anexar da galeria).</p>
+            <p className="vot-foto-req">
+              {votou === false
+                ? 'Em Não votou o anexo é opcional. Se anexar, ele fica salvo na ficha.'
+                : 'Obrigatório tirar a foto do comprovante (ou anexar da galeria).'}
+            </p>
             {okMsg && selected ? <div className="alert alert-success">{okMsg}</div> : null}
             {fotoPreview ? (
               <div className="vot-foto-preview">
@@ -981,7 +986,9 @@ export function VotacaoLancarPage() {
               </div>
             ) : (
               <p className="vot-muted">
-                Tire a foto do comprovante com a câmera ou escolha da galeria. Espere aparecer a prévia antes de salvar.
+                {votou === false
+                  ? 'Pode salvar sem foto. Se quiser, tire pela câmera ou escolha da galeria.'
+                  : 'Tire a foto do comprovante com a câmera ou escolha da galeria. Espere aparecer a prévia antes de salvar.'}
               </p>
             )}
             {!viewOnly && (
@@ -1102,7 +1109,10 @@ export function VotacaoLancarPage() {
                 disabled={
                   saving
                   || votou === null
-                  || !(fotoFileRef.current || fotoFile || (!modoNovo && selected.voto_foto_path && !clearFoto))
+                  || (
+                    votou === true
+                    && !(fotoFileRef.current || fotoFile || (!modoNovo && selected.voto_foto_path && !clearFoto))
+                  )
                 }
                 onClick={() => void handleSave()}
               >
