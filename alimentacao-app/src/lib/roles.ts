@@ -1,13 +1,25 @@
 import type { Profile, UserRole } from '../types'
 
 /**
- * Bloqueio temporário: só admin consegue logar / manter sessão.
- * Para reabrir o sistema aos demais cargos, mude para `false`.
+ * Bloqueio temporário de login.
+ * `null` = todos podem entrar.
+ * Lista = só esses cargos.
  */
-export const LOGIN_ADMIN_ONLY = true
+export const LOGIN_ALLOWED_ROLES: UserRole[] | null = [
+  'admin',
+  'diretoria',
+  'auxiliar',
+  'coordenador',
+]
 
-export const LOGIN_ADMIN_ONLY_MESSAGE =
-  'Acesso temporariamente restrito. Somente administrador pode entrar.'
+export const LOGIN_RESTRICTED_MESSAGE =
+  'Acesso temporariamente restrito para o seu cargo.'
+
+/** @deprecated use LOGIN_ALLOWED_ROLES */
+export const LOGIN_ADMIN_ONLY = false
+
+/** @deprecated use LOGIN_RESTRICTED_MESSAGE */
+export const LOGIN_ADMIN_ONLY_MESSAGE = LOGIN_RESTRICTED_MESSAGE
 
 /** Cargos de campo que podem ser atribuídos além do papel principal. */
 export const ATRIBUICAO_OPTIONS: { value: UserRole; label: string; hint: string }[] = [
@@ -34,8 +46,8 @@ export function hasRole(
 }
 
 export function canLogin(profile: Pick<Profile, 'role' | 'extra_roles'> | null | undefined): boolean {
-  if (!LOGIN_ADMIN_ONLY) return true
-  return hasRole(profile, 'admin')
+  if (!LOGIN_ALLOWED_ROLES) return true
+  return hasRole(profile, LOGIN_ALLOWED_ROLES)
 }
 
 export function normalizeExtraRoles(
