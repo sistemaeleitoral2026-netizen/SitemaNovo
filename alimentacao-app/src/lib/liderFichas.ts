@@ -83,3 +83,97 @@ export function cadastrosLinkForLider(opts: {
   if (opts.diretoriaId) params.set('diretoria', opts.diretoriaId)
   return `/cadastros?${params.toString()}`
 }
+
+type LiderNomeRef =
+  | { id: string; nome: string }
+  | { value: string; label: string }
+
+function buildNomeById(
+  refs: LiderNomeRef[] | Map<string, string> | Record<string, string>,
+): Map<string, string> {
+  if (refs instanceof Map) return refs
+  if (Array.isArray(refs)) {
+    const map = new Map<string, string>()
+    for (const ref of refs) {
+      if ('id' in ref) map.set(ref.id, ref.nome)
+      else map.set(ref.value, ref.label)
+    }
+    return map
+  }
+  return new Map(Object.entries(refs))
+}
+
+/**
+ * Um auxiliar não pode ter a mesma liderança duas vezes por nome
+ * (case/espaços ignorados), mesmo com ids diferentes em `lideres`.
+ * Mantém a primeira ocorrência de cada nome.
+ */
+export function dedupeLiderIdsByNome(
+  ids: string[],
+  refs: LiderNomeRef[] | Map<string, string> | Record<string, string>,
+): string[] {
+  const nomeById = buildNomeById(refs)
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const id of ids) {
+    if (!id || out.includes(id)) continue
+    const key = liderNameKey(nomeById.get(id) ?? '')
+    if (!key) {
+      out.push(id)
+      continue
+    }
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(id)
+  }
+  return out
+}
+
+/** Nomes únicos por chave estável (trim + lower). Preserva o 1º casing. */
+export function uniqueLiderNomes(nomes: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of nomes) {
+    const nome = (raw ?? '').trim()
+    if (!nome) continue
+    const key = liderNameKey(nome)
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(nome)
+  }
+  return out
+}
+
+/**
+ * Lideranças já vinculadas a outros auxiliares (mesmo id, ou mesmo nome
+ * na mesma coordenação). O auxiliar atual pode manter as que já tem.
+ */
+export function liderancasOcupadasPorOutros(opts: {
+  auxiliarLiderMap: Record<string, string[]>
+  auxiliares: { id: string; coordenador_id?: string | null; nome?: string }[]
+  lideres: { id: string; nome: string; coordenador_id?: string | null }[]
+  coordenadorId?: string | null
+  excludeAuxiliarId?: string | null
+}): { takenIds: Set<string>; takenNames: Set<string>; ocupadaPor: Map<string, string> } {
+  const takenIds = new Set<string>()
+  const takenNames = new Set<string>()
+  const ocupadaPor = new Map<string, string>()
+  const coordId = opts.coordenadorId || null
+  const nomeById = new Map(opts.lideres.map((l) => [l.id, l.nome]))
+
+  for (const aux of opts.auxiliares) {
+    if (opts.excludeAuxiliarId && aux.id === opts.excludeAuxiliarId) continue
+    if (coordId && aux.coordenador_id && aux.coordenador_id !== coordId) continue
+    const auxLabel = (aux.nome || 'outro auxiliar').trim() || 'outro auxiliar'
+    for (const lid of opts.auxiliarLiderMap[aux.id] ?? []) {
+      takenIds.add(lid)
+      ocupadaPor.set(lid, auxLabel)
+      const key = liderNameKey(nomeById.get(lid))
+      if (key) {
+        takenNames.add(key)
+        if (!ocupadaPor.has(`nome:${key}`)) ocupadaPor.set(`nome:${key}`, auxLabel)
+      }
+    }
+  }
+  return { takenIds, takenNames, ocupadaPor }
+}

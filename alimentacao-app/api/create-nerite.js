@@ -21,6 +21,96 @@ function errMsg(data, fallback) {
   return data.message || data.msg || data.error_description || data.error || fallback
 }
 
+/** Um id por nome (trim+lower) — evita liderança duplicada no auxiliar. */
+async function dedupeLiderIdsByNome(ids) {
+  const unique = [...new Set((ids || []).map(String).filter(Boolean))]
+  if (!unique.length) return []
+  const res = await rest(`lideres?id=in.(${unique.join(',')})&select=id,nome`)
+  if (!res.ok || !Array.isArray(res.data)) return unique
+  const nomeById = new Map(res.data.map((r) => [String(r.id), String(r.nome || '').trim().toLowerCase()]))
+  const seen = new Set()
+  const out = []
+  for (const id of unique) {
+    const key = nomeById.get(id) || ''
+    if (key) {
+      if (seen.has(key)) continue
+      seen.add(key)
+    }
+    out.push(id)
+  }
+  return out
+}
+
+/** Cada liderança (id ou mesmo nome na coord) só pode ficar com um auxiliar. */
+async function assertLideresLivresParaAuxiliar(liderIds, { auxiliarId, coordenadorId }) {
+  const ids = [...new Set((liderIds || []).map(String).filter(Boolean))]
+  if (!ids.length) return null
+
+  const byId = await rest(
+    `auxiliar_lideres?lider_id=in.(${ids.join(',')})&select=auxiliar_id,lider_id`,
+  )
+  const rows = Array.isArray(byId.data) ? byId.data : []
+  const conflicts = rows.filter((r) => String(r.auxiliar_id) !== String(auxiliarId || ''))
+  if (conflicts.length) {
+    const liderIdsConflict = [...new Set(conflicts.map((r) => String(r.lider_id)))]
+    const auxIds = [...new Set(conflicts.map((r) => String(r.auxiliar_id)))]
+    const [lRes, aRes] = await Promise.all([
+      rest(`lideres?id=in.(${liderIdsConflict.join(',')})&select=id,nome`),
+      rest(`profiles?id=in.(${auxIds.join(',')})&select=id,nome`),
+    ])
+    const nomeL = new Map((Array.isArray(lRes.data) ? lRes.data : []).map((r) => [String(r.id), r.nome]))
+    const nomeA = new Map((Array.isArray(aRes.data) ? aRes.data : []).map((r) => [String(r.id), r.nome]))
+    const parts = conflicts.map((c) => {
+      const ln = nomeL.get(String(c.lider_id)) || c.lider_id
+      const an = nomeA.get(String(c.auxiliar_id)) || 'outro auxiliar'
+      return `${ln} (com ${an})`
+    })
+    return `Cada liderança só pode ficar com um auxiliar. Já em uso: ${[...new Set(parts)].join(', ')}.`
+  }
+
+  if (!coordenadorId) return null
+
+  const lideresRes = await rest(`lideres?id=in.(${ids.join(',')})&select=id,nome`)
+  const wanted = Array.isArray(lideresRes.data) ? lideresRes.data : []
+  const nameKeys = new Set(
+    wanted.map((l) => String(l.nome || '').trim().toLowerCase()).filter(Boolean),
+  )
+  if (!nameKeys.size) return null
+
+  const peersRes = await rest(
+    `profiles?role=eq.auxiliar&coordenador_id=eq.${coordenadorId}&select=id,nome&ativo=eq.true`,
+  )
+  const peers = (Array.isArray(peersRes.data) ? peersRes.data : [])
+    .filter((p) => String(p.id) !== String(auxiliarId || ''))
+  if (!peers.length) return null
+
+  const peerIds = peers.map((p) => String(p.id))
+  const linksRes = await rest(
+    `auxiliar_lideres?auxiliar_id=in.(${peerIds.join(',')})&select=auxiliar_id,lider_id`,
+  )
+  const links = Array.isArray(linksRes.data) ? linksRes.data : []
+  if (!links.length) return null
+
+  const peerLiderIds = [...new Set(links.map((r) => String(r.lider_id)))]
+  const peerLideresRes = await rest(
+    `lideres?id=in.(${peerLiderIds.join(',')})&select=id,nome`,
+  )
+  const peerLideres = Array.isArray(peerLideresRes.data) ? peerLideresRes.data : []
+  const nomeByLider = new Map(peerLideres.map((l) => [String(l.id), String(l.nome || '').trim().toLowerCase()]))
+  const nomeByAux = new Map(peers.map((p) => [String(p.id), p.nome]))
+
+  const nameConflicts = []
+  for (const link of links) {
+    const key = nomeByLider.get(String(link.lider_id)) || ''
+    if (!key || !nameKeys.has(key)) continue
+    const display = wanted.find((w) => String(w.nome || '').trim().toLowerCase() === key)?.nome || key
+    const an = nomeByAux.get(String(link.auxiliar_id)) || 'outro auxiliar'
+    nameConflicts.push(`${display} (com ${an})`)
+  }
+  if (!nameConflicts.length) return null
+  return `Cada liderança só pode ficar com um auxiliar. Já em uso: ${[...new Set(nameConflicts)].join(', ')}.`
+}
+
 async function rest(path, { method = 'GET', body, token } = {}) {
   const headers = {
     Authorization: `Bearer ${token || SERVICE_ROLE}`,
@@ -148,9 +238,10 @@ module.exports = async function handler(req, res) {
     let role = String(body.role || 'operador').trim()
     let coordenadorId = body.coordenador_id || null
     const liderId = body.lider_id || null
-    const liderIds = Array.isArray(body.lider_ids)
+    let liderIds = Array.isArray(body.lider_ids)
       ? [...new Set(body.lider_ids.map(String).filter(Boolean))]
       : []
+    if (liderIds.length) liderIds = await dedupeLiderIdsByNome(liderIds)
     const allowedExtra = new Set(['operador', 'mobilizador', 'administrativo'])
 
     if (!nome || !email || password.length < 8) {
@@ -262,6 +353,14 @@ module.exports = async function handler(req, res) {
         // admin
         body.diretoria_id = row.diretoria_id || body.diretoria_id || diretoriaId
       }
+    }
+
+    if (role === 'auxiliar' && liderIds.length) {
+      const ocupada = await assertLideresLivresParaAuxiliar(liderIds, {
+        auxiliarId: null,
+        coordenadorId,
+      })
+      if (ocupada) return json(res, 409, { error: ocupada })
     }
 
     // Metadata segura no create: evita trigger/CHECK rejeitar role auxiliar/coordenador.

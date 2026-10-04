@@ -13,9 +13,19 @@ function isHeicLike(file: File) {
   return t.includes('heic') || t.includes('heif') || n.endsWith('.heic') || n.endsWith('.heif')
 }
 
+/** Decodifica já aplicando a orientação EXIF (fotos de celular vêm giradas). */
+async function decodeBitmap(file: File): Promise<ImageBitmap> {
+  try {
+    return await createImageBitmap(file, { imageOrientation: 'from-image' })
+  } catch {
+    // Navegador antigo sem a opção: decodifica sem girar (melhor que falhar).
+    return createImageBitmap(file)
+  }
+}
+
 async function canvasToJpeg(file: File, maxSide: number, quality: number): Promise<File | null> {
   try {
-    const bitmap = await createImageBitmap(file)
+    const bitmap = await decodeBitmap(file)
     const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height))
     const w = Math.max(1, Math.round(bitmap.width * scale))
     const h = Math.max(1, Math.round(bitmap.height * scale))

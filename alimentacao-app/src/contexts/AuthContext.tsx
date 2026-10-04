@@ -64,23 +64,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true
 
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
+    // .finally garante que o spinner sai mesmo se a rede do celular falhar
+    // no getSession (sem isso o app ficava preso carregando).
+    supabase.auth.getSession()
+      .then(async ({ data: { session: s } }) => {
+        if (!mounted) return
+        setSession(s)
+        if (s?.user) {
+          const p = await fetchProfile(s.user.id)
+          if (mounted) setProfile(p)
+        }
+      })
+      .catch(() => {
+        // Sessão indisponível (offline/token): segue como deslogado.
+      })
+      .finally(() => {
+        if (mounted) setLoading(false)
+      })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       if (!mounted) return
       setSession(s)
       if (s?.user) {
-        fetchProfile(s.user.id).then((p) => {
-          if (mounted) setProfile(p)
-          if (mounted) setLoading(false)
-        })
-      } else {
-        setLoading(false)
-      }
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s)
-      if (s?.user) {
-        fetchProfile(s.user.id).then((p) => setProfile(p))
+        fetchProfile(s.user.id)
+          .then((p) => { if (mounted) setProfile(p) })
+          .catch(() => { /* mantém o perfil atual se a rede oscilar */ })
       } else {
         setProfile(null)
       }

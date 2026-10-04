@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Check, ChevronDown, ChevronUp, Copy, Lock, Search, Trash2, X } from 'lucide-react'
 import { Spinner } from '../ui/Spinner'
 import type { UserRole } from '../../types'
+import { dedupeLiderIdsByNome, liderNameKey } from '../../lib/liderFichas'
 import { ATRIBUICAO_OPTIONS, labelRole } from '../../lib/roles'
 
 export type MemberKind = 'operador' | 'mobilizador' | 'administrativo' | 'auxiliar'
@@ -67,8 +68,13 @@ function toggleExtra(
   return [...current, value]
 }
 
-function toggleLider(current: string[], id: string): string[] {
-  return current.includes(id) ? current.filter((x) => x !== id) : [...current, id]
+function toggleLider(current: string[], id: string, options: Option[]): string[] {
+  if (current.includes(id)) return current.filter((x) => x !== id)
+  const key = liderNameKey(options.find((o) => o.value === id)?.label)
+  const withoutSameName = key
+    ? current.filter((cid) => liderNameKey(options.find((o) => o.value === cid)?.label) !== key)
+    : current
+  return [...withoutSameName, id]
 }
 
 export function EquipeMemberModal({
@@ -107,28 +113,49 @@ export function EquipeMemberModal({
 
   const liderIds = form.lider_ids ?? []
   const selectedSet = useMemo(() => new Set(liderIds), [liderIds])
+  const selectedNameKeys = useMemo(() => {
+    const keys = new Set<string>()
+    for (const id of liderIds) {
+      const key = liderNameKey(liderMultiOptions.find((o) => o.value === id)?.label)
+      if (key) keys.add(key)
+    }
+    return keys
+  }, [liderIds, liderMultiOptions])
 
-  const selectedLideres = useMemo(
-    () => liderMultiOptions.filter((l) => selectedSet.has(l.value)),
-    [liderMultiOptions, selectedSet],
-  )
+  const selectedLideres = useMemo(() => {
+    const ids = new Set(dedupeLiderIdsByNome(liderIds, liderMultiOptions))
+    return liderMultiOptions.filter((l) => ids.has(l.value))
+  }, [liderMultiOptions, liderIds])
 
   const availableLideres = useMemo(() => {
     const q = liderSearch.trim().toLowerCase()
+    const seenNames = new Set<string>()
     return liderMultiOptions.filter((l) => {
       if (selectedSet.has(l.value)) return false
+      const nameKey = liderNameKey(l.label)
+      // Mesmo nome (outra linha em lideres) não aparece de novo.
+      if (nameKey && selectedNameKeys.has(nameKey)) return false
+      if (nameKey) {
+        if (seenNames.has(nameKey)) return false
+        seenNames.add(nameKey)
+      }
       if (!q) return true
       return l.label.toLowerCase().includes(q)
     })
-  }, [liderMultiOptions, selectedSet, liderSearch])
+  }, [liderMultiOptions, selectedSet, selectedNameKeys, liderSearch])
 
   if (!open) return null
 
   const isEdit = mode === 'edit'
   const isAuxiliar = kind === 'auxiliar'
   const roleLabel = labelRole(kind)
-  const totalLideres = liderMultiOptions.length
-  const selectedCount = liderIds.length
+  /** Contagem por nome único — homônimos em `lideres` não inflacionam. */
+  const uniqueLiderOptionCount = dedupeLiderIdsByNome(
+    liderMultiOptions.map((l) => l.value),
+    liderMultiOptions,
+  ).length
+  const totalLideres = uniqueLiderOptionCount
+  const selectedCount = dedupeLiderIdsByNome(liderIds, liderMultiOptions).length
   const roleOptions = ATRIBUICAO_OPTIONS.filter((opt) => {
     if (opt.value === kind) return true
     if (!allowAdminRole && opt.value === 'administrativo') return false
@@ -331,7 +358,8 @@ export function EquipeMemberModal({
                 </span>
               </div>
               <p className="eqm-hint">
-                Toque para escolher. As marcadas saem da lista e ficam em “Selecionadas”, pra não atrapalhar.
+                Cada liderança só pode ficar com um auxiliar. As que já estão com outro não aparecem.
+                As marcadas saem da lista e ficam em “Selecionadas”.
               </p>
 
               {selectedCount > 0 && (
@@ -357,7 +385,7 @@ export function EquipeMemberModal({
                           type="button"
                           className="eqm-lider-chip"
                           title="Remover desta seleção"
-                          onClick={() => onChange({ lider_ids: toggleLider(liderIds, l.value) })}
+                          onClick={() => onChange({ lider_ids: toggleLider(liderIds, l.value, liderMultiOptions) })}
                         >
                           <span>{l.label}</span>
                           <X size={13} strokeWidth={2.2} />
@@ -397,7 +425,7 @@ export function EquipeMemberModal({
                       key={l.value}
                       type="button"
                       className="eqm-lider-card"
-                      onClick={() => onChange({ lider_ids: toggleLider(liderIds, l.value) })}
+                      onClick={() => onChange({ lider_ids: toggleLider(liderIds, l.value, liderMultiOptions) })}
                     >
                       <span className="eqm-check" />
                       <strong>{l.label}</strong>
@@ -412,7 +440,12 @@ export function EquipeMemberModal({
                     type="button"
                     className="eqm-btn-ghost eqm-btn-sm"
                     onClick={() => {
-                      onChange({ lider_ids: liderMultiOptions.map((l) => l.value) })
+                      onChange({
+                        lider_ids: dedupeLiderIdsByNome(
+                          liderMultiOptions.map((l) => l.value),
+                          liderMultiOptions,
+                        ),
+                      })
                       setShowSelectedLideres(true)
                     }}
                     disabled={selectedCount === totalLideres}

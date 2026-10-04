@@ -1,40 +1,46 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { AppShell } from './components/layout/AppShell'
 import { Spinner } from './components/ui/Spinner'
+// Caminho crítico (login + votação do auxiliar): carregamento imediato, sem
+// baixar as bibliotecas pesadas das telas de gestão.
 import { LoginPage } from './pages/LoginPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
-import { DashboardPage } from './pages/DashboardPage'
-import { OperadoresPage } from './pages/OperadoresPage'
-import { OperadorDetailPage } from './pages/OperadorDetailPage'
-import { CadastrosPage } from './pages/CadastrosPage'
-import { CadastroFormPage } from './pages/CadastroFormPage'
-import { MapaPage } from './pages/MapaPage'
-import { ImportarPage } from './pages/ImportarPage'
-import { RelatoriosPage } from './pages/RelatoriosPage'
-import { RelatorioFichasTxtPage } from './pages/RelatorioFichasTxtPage'
-import { RelatorioBackupPage } from './pages/RelatorioBackupPage'
-import { ChamadaPage } from './pages/ChamadaPage'
-import { FerramentasTituloPage } from './pages/FerramentasTituloPage'
-import { ConfiguracoesPage } from './pages/ConfiguracoesPage'
-import { EquipePage } from './pages/EquipePage'
-import { AtivacaoLancarPage } from './pages/AtivacaoLancarPage'
-import { AtivacaoPainelPage } from './pages/AtivacaoPainelPage'
-import { AtivacaoHistoricoPage } from './pages/AtivacaoHistoricoPage'
-import { DemandasLancarPage } from './pages/DemandasLancarPage'
-import { DemandasPainelPage } from './pages/DemandasPainelPage'
-import { LiderancaPage } from './pages/LiderancaPage'
-import { GaragemLancarPage } from './pages/GaragemLancarPage'
-import { GaragemHistoricoPage } from './pages/GaragemHistoricoPage'
-import { FinanceiroPage } from './pages/FinanceiroPage'
 import { VotacaoLancarPage } from './pages/VotacaoLancarPage'
 import { VotacaoProgressoPage } from './pages/VotacaoProgressoPage'
 import { VotacaoHistoricoPage } from './pages/VotacaoHistoricoPage'
-import { TvDashboardPage } from './pages/TvDashboardPage'
 import { canSeeFormigasWhatsapp } from './lib/formigasWhatsapp'
 import { hasRole } from './lib/roles'
-import { FormigasWhatsappPage } from './pages/FormigasWhatsappPage'
 import type { Profile } from './types'
+
+// Telas de gestão (mapa/Leaflet, gráficos/Recharts, PDF/Excel) em chunks
+// separados — cada perfil só baixa o que abrir. Alivia muito o celular.
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })))
+const OperadoresPage = lazy(() => import('./pages/OperadoresPage').then((m) => ({ default: m.OperadoresPage })))
+const OperadorDetailPage = lazy(() => import('./pages/OperadorDetailPage').then((m) => ({ default: m.OperadorDetailPage })))
+const CadastrosPage = lazy(() => import('./pages/CadastrosPage').then((m) => ({ default: m.CadastrosPage })))
+const CadastroFormPage = lazy(() => import('./pages/CadastroFormPage').then((m) => ({ default: m.CadastroFormPage })))
+const MapaPage = lazy(() => import('./pages/MapaPage').then((m) => ({ default: m.MapaPage })))
+const ImportarPage = lazy(() => import('./pages/ImportarPage').then((m) => ({ default: m.ImportarPage })))
+const RelatoriosPage = lazy(() => import('./pages/RelatoriosPage').then((m) => ({ default: m.RelatoriosPage })))
+const RelatorioFichasTxtPage = lazy(() => import('./pages/RelatorioFichasTxtPage').then((m) => ({ default: m.RelatorioFichasTxtPage })))
+const RelatorioBackupPage = lazy(() => import('./pages/RelatorioBackupPage').then((m) => ({ default: m.RelatorioBackupPage })))
+const ChamadaPage = lazy(() => import('./pages/ChamadaPage').then((m) => ({ default: m.ChamadaPage })))
+const FerramentasTituloPage = lazy(() => import('./pages/FerramentasTituloPage').then((m) => ({ default: m.FerramentasTituloPage })))
+const ConfiguracoesPage = lazy(() => import('./pages/ConfiguracoesPage').then((m) => ({ default: m.ConfiguracoesPage })))
+const EquipePage = lazy(() => import('./pages/EquipePage').then((m) => ({ default: m.EquipePage })))
+const AtivacaoLancarPage = lazy(() => import('./pages/AtivacaoLancarPage').then((m) => ({ default: m.AtivacaoLancarPage })))
+const AtivacaoPainelPage = lazy(() => import('./pages/AtivacaoPainelPage').then((m) => ({ default: m.AtivacaoPainelPage })))
+const AtivacaoHistoricoPage = lazy(() => import('./pages/AtivacaoHistoricoPage').then((m) => ({ default: m.AtivacaoHistoricoPage })))
+const DemandasLancarPage = lazy(() => import('./pages/DemandasLancarPage').then((m) => ({ default: m.DemandasLancarPage })))
+const DemandasPainelPage = lazy(() => import('./pages/DemandasPainelPage').then((m) => ({ default: m.DemandasPainelPage })))
+const LiderancaPage = lazy(() => import('./pages/LiderancaPage').then((m) => ({ default: m.LiderancaPage })))
+const GaragemLancarPage = lazy(() => import('./pages/GaragemLancarPage').then((m) => ({ default: m.GaragemLancarPage })))
+const GaragemHistoricoPage = lazy(() => import('./pages/GaragemHistoricoPage').then((m) => ({ default: m.GaragemHistoricoPage })))
+const FinanceiroPage = lazy(() => import('./pages/FinanceiroPage').then((m) => ({ default: m.FinanceiroPage })))
+const TvDashboardPage = lazy(() => import('./pages/TvDashboardPage').then((m) => ({ default: m.TvDashboardPage })))
+const FormigasWhatsappPage = lazy(() => import('./pages/FormigasWhatsappPage').then((m) => ({ default: m.FormigasWhatsappPage })))
 
 function homeForProfile(profile: Profile | null | undefined) {
   if (!profile) return '/login'
@@ -174,8 +180,17 @@ function PublicOnly({ children }: { children: React.ReactNode }) {
   return children
 }
 
+function RouteFallback() {
+  return (
+    <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Spinner size={36} />
+    </div>
+  )
+}
+
 function AppRoutes() {
   return (
+    <Suspense fallback={<RouteFallback />}>
     <Routes>
       <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
       <Route path="/esqueci-senha" element={<PublicOnly><ForgotPasswordPage /></PublicOnly>} />
@@ -221,6 +236,7 @@ function AppRoutes() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   )
 }
 
