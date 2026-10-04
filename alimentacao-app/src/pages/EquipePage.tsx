@@ -13,7 +13,16 @@ import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import { EquipeMemberModal } from '../components/equipe/EquipeMemberModal'
 import { formatPhone } from '../lib/normalize'
 import { fetchCadastroFichaStats, fetchOperatorCadastroStats } from '../lib/cadastros'
-import { cadastrosLinkForLider, countFichasForLider, resolveLimiteFichas, resolveLimiteLiderancas } from '../lib/liderFichas'
+import {
+  cadastrosLinkForLider,
+  countFichasForLider,
+  dedupeLiderIdsByNome,
+  liderancasOcupadasPorOutros,
+  liderNameKey,
+  resolveLimiteFichas,
+  resolveLimiteLiderancas,
+  uniqueLiderNomes,
+} from '../lib/liderFichas'
 import { META_COORDENADOR_LIDERANCAS, META_DIRETORIA_LIDERANCAS, META_LIDERANCA_FICHAS } from '../lib/meta'
 import { fetchAuxiliarLiderIds, fetchVotacaoStatsPorLideres, type VotacaoProgressoLider } from '../lib/votacao'
 import { supabase } from '../lib/supabase'
@@ -305,7 +314,8 @@ export function EquipePage() {
     await Promise.all(
       auxRows.map(async (auxRow) => {
         try {
-          liderMap[auxRow.id] = await fetchAuxiliarLiderIds(auxRow.id)
+          const rawIds = await fetchAuxiliarLiderIds(auxRow.id)
+          liderMap[auxRow.id] = dedupeLiderIdsByNome(rawIds, liderRows)
         } catch {
           liderMap[auxRow.id] = []
         }
@@ -547,7 +557,7 @@ export function EquipePage() {
   async function openEditAux(a: Profile) {
     setError(null)
     setEditingAuxId(a.id)
-    const liderIds = auxiliarLiderMap[a.id] ?? await fetchAuxiliarLiderIds(a.id).catch(() => [])
+    const rawIds = auxiliarLiderMap[a.id] ?? await fetchAuxiliarLiderIds(a.id).catch(() => [])
     setAuxForm({
       nome: a.nome,
       email: a.email,
@@ -556,7 +566,7 @@ export function EquipePage() {
       coordenador_id: a.coordenador_id ?? '',
       diretoria_id: a.diretoria_id ?? '',
       ativo: a.ativo,
-      lider_ids: liderIds,
+      lider_ids: dedupeLiderIdsByNome(rawIds, lideres),
     })
     setAuxOpen(true)
   }
@@ -1217,6 +1227,29 @@ export function EquipePage() {
         return
       }
     }
+    const liderIdsUnicos = dedupeLiderIdsByNome(auxForm.lider_ids ?? [], lideres)
+    const { takenIds, takenNames, ocupadaPor } = liderancasOcupadasPorOutros({
+      auxiliarLiderMap,
+      auxiliares,
+      lideres,
+      coordenadorId: coordId,
+      excludeAuxiliarId: editingAuxId,
+    })
+    const conflitoNomes: string[] = []
+    for (const id of liderIdsUnicos) {
+      const nome = lideres.find((l) => l.id === id)?.nome ?? ''
+      const key = liderNameKey(nome)
+      if (takenIds.has(id) || (key && takenNames.has(key))) {
+        const quem = ocupadaPor.get(id) || (key ? ocupadaPor.get(`nome:${key}`) : null) || 'outro auxiliar'
+        conflitoNomes.push(`${nome || id} (com ${quem})`)
+      }
+    }
+    if (conflitoNomes.length) {
+      setError(
+        `Cada liderança só pode ficar com um auxiliar. Já em uso: ${conflitoNomes.join(', ')}.`,
+      )
+      return
+    }
     setSaving(true)
     if (editingAuxId) {
       const { error: err } = await manageNeriteRequest('POST', {
@@ -1226,7 +1259,7 @@ export function EquipePage() {
         diretoria_id: targetDir || null,
         coordenador_id: coordId,
         ativo: auxForm.ativo,
-        lider_ids: auxForm.lider_ids,
+        lider_ids: liderIdsUnicos,
       })
       setSaving(false)
       if (err) {
@@ -1241,7 +1274,7 @@ export function EquipePage() {
         role: 'auxiliar',
         diretoria_id: targetDir || null,
         coordenador_id: coordId,
-        lider_ids: auxForm.lider_ids,
+        lider_ids: liderIdsUnicos,
       })
       setSaving(false)
       if (err) {
@@ -1446,11 +1479,12 @@ export function EquipePage() {
     if (!viewAuxLideresId) return null
     const aux = auxiliares.find((a) => a.id === viewAuxLideresId)
     if (!aux) return null
-    const liderIds = auxiliarLiderMap[aux.id] ?? []
-    const liderNomes = liderIds
-      .map((id) => lideres.find((l) => l.id === id)?.nome)
-      .filter((n): n is string => Boolean(n))
-      .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+    const liderIds = dedupeLiderIdsByNome(auxiliarLiderMap[aux.id] ?? [], lideres)
+    const liderNomes = uniqueLiderNomes(
+      liderIds
+        .map((id) => lideres.find((l) => l.id === id)?.nome)
+        .filter((n): n is string => Boolean(n)),
+    ).sort((a, b) => a.localeCompare(b, 'pt-BR'))
     return {
       aux,
       liderNomes,
@@ -1943,7 +1977,7 @@ export function EquipePage() {
                   </thead>
                   <tbody>
                     {filteredAuxiliares.map((a) => {
-                      const liderIds = auxiliarLiderMap[a.id] ?? []
+                      const liderIds = dedupeLiderIdsByNome(auxiliarLiderMap[a.id] ?? [], lideres)
                       const liderCount = liderIds.length
                       return (
                         <tr key={a.id}>
@@ -1996,7 +2030,7 @@ export function EquipePage() {
 
               <div className="mobile-cards">
                 {filteredAuxiliares.map((a) => {
-                  const liderIds = auxiliarLiderMap[a.id] ?? []
+                  const liderIds = dedupeLiderIdsByNome(auxiliarLiderMap[a.id] ?? [], lideres)
                   const liderCount = liderIds.length
                   return (
                     <div className="mobile-card" key={a.id}>
@@ -2400,9 +2434,28 @@ export function EquipePage() {
         showCoordenador={!isCoordenador}
         diretorias={[]}
         coordOptions={coordenadores.map((c) => ({ value: c.id, label: c.nome }))}
-        liderMultiOptions={lideres
-          .filter((l) => !auxForm.coordenador_id || !l.coordenador_id || l.coordenador_id === auxForm.coordenador_id)
-          .map((l) => ({ value: l.id, label: l.nome }))}
+        liderMultiOptions={(() => {
+          const coordId = isCoordenador
+            ? (myCoordenadorId ?? auxForm.coordenador_id)
+            : auxForm.coordenador_id
+          const { takenIds, takenNames } = liderancasOcupadasPorOutros({
+            auxiliarLiderMap,
+            auxiliares,
+            lideres,
+            coordenadorId: coordId,
+            excludeAuxiliarId: editingAuxId,
+          })
+          const mine = new Set(auxForm.lider_ids ?? [])
+          return lideres
+            .filter((l) => !coordId || !l.coordenador_id || l.coordenador_id === coordId)
+            .filter((l) => {
+              if (mine.has(l.id)) return true
+              if (takenIds.has(l.id)) return false
+              if (takenNames.has(liderNameKey(l.nome))) return false
+              return true
+            })
+            .map((l) => ({ value: l.id, label: l.nome }))
+        })()}
         allowAdminRole={false}
         error={error}
         saving={saving}
