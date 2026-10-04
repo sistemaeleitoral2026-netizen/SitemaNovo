@@ -92,6 +92,8 @@ export function VotacaoProgressoPage() {
   const [fotoUrl, setFotoUrl] = useState<string | null>(null)
   const [fotoTitle, setFotoTitle] = useState('')
   const [fotoBusy, setFotoBusy] = useState(false)
+  /** Filtro dos KPIs: toque em Votaram / Não votaram. */
+  const [kpiFiltro, setKpiFiltro] = useState<'votou' | 'nao' | null>(null)
 
   const isStaff = hasRole(profile, ['admin', 'diretoria'])
   const isCoordenador = hasRole(profile, 'coordenador')
@@ -389,14 +391,28 @@ export function VotacaoProgressoPage() {
   }
 
   const lideresFiltrados = useMemo(() => {
-    const list = data?.porLider ?? []
+    let list = data?.porLider ?? []
     const q = liderFiltro.trim().toLowerCase()
-    if (!q) return list
-    return list.filter((l) =>
-      l.lider.toLowerCase().includes(q)
-      || (l.coordenador ?? '').toLowerCase().includes(q),
-    )
-  }, [data, liderFiltro])
+    if (q) {
+      list = list.filter((l) =>
+        l.lider.toLowerCase().includes(q)
+        || (l.coordenador ?? '').toLowerCase().includes(q),
+      )
+    }
+    if (kpiFiltro === 'votou') list = list.filter((l) => l.votou > 0)
+    else if (kpiFiltro === 'nao') list = list.filter((l) => l.naoVotou > 0)
+    return list
+  }, [data, liderFiltro, kpiFiltro])
+
+  const fichasVisiveis = useMemo(() => {
+    if (kpiFiltro === 'votou') return fichas.filter((h) => h.votou === true)
+    if (kpiFiltro === 'nao') return fichas.filter((h) => h.votou === false)
+    return fichas
+  }, [fichas, kpiFiltro])
+
+  function toggleKpi(key: 'votou' | 'nao') {
+    setKpiFiltro((cur) => (cur === key ? null : key))
+  }
 
   if (loading && !data) {
     return (
@@ -464,17 +480,33 @@ export function VotacaoProgressoPage() {
               <em>Pendentes</em>
               <strong>{tot.pendente}</strong>
             </div>
-            <div className="vot-kpi is-yes">
+            <button
+              type="button"
+              className={`vot-kpi is-yes vot-kpi-btn${kpiFiltro === 'votou' ? ' is-on' : ''}`}
+              onClick={() => toggleKpi('votou')}
+              aria-pressed={kpiFiltro === 'votou'}
+              title={kpiFiltro === 'votou' ? 'Limpar filtro' : 'Ver só quem votou'}
+            >
               <em>Votaram</em>
               <strong>{tot.votou}</strong>
-            </div>
-            <div className="vot-kpi is-no">
+            </button>
+            <button
+              type="button"
+              className={`vot-kpi is-no vot-kpi-btn${kpiFiltro === 'nao' ? ' is-on' : ''}`}
+              onClick={() => toggleKpi('nao')}
+              aria-pressed={kpiFiltro === 'nao'}
+              title={kpiFiltro === 'nao' ? 'Limpar filtro' : 'Ver só quem não votou'}
+            >
               <em>Não votaram</em>
               <strong>{tot.naoVotou}</strong>
-            </div>
+            </button>
           </div>
           <p className="vot-fields-hint">
-            Números de eleitores (fichas). Abaixo, cada card é uma liderança com a contagem dela.
+            {kpiFiltro === 'votou'
+              ? 'Filtro: só lideranças com quem votou. Toque de novo em Votaram para limpar.'
+              : kpiFiltro === 'nao'
+                ? 'Filtro: só lideranças com quem não votou. Toque de novo em Não votaram para limpar.'
+                : 'Toque em Votaram ou Não votaram para filtrar. Cada card é uma liderança.'}
           </p>
 
           <div className="vot-search vot-progresso-search">
@@ -568,11 +600,15 @@ export function VotacaoProgressoPage() {
                           <div className="vot-center vot-muted">
                             <Spinner size={22} /> Carregando fichas…
                           </div>
-                        ) : !fichas.length ? (
-                          <p className="vot-empty">Nenhuma ficha nesta liderança.</p>
+                        ) : !fichasVisiveis.length ? (
+                          <p className="vot-empty">
+                            {kpiFiltro
+                              ? 'Nenhuma ficha com esse filtro nesta liderança.'
+                              : 'Nenhuma ficha nesta liderança.'}
+                          </p>
                         ) : (
                           <ul className="vot-ficha-mini-list">
-                            {fichas.map((h) => (
+                            {fichasVisiveis.map((h) => (
                               <li key={h.id} className="vot-ficha-mini">
                                 <button
                                   type="button"
