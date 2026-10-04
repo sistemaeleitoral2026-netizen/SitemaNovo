@@ -1,7 +1,33 @@
--- Auxiliar pode lançar/editar qualquer ficha das lideranças liberadas
--- (mesmo se operator_id for de outra nerite ou null).
--- Coordenador idem na própria coordenação.
--- Corrige: "Sem permissão para alterar cadastro de outra nerite".
+-- Auxiliar/coordenador: trigger não bloqueia update de fichas de outras nerites.
+-- A RLS (auxiliar_pode_ficha / coord) continua limitando o escopo.
+
+create or replace function public.auxiliar_pode_ficha(p_cadastro_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.cadastros c
+    join public.auxiliar_lideres al on al.auxiliar_id = auth.uid()
+    join public.lideres l on l.id = al.lider_id
+    left join public.coordenadores co on co.id = public.my_coordenador_id()
+    where c.id = p_cadastro_id
+      and lower(btrim(c.lider)) = lower(btrim(l.nome))
+      and (
+        co.id is null
+        or lower(btrim(coalesce(c.coordenador, ''))) = lower(btrim(co.nome))
+      )
+      and (
+        c.diretoria_id is null
+        or c.diretoria_id = l.diretoria_id
+        or c.diretoria_id = public.my_diretoria_id()
+        or c.diretoria_id = co.diretoria_id
+      )
+  );
+$$;
 
 create or replace function public.enforce_cadastro_operator()
 returns trigger
@@ -9,39 +35,36 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_ok boolean := false;
 begin
   if auth.uid() is null then
     return new;
   end if;
 
-  -- Admin, diretoria, formiga, Título, coordenador (sua coord) e auxiliar (suas lideranças)
-  -- podem alterar fichas de terceiros, mas nunca trocam o operator_id (dono da ficha).
-  if public.is_admin()
-     or public.is_diretoria()
-     or public.is_mobilizador()
-     or public.titulo_pode_ferramentas()
-     or (
-       public.is_coordenador()
-       and (
-         tg_op = 'INSERT'
-         or exists (
-           select 1
-           from public.coordenadores co
-           where co.id = public.my_coordenador_id()
-             and lower(btrim(coalesce(old.coordenador, ''))) = lower(btrim(co.nome))
-         )
-       )
-     )
-     or (
-       public.is_auxiliar()
-       and (
-         tg_op = 'INSERT'
-         or public.auxiliar_pode_ficha(old.id)
-       )
-     )
-  then
+  if public.is_auxiliar() then
+    v_ok := true;
+  elsif public.is_coordenador() then
+    v_ok := true;
+  elsif public.is_admin() or public.is_diretoria() then
+    v_ok := true;
+  else
+    begin
+      v_ok := public.is_mobilizador();
+    exception when undefined_function then
+      v_ok := false;
+    end;
+    if not v_ok then
+      begin
+        v_ok := public.titulo_pode_ferramentas();
+      exception when undefined_function then
+        v_ok := false;
+      end;
+    end if;
+  end if;
+
+  if v_ok then
     if tg_op = 'INSERT' and new.operator_id is null then
-      -- Lançamento de votação pode vir com operator_id null de propósito.
       if coalesce(new.adicionado_por_auxiliar, false) = true or new.criado_por is not null then
         null;
       else
@@ -64,5 +87,11 @@ begin
   return new;
 end;
 $$;
+
+drop policy if exists cadastros_update_auxiliar on public.cadastros;
+create policy cadastros_update_auxiliar on public.cadastros
+  for update to authenticated
+  using (public.is_auxiliar() and public.auxiliar_pode_ficha(id))
+  with check (public.is_auxiliar() and public.auxiliar_pode_ficha(id));
 
 notify pgrst, 'reload schema';
