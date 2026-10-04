@@ -7,7 +7,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import { VotacaoBottomNav } from '../components/votacao/VotacaoBottomNav'
 import { hasRole } from '../lib/roles'
-import { buildWhatsAppUrl } from '../lib/whatsapp'
+import { buildWhatsAppUrl, WHATSAPP_VOTACAO_MESSAGE } from '../lib/whatsapp'
 import {
   fetchAuxiliarLiderNomes,
   fetchVotacaoFichasLider,
@@ -32,7 +32,7 @@ function normName(s: string) {
 
 /** Só renderiza ícone se o telefone abrir WhatsApp de verdade. */
 function WaIcon({ phone, label }: { phone?: string | null; label: string }) {
-  if (!buildWhatsAppUrl(phone)) return null
+  if (!buildWhatsAppUrl(phone, WHATSAPP_VOTACAO_MESSAGE)) return null
   return (
     <span
       className="vot-wa-wrap"
@@ -41,6 +41,7 @@ function WaIcon({ phone, label }: { phone?: string | null; label: string }) {
     >
       <WhatsAppLink
         phone={phone}
+        message={WHATSAPP_VOTACAO_MESSAGE}
         label={label}
         className="whatsapp-link-inline vot-wa"
       />
