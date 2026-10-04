@@ -10,8 +10,8 @@ import {
 import type { Session } from '@supabase/supabase-js'
 import {
   canLogin,
-  LOGIN_ADMIN_ONLY,
-  LOGIN_ADMIN_ONLY_MESSAGE,
+  LOGIN_ALLOWED_ROLES,
+  LOGIN_RESTRICTED_MESSAGE,
 } from '../lib/roles'
 import { supabase } from '../lib/supabase'
 import type { Profile, UserRole } from '../types'
@@ -51,9 +51,9 @@ async function fetchProfile(userId: string): Promise<Profile | null> {
   return data as Profile
 }
 
-/** Se não for admin (quando o bloqueio estiver ligado), encerra a sessão. */
+/** Se o cargo não estiver na lista liberada, encerra a sessão. */
 async function enforceLoginGate(profile: Profile | null): Promise<Profile | null> {
-  if (!LOGIN_ADMIN_ONLY) return profile
+  if (!LOGIN_ALLOWED_ROLES) return profile
   if (canLogin(profile)) return profile
   await supabase.auth.signOut()
   return null
@@ -143,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut()
       setSession(null)
       setProfile(null)
-      return { error: LOGIN_ADMIN_ONLY_MESSAGE }
+      return { error: LOGIN_RESTRICTED_MESSAGE }
     }
     return { error: null }
   }, [])
