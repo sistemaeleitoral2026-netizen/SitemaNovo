@@ -4,13 +4,14 @@ import { ChevronDown, ChevronUp, Eye, ImageIcon, RefreshCw, Search, X } from 'lu
 import { useAuth } from '../contexts/AuthContext'
 import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
+import { Pagination } from '../components/ui/Pagination'
 import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import { VotacaoBottomNav } from '../components/votacao/VotacaoBottomNav'
 import { hasRole } from '../lib/roles'
 import { buildWhatsAppUrl, WHATSAPP_VOTACAO_MESSAGE } from '../lib/whatsapp'
 import {
   fetchAuxiliarLiderNomes,
-  fetchVotacaoFichasLider,
+  fetchVotacaoFichasLiderPage,
   fetchVotacaoProgresso,
   fetchVotacaoProgressoVarios,
   fetchVotacaoStatsPorLideres,
@@ -87,13 +88,19 @@ export function VotacaoProgressoPage() {
   const [selectedCoord, setSelectedCoord] = useState('')
   const [liderFiltro, setLiderFiltro] = useState(() => searchParams.get('lider') ?? '')
   const [expandedLider, setExpandedLider] = useState<string | null>(null)
+  const [expandedLiderNome, setExpandedLiderNome] = useState<{ lider: string; coordenador?: string } | null>(null)
   const [fichas, setFichas] = useState<VotacaoHit[]>([])
+  const [fichasTotal, setFichasTotal] = useState(0)
+  const [fichasPage, setFichasPage] = useState(0)
+  const [fichasPageSize, setFichasPageSize] = useState(25)
   const [loadingFichas, setLoadingFichas] = useState(false)
   const [fotoUrl, setFotoUrl] = useState<string | null>(null)
   const [fotoTitle, setFotoTitle] = useState('')
   const [fotoBusy, setFotoBusy] = useState(false)
   /** Filtro dos KPIs: toque em Votaram / Não votaram. */
   const [kpiFiltro, setKpiFiltro] = useState<'votou' | 'nao' | null>(null)
+  const [liderPage, setLiderPage] = useState(0)
+  const [liderPageSize, setLiderPageSize] = useState(20)
 
   const isStaff = hasRole(profile, ['admin', 'diretoria'])
   const isCoordenador = hasRole(profile, 'coordenador')
@@ -246,7 +253,11 @@ export function VotacaoProgressoPage() {
     setLoading(true)
     setError(null)
     setExpandedLider(null)
+    setExpandedLiderNome(null)
     setFichas([])
+    setFichasTotal(0)
+    setFichasPage(0)
+    setLiderPage(0)
     try {
       if (isAuxiliar && profile?.id) {
         const target = (nome ?? coordNome).trim()
@@ -297,7 +308,12 @@ export function VotacaoProgressoPage() {
     setSelectedCoord(id)
     setLiderFiltro('')
     setExpandedLider(null)
+    setExpandedLiderNome(null)
     setFichas([])
+    setFichasTotal(0)
+    setFichasPage(0)
+    setLiderPage(0)
+    setKpiFiltro(null)
     if (id === STAFF_ALL_COORDS) {
       setCoordNome('Todas as coordenações')
       await loadLiderPhones({})
@@ -315,11 +331,49 @@ export function VotacaoProgressoPage() {
     return l.coordenador ? `${l.coordenador}\u001f${l.lider}` : l.lider
   }
 
-  async function toggleLider(lider: string, coordenadorDaLider?: string) {
+  async function loadFichasPage(
+    lider: string,
+    coordenadorDaLider: string | undefined,
+    page: number,
+    pageSize: number,
+    status: 'votou' | 'nao' | null,
+  ) {
+    const coordTarget = (coordenadorDaLider || coordNome).trim()
+    if (!coordTarget || coordTarget === 'Todas as coordenações') {
+      setFichas([])
+      setFichasTotal(0)
+      setError('Coordenação não vinculada — não é possível listar as fichas.')
+      return
+    }
+    setLoadingFichas(true)
+    setError(null)
+    try {
+      const { rows, total } = await fetchVotacaoFichasLiderPage({
+        coordenadorNome: coordTarget,
+        liderNome: lider,
+        page,
+        pageSize,
+        status,
+      })
+      setFichas(rows)
+      setFichasTotal(total)
+    } catch (e) {
+      setFichas([])
+      setFichasTotal(0)
+      setError(e instanceof Error ? e.message : 'Não foi possível carregar as fichas.')
+    } finally {
+      setLoadingFichas(false)
+    }
+  }
+
+  function toggleLider(lider: string, coordenadorDaLider?: string) {
     const key = coordenadorDaLider ? `${coordenadorDaLider}\u001f${lider}` : lider
     if (expandedLider === key) {
       setExpandedLider(null)
+      setExpandedLiderNome(null)
       setFichas([])
+      setFichasTotal(0)
+      setFichasPage(0)
       return
     }
     if (allowedLideres) {
@@ -329,26 +383,14 @@ export function VotacaoProgressoPage() {
         return
       }
     }
-    const coordTarget = (coordenadorDaLider || coordNome).trim()
     setExpandedLider(key)
-    setLoadingFichas(true)
-    setError(null)
-    try {
-      if (!coordTarget || coordTarget === 'Todas as coordenações') {
-        setFichas([])
-        setError('Coordenação não vinculada — não é possível listar as fichas.')
-        return
-      }
-      setFichas(await fetchVotacaoFichasLider(coordTarget, lider))
-      requestAnimationFrame(() => {
-        openCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      })
-    } catch (e) {
-      setFichas([])
-      setError(e instanceof Error ? e.message : 'Não foi possível carregar as fichas.')
-    } finally {
-      setLoadingFichas(false)
-    }
+    setExpandedLiderNome({ lider, coordenador: coordenadorDaLider })
+    setFichas([])
+    setFichasTotal(0)
+    setFichasPage(0)
+    requestAnimationFrame(() => {
+      openCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
   }
 
   function goLancar(hit: VotacaoHit) {
@@ -363,8 +405,8 @@ export function VotacaoProgressoPage() {
     )
     setLiderFiltro(deepLider)
     deepLinkDone.current = true
-    if (match) {
-      void toggleLider(match.lider, match.coordenador)
+                if (match) {
+      toggleLider(match.lider, match.coordenador)
     }
     // Limpa a URL sem perder o filtro na tela.
     const next = new URLSearchParams(searchParams)
@@ -404,15 +446,35 @@ export function VotacaoProgressoPage() {
     return list
   }, [data, liderFiltro, kpiFiltro])
 
-  const fichasVisiveis = useMemo(() => {
-    if (kpiFiltro === 'votou') return fichas.filter((h) => h.votou === true)
-    if (kpiFiltro === 'nao') return fichas.filter((h) => h.votou === false)
-    return fichas
-  }, [fichas, kpiFiltro])
+  const liderTotalPages = Math.max(1, Math.ceil(lideresFiltrados.length / liderPageSize))
+  const liderPageSafe = Math.min(liderPage, liderTotalPages - 1)
+  const lideresPagina = useMemo(
+    () => lideresFiltrados.slice(liderPageSafe * liderPageSize, liderPageSafe * liderPageSize + liderPageSize),
+    [lideresFiltrados, liderPageSafe, liderPageSize],
+  )
+
+  useEffect(() => {
+    setLiderPage(0)
+  }, [liderFiltro, kpiFiltro, selectedCoord, data?.coordenadorNome])
+
+  useEffect(() => {
+    if (!expandedLiderNome) return
+    void loadFichasPage(
+      expandedLiderNome.lider,
+      expandedLiderNome.coordenador,
+      fichasPage,
+      fichasPageSize,
+      kpiFiltro,
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedLiderNome, fichasPage, fichasPageSize, kpiFiltro, coordNome])
 
   function toggleKpi(key: 'votou' | 'nao') {
     setKpiFiltro((cur) => (cur === key ? null : key))
+    setFichasPage(0)
   }
+
+  const fichasTotalPages = Math.max(1, Math.ceil(fichasTotal / fichasPageSize))
 
   if (loading && !data) {
     return (
@@ -546,8 +608,9 @@ export function VotacaoProgressoPage() {
           ) : !lideresFiltrados.length ? (
             <p className="vot-empty">Nenhuma liderança com esse nome.</p>
           ) : (
+            <>
             <ul className="vot-lider-list">
-              {lideresFiltrados.map((l) => {
+              {lideresPagina.map((l) => {
                 const done = l.votou + l.naoVotou
                 const pct = l.total ? Math.round((done / l.total) * 100) : 0
                 const cardKey = liderCardKey(l)
@@ -600,15 +663,16 @@ export function VotacaoProgressoPage() {
                           <div className="vot-center vot-muted">
                             <Spinner size={22} /> Carregando fichas…
                           </div>
-                        ) : !fichasVisiveis.length ? (
+                        ) : !fichas.length ? (
                           <p className="vot-empty">
                             {kpiFiltro
                               ? 'Nenhuma ficha com esse filtro nesta liderança.'
                               : 'Nenhuma ficha nesta liderança.'}
                           </p>
                         ) : (
+                          <>
                           <ul className="vot-ficha-mini-list">
-                            {fichasVisiveis.map((h) => (
+                            {fichas.map((h) => (
                               <li key={h.id} className="vot-ficha-mini">
                                 <button
                                   type="button"
@@ -649,6 +713,22 @@ export function VotacaoProgressoPage() {
                               </li>
                             ))}
                           </ul>
+                          {fichasTotal > fichasPageSize && (
+                            <Pagination
+                              page={fichasPage}
+                              totalPages={fichasTotalPages}
+                              totalItems={fichasTotal}
+                              pageSize={fichasPageSize}
+                              onPageChange={setFichasPage}
+                              onPageSizeChange={(size) => {
+                                setFichasPageSize(size)
+                                setFichasPage(0)
+                              }}
+                              pageSizeOptions={[15, 25, 50]}
+                              label={`Fichas ${fichasPage * fichasPageSize + 1}–${Math.min(fichasTotal, (fichasPage + 1) * fichasPageSize)} de ${fichasTotal}`}
+                            />
+                          )}
+                          </>
                         )}
                       </div>
                     )}
@@ -656,6 +736,28 @@ export function VotacaoProgressoPage() {
                 )
               })}
             </ul>
+            {lideresFiltrados.length > liderPageSize && (
+              <Pagination
+                page={liderPageSafe}
+                totalPages={liderTotalPages}
+                totalItems={lideresFiltrados.length}
+                pageSize={liderPageSize}
+                onPageChange={(p) => {
+                  setLiderPage(p)
+                  setExpandedLider(null)
+                  setExpandedLiderNome(null)
+                  setFichas([])
+                  setFichasTotal(0)
+                }}
+                onPageSizeChange={(size) => {
+                  setLiderPageSize(size)
+                  setLiderPage(0)
+                }}
+                pageSizeOptions={[10, 20, 40]}
+                label={`Lideranças ${liderPageSafe * liderPageSize + 1}–${Math.min(lideresFiltrados.length, (liderPageSafe + 1) * liderPageSize)} de ${lideresFiltrados.length}`}
+              />
+            )}
+            </>
           )}
         </>
       )}

@@ -1,6 +1,7 @@
 import { LogOut, Menu } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { Button } from '../ui/Button'
+import { VotacaoNotifBell } from '../votacao/VotacaoNotifBell'
 import { OnlinePresence } from './OnlinePresence'
 import type { PresenceUser } from '../../hooks/usePresence'
 
@@ -55,6 +56,7 @@ export function Header({ onMenuClick, title, online = [] }: HeaderProps) {
       </div>
 
       <div className="app-header-user">
+        <VotacaoNotifBell />
         <OnlinePresence profile={profile} online={online} />
         <div className="header-user-copy">
           <div>{displayName}</div>

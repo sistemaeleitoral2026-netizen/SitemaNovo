@@ -6,6 +6,7 @@ import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
+import { Pagination } from '../components/ui/Pagination'
 import { VotacaoBottomNav } from '../components/votacao/VotacaoBottomNav'
 import { hasRole } from '../lib/roles'
 import { logAudit } from '../lib/audit'
@@ -47,6 +48,9 @@ export function VotacaoHistoricoPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<VotacaoHit[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(25)
   const [coordNome, setCoordNome] = useState('')
   const [liderNomes, setLiderNomes] = useState<string[]>([])
   const [query, setQuery] = useState('')
@@ -122,6 +126,7 @@ export function VotacaoHistoricoPage() {
     if (isCoordenador && !isStaff && !coordNome) return
     if (isAuxiliar && (!coordNome || !liderNomes.length)) {
       setRows([])
+      setTotal(0)
       setLoading(false)
       return
     }
@@ -134,13 +139,17 @@ export function VotacaoHistoricoPage() {
         setLoading(true)
         setError(null)
         try {
-          const list = await fetchVotacaoHistorico({
+          const { rows: list, total: count } = await fetchVotacaoHistorico({
             coordenadorNome: ((isCoordenador && !isStaff) || isAuxiliar) ? coordNome : null,
             liderNomes: isAuxiliar ? liderNomes : undefined,
             query: q,
-            limit: 80,
+            page,
+            pageSize,
           })
-          if (!cancelled) setRows(list)
+          if (!cancelled) {
+            setRows(list)
+            setTotal(count)
+          }
         } catch (e) {
           if (!cancelled) {
             const msg = e instanceof Error ? e.message : 'Falha ao carregar histórico.'
@@ -158,7 +167,11 @@ export function VotacaoHistoricoPage() {
       cancelled = true
       window.clearTimeout(t)
     }
-  }, [scopeReady, query, coordNome, liderNomes, isCoordenador, isStaff, isAuxiliar])
+  }, [scopeReady, query, page, pageSize, coordNome, liderNomes, isCoordenador, isStaff, isAuxiliar])
+
+  useEffect(() => {
+    setPage(0)
+  }, [query, coordNome, liderNomes])
 
   async function openFoto(hit: VotacaoHit) {
     if (!hit.voto_foto_path) return
@@ -189,7 +202,12 @@ export function VotacaoHistoricoPage() {
           adicionado_por_auxiliar: Boolean(deleteTarget.adicionado_por_auxiliar),
         },
       )
-      setRows((prev) => prev.filter((r) => r.id !== deleteTarget.id))
+      setRows((prev) => {
+        const next = prev.filter((r) => r.id !== deleteTarget.id)
+        if (!next.length && page > 0) setPage((p) => Math.max(0, p - 1))
+        return next
+      })
+      setTotal((t) => Math.max(0, t - 1))
       setOkMsg(
         result.mode === 'deleted'
           ? 'Ficha adicionada pelo auxiliar excluída do sistema.'
@@ -247,6 +265,9 @@ export function VotacaoHistoricoPage() {
     return 'Registros recentes salvos no sistema'
   }, [coordNome, isAuxiliar, liderNomes])
 
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const pageSafe = Math.min(page, totalPages - 1)
+
   if (!scopeReady || (loading && !rows.length && !error)) {
     return (
       <div className="vot-page vot-historico vot-center">
@@ -285,8 +306,8 @@ export function VotacaoHistoricoPage() {
           ) : null}
         </div>
         <div className="vot-hist-count">
-          <strong>{rows.length}</strong>
-          <span> lançamento{rows.length === 1 ? '' : 's'}</span>
+          <strong>{total}</strong>
+          <span> lançamento{total === 1 ? '' : 's'}</span>
         </div>
       </div>
 
@@ -424,6 +445,22 @@ export function VotacaoHistoricoPage() {
                 )
               })}
             </div>
+
+            {total > pageSize && (
+              <Pagination
+                page={pageSafe}
+                totalPages={totalPages}
+                totalItems={total}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={(size) => {
+                  setPageSize(size)
+                  setPage(0)
+                }}
+                pageSizeOptions={[15, 25, 50, 100]}
+                label={`${pageSafe * pageSize + 1}–${Math.min(total, (pageSafe + 1) * pageSize)} de ${total}`}
+              />
+            )}
           </>
         )}
       </div>
