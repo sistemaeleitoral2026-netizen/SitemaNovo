@@ -16407,6 +16407,229 @@ button.vot-kpi-btn.is-no.is-on {
 .vot-hint-desktop { display: none; }
 .vot-hint-mobile { display: block; }
 
+/* —— Relatório A4 institucional (Progresso) —— */
+/* Só aparece na impressão — Progresso fica limpo até clicar em Gerar. */
+.vot-rel-print-only {
+  display: none;
+}
+.vot-rel-a4 {
+  width: min(210mm, 100%);
+  margin: 1.25rem auto 2rem;
+}
+.vot-rel-sheet {
+  width: 100%;
+  min-height: 0;
+  padding: 10mm 11mm;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #111827;
+}
+.vot-rel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: .75rem 1.25rem;
+  padding-bottom: .65rem;
+  margin-bottom: .85rem;
+  border-bottom: 2px solid #111827;
+}
+.vot-rel-kicker {
+  margin: 0 0 .15rem;
+  color: #6b7280;
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.vot-rel-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 750;
+  line-height: 1.25;
+  color: #111827;
+}
+.vot-rel-sub {
+  margin: .28rem 0 0;
+  color: #374151;
+  font-size: .86rem;
+}
+.vot-rel-meta {
+  flex: 0 0 auto;
+  text-align: right;
+  color: #374151;
+  font-size: .78rem;
+  line-height: 1.35;
+}
+.vot-rel-meta span {
+  display: block;
+  color: #6b7280;
+  font-size: .68rem;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+.vot-rel-meta strong {
+  display: block;
+  margin-top: .15rem;
+  font-size: .86rem;
+  font-weight: 700;
+  color: #111827;
+}
+.vot-rel-resumo {
+  margin: 0 0 1rem;
+  padding: .55rem .65rem;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #111827;
+  font-size: .88rem;
+}
+.vot-rel-section-title {
+  margin: 1.15rem 0 .45rem;
+  padding-bottom: .25rem;
+  border-bottom: 1px solid #d1d5db;
+  color: #111827;
+  font-size: .92rem;
+  font-weight: 750;
+}
+.vot-rel-note {
+  margin: 0 0 .75rem;
+  color: #6b7280;
+  font-size: .84rem;
+}
+.vot-rel-note.is-error { color: #b91c1c; }
+.vot-rel-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .9rem;
+  margin-bottom: .35rem;
+}
+.vot-rel-table th,
+.vot-rel-table td {
+  padding: .55rem .6rem;
+  border: 1px solid #d1d5db;
+  text-align: left;
+  vertical-align: top;
+}
+.vot-rel-table th {
+  background: #f3f4f6;
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  color: #374151;
+}
+.vot-rel-table td:nth-child(n+2),
+.vot-rel-table th:nth-child(n+2) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.vot-rel-table-dense td:nth-child(-n+4),
+.vot-rel-table-dense th:nth-child(-n+4) {
+  text-align: left;
+  white-space: normal;
+}
+.vot-rel-table-compact td:first-child,
+.vot-rel-table-compact th:first-child {
+  text-align: left;
+}
+.vot-rel-table-local td:nth-child(1),
+.vot-rel-table-local th:nth-child(1),
+.vot-rel-table-local td:nth-child(2),
+.vot-rel-table-local th:nth-child(2) {
+  text-align: left;
+  white-space: normal;
+}
+.vot-rel-table-local tr.is-missing-local .vot-rel-local {
+  color: #9a3412;
+  font-style: italic;
+}
+.vot-rel-table tfoot td {
+  background: #f9fafb;
+  font-weight: 700;
+}
+.vot-rel-table-compact {
+  font-size: .84rem;
+}
+.vot-rel-table-dense {
+  font-size: .72rem;
+}
+.vot-rel-table-dense th,
+.vot-rel-table-dense td {
+  padding: .32rem .35rem;
+}
+.vot-rel-local {
+  max-width: 14rem;
+  line-height: 1.25;
+}
+.vot-rel-foot {
+  margin-top: 1.5rem;
+  padding-top: .55rem;
+  border-top: 1px solid #d1d5db;
+  color: #6b7280;
+  font-size: .72rem;
+}
+
+@media print {
+  .vot-rel-no-print,
+  .vot-bottom-nav,
+  .vot-foto-modal {
+    display: none !important;
+  }
+  .vot-rel-print-only {
+    display: block !important;
+  }
+  .vot-page.vot-progresso {
+    max-width: none !important;
+    width: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #fff !important;
+  }
+  .vot-rel-a4,
+  .vot-rel-sheet {
+    width: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .vot-rel-head {
+    margin-bottom: 4mm;
+    padding-bottom: 2.5mm;
+  }
+  .vot-rel-head h2 { font-size: 13pt; }
+  .vot-rel-sub,
+  .vot-rel-meta strong { font-size: 9.5pt; }
+  .vot-rel-kicker,
+  .vot-rel-meta span { font-size: 7.5pt; }
+  .vot-rel-resumo {
+    margin-bottom: 3.5mm;
+    font-size: 9.5pt;
+  }
+  .vot-rel-section-title {
+    margin-top: 4mm;
+    font-size: 10.5pt;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  .vot-rel-break {
+    break-before: page;
+    page-break-before: always;
+  }
+  .vot-rel-table { font-size: 9.5pt; }
+  .vot-rel-table th { font-size: 7.5pt; }
+  .vot-rel-table-compact { font-size: 8.5pt; }
+  .vot-rel-table-dense { font-size: 7pt; }
+  .vot-rel-table-dense th,
+  .vot-rel-table-dense td { padding: 1.1mm 1.2mm; }
+  .vot-rel-table thead { display: table-header-group; }
+  .vot-rel-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .vot-rel-foot { font-size: 7.5pt; margin-top: 5mm; }
+}
+
 @media (min-width: 768px) {
   .vot-page { padding-top: 1.25rem; padding-bottom: 2.5rem; }
   .vot-title { font-size: 1.55rem; }
