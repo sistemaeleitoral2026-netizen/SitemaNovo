@@ -11,7 +11,9 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Spinner } from '../components/ui/Spinner'
+import { WhatsAppLink } from '../components/ui/WhatsAppLink'
 import { VotacaoBottomNav } from '../components/votacao/VotacaoBottomNav'
+import { buildWhatsAppUrl, WHATSAPP_VOTACAO_MESSAGE } from '../lib/whatsapp'
 import {
   criarCadastroLancamentoVotacao,
   fetchAuxiliarLiderNomes,
@@ -817,28 +819,41 @@ export function VotacaoLancarPage() {
           )}
 
           <ul className="vot-list">
-            {displayedHits.map((h) => (
-              <li key={h.id}>
-                <button type="button" className="vot-hit" onClick={() => void openFicha(h, false)}>
-                  <div className="vot-hit-main">
-                    <strong>{h.nome_completo}</strong>
-                    <span>
-                      Título {h.titulo || '—'} · Zona {h.zona || '—'} · Seção {h.secao || '—'}
+            {displayedHits.map((h) => {
+              const temWa = Boolean(buildWhatsAppUrl(h.telefone, WHATSAPP_VOTACAO_MESSAGE))
+              return (
+                <li key={h.id} className="vot-hit-row">
+                  <button type="button" className="vot-hit" onClick={() => void openFicha(h, false)}>
+                    <div className="vot-hit-main">
+                      <strong>{h.nome_completo}</strong>
+                      <span>
+                        Título {h.titulo || '—'} · Zona {h.zona || '—'} · Seção {h.secao || '—'}
+                      </span>
+                      <em>
+                        {h.lider || 'Sem liderança'}
+                        {h.nome_mae ? ` · Mãe: ${h.nome_mae}` : ''}
+                      </em>
+                      {labelAdicionadoNoLancamento(h) ? (
+                        <em className="vot-tag-aux">{labelAdicionadoNoLancamento(h)}</em>
+                      ) : null}
+                    </div>
+                    <span className={`vot-badge${h.votou === true ? ' is-yes' : h.votou === false ? ' is-no' : ' is-pend'}`}>
+                      {statusLabel(h.votou)}
                     </span>
-                    <em>
-                      {h.lider || 'Sem liderança'}
-                      {h.nome_mae ? ` · Mãe: ${h.nome_mae}` : ''}
-                    </em>
-                    {labelAdicionadoNoLancamento(h) ? (
-                      <em className="vot-tag-aux">{labelAdicionadoNoLancamento(h)}</em>
-                    ) : null}
-                  </div>
-                  <span className={`vot-badge${h.votou === true ? ' is-yes' : h.votou === false ? ' is-no' : ' is-pend'}`}>
-                    {statusLabel(h.votou)}
-                  </span>
-                </button>
-              </li>
-            ))}
+                  </button>
+                  {temWa ? (
+                    <span className="vot-wa-wrap">
+                      <WhatsAppLink
+                        phone={h.telefone}
+                        message={WHATSAPP_VOTACAO_MESSAGE}
+                        label={`WhatsApp ${h.nome_completo}`}
+                        className="whatsapp-link-inline vot-wa"
+                      />
+                    </span>
+                  ) : null}
+                </li>
+              )
+            })}
           </ul>
         </>
       )}

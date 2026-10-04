@@ -15204,6 +15204,22 @@ button.fichas-count.equipe-drill-count.zero:hover {
   display: grid;
   gap: .55rem;
 }
+.vot-hit-row {
+  display: flex;
+  align-items: stretch;
+  gap: .4rem;
+}
+.vot-hit-row .vot-hit {
+  flex: 1;
+  min-width: 0;
+}
+.vot-hit-row .vot-wa-wrap {
+  align-self: center;
+}
+.vot-lancar .vot-wa.whatsapp-link-inline {
+  width: 40px;
+  min-height: 40px;
+}
 .vot-hit {
   width: 100%;
   text-align: left;
