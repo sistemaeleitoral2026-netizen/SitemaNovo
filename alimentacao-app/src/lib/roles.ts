@@ -5,15 +5,10 @@ import type { Profile, UserRole } from '../types'
  * `null` = todos podem entrar.
  * Lista = só esses cargos.
  */
-export const LOGIN_ALLOWED_ROLES: UserRole[] | null = [
-  'admin',
-  'diretoria',
-  'auxiliar',
-  'coordenador',
-]
+export const LOGIN_ALLOWED_ROLES: UserRole[] | null = ['admin']
 
 export const LOGIN_RESTRICTED_MESSAGE =
-  'Acesso temporariamente restrito para o seu cargo.'
+  'Acesso temporariamente restrito. Somente administrador pode entrar.'
 
 /** @deprecated use LOGIN_ALLOWED_ROLES */
 export const LOGIN_ADMIN_ONLY = false
