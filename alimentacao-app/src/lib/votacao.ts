@@ -1230,9 +1230,29 @@ export type VotacaoRelatorioSecao = {
   pctLancado: number
 }
 
+/** Linha por coordenador + liderança. */
+export type VotacaoRelatorioEquipe = {
+  coordenador: string
+  lider: string
+  total: number
+  votou: number
+  naoVotou: number
+  pendente: number
+}
+
+/** Totais de fichas com zona/seção vazia ou fora da base TSE. */
+export type VotacaoRelatorioZonaSecaoInvalida = {
+  total: number
+  votou: number
+  naoVotou: number
+  pendente: number
+}
+
 export type VotacaoRelatorioDetalhe = {
   porZona: VotacaoRelatorioZona[]
   porSecao: VotacaoRelatorioSecao[]
+  porEquipe: VotacaoRelatorioEquipe[]
+  zonaSecaoInvalida: VotacaoRelatorioZonaSecaoInvalida
   secoesSemLocal: number
 }
 
@@ -1286,7 +1306,13 @@ export async function fetchVotacaoRelatorioDetalhe(opts: {
   const todas = Boolean(opts.todasCoordenacoes)
 
   if (!todas && !coords.length) {
-    return { porZona: [], porSecao: [], secoesSemLocal: 0 }
+    return {
+      porZona: [],
+      porSecao: [],
+      porEquipe: [],
+      zonaSecaoInvalida: { total: 0, votou: 0, naoVotou: 0, pendente: 0 },
+      secoesSemLocal: 0,
+    }
   }
 
   // 1 coord → filtra no banco. "Todas" → uma varredura (RLS limita) sem filtro de nome.
@@ -1307,10 +1333,14 @@ export async function fetchVotacaoRelatorioDetalhe(opts: {
 
   const byZona = new Map<string, { total: number; votou: number; naoVotou: number; pendente: number }>()
   const bySecao = new Map<string, { zona: string; secao: string; total: number; votou: number; naoVotou: number; pendente: number }>()
+  const byEquipe = new Map<string, { coordenador: string; lider: string; total: number; votou: number; naoVotou: number; pendente: number }>()
 
   for (const r of rows) {
     const zona = normalizeZona(r.zona) || '—'
     const secao = normalizeSecao(r.secao) || '—'
+    const coordenador = (r.coordenador ?? '').trim() || 'Sem coordenação'
+    const lider = (r.lider ?? '').trim() || 'Sem liderança'
+
     const z = byZona.get(zona) ?? { total: 0, votou: 0, naoVotou: 0, pendente: 0 }
     z.total += 1
     if (r.votou === true) z.votou += 1
@@ -1325,6 +1355,14 @@ export async function fetchVotacaoRelatorioDetalhe(opts: {
     else if (r.votou === false) s.naoVotou += 1
     else s.pendente += 1
     bySecao.set(key, s)
+
+    const eKey = `${norm(coordenador)}|${norm(lider)}`
+    const e = byEquipe.get(eKey) ?? { coordenador, lider, total: 0, votou: 0, naoVotou: 0, pendente: 0 }
+    e.total += 1
+    if (r.votou === true) e.votou += 1
+    else if (r.votou === false) e.naoVotou += 1
+    else e.pendente += 1
+    byEquipe.set(eKey, e)
   }
 
   const porZona: VotacaoRelatorioZona[] = [...byZona.entries()]
@@ -1339,7 +1377,7 @@ export async function fetchVotacaoRelatorioDetalhe(opts: {
     }))
     .sort((a, b) => b.votou - a.votou || b.total - a.total || a.zona.localeCompare(b.zona, 'pt-BR'))
 
-  const porSecao: VotacaoRelatorioSecao[] = [...bySecao.values()]
+  const todasSecoes: VotacaoRelatorioSecao[] = [...bySecao.values()]
     .map((v) => {
       const semZs = v.zona === '—' || v.secao === '—'
       const ref = semZs ? null : lookupLocalVotacao(locais, v.zona, v.secao)
@@ -1370,12 +1408,36 @@ export async function fetchVotacaoRelatorioDetalhe(opts: {
         pctLancado: pct(v.votou + v.naoVotou, v.total),
       }
     })
+
+  // Tabela principal: só quem tem local TSE ok. Sem "--" vazio.
+  const porSecao = todasSecoes
+    .filter((s) => !s.localMotivo)
     .sort((a, b) =>
       b.votou - a.votou
       || a.local.localeCompare(b.local, 'pt-BR')
       || a.secao.localeCompare(b.secao, 'pt-BR', { numeric: true }),
     )
 
-  const secoesSemLocal = porSecao.filter((s) => s.localMotivo).length
-  return { porZona, porSecao, secoesSemLocal }
+  const invalida = todasSecoes.filter((s) => Boolean(s.localMotivo))
+  const zonaSecaoInvalida: VotacaoRelatorioZonaSecaoInvalida = {
+    total: invalida.reduce((n, s) => n + s.total, 0),
+    votou: invalida.reduce((n, s) => n + s.votou, 0),
+    naoVotou: invalida.reduce((n, s) => n + s.naoVotou, 0),
+    pendente: invalida.reduce((n, s) => n + s.pendente, 0),
+  }
+
+  const porEquipe: VotacaoRelatorioEquipe[] = [...byEquipe.values()]
+    .sort((a, b) =>
+      a.coordenador.localeCompare(b.coordenador, 'pt-BR')
+      || b.votou - a.votou
+      || a.lider.localeCompare(b.lider, 'pt-BR'),
+    )
+
+  return {
+    porZona,
+    porSecao,
+    porEquipe,
+    zonaSecaoInvalida,
+    secoesSemLocal: invalida.length,
+  }
 }
