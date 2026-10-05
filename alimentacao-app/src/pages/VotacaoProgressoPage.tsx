@@ -171,8 +171,8 @@ export function VotacaoProgressoPage() {
         lideres,
         todasCoordenacoes,
       })
-      if (!det.porSecao.length) {
-        throw new Error('Nenhum dado de seção neste recorte para imprimir.')
+      if (!det.porEquipe.length && !det.porSecao.length && !det.zonaSecaoInvalida.total) {
+        throw new Error('Nenhum dado neste recorte para imprimir.')
       }
       flushSync(() => {
         setRelDetalhe(det)
@@ -857,7 +857,7 @@ export function VotacaoProgressoPage() {
       <VotacaoBottomNav />
       </div>
 
-      {tot && relDetalhe && relDetalhe.porSecao.length > 0 ? (
+      {tot && relDetalhe && (relDetalhe.porEquipe.length > 0 || relDetalhe.porSecao.length > 0 || relDetalhe.zonaSecaoInvalida.total > 0) ? (
         <div className="vot-rel-a4 vot-rel-print-only" aria-hidden>
           <section className="vot-rel-sheet">
             <header className="vot-rel-head">
@@ -884,41 +884,80 @@ export function VotacaoProgressoPage() {
               Lançados: <strong>{pctGeral}%</strong>
             </p>
 
-            <h3 className="vot-rel-section-title">Local de votação e zona/seção (mais votos SIM → menos)</h3>
-            {relDetalhe.secoesSemLocal > 0 ? (
-              <p className="vot-rel-note">
-                {relDetalhe.secoesSemLocal} linha(s) sem local TSE (ficha sem zona/seção ou par fora da base).
-              </p>
-            ) : null}
-            <table className="vot-rel-table vot-rel-table-local">
-              <thead>
-                <tr>
-                  <th>Local de votação</th>
-                  <th>Zona/Seção</th>
-                  <th>Votos SIM</th>
-                </tr>
-              </thead>
-              <tbody>
-                {relDetalhe.porSecao.map((s) => (
-                  <tr key={`${s.zona}-${s.secao}`} className={s.localMotivo ? 'is-missing-local' : undefined}>
-                    <td className="vot-rel-local">{s.local}</td>
-                    <td>
-                      {s.zona === '—' && s.secao === '—'
-                        ? '—'
-                        : `${s.zona === '—' ? '—' : s.zona}/${s.secao === '—' ? '—' : s.secao}`}
-                    </td>
-                    <td>{s.votou}</td>
+            <h3 className="vot-rel-section-title">Por coordenação e liderança</h3>
+            {relDetalhe.porEquipe.length ? (
+              <table className="vot-rel-table vot-rel-table-equipe">
+                <thead>
+                  <tr>
+                    <th>Coordenador</th>
+                    <th>Liderança</th>
+                    <th>Votaram</th>
+                    <th>Não votaram</th>
+                    <th>Pendentes</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {relDetalhe.porEquipe.map((e) => (
+                    <tr key={`${e.coordenador}|${e.lider}`}>
+                      <td>{e.coordenador}</td>
+                      <td>{e.lider}</td>
+                      <td>{e.votou}</td>
+                      <td>{e.naoVotou}</td>
+                      <td>{e.pendente}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="vot-rel-note">Nenhuma equipe neste recorte.</p>
+            )}
+
+            {relDetalhe.zonaSecaoInvalida.total > 0 ? (
+              <>
+                <h3 className="vot-rel-section-title">Zona/seção vazia ou errada</h3>
+                <p className="vot-rel-alerta">
+                  <strong>{relDetalhe.zonaSecaoInvalida.total}</strong> pessoa(s) com zona/seção
+                  vazia ou fora da base TSE:
+                  {' '}
+                  <strong>{relDetalhe.zonaSecaoInvalida.votou}</strong> votaram,
+                  {' '}
+                  <strong>{relDetalhe.zonaSecaoInvalida.naoVotou}</strong> não votaram,
+                  {' '}
+                  <strong>{relDetalhe.zonaSecaoInvalida.pendente}</strong> pendentes.
+                </p>
+              </>
+            ) : null}
+
+            <h3 className="vot-rel-section-title">Local de votação e zona/seção (mais votos SIM → menos)</h3>
+            {relDetalhe.porSecao.length ? (
+              <table className="vot-rel-table vot-rel-table-local">
+                <thead>
+                  <tr>
+                    <th>Local de votação</th>
+                    <th>Zona/Seção</th>
+                    <th>Votos SIM</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {relDetalhe.porSecao.map((s) => (
+                    <tr key={`${s.zona}-${s.secao}`}>
+                      <td className="vot-rel-local">{s.local}</td>
+                      <td>{s.zona}/{s.secao}</td>
+                      <td>{s.votou}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="vot-rel-note">Nenhum local TSE válido neste recorte.</p>
+            )}
 
             <footer className="vot-rel-foot">
               Documento gerado pelo sistema · uso interno
               {' · '}
-              {relDetalhe.porSecao.length} zona/seção(ões)
+              {relDetalhe.porEquipe.length} equipe(s)
               {' · '}
-              Local pela base TSE
+              {relDetalhe.porSecao.length} local(is)
             </footer>
           </section>
         </div>
