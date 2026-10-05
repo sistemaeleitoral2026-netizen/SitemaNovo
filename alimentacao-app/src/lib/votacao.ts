@@ -339,13 +339,132 @@ async function uploadVotoFoto(userId: string, file: File): Promise<string> {
   return path
 }
 
-export async function signVotoFoto(path: string | null | undefined): Promise<string | null> {
+export async function signVotoFoto(path: string | null | undefined, expiresSec = 60 * 60): Promise<string | null> {
   if (!path) return null
   const { data, error } = await supabase.storage
     .from(VOTACAO_FOTOS_BUCKET)
-    .createSignedUrl(path, 60 * 60)
+    .createSignedUrl(path, expiresSec)
   if (error) throw new Error(error.message || 'Não foi possível abrir o anexo.')
   return data?.signedUrl ?? null
+}
+
+/** Anexo para auditoria no relatório A4. */
+export type VotacaoRelatorioAnexo = {
+  id: string
+  nome_completo: string
+  titulo: string
+  coordenador: string
+  lider: string
+  zona: string
+  secao: string
+  votou: boolean | null
+  voto_foto_path: string
+  fotoUrl: string
+}
+
+/**
+ * Lista fichas com foto anexada no recorte (para auditoria impressa).
+ * URLs assinadas com validade longa o bastante para montar o PDF.
+ */
+export async function fetchVotacaoRelatorioAnexos(opts: {
+  coordenadores?: string[] | null
+  lideres?: string[] | null
+  todasCoordenacoes?: boolean
+}): Promise<VotacaoRelatorioAnexo[]> {
+  const coords = [...new Set((opts.coordenadores ?? []).map((n) => n.trim()).filter(Boolean))]
+  const wantLiders = (opts.lideres ?? []).map((n) => n.trim()).filter(Boolean)
+  const liderSet = wantLiders.length ? new Set(wantLiders.map(norm)) : null
+  const todas = Boolean(opts.todasCoordenacoes)
+
+  if (!todas && !coords.length) return []
+
+  const all: Array<{
+    id: string
+    nome_completo: string | null
+    titulo: string | null
+    coordenador: string | null
+    lider: string | null
+    zona: string | null
+    secao: string | null
+    votou: boolean | null
+    voto_foto_path: string | null
+  }> = []
+
+  async function pageCoord(coordenadorNome: string | null) {
+    let from = 0
+    for (;;) {
+      let q = supabase
+        .from('cadastros')
+        .select('id,nome_completo,titulo,coordenador,lider,zona,secao,votou,voto_foto_path')
+        .not('voto_foto_path', 'is', null)
+        .neq('voto_foto_path', '')
+        .range(from, from + PAGE - 1)
+      if (coordenadorNome) q = q.ilike('coordenador', coordenadorNome)
+      const { data, error } = await q
+      if (error) throw new Error(error.message)
+      const chunk = data ?? []
+      all.push(...chunk)
+      if (chunk.length < PAGE) break
+      from += PAGE
+    }
+  }
+
+  if (!todas && coords.length === 1) {
+    await pageCoord(coords[0])
+  } else {
+    await pageCoord(null)
+  }
+
+  const filtered = all.filter((r) => {
+    const path = (r.voto_foto_path ?? '').trim()
+    if (!path) return false
+    if (liderSet && !liderSet.has(norm(r.lider))) return false
+    if (!todas && coords.length > 1) {
+      const want = new Set(coords.map(norm))
+      if (!want.has(norm(r.coordenador))) return false
+    }
+    return true
+  })
+
+  // Assina em lotes para não estourar o browser.
+  const out: VotacaoRelatorioAnexo[] = []
+  const BATCH = 8
+  for (let i = 0; i < filtered.length; i += BATCH) {
+    const slice = filtered.slice(i, i + BATCH)
+    const signed = await Promise.all(
+      slice.map(async (r) => {
+        const path = (r.voto_foto_path ?? '').trim()
+        try {
+          const fotoUrl = await signVotoFoto(path, 60 * 60 * 3)
+          if (!fotoUrl) return null
+          return {
+            id: r.id,
+            nome_completo: (r.nome_completo ?? '').trim() || '—',
+            titulo: (r.titulo ?? '').trim() || '—',
+            coordenador: (r.coordenador ?? '').trim() || 'Sem coordenação',
+            lider: (r.lider ?? '').trim() || 'Sem liderança',
+            zona: normalizeZona(r.zona) || '—',
+            secao: normalizeSecao(r.secao) || '—',
+            votou: r.votou,
+            voto_foto_path: path,
+            fotoUrl,
+          } satisfies VotacaoRelatorioAnexo
+        } catch {
+          return null
+        }
+      }),
+    )
+    for (const row of signed) {
+      if (row) out.push(row)
+    }
+  }
+
+  out.sort((a, b) =>
+    a.coordenador.localeCompare(b.coordenador, 'pt-BR')
+    || a.lider.localeCompare(b.lider, 'pt-BR')
+    || a.nome_completo.localeCompare(b.nome_completo, 'pt-BR'),
+  )
+  return out
 }
 
 export type VotacaoSaveInput = {

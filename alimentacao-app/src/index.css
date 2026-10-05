@@ -16585,6 +16585,86 @@ button.vot-kpi-btn.is-no.is-on {
   font-size: .72rem;
 }
 
+.vot-rel-opt {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  margin: .35rem 0 .75rem;
+  color: #374151;
+  font-size: .86rem;
+  font-weight: 550;
+  cursor: pointer;
+  user-select: none;
+}
+.vot-rel-opt input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #111827;
+}
+
+/* Fotos anexadas — auditoria A4 (1 foto por página, alta qualidade) */
+.vot-rel-anexos {
+  margin: 0;
+  padding: 0;
+}
+.vot-rel-anexos-cover {
+  margin-top: 0;
+}
+.vot-rel-anexo {
+  margin: 0;
+  padding: 8mm 10mm;
+  background: #fff;
+  color: #111827;
+  box-sizing: border-box;
+}
+.vot-rel-anexo-meta {
+  margin-bottom: 4mm;
+  padding-bottom: 2.5mm;
+  border-bottom: 1.5px solid #111827;
+}
+.vot-rel-anexo-idx {
+  margin: 0 0 .2rem;
+  color: #6b7280;
+  font-size: .68rem;
+  font-weight: 650;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.vot-rel-anexo-nome {
+  margin: 0 0 .25rem;
+  font-size: 1.05rem;
+  font-weight: 750;
+  line-height: 1.25;
+  color: #111827;
+}
+.vot-rel-anexo-line {
+  margin: .15rem 0 0;
+  color: #374151;
+  font-size: .82rem;
+  line-height: 1.35;
+}
+.vot-rel-anexo-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 140mm;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+.vot-rel-anexo-img {
+  display: block;
+  max-width: 100%;
+  max-height: 220mm;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  image-rendering: auto;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
 @media print {
   .vot-rel-no-print,
   .vot-bottom-nav,
@@ -16644,6 +16724,31 @@ button.vot-kpi-btn.is-no.is-on {
     page-break-inside: avoid;
   }
   .vot-rel-foot { font-size: 7.5pt; margin-top: 5mm; }
+
+  .vot-rel-anexos-cover {
+    break-before: page;
+    page-break-before: always;
+    padding: 12mm 10mm 8mm;
+  }
+  .vot-rel-anexo {
+    break-before: page;
+    page-break-before: always;
+    min-height: 277mm;
+    padding: 8mm 10mm;
+    box-sizing: border-box;
+  }
+  .vot-rel-anexo-frame {
+    min-height: 210mm;
+    border: 0;
+    background: #fff;
+  }
+  .vot-rel-anexo-img {
+    max-width: 190mm;
+    max-height: 210mm;
+  }
+  .vot-rel-anexo-nome { font-size: 12pt; }
+  .vot-rel-anexo-line { font-size: 9pt; }
+  .vot-rel-anexo-idx { font-size: 7.5pt; }
 }
 
 @media (min-width: 768px) {
