@@ -52,16 +52,16 @@ async function canvasToJpeg(file: File, maxSide: number, quality: number): Promi
 }
 
 /**
- * Compressão leve para uploads grandes — preserva qualidade visual na galeria.
- * Padrão: só acima de ~2 MB, max ~2400px, JPEG ~0.88.
+ * Compressão leve para uploads grandes — preserva qualidade visual na galeria / PDF A4.
+ * Padrão: só acima de ~800 KB, max ~3200px, JPEG ~0.92.
  */
 export async function compressImageForUpload(
   file: File,
   opts: ImageCompressOptions = {},
 ): Promise<File> {
-  const minBytes = opts.minBytes ?? 2_000_000
-  const maxSide = opts.maxSide ?? 2400
-  const quality = opts.quality ?? 0.88
+  const minBytes = opts.minBytes ?? 800_000
+  const maxSide = opts.maxSide ?? 3200
+  const quality = opts.quality ?? 0.92
 
   if (!file.type.startsWith('image/') || file.type === 'image/gif') return file
   if (file.size <= minBytes && !isHeicLike(file)) return file
@@ -81,7 +81,7 @@ export async function prepareImageForUpload(file: File): Promise<File> {
     return compressImageForUpload(file)
   }
 
-  const converted = await canvasToJpeg(file, 2400, 0.88)
+  const converted = await canvasToJpeg(file, 3200, 0.92)
   if (converted) return converted
 
   if (isHeicLike(file)) {
