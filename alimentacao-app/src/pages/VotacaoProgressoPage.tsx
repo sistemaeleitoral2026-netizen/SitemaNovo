@@ -15,6 +15,7 @@ import {
   fetchVotacaoFichasLiderPage,
   fetchVotacaoProgresso,
   fetchVotacaoProgressoVarios,
+  fetchVotacaoRelatorioAnexos,
   fetchVotacaoRelatorioDetalhe,
   fetchVotacaoStatsPorLideres,
   labelAdicionadoNoLancamento,
@@ -22,6 +23,7 @@ import {
   type VotacaoHit,
   type VotacaoProgresso,
   type VotacaoProgressoLider,
+  type VotacaoRelatorioAnexo,
   type VotacaoRelatorioDetalhe,
 } from '../lib/votacao'
 
@@ -36,6 +38,30 @@ function statusLabel(votou: boolean | null | undefined) {
 
 function normName(s: string) {
   return s.trim().toLowerCase()
+}
+
+/** Espera as fotos do relatório carregarem antes do print (qualidade no PDF). */
+function waitForRelatorioImages(root: ParentNode, timeoutMs = 45000): Promise<void> {
+  const imgs = Array.from(root.querySelectorAll<HTMLImageElement>('img.vot-rel-anexo-img'))
+  if (!imgs.length) return Promise.resolve()
+  return Promise.race([
+    Promise.all(
+      imgs.map(
+        (img) =>
+          new Promise<void>((res) => {
+            if (img.complete && img.naturalWidth > 0) {
+              res()
+              return
+            }
+            img.addEventListener('load', () => res(), { once: true })
+            img.addEventListener('error', () => res(), { once: true })
+          }),
+      ),
+    ).then(() => undefined),
+    new Promise<void>((res) => {
+      window.setTimeout(() => res(), timeoutMs)
+    }),
+  ])
 }
 
 /** Só renderiza ícone se o telefone abrir WhatsApp de verdade. */
@@ -105,8 +131,11 @@ export function VotacaoProgressoPage() {
   const [liderPage, setLiderPage] = useState(0)
   const [liderPageSize, setLiderPageSize] = useState(20)
   const [relDetalhe, setRelDetalhe] = useState<VotacaoRelatorioDetalhe | null>(null)
+  const [relAnexos, setRelAnexos] = useState<VotacaoRelatorioAnexo[]>([])
+  const [relIncluirFotos, setRelIncluirFotos] = useState(true)
   const [relLoading, setRelLoading] = useState(false)
   const [relError, setRelError] = useState<string | null>(null)
+  const relPrintRef = useRef<HTMLDivElement | null>(null)
 
   const isStaff = hasRole(profile, ['admin', 'diretoria'])
   const isCoordenador = hasRole(profile, 'coordenador')
@@ -166,20 +195,31 @@ export function VotacaoProgressoPage() {
       } else {
         coordenadores = [recorte]
       }
-      const det = await fetchVotacaoRelatorioDetalhe({
-        coordenadores,
-        lideres,
-        todasCoordenacoes,
-      })
-      if (!det.porEquipe.length && !det.porSecao.length && !det.zonaSecaoInvalida.total) {
+      const scope = { coordenadores, lideres, todasCoordenacoes }
+      const [det, anexos] = await Promise.all([
+        fetchVotacaoRelatorioDetalhe(scope),
+        relIncluirFotos
+          ? fetchVotacaoRelatorioAnexos(scope)
+          : Promise.resolve([] as VotacaoRelatorioAnexo[]),
+      ])
+      if (!det.porEquipe.length && !det.porSecao.length && !det.zonaSecaoInvalida.total && !anexos.length) {
         throw new Error('Nenhum dado neste recorte para imprimir.')
       }
       flushSync(() => {
         setRelDetalhe(det)
+        setRelAnexos(anexos)
       })
+      // Garante paint do DOM (imgs com src) antes de esperar o load.
+      await new Promise<void>((r) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => r()))
+      })
+      if (relIncluirFotos && anexos.length && relPrintRef.current) {
+        await waitForRelatorioImages(relPrintRef.current)
+      }
       window.print()
     } catch (e) {
       setRelDetalhe(null)
+      setRelAnexos([])
       setRelError(e instanceof Error ? e.message : 'Falha ao gerar relatório.')
     } finally {
       setRelLoading(false)
@@ -301,6 +341,7 @@ export function VotacaoProgressoPage() {
     setLoading(true)
     setError(null)
     setRelDetalhe(null)
+    setRelAnexos([])
     setRelError(null)
     setExpandedLider(null)
     setExpandedLiderNome(null)
@@ -365,6 +406,7 @@ export function VotacaoProgressoPage() {
     setLiderPage(0)
     setKpiFiltro(null)
     setRelDetalhe(null)
+    setRelAnexos([])
     setRelError(null)
     if (id === STAFF_ALL_COORDS) {
       setCoordNome('Todas as coordenações')
@@ -589,6 +631,15 @@ export function VotacaoProgressoPage() {
           <Printer size={16} /> {relLoading ? 'Gerando…' : 'Gerar relatório A4'}
         </button>
       </div>
+      <label className="vot-rel-opt">
+        <input
+          type="checkbox"
+          checked={relIncluirFotos}
+          disabled={relLoading}
+          onChange={(e) => setRelIncluirFotos(e.target.checked)}
+        />
+        Incluir fotos anexadas no PDF (auditoria em A4)
+      </label>
       {relError ? <div className="alert alert-error">{relError}</div> : null}
 
       {isStaff && coordOptions.length > 0 && (
@@ -857,8 +908,13 @@ export function VotacaoProgressoPage() {
       <VotacaoBottomNav />
       </div>
 
-      {tot && relDetalhe && (relDetalhe.porEquipe.length > 0 || relDetalhe.porSecao.length > 0 || relDetalhe.zonaSecaoInvalida.total > 0) ? (
-        <div className="vot-rel-a4 vot-rel-print-only" aria-hidden>
+      {tot && relDetalhe && (
+        relDetalhe.porEquipe.length > 0
+        || relDetalhe.porSecao.length > 0
+        || relDetalhe.zonaSecaoInvalida.total > 0
+        || relAnexos.length > 0
+      ) ? (
+        <div ref={relPrintRef} className="vot-rel-a4 vot-rel-print-only" aria-hidden>
           <section className="vot-rel-sheet">
             <header className="vot-rel-head">
               <div>
@@ -882,6 +938,12 @@ export function VotacaoProgressoPage() {
               Não votaram: <strong>{tot.naoVotou}</strong>
               {' · '}
               Lançados: <strong>{pctGeral}%</strong>
+              {relAnexos.length > 0 ? (
+                <>
+                  {' · '}
+                  Fotos anexadas: <strong>{relAnexos.length}</strong>
+                </>
+              ) : null}
             </p>
 
             <h3 className="vot-rel-section-title">Por coordenação e liderança</h3>
@@ -958,8 +1020,60 @@ export function VotacaoProgressoPage() {
               {relDetalhe.porEquipe.length} equipe(s)
               {' · '}
               {relDetalhe.porSecao.length} local(is)
+              {relAnexos.length > 0 ? (
+                <>
+                  {' · '}
+                  {relAnexos.length} foto(s) anexada(s)
+                </>
+              ) : null}
             </footer>
           </section>
+
+          {relAnexos.length > 0 ? (
+            <section className="vot-rel-anexos">
+              <header className="vot-rel-sheet vot-rel-anexos-cover">
+                <p className="vot-rel-kicker">Auditoria</p>
+                <h2>Fotos anexadas</h2>
+                <p className="vot-rel-sub">
+                  {recorteLabel} · {relAnexos.length} anexo(s) · qualidade para PDF A4
+                </p>
+                <p className="vot-rel-note">
+                  Cada página seguinte traz uma foto em tamanho grande para conferência.
+                </p>
+              </header>
+              {relAnexos.map((a, idx) => (
+                <article key={a.id} className="vot-rel-anexo">
+                  <header className="vot-rel-anexo-meta">
+                    <div>
+                      <p className="vot-rel-anexo-idx">
+                        Foto {idx + 1} de {relAnexos.length}
+                      </p>
+                      <h3 className="vot-rel-anexo-nome">{a.nome_completo}</h3>
+                      <p className="vot-rel-anexo-line">
+                        Título: <strong>{a.titulo}</strong>
+                        {' · '}
+                        Status: <strong>{statusLabel(a.votou)}</strong>
+                      </p>
+                      <p className="vot-rel-anexo-line">
+                        {a.coordenador} · {a.lider}
+                        {' · '}
+                        Zona/Seção {a.zona}/{a.secao}
+                      </p>
+                    </div>
+                  </header>
+                  <div className="vot-rel-anexo-frame">
+                    <img
+                      className="vot-rel-anexo-img"
+                      src={a.fotoUrl}
+                      alt={`Anexo de ${a.nome_completo}`}
+                      loading="eager"
+                      decoding="sync"
+                    />
+                  </div>
+                </article>
+              ))}
+            </section>
+          ) : null}
         </div>
       ) : null}
     </div>
