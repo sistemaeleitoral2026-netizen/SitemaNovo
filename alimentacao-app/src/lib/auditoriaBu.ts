@@ -13,23 +13,32 @@ type RawBu = {
   secoes: Record<string, Record<string, RawCargo>>
 }
 
-export type BuCandidato = { numero: string; nome: string; partido: string }
-
 export type BuSecaoCargo = {
   branco: number
   nulo: number
   legenda: number
-  nominais: number
   /** nominais + brancos + nulos + legenda = comparecimento no cargo */
   total: number
-  votos: Array<{ cand: number; votos: number }>
+  votos: Map<number, number>
 }
 
 export type BuData = {
   cargos: string[]
-  candidatos: BuCandidato[][]
   secoes: Map<string, Map<number, BuSecaoCargo>>
+  alvos: Alvo[]
 }
+
+/** Candidatos acompanhados na auditoria. */
+export type AlvoDef = { id: string; nome: string; cargo: 'Deputado Federal' | 'Deputado Estadual'; numero: string }
+
+export const ALVOS_DEF: AlvoDef[] = [
+  { id: 'fabiana', nome: 'Fabiana Vilar', cargo: 'Deputado Federal', numero: '2222' },
+  { id: 'aldir', nome: 'Aldir Júnior', cargo: 'Deputado Federal', numero: '2233' },
+  { id: 'josimar', nome: 'Josimar', cargo: 'Deputado Estadual', numero: '22222' },
+  { id: 'detinha', nome: 'Detinha', cargo: 'Deputado Estadual', numero: '22333' },
+]
+
+export type Alvo = AlvoDef & { cargoIdx: number; candIdx: number }
 
 let buCache: BuData | null = null
 let buPromise: Promise<BuData> | null = null
@@ -41,28 +50,32 @@ export function loadBu(): Promise<BuData> {
     const res = await fetch(BU_URL)
     if (!res.ok) throw new Error('Não foi possível carregar a planilha do BU.')
     const raw = (await res.json()) as RawBu
+
+    const alvos: Alvo[] = ALVOS_DEF.map((a) => {
+      const cargoIdx = raw.cargos.indexOf(a.cargo)
+      const candIdx = raw.cand[cargoIdx]?.findIndex((c) => c[0] === a.numero) ?? -1
+      if (cargoIdx < 0 || candIdx < 0) throw new Error(`${a.nome} (${a.numero}) não está na planilha do BU.`)
+      return { ...a, cargoIdx, candIdx }
+    })
+
     const secoes = new Map<string, Map<number, BuSecaoCargo>>()
     for (const [key, porCargo] of Object.entries(raw.secoes)) {
       const m = new Map<number, BuSecaoCargo>()
       for (const [ci, v] of Object.entries(porCargo)) {
-        const votos = v[3].map(([cand, n]) => ({ cand, votos: n })).sort((a, b) => b.votos - a.votos)
-        const nominais = votos.reduce((s, x) => s + x.votos, 0)
+        const votos = new Map<number, number>(v[3])
+        let nominais = 0
+        for (const n of votos.values()) nominais += n
         m.set(Number(ci), {
           branco: v[0],
           nulo: v[1],
           legenda: v[2],
-          nominais,
           total: nominais + v[0] + v[1] + v[2],
           votos,
         })
       }
       secoes.set(key, m)
     }
-    buCache = {
-      cargos: raw.cargos,
-      candidatos: raw.cand.map((l) => l.map(([numero, nome, partido]) => ({ numero, nome, partido }))),
-      secoes,
-    }
+    buCache = { cargos: raw.cargos, secoes, alvos }
     return buCache
   })().catch((e) => {
     buPromise = null

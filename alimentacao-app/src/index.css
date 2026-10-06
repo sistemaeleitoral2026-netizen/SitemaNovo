@@ -16774,3 +16774,61 @@ button.vot-kpi-btn.is-no.is-on {
   .vot-ficha-person-label { grid-column: 1 / -1; }
   .vot-ficha-person strong { font-size: 1.05rem; }
 }
+
+/* ---------- Auditoria ---------- */
+.aud-page { max-width: 1280px; margin: 0 auto; padding: 1.25rem 1rem 3rem; color: var(--text); }
+.aud-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.1rem; }
+.aud-head h1 { margin: 0; font-size: 1.35rem; font-weight: 700; letter-spacing: -.01em; }
+.aud-head p { margin: .25rem 0 0; color: var(--muted); font-size: .88rem; max-width: 60ch; }
+.aud-head-actions { display: flex; gap: .5rem; }
+.aud-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); margin-bottom: 1.1rem; overflow: hidden; }
+.aud-resumo > div { padding: .85rem 1rem; border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.aud-resumo > div:last-child { border-right: 0; }
+.aud-resumo span { font-size: .74rem; color: var(--muted); }
+.aud-resumo strong { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.aud-resumo em { font-style: normal; font-size: .72rem; color: var(--muted-2); }
+.aud-resumo .is-alerta strong { color: #b45309; }
+.aud-tabs { display: flex; gap: 1.4rem; border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
+.aud-tabs button { background: none; border: 0; padding: .6rem 0; font: inherit; font-size: .9rem; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.aud-tabs button:hover { color: var(--text); }
+.aud-tabs button.is-on { color: var(--text); font-weight: 600; border-bottom-color: var(--brand); }
+.aud-badge { display: inline-block; min-width: 1.4rem; padding: 0 .4rem; margin-left: .25rem; border-radius: 9px; background: #eef0f4; color: #374151; font-size: .72rem; text-align: center; font-weight: 600; }
+.aud-filtros { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: .75rem; }
+.aud-filtros select, .aud-busca { height: 36px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); font: inherit; font-size: .86rem; padding: 0 .6rem; }
+.aud-busca { display: flex; align-items: center; gap: .4rem; min-width: 260px; color: var(--muted); }
+.aud-busca input { border: 0; outline: 0; flex: 1; font: inherit; background: transparent; color: var(--text); }
+.aud-busca button { border: 0; background: none; cursor: pointer; color: var(--muted); display: grid; place-items: center; padding: 0; }
+.aud-contagem { font-size: .82rem; color: var(--muted); margin-left: auto; }
+.aud-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.aud-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.aud-table th { text-align: left; font-weight: 600; font-size: .74rem; color: var(--muted); padding: .6rem .8rem; border-bottom: 1px solid var(--border); background: var(--surface-muted); white-space: nowrap; vertical-align: bottom; }
+.aud-table th small { display: block; font-weight: 400; color: var(--muted-2); font-size: .68rem; }
+.aud-table td { padding: .55rem .8rem; border-bottom: 1px solid #eef0f3; vertical-align: middle; }
+.aud-table tbody tr:last-child td { border-bottom: 0; }
+.aud-table tfoot td { font-weight: 700; background: var(--surface-muted); border-top: 1px solid var(--border); }
+.aud-num { text-align: right !important; font-variant-numeric: tabular-nums; }
+.aud-mono { font-family: ui-monospace, Consolas, monospace; font-size: .8rem; }
+.aud-muted { color: var(--muted); }
+.aud-local { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aud-row { cursor: pointer; }
+.aud-row:hover td, .aud-row.is-open td { background: #f8fafc; }
+.aud-flag { font-size: .76rem; font-weight: 600; padding: .12rem .5rem; border-radius: 4px; white-space: nowrap; }
+.aud-flag.is-ok { color: #166534; background: #ecfdf3; }
+.aud-flag.is-warn { color: #92400e; background: #fef6e7; }
+.aud-flag.is-err { color: #991b1b; background: #fdecec; }
+.aud-link { display: inline-flex; align-items: center; gap: .25rem; background: none; border: 0; padding: 0; font: inherit; font-size: .82rem; color: var(--brand); cursor: pointer; }
+.aud-link:hover { text-decoration: underline; }
+.aud-detalhe td { background: #fafbfc; padding: 1rem 1.2rem 1.2rem; }
+.aud-detalhe-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 2rem; }
+.aud-detalhe h4 { margin: 0 0 .5rem; font-size: .78rem; font-weight: 600; color: var(--muted); text-transform: none; }
+.aud-detalhe ul { list-style: none; margin: 0; padding: 0; }
+.aud-detalhe li { display: flex; gap: .6rem; align-items: baseline; padding: .25rem 0; border-bottom: 1px dashed #e8eaee; }
+.aud-detalhe li small { color: var(--muted); }
+.aud-detalhe li .aud-link { margin-left: auto; }
+.aud-detalhe dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: .3rem 1rem; font-size: .84rem; }
+.aud-detalhe dt { color: var(--muted); }
+.aud-detalhe dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.aud-input { width: 76px; height: 32px; border: 1px solid var(--border-strong); border-radius: 6px; padding: 0 .5rem; font: inherit; font-size: .85rem; }
+.aud-input:focus { outline: 2px solid rgba(31, 79, 216, .25); border-color: var(--brand); }
+.aud-nota { font-size: .78rem; color: var(--muted); margin: .7rem .2rem 0; line-height: 1.5; }
+@media (max-width: 720px) { .aud-detalhe-grid { grid-template-columns: 1fr; gap: 1rem; } .aud-resumo > div { border-bottom: 1px solid var(--border); } }
