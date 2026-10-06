@@ -111,17 +111,22 @@ export function AuditoriaPage() {
     lsSet({ cargo, cand: v })
   }
 
-  /** Fichas cuja zona/seção existe no BU × as que não existem (aba Corrigir). */
-  const { validas, invalidas } = useMemo(() => {
+  /**
+   * Mesma regra do mapa: zona/seção que não existe na base TSE (ou vazia) vai para Corrigir.
+   * Existe no TSE mas não no BU de São Luís = ficha de outro município (fora da conferência).
+   */
+  const { validas, invalidas, foraSl } = useMemo(() => {
     const v: AuditoriaFicha[] = []
     const inv: AuditoriaFicha[] = []
-    if (!bu) return { validas: v, invalidas: inv }
+    const fora: AuditoriaFicha[] = []
+    if (!bu) return { validas: v, invalidas: inv, foraSl: fora }
     for (const f of fichas) {
-      if (f.zona && f.secao && bu.secoes.has(buKey(f.zona, f.secao))) v.push(f)
-      else inv.push(f)
+      if (!f.zona || !f.secao || !lookupLocalVotacao(locais, f.zona, f.secao)) inv.push(f)
+      else if (bu.secoes.has(buKey(f.zona, f.secao))) v.push(f)
+      else fora.push(f)
     }
-    return { validas: v, invalidas: inv }
-  }, [bu, fichas])
+    return { validas: v, invalidas: inv, foraSl: fora }
+  }, [bu, fichas, locais])
 
   const linhas = useMemo<LinhaSecao[]>(() => {
     if (!bu) return []
@@ -215,8 +220,8 @@ export function AuditoriaPage() {
       setError('Informe zona e seção.')
       return
     }
-    if (!bu?.secoes.has(buKey(z, s))) {
-      setError(`Zona ${z} / seção ${s} não existe na planilha do BU de São Luís.`)
+    if (!lookupLocalVotacao(locais, z, s)) {
+      setError(`Zona ${z} / seção ${s} não existe na base de locais de votação (TSE).`)
       return
     }
     setSavingId(f.id)
@@ -308,7 +313,7 @@ export function AuditoriaPage() {
           </div>
 
           <div className="vot-hist-count" style={{ margin: '.4rem 0 .8rem' }}>
-            <strong>{resumo.votaram}</strong> votaram em <strong>{resumo.secoes}</strong> seções ·{' '}
+            <strong>{resumo.votaram}</strong> votaram em <strong>{resumo.secoes}</strong> seções de São Luís{foraSl.length ? ` (+${foraSl.length} de outros municípios, fora do BU)` : ''} ·{' '}
             <span className="vot-pill is-yes">{resumo.ok} OK</span>{' '}
             {nomeCand ? <span className="vot-pill is-pend">{resumo.atencao} atenção</span> : null}{' '}
             <span className="vot-pill is-no">{resumo.erro} erro</span>
@@ -425,7 +430,7 @@ export function AuditoriaPage() {
       ) : (
         <>
           <p className="page-subtitle" style={{ marginBottom: '.8rem' }}>
-            Fichas que votaram mas cuja zona/seção está vazia ou não existe no BU de São Luís. Confira o anexo e corrija.
+            Fichas que votaram mas com zona/seção vazia ou inexistente na base do TSE (mesma regra do mapa). Confira o anexo e corrija.
           </p>
           <div className="filter-panel vot-hist-filter">
             <div className="search-field">
