@@ -256,7 +256,9 @@ export function AuditoriaPage() {
         || l.local.toLowerCase().includes(q)
         || l.fichas.some((f) => f.nome_completo.toLowerCase().includes(q) || f.titulo.includes(q))
       )
-    }).sort((a, b) => m * cmp(val(a), val(b)) || a.zona.localeCompare(b.zona) || a.secao.localeCompare(b.secao))
+    }).sort((a, b) => m * cmp(val(a), val(b))
+      || (sortS.key === 'votaram' ? m * (a.votos.reduce((x, y) => x + y, 0) - b.votos.reduce((x, y) => x + y, 0)) : 0)
+      || a.zona.localeCompare(b.zona) || a.secao.localeCompare(b.secao))
   }, [linhas, zonaSel, status, query, sortS])
 
   const totais = useMemo(() => {
@@ -535,7 +537,16 @@ export function AuditoriaPage() {
               <option value="">Todas as zonas</option>
               {zonas.map((z) => <option key={z} value={z}>Zona {z}</option>)}
             </select>
-            <select value={status} onChange={(e) => setStatus(e.target.value as StatusFiltro)} aria-label="Situação">
+            <select
+              value={status}
+              onChange={(e) => {
+                const v = e.target.value as StatusFiltro
+                setStatus(v)
+                // Ao filtrar por situação, as seções com mais votos vêm primeiro.
+                if (v !== 'todos') setSortS({ key: 'votaram', dir: 'desc' })
+              }}
+              aria-label="Situação"
+            >
               <option value="todos">Todas as situações</option>
               <option value="confere">{STATUS_LABEL.confere}</option>
               <option value="parcial">{STATUS_LABEL.parcial}</option>
