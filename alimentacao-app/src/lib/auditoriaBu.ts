@@ -91,6 +91,7 @@ export type AuditoriaFicha = {
   /** zona/seção como estão gravadas na ficha (sem normalizar) */
   zonaRaw: string
   secaoRaw: string
+  nome_mae: string
   lider: string
   coordenador: string
   voto_foto_path: string | null
@@ -105,7 +106,7 @@ export async function fetchFichasQueVotaram(): Promise<AuditoriaFicha[]> {
   for (;;) {
     const { data, error } = await supabase
       .from('cadastros')
-      .select('id,nome_completo,titulo,zona,secao,lider,coordenador,voto_foto_path')
+      .select('id,nome_completo,titulo,zona,secao,nome_mae,lider,coordenador,voto_foto_path')
       .eq('votou', true)
       .order('id')
       .range(from, from + PAGE - 1)
@@ -120,6 +121,7 @@ export async function fetchFichasQueVotaram(): Promise<AuditoriaFicha[]> {
         secao: normalizeSecao(r.secao),
         zonaRaw: (r.zona ?? '').trim(),
         secaoRaw: (r.secao ?? '').trim(),
+        nome_mae: (r.nome_mae ?? '').trim(),
         lider: (r.lider ?? '').trim(),
         coordenador: (r.coordenador ?? '').trim(),
         voto_foto_path: r.voto_foto_path || null,
