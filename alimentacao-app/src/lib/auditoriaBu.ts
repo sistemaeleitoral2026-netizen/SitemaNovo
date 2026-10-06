@@ -33,9 +33,7 @@ export type AlvoDef = { id: string; nome: string; cargo: 'Deputado Federal' | 'D
 
 export const ALVOS_DEF: AlvoDef[] = [
   { id: 'fabiana', nome: 'Fabiana Vilar', cargo: 'Deputado Federal', numero: '2222' },
-  { id: 'aldir', nome: 'Aldir Júnior', cargo: 'Deputado Federal', numero: '2233' },
   { id: 'josimar', nome: 'Josimar', cargo: 'Deputado Estadual', numero: '22222' },
-  { id: 'detinha', nome: 'Detinha', cargo: 'Deputado Estadual', numero: '22333' },
 ]
 
 export type Alvo = AlvoDef & { cargoIdx: number; candIdx: number }
