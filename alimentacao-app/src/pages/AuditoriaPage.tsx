@@ -19,11 +19,12 @@ import { normalizeSecao, normalizeZona } from '../lib/normalize'
 import { signVotoFoto } from '../lib/votacao'
 
 type Tab = 'zona' | 'secao' | 'equipe' | 'corrigir'
-type StatusSecao = 'confere' | 'abaixo' | 'excede'
+type StatusSecao = 'confere' | 'parcial' | 'abaixo' | 'excede'
 type StatusFiltro = 'todos' | StatusSecao
 
 const STATUS_LABEL: Record<StatusSecao, string> = {
   confere: 'Confere',
+  parcial: 'Parcial',
   abaixo: 'Votos abaixo',
   excede: 'Acima do comparecimento',
 }
@@ -42,6 +43,8 @@ type LinhaSecao = {
   branco: number
   nulo: number
   status: StatusSecao
+  /** fichas que não cabem nos votos de cada candidato (fichas − votos, mínimo 0) */
+  faltam: number[]
 }
 
 type LinhaEquipe = { linha: LinhaSecao; ficha: AuditoriaFicha }
@@ -62,7 +65,7 @@ const TOLERANCIA = 0.75
 
 type Sort = { key: string; dir: 'asc' | 'desc' }
 
-const SEVERIDADE: Record<StatusSecao, number> = { confere: 0, abaixo: 1, excede: 2 }
+const SEVERIDADE: Record<StatusSecao, number> = { confere: 0, parcial: 1, abaixo: 2, excede: 3 }
 
 function cmp(a: string | number, b: string | number) {
   return typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b), 'pt-BR')
@@ -167,6 +170,7 @@ export function AuditoriaPage() {
       let st: StatusSecao = 'confere'
       if (list.length > comparecimento) st = 'excede'
       else if (somaFederal < list.length * TOLERANCIA || somaEstadual < list.length * TOLERANCIA) st = 'abaixo'
+      else if (somaFederal < list.length || somaEstadual < list.length) st = 'parcial'
       const [zona, secao] = key.split('|')
       out.push({
         key,
@@ -181,6 +185,7 @@ export function AuditoriaPage() {
         branco: sec?.get(federal)?.branco ?? 0,
         nulo: sec?.get(federal)?.nulo ?? 0,
         status: st,
+        faltam: votos.map((v) => Math.max(0, list.length - v)),
       })
     }
     return out.sort((a, b) => a.zona.localeCompare(b.zona) || a.secao.localeCompare(b.secao))
@@ -205,7 +210,7 @@ export function AuditoriaPage() {
       l.votos.forEach((v, i) => { z.votos[i] += v })
       z.somaFederal += l.somaFederal
       z.somaEstadual += l.somaEstadual
-      if (l.status !== 'confere') z.problemas += 1
+      if (l.status === 'abaixo' || l.status === 'excede') z.problemas += 1
       m.set(l.zona, z)
     }
     return [...m.values()].sort((a, b) => a.zona.localeCompare(b.zona))
@@ -257,7 +262,7 @@ export function AuditoriaPage() {
   const totais = useMemo(() => {
     const t = { votaram: validas.length, secoes: linhas.length, problemas: 0, votos: alvos.map(() => 0) }
     for (const l of linhas) {
-      if (l.status !== 'confere') t.problemas += 1
+      if (l.status === 'abaixo' || l.status === 'excede') t.problemas += 1
       l.votos.forEach((v, i) => { t.votos[i] += v })
     }
     return t
@@ -533,6 +538,7 @@ export function AuditoriaPage() {
             <select value={status} onChange={(e) => setStatus(e.target.value as StatusFiltro)} aria-label="Situação">
               <option value="todos">Todas as situações</option>
               <option value="confere">{STATUS_LABEL.confere}</option>
+              <option value="parcial">{STATUS_LABEL.parcial}</option>
               <option value="abaixo">{STATUS_LABEL.abaixo}</option>
               <option value="excede">{STATUS_LABEL.excede}</option>
             </select>
@@ -576,9 +582,14 @@ export function AuditoriaPage() {
                             <td className="aud-num">{fmt(l.comparecimento)}</td>
                             {l.votos.map((v, i) => <td key={alvos[i].id} className="aud-num">{fmt(v)}</td>)}
                             <td>
-                              <span className={`aud-flag ${l.status === 'confere' ? 'is-ok' : l.status === 'abaixo' ? 'is-warn' : 'is-err'}`}>
+                              <span className={`aud-flag ${l.status === 'confere' ? 'is-ok' : l.status === 'parcial' ? 'is-warn' : 'is-err'}`}>
                                 {STATUS_LABEL[l.status]}
                               </span>
+                              {l.faltam.some((n) => n > 0) ? (
+                                <small className="aud-sub">
+                                  {alvos.map((a, i) => (l.faltam[i] ? `${a.nome.split(' ')[0]}: ${l.faltam[i]} ficha${l.faltam[i] > 1 ? 's' : ''} a mais` : null)).filter(Boolean).join(' · ')}
+                                </small>
+                              ) : null}
                             </td>
                           </tr>
                           {open && (
@@ -636,8 +647,7 @@ export function AuditoriaPage() {
             )}
           </div>
           <p className="aud-nota">
-            <b>{STATUS_LABEL.abaixo}</b>: os votos de Fabiana Vilar (Federal) ou de Josimar (Estadual) ficaram abaixo de 75% das fichas “Votou” na
-            seção. <b>{STATUS_LABEL.excede}</b>: há mais fichas “Votou” do que eleitores que compareceram.
+            <b>{STATUS_LABEL.confere}</b>: Fabiana e Josimar têm, cada um, pelo menos tantos votos na seção quantas são as fichas “Votou”. <b>{STATUS_LABEL.parcial}</b>: algum deles tem menos votos que fichas (a diferença aparece embaixo), mas ainda 75% ou mais. <b>{STATUS_LABEL.abaixo}</b>: algum deles ficou abaixo de 75% das fichas. <b>{STATUS_LABEL.excede}</b>: há mais fichas “Votou” do que eleitores que compareceram.
           </p>
         </>
       )}
