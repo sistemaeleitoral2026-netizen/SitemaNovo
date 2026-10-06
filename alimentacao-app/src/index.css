@@ -16847,3 +16847,26 @@ button.vot-kpi-btn.is-no.is-on {
 .aud-grupo td { background: #f1f4f9; font-weight: 700; border-top: 1px solid var(--border); }
 .aud-recuo { padding-left: 1.6rem !important; }
 .aud-interna th small { display: block; font-weight: 400; color: var(--muted-2); font-size: .66rem; }
+.aud-secao { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); margin-bottom: 1rem; overflow: hidden; }
+.aud-secao > header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; padding: .9rem 1.1rem; border-bottom: 1px solid var(--border); background: var(--surface-muted); }
+.aud-secao-id strong { display: block; font-size: 1rem; }
+.aud-secao-id span { font-size: .8rem; color: var(--muted); }
+.aud-secao-votos { display: flex; gap: 1.6rem; flex-wrap: wrap; }
+.aud-secao-votos > div { display: flex; flex-direction: column; align-items: flex-end; }
+.aud-secao-votos span { font-size: .72rem; color: var(--muted); }
+.aud-secao-votos strong { font-size: 1.35rem; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.aud-secao-votos em { font-style: normal; font-size: .68rem; color: var(--muted-2); }
+.aud-secao-leitura { list-style: none; margin: 0; padding: .7rem 1.1rem 0; font-size: .83rem; color: #374151; display: grid; gap: .2rem; }
+.aud-chips { display: flex; flex-wrap: wrap; gap: .4rem; padding: .7rem 1.1rem; }
+.aud-chip { border: 1px solid var(--border-strong); background: #fff; border-radius: 999px; padding: .2rem .65rem; font: inherit; font-size: .76rem; cursor: pointer; color: #1f2937; }
+.aud-chip small { color: var(--muted); }
+.aud-chip b { margin-left: .25rem; background: #eef0f4; border-radius: 9px; padding: 0 .4rem; font-size: .72rem; }
+.aud-chip:hover { border-color: var(--brand); }
+.aud-chip.is-on { border-color: var(--brand); background: #eef3ff; }
+.aud-fichas { border-top: 1px solid var(--border); }
+.aud-fichas tr.is-dim td { color: #9aa1ad; }
+.aud-fichas tr.is-dim .aud-tag { opacity: .55; }
+.aud-fichas tr.is-destaque td { background: #f3f7ff; }
+.aud-tag { display: inline-block; padding: .1rem .5rem; border-radius: 4px; font-size: .76rem; font-weight: 600; }
+.aud-tag.is-lider { background: #eef3ff; color: #1f3fa0; }
+.aud-tag.is-coord { background: #f1f1f4; color: #3b4150; }
