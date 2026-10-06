@@ -547,8 +547,8 @@ export function AuditoriaPage() {
                                     <dl>
                                       <dt>Fichas “Votou”</dt><dd>{l.fichas.length}</dd>
                                       <dt>Comparecimento (BU)</dt><dd>{fmt(l.comparecimento)}</dd>
-                                      <dt>Federal: Fabiana + Aldir</dt><dd>{fmt(l.somaFederal)}</dd>
-                                      <dt>Estadual: Josimar + Detinha</dt><dd>{fmt(l.somaEstadual)}</dd>
+                                      <dt>Federal: Fabiana Vilar</dt><dd>{fmt(l.somaFederal)}</dd>
+                                      <dt>Estadual: Josimar</dt><dd>{fmt(l.somaEstadual)}</dd>
                                       <dt>Brancos / Nulos</dt><dd>{l.branco} / {l.nulo}</dd>
                                     </dl>
                                   </div>
@@ -577,7 +577,7 @@ export function AuditoriaPage() {
             )}
           </div>
           <p className="aud-nota">
-            <b>{STATUS_LABEL.abaixo}</b>: há mais fichas “Votou” do que votos somados dos dois candidatos do cargo na
+            <b>{STATUS_LABEL.abaixo}</b>: há mais fichas “Votou” do que votos de Fabiana Vilar (Federal) ou de Josimar (Estadual) na
             seção. <b>{STATUS_LABEL.excede}</b>: há mais fichas “Votou” do que eleitores que compareceram.
           </p>
         </>
