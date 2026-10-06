@@ -25,6 +25,7 @@ import {
   CreditCard,
   MessageCircle,
   Banknote,
+  ShieldCheck,
 } from 'lucide-react'
 import type { UserRole } from '../../types'
 import { fetchDemandaCounts } from '../../lib/demandas'
@@ -106,6 +107,7 @@ const navGroups: NavGroup[] = [
       { to: '/votacao/lancar', label: 'Lançar votação', icon: ClipboardCheck, roles: ['admin', 'diretoria'] },
       { to: '/votacao/progresso', label: 'Progresso votação', icon: ListChecks, roles: ['admin', 'diretoria'] },
       { to: '/votacao/historico', label: 'Histórico votação', icon: History, roles: ['admin', 'diretoria'] },
+      { to: '/auditoria', label: 'Auditoria', icon: ShieldCheck, roles: ['admin', 'diretoria'] },
     ],
   },
   {
