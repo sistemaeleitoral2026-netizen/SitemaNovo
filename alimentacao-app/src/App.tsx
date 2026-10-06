@@ -40,6 +40,7 @@ const GaragemLancarPage = lazy(() => import('./pages/GaragemLancarPage').then((m
 const GaragemHistoricoPage = lazy(() => import('./pages/GaragemHistoricoPage').then((m) => ({ default: m.GaragemHistoricoPage })))
 const FinanceiroPage = lazy(() => import('./pages/FinanceiroPage').then((m) => ({ default: m.FinanceiroPage })))
 const TvDashboardPage = lazy(() => import('./pages/TvDashboardPage').then((m) => ({ default: m.TvDashboardPage })))
+const AuditoriaPage = lazy(() => import('./pages/AuditoriaPage').then((m) => ({ default: m.AuditoriaPage })))
 const FormigasWhatsappPage = lazy(() => import('./pages/FormigasWhatsappPage').then((m) => ({ default: m.FormigasWhatsappPage })))
 
 function homeForProfile(profile: Profile | null | undefined) {
@@ -230,6 +231,7 @@ function AppRoutes() {
         <Route path="votacao/lancar" element={<VotacaoRoute><VotacaoLancarPage /></VotacaoRoute>} />
         <Route path="votacao/progresso" element={<VotacaoProgressoRoute><VotacaoProgressoPage /></VotacaoProgressoRoute>} />
         <Route path="votacao/historico" element={<VotacaoRoute><VotacaoHistoricoPage /></VotacaoRoute>} />
+        <Route path="auditoria" element={<StaffRoute><AuditoriaPage /></StaffRoute>} />
         <Route path="configuracoes" element={<StaffRoute><ConfiguracoesPage /></StaffRoute>} />
         <Route path="admin-only" element={<AdminOnlyRoute><DashboardPage /></AdminOnlyRoute>} />
       </Route>
