@@ -23,7 +23,8 @@ for (let i = 1; i < lines.length; i++) {
   if (p.length < 8) continue
   const [zRaw, sRaw, cargo, numero, nome, partido, tipo, votosRaw] = p
   const votos = parseInt(votosRaw, 10) || 0
-  const zona = zRaw.replace(/\D/g, '').padStart(3, '0')
+  // BU usa 4 dígitos (0001); o sistema/TSE usa 3 (001).
+  const zona = String(parseInt(zRaw, 10) || 0).padStart(3, '0')
   const secao = sRaw.replace(/\D/g, '').padStart(4, '0')
   let ci = cargos.indexOf(cargo)
   if (ci < 0) {
