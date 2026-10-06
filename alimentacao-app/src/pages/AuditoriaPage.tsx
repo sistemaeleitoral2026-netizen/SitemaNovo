@@ -86,8 +86,8 @@ export function AuditoriaPage() {
   const [error, setError] = useState<string | null>(null)
   const [okMsg, setOkMsg] = useState<string | null>(null)
 
-  const [sortZ, setSortZ] = useState<Sort>({ key: 'zona', dir: 'asc' })
-  const [sortS, setSortS] = useState<Sort>({ key: 'zona', dir: 'asc' })
+  const [sortZ, setSortZ] = useState<Sort>({ key: 'votaram', dir: 'desc' })
+  const [sortS, setSortS] = useState<Sort>({ key: 'votaram', dir: 'desc' })
   const [liderSel, setLiderSel] = useState('')
   const [sortE, setSortE] = useState<Sort>({ key: 'secao', dir: 'asc' })
   const [coordSel, setCoordSel] = useState('')
