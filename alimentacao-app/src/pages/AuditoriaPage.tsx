@@ -598,7 +598,7 @@ export function AuditoriaPage() {
                               </span>
                               {l.faltam.some((n) => n > 0) ? (
                                 <small className="aud-sub">
-                                  {alvos.map((a, i) => (l.faltam[i] ? `${a.nome.split(' ')[0]}: ${l.faltam[i]} ficha${l.faltam[i] > 1 ? 's' : ''} a mais` : null)).filter(Boolean).join(' · ')}
+                                  {alvos.map((a, i) => (l.faltam[i] ? `${a.nome.split(' ')[0]}: ${l.votos[i]} votos para ${l.fichas.length} fichas (${l.faltam[i]} não cabem)` : null)).filter(Boolean).join(' · ')}
                                 </small>
                               ) : null}
                             </td>
@@ -658,7 +658,7 @@ export function AuditoriaPage() {
             )}
           </div>
           <p className="aud-nota">
-            <b>{STATUS_LABEL.confere}</b>: Fabiana e Josimar têm, cada um, pelo menos tantos votos na seção quantas são as fichas “Votou”. <b>{STATUS_LABEL.parcial}</b>: algum deles tem menos votos que fichas (a diferença aparece embaixo), mas ainda 75% ou mais. <b>{STATUS_LABEL.abaixo}</b>: algum deles ficou abaixo de 75% das fichas. <b>{STATUS_LABEL.excede}</b>: há mais fichas “Votou” do que eleitores que compareceram.
+            <b>Ficha</b> = eleitor cadastrado no sistema e marcado como “Votou”. <b>Não cabem</b> = fichas − votos do candidato na seção: se a seção deu 26 votos a Fabiana e há 32 fichas, no máximo 26 podem ter votado nela e 6 não cabem. <b>{STATUS_LABEL.confere}</b>: Fabiana e Josimar têm, cada um, pelo menos tantos votos na seção quantas são as fichas “Votou”. <b>{STATUS_LABEL.parcial}</b>: algum deles tem menos votos que fichas (a diferença aparece embaixo), mas ainda 75% ou mais. <b>{STATUS_LABEL.abaixo}</b>: algum deles ficou abaixo de 75% das fichas. <b>{STATUS_LABEL.excede}</b>: há mais fichas “Votou” do que eleitores que compareceram.
           </p>
         </>
       )}
