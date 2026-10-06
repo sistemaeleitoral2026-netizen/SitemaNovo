@@ -55,6 +55,19 @@ type LinhaZona = {
   problemas: number
 }
 
+type Sort = { key: string; dir: 'asc' | 'desc' }
+
+const SEVERIDADE: Record<StatusSecao, number> = { confere: 0, abaixo: 1, excede: 2 }
+
+function cmp(a: string | number, b: string | number) {
+  return typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b), 'pt-BR')
+}
+
+function nextSort(cur: Sort, key: string): Sort {
+  if (cur.key !== key) return { key, dir: key === 'zona' || key === 'secao' || key === 'local' ? 'asc' : 'desc' }
+  return { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' }
+}
+
 function fmt(n: number) {
   return n.toLocaleString('pt-BR')
 }
@@ -68,6 +81,8 @@ export function AuditoriaPage() {
   const [error, setError] = useState<string | null>(null)
   const [okMsg, setOkMsg] = useState<string | null>(null)
 
+  const [sortZ, setSortZ] = useState<Sort>({ key: 'zona', dir: 'asc' })
+  const [sortS, setSortS] = useState<Sort>({ key: 'zona', dir: 'asc' })
   const [zonaSel, setZonaSel] = useState('')
   const [status, setStatus] = useState<StatusFiltro>('todos')
   const [query, setQuery] = useState('')
@@ -103,7 +118,7 @@ export function AuditoriaPage() {
     void carregar()
   }, [carregar])
 
-  useEffect(() => setPage(0), [zonaSel, status, query, tab])
+  useEffect(() => setPage(0), [zonaSel, status, query, tab, sortS])
 
   const alvos: Alvo[] = bu?.alvos ?? []
 
@@ -190,8 +205,35 @@ export function AuditoriaPage() {
 
   const zonas = useMemo(() => porZona.map((z) => z.zona), [porZona])
 
+  const zonasOrdenadas = useMemo(() => {
+    const val = (z: LinhaZona): string | number => {
+      if (sortZ.key.startsWith('alvo')) return z.votos[Number(sortZ.key.slice(4))]
+      switch (sortZ.key) {
+        case 'secoes': return z.secoes
+        case 'votaram': return z.votaram
+        case 'comparecimento': return z.comparecimento
+        case 'problemas': return z.problemas
+        default: return z.zona
+      }
+    }
+    const m = sortZ.dir === 'asc' ? 1 : -1
+    return [...porZona].sort((a, b) => m * cmp(val(a), val(b)) || a.zona.localeCompare(b.zona))
+  }, [porZona, sortZ])
+
   const filtradas = useMemo(() => {
     const q = query.trim().toLowerCase()
+    const val = (l: LinhaSecao): string | number => {
+      if (sortS.key.startsWith('alvo')) return l.votos[Number(sortS.key.slice(4))]
+      switch (sortS.key) {
+        case 'secao': return l.secao
+        case 'local': return l.local
+        case 'votaram': return l.fichas.length
+        case 'comparecimento': return l.comparecimento
+        case 'status': return SEVERIDADE[l.status]
+        default: return l.zona
+      }
+    }
+    const m = sortS.dir === 'asc' ? 1 : -1
     return linhas.filter((l) => {
       if (zonaSel && l.zona !== zonaSel) return false
       if (status !== 'todos' && l.status !== status) return false
@@ -201,8 +243,8 @@ export function AuditoriaPage() {
         || l.local.toLowerCase().includes(q)
         || l.fichas.some((f) => f.nome_completo.toLowerCase().includes(q) || f.titulo.includes(q))
       )
-    })
-  }, [linhas, zonaSel, status, query])
+    }).sort((a, b) => m * cmp(val(a), val(b)) || a.zona.localeCompare(b.zona) || a.secao.localeCompare(b.secao))
+  }, [linhas, zonaSel, status, query, sortS])
 
   const totais = useMemo(() => {
     const t = { votaram: validas.length, secoes: linhas.length, problemas: 0, votos: alvos.map(() => 0) }
@@ -294,12 +336,26 @@ export function AuditoriaPage() {
     )
   }
 
-  const colAlvos = alvos.map((a) => (
-    <th key={a.id} className="aud-num" title={`${a.cargo} · ${a.numero}`}>
+  const th = (sort: Sort, set: (s: Sort) => void, key: string, label: React.ReactNode, num = false) => (
+    <th
+      className={`aud-sort ${num ? 'aud-num' : ''} ${sort.key === key ? 'is-on' : ''}`.trim()}
+      aria-sort={sort.key === key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
+      <button type="button" onClick={() => set(nextSort(sort, key))}>
+        {label}
+        <i aria-hidden>{sort.key === key ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}</i>
+      </button>
+    </th>
+  )
+
+  const alvoLabel = (a: Alvo) => (
+    <span className="aud-alvo">
       {a.nome}
       <small>{a.cargo === 'Deputado Federal' ? 'Federal' : 'Estadual'} {a.numero}</small>
-    </th>
-  ))
+    </span>
+  )
+  const colAlvosZ = alvos.map((a, i) => <Fragment key={a.id}>{th(sortZ, setSortZ, `alvo${i}`, alvoLabel(a), true)}</Fragment>)
+  const colAlvosS = alvos.map((a, i) => <Fragment key={a.id}>{th(sortS, setSortS, `alvo${i}`, alvoLabel(a), true)}</Fragment>)
 
   return (
     <div className="aud-page">
@@ -359,17 +415,17 @@ export function AuditoriaPage() {
               <table className="aud-table">
                 <thead>
                   <tr>
-                    <th>Zona</th>
-                    <th className="aud-num">Seções</th>
-                    <th className="aud-num">Votaram</th>
-                    <th className="aud-num">Comparecimento</th>
-                    {colAlvos}
-                    <th className="aud-num">A revisar</th>
+                    {th(sortZ, setSortZ, 'zona', 'Zona')}
+                    {th(sortZ, setSortZ, 'secoes', 'Seções', true)}
+                    {th(sortZ, setSortZ, 'votaram', 'Votaram', true)}
+                    {th(sortZ, setSortZ, 'comparecimento', 'Comparecimento', true)}
+                    {colAlvosZ}
+                    {th(sortZ, setSortZ, 'problemas', 'A revisar', true)}
                     <th />
                   </tr>
                 </thead>
                 <tbody>
-                  {porZona.map((z) => (
+                  {zonasOrdenadas.map((z) => (
                     <tr key={z.zona}>
                       <td><strong>Zona {z.zona}</strong></td>
                       <td className="aud-num">{z.secoes}</td>
@@ -439,13 +495,13 @@ export function AuditoriaPage() {
                 <table className="aud-table">
                   <thead>
                     <tr>
-                      <th>Zona</th>
-                      <th>Seção</th>
-                      <th>Local de votação</th>
-                      <th className="aud-num">Votaram</th>
-                      <th className="aud-num">Comparecimento</th>
-                      {colAlvos}
-                      <th>Situação</th>
+                      {th(sortS, setSortS, 'zona', 'Zona')}
+                      {th(sortS, setSortS, 'secao', 'Seção')}
+                      {th(sortS, setSortS, 'local', 'Local de votação')}
+                      {th(sortS, setSortS, 'votaram', 'Votaram', true)}
+                      {th(sortS, setSortS, 'comparecimento', 'Comparecimento', true)}
+                      {colAlvosS}
+                      {th(sortS, setSortS, 'status', 'Situação')}
                     </tr>
                   </thead>
                   <tbody>

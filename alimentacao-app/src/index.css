@@ -16832,3 +16832,10 @@ button.vot-kpi-btn.is-no.is-on {
 .aud-input:focus { outline: 2px solid rgba(31, 79, 216, .25); border-color: var(--brand); }
 .aud-nota { font-size: .78rem; color: var(--muted); margin: .7rem .2rem 0; line-height: 1.5; }
 @media (max-width: 720px) { .aud-detalhe-grid { grid-template-columns: 1fr; gap: 1rem; } .aud-resumo > div { border-bottom: 1px solid var(--border); } }
+.aud-sort button { all: unset; cursor: pointer; display: inline-flex; align-items: baseline; gap: .3rem; }
+.aud-sort button:hover { color: var(--text); }
+.aud-sort i { font-style: normal; font-size: .62rem; color: #b6bcc8; }
+.aud-sort.is-on { color: var(--text); }
+.aud-sort.is-on i { color: var(--brand); }
+.aud-alvo small { display: block; font-weight: 400; color: var(--muted-2); font-size: .68rem; }
+.aud-num.aud-sort button { justify-content: flex-end; }
