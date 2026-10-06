@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Eye, Search, X } from 'lucide-react'
+import { Download, Eye, Search, X } from 'lucide-react'
 import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Button } from '../components/ui/Button'
@@ -10,6 +10,7 @@ import {
   corrigirZonaSecao,
   fetchFichasQueVotaram,
   loadBu,
+  type Alvo,
   type AuditoriaFicha,
   type BuData,
 } from '../lib/auditoriaBu'
@@ -17,27 +18,14 @@ import { loadLocaisVotacaoMa, lookupLocalVotacao, type LocalVotacaoRef } from '.
 import { normalizeSecao, normalizeZona } from '../lib/normalize'
 import { signVotoFoto } from '../lib/votacao'
 
-type Tab = 'conferencia' | 'corrigir'
-type StatusFiltro = 'todos' | 'ok' | 'atencao' | 'erro'
+type Tab = 'zona' | 'secao' | 'corrigir'
+type StatusSecao = 'confere' | 'abaixo' | 'excede'
+type StatusFiltro = 'todos' | StatusSecao
 
-const LS_KEY = 'auditoria-candidato'
-
-function lsGet(): { cargo: number; cand: number } {
-  try {
-    const v = JSON.parse(localStorage.getItem(LS_KEY) ?? 'null')
-    if (v && typeof v.cargo === 'number' && typeof v.cand === 'number') return v
-  } catch {
-    /* sem storage */
-  }
-  return { cargo: 0, cand: -1 }
-}
-
-function lsSet(v: { cargo: number; cand: number }) {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(v))
-  } catch {
-    /* sem storage */
-  }
+const STATUS_LABEL: Record<StatusSecao, string> = {
+  confere: 'Confere',
+  abaixo: 'Votos abaixo',
+  excede: 'Acima do comparecimento',
 }
 
 type LinhaSecao = {
@@ -47,12 +35,32 @@ type LinhaSecao = {
   local: string
   fichas: AuditoriaFicha[]
   comparecimento: number
-  candVotos: number | null
-  status: 'ok' | 'atencao' | 'erro'
+  /** votos de cada candidato acompanhado, na ordem de `alvos` */
+  votos: number[]
+  somaFederal: number
+  somaEstadual: number
+  branco: number
+  nulo: number
+  status: StatusSecao
+}
+
+type LinhaZona = {
+  zona: string
+  secoes: number
+  votaram: number
+  comparecimento: number
+  votos: number[]
+  somaFederal: number
+  somaEstadual: number
+  problemas: number
+}
+
+function fmt(n: number) {
+  return n.toLocaleString('pt-BR')
 }
 
 export function AuditoriaPage() {
-  const [tab, setTab] = useState<Tab>('conferencia')
+  const [tab, setTab] = useState<Tab>('zona')
   const [bu, setBu] = useState<BuData | null>(null)
   const [fichas, setFichas] = useState<AuditoriaFicha[]>([])
   const [locais, setLocais] = useState<Map<string, LocalVotacaoRef>>(new Map())
@@ -60,8 +68,6 @@ export function AuditoriaPage() {
   const [error, setError] = useState<string | null>(null)
   const [okMsg, setOkMsg] = useState<string | null>(null)
 
-  const [cargo, setCargo] = useState(() => lsGet().cargo)
-  const [cand, setCand] = useState(() => lsGet().cand)
   const [zonaSel, setZonaSel] = useState('')
   const [status, setStatus] = useState<StatusFiltro>('todos')
   const [query, setQuery] = useState('')
@@ -97,23 +103,13 @@ export function AuditoriaPage() {
     void carregar()
   }, [carregar])
 
-  useEffect(() => setPage(0), [cargo, cand, zonaSel, status, query, tab])
+  useEffect(() => setPage(0), [zonaSel, status, query, tab])
 
-  const candidatos = bu?.candidatos[cargo] ?? []
-
-  function escolherCargo(v: number) {
-    setCargo(v)
-    setCand(-1)
-    lsSet({ cargo: v, cand: -1 })
-  }
-  function escolherCand(v: number) {
-    setCand(v)
-    lsSet({ cargo, cand: v })
-  }
+  const alvos: Alvo[] = bu?.alvos ?? []
 
   /**
-   * Mesma regra do mapa: zona/seção que não existe na base TSE (ou vazia) vai para Corrigir.
-   * Existe no TSE mas não no BU de São Luís = ficha de outro município (fora da conferência).
+   * Mesma regra do mapa: zona/seção vazia ou fora da base TSE vai para Corrigir.
+   * Existe no TSE mas não no BU de São Luís = ficha de outro município.
    */
   const { validas, invalidas, foraSl } = useMemo(() => {
     const v: AuditoriaFicha[] = []
@@ -137,14 +133,17 @@ export function AuditoriaPage() {
       if (arr) arr.push(f)
       else grupos.set(k, [f])
     }
+    const federal = bu.cargos.indexOf('Deputado Federal')
     const out: LinhaSecao[] = []
     for (const [key, list] of grupos) {
-      const porCargo = bu.secoes.get(key)?.get(cargo)
-      const comparecimento = porCargo?.total ?? 0
-      const candVotos = cand >= 0 ? (porCargo?.votos.find((x) => x.cand === cand)?.votos ?? 0) : null
-      let st: LinhaSecao['status'] = 'ok'
-      if (list.length > comparecimento) st = 'erro'
-      else if (candVotos !== null && candVotos < list.length) st = 'atencao'
+      const sec = bu.secoes.get(key)
+      const votos = alvos.map((a) => sec?.get(a.cargoIdx)?.votos.get(a.candIdx) ?? 0)
+      const somaFederal = alvos.reduce((s, a, i) => (a.cargo === 'Deputado Federal' ? s + votos[i] : s), 0)
+      const somaEstadual = alvos.reduce((s, a, i) => (a.cargo === 'Deputado Estadual' ? s + votos[i] : s), 0)
+      const comparecimento = sec?.get(federal)?.total ?? 0
+      let st: StatusSecao = 'confere'
+      if (list.length > comparecimento) st = 'excede'
+      else if (list.length > somaFederal || list.length > somaEstadual) st = 'abaixo'
       const [zona, secao] = key.split('|')
       out.push({
         key,
@@ -153,14 +152,43 @@ export function AuditoriaPage() {
         local: lookupLocalVotacao(locais, zona, secao)?.local?.trim() || '—',
         fichas: list,
         comparecimento,
-        candVotos,
+        votos,
+        somaFederal,
+        somaEstadual,
+        branco: sec?.get(federal)?.branco ?? 0,
+        nulo: sec?.get(federal)?.nulo ?? 0,
         status: st,
       })
     }
     return out.sort((a, b) => a.zona.localeCompare(b.zona) || a.secao.localeCompare(b.secao))
-  }, [bu, validas, cargo, cand, locais])
+  }, [bu, validas, alvos, locais])
 
-  const zonas = useMemo(() => [...new Set(linhas.map((l) => l.zona))].sort(), [linhas])
+  const porZona = useMemo<LinhaZona[]>(() => {
+    const m = new Map<string, LinhaZona>()
+    for (const l of linhas) {
+      const z = m.get(l.zona) ?? {
+        zona: l.zona,
+        secoes: 0,
+        votaram: 0,
+        comparecimento: 0,
+        votos: alvos.map(() => 0),
+        somaFederal: 0,
+        somaEstadual: 0,
+        problemas: 0,
+      }
+      z.secoes += 1
+      z.votaram += l.fichas.length
+      z.comparecimento += l.comparecimento
+      l.votos.forEach((v, i) => { z.votos[i] += v })
+      z.somaFederal += l.somaFederal
+      z.somaEstadual += l.somaEstadual
+      if (l.status !== 'confere') z.problemas += 1
+      m.set(l.zona, z)
+    }
+    return [...m.values()].sort((a, b) => a.zona.localeCompare(b.zona))
+  }, [linhas, alvos])
+
+  const zonas = useMemo(() => porZona.map((z) => z.zona), [porZona])
 
   const filtradas = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -176,11 +204,14 @@ export function AuditoriaPage() {
     })
   }, [linhas, zonaSel, status, query])
 
-  const resumo = useMemo(() => {
-    const r = { secoes: linhas.length, votaram: validas.length, ok: 0, atencao: 0, erro: 0 }
-    for (const l of linhas) r[l.status] += 1
-    return r
-  }, [linhas, validas])
+  const totais = useMemo(() => {
+    const t = { votaram: validas.length, secoes: linhas.length, problemas: 0, votos: alvos.map(() => 0) }
+    for (const l of linhas) {
+      if (l.status !== 'confere') t.problemas += 1
+      l.votos.forEach((v, i) => { t.votos[i] += v })
+    }
+    return t
+  }, [linhas, validas, alvos])
 
   const totalPages = Math.max(1, Math.ceil(filtradas.length / pageSize))
   const pageSafe = Math.min(page, totalPages - 1)
@@ -235,12 +266,24 @@ export function AuditoriaPage() {
       setFichas((prev) =>
         prev.map((x) => (x.id === f.id ? { ...x, zona: z, secao: s, zonaRaw: z, secaoRaw: s } : x)),
       )
-      setOkMsg(`Ficha de ${f.nome_completo} corrigida para zona ${z} / seção ${s}.`)
+      setOkMsg(`${f.nome_completo}: corrigido para zona ${z}, seção ${s}.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível salvar.')
     } finally {
       setSavingId(null)
     }
+  }
+
+  async function exportar() {
+    const XLSX = await import('xlsx')
+    const cab = ['Zona', 'Seção', 'Local', 'Votaram (sistema)', 'Comparecimento BU', ...alvos.map((a) => a.nome), 'Status']
+    const dados = linhas.map((l) => [
+      l.zona, l.secao, l.local, l.fichas.length, l.comparecimento, ...l.votos, STATUS_LABEL[l.status],
+    ])
+    const ws = XLSX.utils.aoa_to_sheet([cab, ...dados])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Auditoria')
+    XLSX.writeFile(wb, 'auditoria-zona-secao.xlsx')
   }
 
   if (loading) {
@@ -251,156 +294,207 @@ export function AuditoriaPage() {
     )
   }
 
-  const nomeCand = cand >= 0 && candidatos[cand] ? candidatos[cand] : null
+  const colAlvos = alvos.map((a) => (
+    <th key={a.id} className="aud-num" title={`${a.cargo} · ${a.numero}`}>
+      {a.nome}
+      <small>{a.cargo === 'Deputado Federal' ? 'Federal' : 'Estadual'} {a.numero}</small>
+    </th>
+  ))
 
   return (
-    <div className="vot-page vot-historico vot-historico-wide">
-      <div className="page-header">
+    <div className="aud-page">
+      <header className="aud-head">
         <div>
-          <h1 className="page-title">Auditoria</h1>
-          <p className="page-subtitle">
-            Confere quem votou (sistema) com os votos do BU por zona e seção — só fichas marcadas como “Votou”.
+          <h1>Auditoria de votos</h1>
+          <p>
+            Fichas marcadas como “Votou” comparadas com o boletim de urna de São Luís, por zona e seção.
           </p>
         </div>
-        <div className="page-header-actions">
-          <Button variant="secondary" onClick={() => void carregar()}>Recarregar</Button>
+        <div className="aud-head-actions">
+          <Button variant="secondary" onClick={() => void carregar()}>Atualizar</Button>
+          <Button variant="secondary" onClick={() => void exportar()} disabled={!linhas.length}>
+            <Download size={15} style={{ verticalAlign: '-2px', marginRight: 6 }} />
+            Exportar
+          </Button>
         </div>
-      </div>
+      </header>
 
-      <div className="filter-panel vot-hist-filter">
-        <Button variant={tab === 'conferencia' ? 'primary' : 'secondary'} onClick={() => setTab('conferencia')}>
-          Conferência ({validas.length})
-        </Button>
-        <Button variant={tab === 'corrigir' ? 'primary' : 'secondary'} onClick={() => setTab('corrigir')}>
-          Corrigir zona/seção ({invalidas.length})
-        </Button>
-      </div>
+      <section className="aud-resumo">
+        <div>
+          <span>Votaram (sistema)</span>
+          <strong>{fmt(totais.votaram)}</strong>
+          <em>{fmt(totais.secoes)} seções{foraSl.length ? ` · +${fmt(foraSl.length)} fora de São Luís` : ''}</em>
+        </div>
+        {alvos.map((a, i) => (
+          <div key={a.id}>
+            <span>{a.nome}</span>
+            <strong>{fmt(totais.votos[i])}</strong>
+            <em>{a.cargo === 'Deputado Federal' ? 'Federal' : 'Estadual'} {a.numero}</em>
+          </div>
+        ))}
+        <div className={totais.problemas ? 'is-alerta' : ''}>
+          <span>Seções a revisar</span>
+          <strong>{fmt(totais.problemas)}</strong>
+          <em>{fmt(invalidas.length)} fichas sem zona/seção válida</em>
+        </div>
+      </section>
+
+      <nav className="aud-tabs" aria-label="Seções da auditoria">
+        <button type="button" className={tab === 'zona' ? 'is-on' : ''} onClick={() => setTab('zona')}>Por zona</button>
+        <button type="button" className={tab === 'secao' ? 'is-on' : ''} onClick={() => setTab('secao')}>Por seção</button>
+        <button type="button" className={tab === 'corrigir' ? 'is-on' : ''} onClick={() => setTab('corrigir')}>
+          Corrigir zona/seção <span className="aud-badge">{invalidas.length}</span>
+        </button>
+      </nav>
 
       {error && <div className="alert alert-error">{error}</div>}
       {okMsg && <div className="alert alert-success">{okMsg}</div>}
 
-      {tab === 'conferencia' ? (
+      {tab === 'zona' && (
+        <div className="aud-card">
+          {!porZona.length ? (
+            <EmptyState title="Sem dados" description="Nenhuma ficha “Votou” em zona/seção de São Luís." />
+          ) : (
+            <div className="table-wrapper">
+              <table className="aud-table">
+                <thead>
+                  <tr>
+                    <th>Zona</th>
+                    <th className="aud-num">Seções</th>
+                    <th className="aud-num">Votaram</th>
+                    <th className="aud-num">Comparecimento</th>
+                    {colAlvos}
+                    <th className="aud-num">A revisar</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {porZona.map((z) => (
+                    <tr key={z.zona}>
+                      <td><strong>Zona {z.zona}</strong></td>
+                      <td className="aud-num">{z.secoes}</td>
+                      <td className="aud-num"><strong>{fmt(z.votaram)}</strong></td>
+                      <td className="aud-num">{fmt(z.comparecimento)}</td>
+                      {z.votos.map((v, i) => <td key={alvos[i].id} className="aud-num">{fmt(v)}</td>)}
+                      <td className="aud-num">
+                        {z.problemas ? <span className="aud-flag is-warn">{z.problemas}</span> : <span className="aud-muted">0</span>}
+                      </td>
+                      <td className="aud-num">
+                        <button type="button" className="aud-link" onClick={() => { setZonaSel(z.zona); setTab('secao') }}>
+                          Ver seções
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td>Total</td>
+                    <td className="aud-num">{totais.secoes}</td>
+                    <td className="aud-num">{fmt(totais.votaram)}</td>
+                    <td className="aud-num">{fmt(porZona.reduce((s, z) => s + z.comparecimento, 0))}</td>
+                    {totais.votos.map((v, i) => <td key={alvos[i].id} className="aud-num">{fmt(v)}</td>)}
+                    <td className="aud-num">{totais.problemas}</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+          <p className="aud-nota">
+            Os votos dos candidatos são somados apenas nas seções em que há fichas “Votou”, para a comparação ser
+            entre os mesmos locais.
+          </p>
+        </div>
+      )}
+
+      {tab === 'secao' && (
         <>
-          <div className="filter-panel vot-hist-filter" style={{ flexWrap: 'wrap', gap: '.6rem' }}>
-            <select value={cargo} onChange={(e) => escolherCargo(Number(e.target.value))} aria-label="Cargo">
-              {(bu?.cargos ?? []).map((c, i) => (
-                <option key={c} value={i}>{c}</option>
-              ))}
-            </select>
-            <select value={cand} onChange={(e) => escolherCand(Number(e.target.value))} aria-label="Candidato">
-              <option value={-1}>Candidato: nenhum (só comparecimento)</option>
-              {candidatos.map((c, i) => (
-                <option key={`${c.numero}-${i}`} value={i}>{c.numero} · {c.nome} ({c.partido})</option>
-              ))}
-            </select>
+          <div className="aud-filtros">
             <select value={zonaSel} onChange={(e) => setZonaSel(e.target.value)} aria-label="Zona">
               <option value="">Todas as zonas</option>
               {zonas.map((z) => <option key={z} value={z}>Zona {z}</option>)}
             </select>
-            <select value={status} onChange={(e) => setStatus(e.target.value as StatusFiltro)} aria-label="Status">
-              <option value="todos">Todos os status</option>
-              <option value="ok">OK</option>
-              <option value="atencao">Atenção</option>
-              <option value="erro">Erro</option>
+            <select value={status} onChange={(e) => setStatus(e.target.value as StatusFiltro)} aria-label="Situação">
+              <option value="todos">Todas as situações</option>
+              <option value="confere">{STATUS_LABEL.confere}</option>
+              <option value="abaixo">{STATUS_LABEL.abaixo}</option>
+              <option value="excede">{STATUS_LABEL.excede}</option>
             </select>
-            <div className="search-field">
-              <Search size={16} />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Seção, local, nome ou título…" />
+            <div className="aud-busca">
+              <Search size={15} />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Seção, local, nome ou título" />
               {query ? (
-                <button type="button" className="vot-clear" onClick={() => setQuery('')} aria-label="Limpar"><X size={16} /></button>
+                <button type="button" onClick={() => setQuery('')} aria-label="Limpar"><X size={15} /></button>
               ) : null}
             </div>
+            <span className="aud-contagem">{fmt(filtradas.length)} seções</span>
           </div>
 
-          <div className="vot-hist-count" style={{ margin: '.4rem 0 .8rem' }}>
-            <strong>{resumo.votaram}</strong> votaram em <strong>{resumo.secoes}</strong> seções de São Luís{foraSl.length ? ` (+${foraSl.length} de outros municípios, fora do BU)` : ''} ·{' '}
-            <span className="vot-pill is-yes">{resumo.ok} OK</span>{' '}
-            {nomeCand ? <span className="vot-pill is-pend">{resumo.atencao} atenção</span> : null}{' '}
-            <span className="vot-pill is-no">{resumo.erro} erro</span>
-          </div>
-          <p className="page-subtitle" style={{ marginBottom: '.8rem' }}>
-            <b>Erro</b>: mais fichas “votou” do que eleitores que compareceram na seção (BU).{' '}
-            <b>Atenção</b>:{' '}
-            {nomeCand
-              ? 'o candidato selecionado teve menos votos na seção do que fichas “votou”.'
-              : 'selecione um candidato para comparar.'}
-          </p>
-
-          <div className="cadastros-table-card vot-hist-table-card">
+          <div className="aud-card">
             {!visiveis.length ? (
               <EmptyState title="Nenhuma seção" description="Nada encontrado com os filtros atuais." />
             ) : (
               <div className="table-wrapper">
-                <table className="data-table">
+                <table className="aud-table">
                   <thead>
                     <tr>
-                      <th />
                       <th>Zona</th>
                       <th>Seção</th>
-                      <th>Local</th>
-                      <th>Votaram (sistema)</th>
-                      <th>Comparecimento (BU)</th>
-                      <th>{nomeCand ? `Votos ${nomeCand.nome}` : 'Candidato'}</th>
-                      <th>Status</th>
+                      <th>Local de votação</th>
+                      <th className="aud-num">Votaram</th>
+                      <th className="aud-num">Comparecimento</th>
+                      {colAlvos}
+                      <th>Situação</th>
                     </tr>
                   </thead>
                   <tbody>
                     {visiveis.map((l) => {
                       const open = aberta === l.key
-                      const porCargo = bu?.secoes.get(l.key)?.get(cargo)
                       return (
                         <Fragment key={l.key}>
-                          <tr style={{ cursor: 'pointer' }} onClick={() => setAberta(open ? null : l.key)}>
-                            <td>{open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</td>
+                          <tr className={`aud-row ${open ? 'is-open' : ''}`} onClick={() => setAberta(open ? null : l.key)}>
                             <td>{l.zona}</td>
                             <td>{l.secao}</td>
-                            <td>{l.local}</td>
-                            <td><strong>{l.fichas.length}</strong></td>
-                            <td>{l.comparecimento}</td>
-                            <td>{l.candVotos ?? '—'}</td>
+                            <td className="aud-local">{l.local}</td>
+                            <td className="aud-num"><strong>{l.fichas.length}</strong></td>
+                            <td className="aud-num">{fmt(l.comparecimento)}</td>
+                            {l.votos.map((v, i) => <td key={alvos[i].id} className="aud-num">{fmt(v)}</td>)}
                             <td>
-                              {l.status === 'ok' && <span className="vot-pill is-yes"><CheckCircle2 size={12} /> OK</span>}
-                              {l.status === 'atencao' && <span className="vot-pill is-pend"><AlertTriangle size={12} /> Atenção</span>}
-                              {l.status === 'erro' && <span className="vot-pill is-no"><AlertTriangle size={12} /> Erro</span>}
+                              <span className={`aud-flag ${l.status === 'confere' ? 'is-ok' : l.status === 'abaixo' ? 'is-warn' : 'is-err'}`}>
+                                {STATUS_LABEL[l.status]}
+                              </span>
                             </td>
                           </tr>
                           {open && (
-                            <tr>
-                              <td />
-                              <td colSpan={7}>
-                                <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', padding: '.4rem 0' }}>
+                            <tr className="aud-detalhe">
+                              <td colSpan={6 + alvos.length}>
+                                <div className="aud-detalhe-grid">
                                   <div>
-                                    <strong>Quem votou nesta seção ({l.fichas.length})</strong>
-                                    <ul style={{ margin: '.4rem 0 0', paddingLeft: '1.1rem' }}>
+                                    <h4>Quem votou nesta seção ({l.fichas.length})</h4>
+                                    <ul>
                                       {l.fichas.map((f) => (
                                         <li key={f.id}>
-                                          {f.nome_completo}
-                                          {f.lider ? <span className="vot-hist-muted"> — {f.lider}</span> : null}
+                                          <span>{f.nome_completo}</span>
+                                          {f.lider ? <small>{f.lider}</small> : null}
                                           {f.voto_foto_path ? (
-                                            <Button variant="ghost" size="sm" aria-label="Ver anexo" onClick={() => void abrirFoto(f)}>
-                                              <Eye size={14} />
-                                            </Button>
+                                            <button type="button" className="aud-link" onClick={() => void abrirFoto(f)}>
+                                              <Eye size={13} /> Anexo
+                                            </button>
                                           ) : null}
                                         </li>
                                       ))}
                                     </ul>
                                   </div>
                                   <div>
-                                    <strong>Mais votados no BU ({bu?.cargos[cargo]})</strong>
-                                    <ol style={{ margin: '.4rem 0 0', paddingLeft: '1.1rem' }}>
-                                      {(porCargo?.votos ?? []).slice(0, 8).map((v) => {
-                                        const c = candidatos[v.cand]
-                                        const marcado = v.cand === cand
-                                        return (
-                                          <li key={v.cand} style={marcado ? { fontWeight: 700 } : undefined}>
-                                            {c?.nome} <span className="vot-hist-muted">({c?.partido})</span> — {v.votos}
-                                          </li>
-                                        )
-                                      })}
-                                    </ol>
-                                    <div className="vot-hist-muted" style={{ marginTop: '.4rem' }}>
-                                      Branco {porCargo?.branco ?? 0} · Nulo {porCargo?.nulo ?? 0} · Legenda {porCargo?.legenda ?? 0}
-                                    </div>
+                                    <h4>Conferência</h4>
+                                    <dl>
+                                      <dt>Fichas “Votou”</dt><dd>{l.fichas.length}</dd>
+                                      <dt>Comparecimento (BU)</dt><dd>{fmt(l.comparecimento)}</dd>
+                                      <dt>Federal: Fabiana + Aldir</dt><dd>{fmt(l.somaFederal)}</dd>
+                                      <dt>Estadual: Josimar + Detinha</dt><dd>{fmt(l.somaEstadual)}</dd>
+                                      <dt>Brancos / Nulos</dt><dd>{l.branco} / {l.nulo}</dd>
+                                    </dl>
                                   </div>
                                 </div>
                               </td>
@@ -426,38 +520,45 @@ export function AuditoriaPage() {
               />
             )}
           </div>
-        </>
-      ) : (
-        <>
-          <p className="page-subtitle" style={{ marginBottom: '.8rem' }}>
-            Fichas que votaram mas com zona/seção vazia ou inexistente na base do TSE (mesma regra do mapa). Confira o anexo e corrija.
+          <p className="aud-nota">
+            <b>{STATUS_LABEL.abaixo}</b>: há mais fichas “Votou” do que votos somados dos dois candidatos do cargo na
+            seção. <b>{STATUS_LABEL.excede}</b>: há mais fichas “Votou” do que eleitores que compareceram.
           </p>
-          <div className="filter-panel vot-hist-filter">
-            <div className="search-field">
-              <Search size={16} />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nome, título ou liderança…" />
+        </>
+      )}
+
+      {tab === 'corrigir' && (
+        <>
+          <p className="aud-nota" style={{ marginTop: 0 }}>
+            Fichas “Votou” com zona/seção vazia ou inexistente na base do TSE. Confira o anexo, informe os dados
+            corretos e salve.
+          </p>
+          <div className="aud-filtros">
+            <div className="aud-busca">
+              <Search size={15} />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nome, título ou liderança" />
               {query ? (
-                <button type="button" className="vot-clear" onClick={() => setQuery('')} aria-label="Limpar"><X size={16} /></button>
+                <button type="button" onClick={() => setQuery('')} aria-label="Limpar"><X size={15} /></button>
               ) : null}
             </div>
-            <div className="vot-hist-count"><strong>{invalidasFiltradas.length}</strong> ficha(s)</div>
+            <span className="aud-contagem">{fmt(invalidasFiltradas.length)} fichas</span>
           </div>
-          <div className="cadastros-table-card vot-hist-table-card">
+          <div className="aud-card">
             {!invVisiveis.length ? (
-              <EmptyState title="Tudo certo" description="Nenhuma ficha com zona/seção inválida." />
+              <EmptyState title="Nada a corrigir" description="Nenhuma ficha com zona/seção inválida." />
             ) : (
               <div className="table-wrapper">
-                <table className="data-table">
+                <table className="aud-table">
                   <thead>
                     <tr>
                       <th>Nome</th>
                       <th>Título</th>
-                      <th>Líder</th>
-                      <th>Atual</th>
+                      <th>Liderança</th>
+                      <th>Gravado</th>
                       <th>Zona</th>
                       <th>Seção</th>
                       <th>Anexo</th>
-                      <th>Ação</th>
+                      <th />
                     </tr>
                   </thead>
                   <tbody>
@@ -468,23 +569,23 @@ export function AuditoriaPage() {
                       return (
                         <tr key={f.id}>
                           <td><strong>{f.nome_completo}</strong></td>
-                          <td className="mono-cell">{f.titulo || '—'}</td>
-                          <td><span className="vot-hist-muted">{f.lider || '—'}</span></td>
-                          <td>{f.zonaRaw || '—'} / {f.secaoRaw || '—'}</td>
+                          <td className="aud-mono">{f.titulo || '—'}</td>
+                          <td>{f.lider || '—'}</td>
+                          <td className="aud-muted">{f.zonaRaw || '—'} / {f.secaoRaw || '—'}</td>
                           <td>
-                            <input value={e.zona} onChange={(ev) => set({ zona: ev.target.value })} inputMode="numeric" style={{ width: 70 }} aria-label="Zona" />
+                            <input className="aud-input" value={e.zona} onChange={(ev) => set({ zona: ev.target.value })} inputMode="numeric" aria-label="Zona" />
                           </td>
                           <td>
-                            <input value={e.secao} onChange={(ev) => set({ secao: ev.target.value })} inputMode="numeric" style={{ width: 80 }} aria-label="Seção" />
+                            <input className="aud-input" value={e.secao} onChange={(ev) => set({ secao: ev.target.value })} inputMode="numeric" aria-label="Seção" />
                           </td>
                           <td>
                             {f.voto_foto_path ? (
-                              <Button variant="ghost" size="sm" aria-label="Ver anexo" onClick={() => void abrirFoto(f)}>
-                                <Eye size={16} />
-                              </Button>
-                            ) : '—'}
+                              <button type="button" className="aud-link" onClick={() => void abrirFoto(f)}>
+                                <Eye size={13} /> Ver
+                              </button>
+                            ) : <span className="aud-muted">—</span>}
                           </td>
-                          <td>
+                          <td className="aud-num">
                             <Button size="sm" loading={savingId === f.id} onClick={() => void salvarCorrecao(f)}>
                               Salvar
                             </Button>
