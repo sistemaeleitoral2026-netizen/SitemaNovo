@@ -16842,3 +16842,8 @@ button.vot-kpi-btn.is-no.is-on {
 .aud-interna { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .aud-interna th { background: var(--surface-muted); }
 .aud-interna td { border-bottom: 1px solid #eef0f3; }
+.aud-legenda { border: 1px solid var(--border); background: #fbfcfd; border-radius: var(--radius); padding: .8rem 1rem; margin-bottom: .9rem; font-size: .83rem; color: #374151; }
+.aud-legenda ul { margin: .4rem 0 0; padding-left: 1.1rem; display: grid; gap: .25rem; }
+.aud-grupo td { background: #f1f4f9; font-weight: 700; border-top: 1px solid var(--border); }
+.aud-recuo { padding-left: 1.6rem !important; }
+.aud-interna th small { display: block; font-weight: 400; color: var(--muted-2); font-size: .66rem; }
