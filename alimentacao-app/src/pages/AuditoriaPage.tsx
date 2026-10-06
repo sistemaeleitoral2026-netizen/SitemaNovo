@@ -55,6 +55,9 @@ type LinhaZona = {
   problemas: number
 }
 
+/** Abaixo disso (votos do candidato / fichas "Votou") a seção é marcada como "Votos abaixo". */
+const TOLERANCIA = 0.75
+
 type Sort = { key: string; dir: 'asc' | 'desc' }
 
 const SEVERIDADE: Record<StatusSecao, number> = { confere: 0, abaixo: 1, excede: 2 }
@@ -158,7 +161,7 @@ export function AuditoriaPage() {
       const comparecimento = sec?.get(federal)?.total ?? 0
       let st: StatusSecao = 'confere'
       if (list.length > comparecimento) st = 'excede'
-      else if (list.length > somaFederal || list.length > somaEstadual) st = 'abaixo'
+      else if (somaFederal < list.length * TOLERANCIA || somaEstadual < list.length * TOLERANCIA) st = 'abaixo'
       const [zona, secao] = key.split('|')
       out.push({
         key,
@@ -577,7 +580,7 @@ export function AuditoriaPage() {
             )}
           </div>
           <p className="aud-nota">
-            <b>{STATUS_LABEL.abaixo}</b>: há mais fichas “Votou” do que votos de Fabiana Vilar (Federal) ou de Josimar (Estadual) na
+            <b>{STATUS_LABEL.abaixo}</b>: os votos de Fabiana Vilar (Federal) ou de Josimar (Estadual) ficaram abaixo de 75% das fichas “Votou” na
             seção. <b>{STATUS_LABEL.excede}</b>: há mais fichas “Votou” do que eleitores que compareceram.
           </p>
         </>
