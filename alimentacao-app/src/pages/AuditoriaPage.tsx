@@ -44,15 +44,7 @@ type LinhaSecao = {
   status: StatusSecao
 }
 
-type OrdemEquipe = string
-
-type SecaoEquipe = {
-  linha: LinhaSecao
-  /** fichas que casam com o filtro de coordenação/liderança/busca */
-  destaque: Set<string>
-  filtrando: boolean
-  equipes: Array<{ coordenador: string; lider: string; n: number }>
-}
+type LinhaEquipe = { linha: LinhaSecao; ficha: AuditoriaFicha }
 
 type LinhaZona = {
   zona: string
@@ -97,7 +89,7 @@ export function AuditoriaPage() {
   const [sortZ, setSortZ] = useState<Sort>({ key: 'zona', dir: 'asc' })
   const [sortS, setSortS] = useState<Sort>({ key: 'zona', dir: 'asc' })
   const [liderSel, setLiderSel] = useState('')
-  const [ordemE, setOrdemE] = useState<OrdemEquipe>('secao')
+  const [sortE, setSortE] = useState<Sort>({ key: 'secao', dir: 'asc' })
   const [coordSel, setCoordSel] = useState('')
   const [zonaSel, setZonaSel] = useState('')
   const [status, setStatus] = useState<StatusFiltro>('todos')
@@ -134,7 +126,7 @@ export function AuditoriaPage() {
     void carregar()
   }, [carregar])
 
-  useEffect(() => setPage(0), [zonaSel, status, query, tab, sortS, coordSel, liderSel, ordemE])
+  useEffect(() => setPage(0), [zonaSel, status, query, tab, sortS, sortE, coordSel, liderSel])
 
   const alvos: Alvo[] = bu?.alvos ?? []
 
@@ -284,53 +276,42 @@ export function AuditoriaPage() {
     [validas, coordSel],
   )
 
-  /** Seções com as fichas completas; só entram seções com ficha da coordenação/liderança escolhida. */
-  const secoesEquipe = useMemo<SecaoEquipe[]>(() => {
+  /** Uma linha por ficha (filtrada), com os dados da seção onde votou. */
+  const linhasEquipe = useMemo<LinhaEquipe[]>(() => {
     const q = query.trim().toLowerCase()
-    const filtrando = Boolean(coordSel || liderSel || q)
-    const out: SecaoEquipe[] = []
+    const out: LinhaEquipe[] = []
     for (const linha of linhas) {
-      const destaque = new Set<string>()
-      const cont = new Map<string, { coordenador: string; lider: string; n: number }>()
+      if (zonaSel && linha.zona !== zonaSel) continue
       for (const f of linha.fichas) {
         const coordenador = f.coordenador || 'Sem coordenação'
         const lider = f.lider || 'Sem liderança'
-        const k = `${coordenador}|${lider}`
-        const c = cont.get(k) ?? { coordenador, lider, n: 0 }
-        c.n += 1
-        cont.set(k, c)
-        const ok = (!coordSel || coordenador === coordSel)
-          && (!liderSel || lider === liderSel)
-          && (!q || f.nome_completo.toLowerCase().includes(q) || f.titulo.includes(q)
-            || lider.toLowerCase().includes(q) || coordenador.toLowerCase().includes(q)
-            || linha.secao.includes(q) || linha.local.toLowerCase().includes(q))
-        if (ok) destaque.add(f.id)
+        if (coordSel && coordenador !== coordSel) continue
+        if (liderSel && lider !== liderSel) continue
+        if (q && !(f.nome_completo.toLowerCase().includes(q) || f.titulo.includes(q)
+          || lider.toLowerCase().includes(q) || coordenador.toLowerCase().includes(q)
+          || linha.secao.includes(q) || linha.local.toLowerCase().includes(q))) continue
+        out.push({ linha, ficha: f })
       }
-      if (filtrando && !destaque.size) continue
-      out.push({
-        linha,
-        destaque,
-        filtrando,
-        equipes: [...cont.values()].sort((a, b) => b.n - a.n || a.lider.localeCompare(b.lider, 'pt-BR')),
-      })
     }
-    const cobertura = (s: SecaoEquipe) =>
-      Math.min(...s.linha.votos.map((v) => v / s.linha.fichas.length))
-    out.sort((a, b) => {
-      if (ordemE === 'fichas') return b.linha.fichas.length - a.linha.fichas.length
-      if (ordemE === 'cobertura') return cobertura(a) - cobertura(b)
-      if (ordemE.startsWith('alvo')) {
-        const i = Number(ordemE.slice(4))
-        return b.linha.votos[i] - a.linha.votos[i]
+    const val = (r: LinhaEquipe): string | number => {
+      if (sortE.key.startsWith('alvo')) return r.linha.votos[Number(sortE.key.slice(4))]
+      switch (sortE.key) {
+        case 'fichas': return r.linha.fichas.length
+        case 'eleitor': return r.ficha.nome_completo
+        case 'lider': return r.ficha.lider || 'Sem liderança'
+        case 'coord': return r.ficha.coordenador || 'Sem coordenação'
+        default: return r.linha.key
       }
-      return a.linha.zona.localeCompare(b.linha.zona) || a.linha.secao.localeCompare(b.linha.secao)
-    })
-    return out
-  }, [linhas, coordSel, liderSel, query, ordemE])
+    }
+    const m = sortE.dir === 'asc' ? 1 : -1
+    // Mantém as fichas da mesma seção juntas (chave da seção como desempate).
+    return out.sort((a, b) => m * cmp(val(a), val(b)) || a.linha.key.localeCompare(b.linha.key)
+      || a.ficha.nome_completo.localeCompare(b.ficha.nome_completo, 'pt-BR'))
+  }, [linhas, coordSel, liderSel, zonaSel, query, sortE])
 
-  const eqPages = Math.max(1, Math.ceil(secoesEquipe.length / pageSize))
+  const eqPages = Math.max(1, Math.ceil(linhasEquipe.length / pageSize))
   const eqPageSafe = Math.min(page, eqPages - 1)
-  const secoesVisiveis = secoesEquipe.slice(eqPageSafe * pageSize, (eqPageSafe + 1) * pageSize)
+  const eqVisiveis = linhasEquipe.slice(eqPageSafe * pageSize, (eqPageSafe + 1) * pageSize)
 
   const totalPages = Math.max(1, Math.ceil(filtradas.length / pageSize))
   const pageSafe = Math.min(page, totalPages - 1)
@@ -663,11 +644,6 @@ export function AuditoriaPage() {
 
       {tab === 'equipe' && (
         <>
-          <p className="aud-nota" style={{ marginTop: 0 }}>
-            Cada quadro é uma seção: os votos de cada candidato no TSE e as fichas completas de quem votou ali. A
-            liderança e a coordenação aparecem marcadas em cada ficha. Escolha uma coordenação ou liderança para
-            destacar as fichas dela dentro das seções.
-          </p>
           <div className="aud-filtros">
             <select value={coordSel} onChange={(e) => { setCoordSel(e.target.value); setLiderSel('') }} aria-label="Coordenação">
               <option value="">Todas as coordenações</option>
@@ -677,11 +653,9 @@ export function AuditoriaPage() {
               <option value="">Todas as lideranças</option>
               {lideresLista.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
-            <select value={ordemE} onChange={(e) => setOrdemE(e.target.value as OrdemEquipe)} aria-label="Ordenar">
-              <option value="secao">Ordenar: zona e seção</option>
-              <option value="fichas">Ordenar: mais fichas</option>
-              <option value="cobertura">Ordenar: menor cobertura de votos</option>
-              {alvos.map((a, i) => <option key={a.id} value={`alvo${i}`}>Ordenar: mais votos de {a.nome}</option>)}
+            <select value={zonaSel} onChange={(e) => setZonaSel(e.target.value)} aria-label="Zona">
+              <option value="">Todas as zonas</option>
+              {zonas.map((z) => <option key={z} value={z}>Zona {z}</option>)}
             </select>
             <div className="aud-busca">
               <Search size={15} />
@@ -690,129 +664,88 @@ export function AuditoriaPage() {
                 <button type="button" onClick={() => setQuery('')} aria-label="Limpar"><X size={15} /></button>
               ) : null}
             </div>
-            <span className="aud-contagem">{fmt(secoesEquipe.length)} seções</span>
+            <span className="aud-contagem">
+              {fmt(linhasEquipe.length)} fichas em {fmt(new Set(linhasEquipe.map((r) => r.linha.key)).size)} seções
+            </span>
           </div>
 
-          {!secoesVisiveis.length ? (
-            <div className="aud-card">
-              <EmptyState title="Nenhuma seção" description="Nada encontrado com os filtros atuais." />
-            </div>
-          ) : (
-            secoesVisiveis.map((s) => (
-              <article className="aud-secao" key={s.linha.key}>
-                <header>
-                  <div className="aud-secao-id">
-                    <strong>Zona {s.linha.zona} · Seção {s.linha.secao}</strong>
-                    <span>{s.linha.local}</span>
-                  </div>
-                  <div className="aud-secao-votos">
-                    {alvos.map((a, i) => (
-                      <div key={a.id}>
-                        <span>{a.nome}</span>
-                        <strong>{fmt(s.linha.votos[i])}</strong>
-                        <em>votos no TSE</em>
-                      </div>
-                    ))}
-                    <div>
-                      <span>Compareceram</span>
-                      <strong>{fmt(s.linha.comparecimento)}</strong>
-                      <em>eleitores</em>
-                    </div>
-                    <div>
-                      <span>Fichas “Votou”</span>
-                      <strong>{fmt(s.linha.fichas.length)}</strong>
-                      <em>no sistema</em>
-                    </div>
-                  </div>
-                </header>
-
-                <ul className="aud-secao-leitura">
-                  {alvos.map((a, i) => {
-                    const v = s.linha.votos[i]
-                    const n = s.linha.fichas.length
-                    return (
-                      <li key={a.id}>
-                        <b>{a.nome}</b> teve {fmt(v)} {v === 1 ? 'voto' : 'votos'} nesta seção
-                        {v >= n
-                          ? `: cobre as ${fmt(n)} fichas.`
-                          : v === 0
-                            ? `: nenhuma das ${fmt(n)} fichas pode ter votado nele(a).`
-                            : `: no máximo ${fmt(v)} das ${fmt(n)} fichas podem ter votado nele(a).`}
-                      </li>
-                    )
-                  })}
-                </ul>
-
-                <div className="aud-chips">
-                  {s.equipes.map((c) => (
-                    <button
-                      type="button"
-                      key={`${c.coordenador}|${c.lider}`}
-                      className={`aud-chip ${liderSel === c.lider && coordSel === c.coordenador ? 'is-on' : ''}`}
-                      onClick={() => { setCoordSel(c.coordenador); setLiderSel(c.lider) }}
-                      title="Destacar esta liderança"
-                    >
-                      {c.lider} <small>{c.coordenador}</small> <b>{c.n}</b>
-                    </button>
-                  ))}
-                </div>
-
-                <table className="aud-table aud-fichas">
+          <div className="aud-card">
+            {!eqVisiveis.length ? (
+              <EmptyState title="Nenhuma ficha" description="Nada encontrado com os filtros atuais." />
+            ) : (
+              <div className="table-wrapper">
+                <table className="aud-table aud-equipe">
                   <thead>
                     <tr>
-                      <th>Eleitor</th>
-                      <th>Título</th>
-                      <th>Nome da mãe</th>
-                      <th>Liderança</th>
-                      <th>Coordenação</th>
+                      {th(sortE, setSortE, 'secao', <span className="aud-alvo">Zona / seção<small>local de votação</small></span>)}
+                      {alvos.map((a, i) => (
+                        <Fragment key={a.id}>
+                          {th(sortE, setSortE, `alvo${i}`, <span className="aud-alvo">{a.nome}<small>votos na seção (TSE)</small></span>, true)}
+                        </Fragment>
+                      ))}
+                      {th(sortE, setSortE, 'fichas', <span className="aud-alvo">Fichas<small>que votaram na seção</small></span>, true)}
+                      {th(sortE, setSortE, 'eleitor', 'Eleitor')}
+                      {th(sortE, setSortE, 'lider', 'Liderança')}
+                      {th(sortE, setSortE, 'coord', 'Coordenação')}
                       <th />
                     </tr>
                   </thead>
                   <tbody>
-                    {s.linha.fichas
-                      .slice()
-                      .sort((x, y) => (s.destaque.has(y.id) ? 1 : 0) - (s.destaque.has(x.id) ? 1 : 0)
-                        || x.nome_completo.localeCompare(y.nome_completo, 'pt-BR'))
-                      .map((f) => {
-                        const on = s.destaque.has(f.id)
-                        return (
-                          <tr key={f.id} className={s.filtrando ? (on ? 'is-destaque' : 'is-dim') : ''}>
-                            <td><strong>{f.nome_completo}</strong></td>
-                            <td className="aud-mono">{f.titulo || '—'}</td>
-                            <td>{f.nome_mae || '—'}</td>
-                            <td><span className="aud-tag is-lider">{f.lider || 'Sem liderança'}</span></td>
-                            <td><span className="aud-tag is-coord">{f.coordenador || 'Sem coordenação'}</span></td>
-                            <td className="aud-num">
-                              {f.voto_foto_path ? (
-                                <button type="button" className="aud-link" onClick={() => void abrirFoto(f)}>
-                                  <Eye size={13} /> Anexo
-                                </button>
-                              ) : null}
-                            </td>
-                          </tr>
-                        )
-                      })}
+                    {eqVisiveis.map((r, idx) => {
+                      const ant = idx > 0 ? eqVisiveis[idx - 1].linha.key : null
+                      const novaSecao = ant !== r.linha.key
+                      const f = r.ficha
+                      return (
+                        <tr key={f.id} className={novaSecao ? 'aud-inicio' : ''}>
+                          <td className="aud-sec">
+                            {novaSecao ? (
+                              <>
+                                <strong>{r.linha.zona} / {r.linha.secao}</strong>
+                                <small>{r.linha.local}</small>
+                              </>
+                            ) : null}
+                          </td>
+                          {r.linha.votos.map((v, i) => (
+                            <td key={alvos[i].id} className="aud-num">{novaSecao ? <strong>{fmt(v)}</strong> : null}</td>
+                          ))}
+                          <td className="aud-num">{novaSecao ? <strong>{fmt(r.linha.fichas.length)}</strong> : null}</td>
+                          <td>
+                            <strong>{f.nome_completo}</strong>
+                            <small className="aud-sub">{f.titulo || 'sem título'}{f.nome_mae ? ` · mãe: ${f.nome_mae}` : ''}</small>
+                          </td>
+                          <td><span className="aud-tag is-lider">{f.lider || 'Sem liderança'}</span></td>
+                          <td><span className="aud-tag is-coord">{f.coordenador || 'Sem coordenação'}</span></td>
+                          <td className="aud-num">
+                            {f.voto_foto_path ? (
+                              <button type="button" className="aud-link" onClick={() => void abrirFoto(f)}>
+                                <Eye size={13} /> Anexo
+                              </button>
+                            ) : null}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
-              </article>
-            ))
-          )}
-
-          {secoesEquipe.length > pageSize && (
-            <Pagination
-              page={eqPageSafe}
-              totalPages={eqPages}
-              totalItems={secoesEquipe.length}
-              pageSize={pageSize}
-              onPageChange={setPage}
-              onPageSizeChange={(n) => { setPageSize(n); setPage(0) }}
-              pageSizeOptions={[10, 25, 50]}
-              label={`${eqPageSafe * pageSize + 1}–${Math.min(secoesEquipe.length, (eqPageSafe + 1) * pageSize)} de ${secoesEquipe.length}`}
-            />
-          )}
+              </div>
+            )}
+            {linhasEquipe.length > pageSize && (
+              <Pagination
+                page={eqPageSafe}
+                totalPages={eqPages}
+                totalItems={linhasEquipe.length}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={(n) => { setPageSize(n); setPage(0) }}
+                pageSizeOptions={[25, 50, 100]}
+                label={`${eqPageSafe * pageSize + 1}–${Math.min(linhasEquipe.length, (eqPageSafe + 1) * pageSize)} de ${linhasEquipe.length}`}
+              />
+            )}
+          </div>
           <p className="aud-nota">
-            O voto é secreto e o BU não identifica o eleitor: os números mostram só o limite do que é possível em cada
-            seção (se há menos votos do candidato do que fichas, nem todas podem ter votado nele).
+            Uma linha por ficha. Os votos de cada candidato e o total de fichas são da <b>seção</b> e aparecem na
+            primeira ficha de cada seção. Se uma seção teve menos votos do candidato do que fichas, nem todas podem ter
+            votado nele. O voto é secreto: o BU não identifica o eleitor.
           </p>
         </>
       )}

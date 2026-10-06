@@ -16870,3 +16870,9 @@ button.vot-kpi-btn.is-no.is-on {
 .aud-tag { display: inline-block; padding: .1rem .5rem; border-radius: 4px; font-size: .76rem; font-weight: 600; }
 .aud-tag.is-lider { background: #eef3ff; color: #1f3fa0; }
 .aud-tag.is-coord { background: #f1f1f4; color: #3b4150; }
+.aud-equipe td { vertical-align: top; }
+.aud-equipe tr.aud-inicio td { border-top: 2px solid #dfe3ea; }
+.aud-equipe tbody tr:first-child td { border-top: 0; }
+.aud-sec strong { display: block; }
+.aud-sec small { display: block; color: var(--muted); font-size: .72rem; max-width: 190px; }
+.aud-sub { display: block; color: var(--muted); font-size: .72rem; margin-top: .1rem; }
