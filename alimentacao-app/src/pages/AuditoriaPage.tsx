@@ -18,7 +18,7 @@ import { loadLocaisVotacaoMa, lookupLocalVotacao, type LocalVotacaoRef } from '.
 import { normalizeSecao, normalizeZona } from '../lib/normalize'
 import { signVotoFoto } from '../lib/votacao'
 
-type Tab = 'zona' | 'secao' | 'corrigir'
+type Tab = 'zona' | 'secao' | 'equipe' | 'corrigir'
 type StatusSecao = 'confere' | 'abaixo' | 'excede'
 type StatusFiltro = 'todos' | StatusSecao
 
@@ -42,6 +42,28 @@ type LinhaSecao = {
   branco: number
   nulo: number
   status: StatusSecao
+}
+
+/** Ficha com a leitura do BU na seção onde votou. */
+type FichaLida = {
+  ficha: AuditoriaFicha
+  /** votos de cada candidato acompanhado na seção da ficha */
+  votosSecao: number[]
+  /** fichas "Votou" na mesma seção (inclui esta) */
+  fichasSecao: number
+  /** chance de a ficha estar entre os votos do candidato: min(1, votos / fichas na seção) */
+  chance: number[]
+}
+
+type LinhaEquipe = {
+  key: string
+  coordenador: string
+  lider: string
+  fichas: FichaLida[]
+  /** fichas em que todos os candidatos têm voto na seção */
+  constaTodos: number
+  /** votos prováveis por candidato (soma das chances) */
+  provaveis: number[]
 }
 
 type LinhaZona = {
@@ -86,6 +108,9 @@ export function AuditoriaPage() {
 
   const [sortZ, setSortZ] = useState<Sort>({ key: 'zona', dir: 'asc' })
   const [sortS, setSortS] = useState<Sort>({ key: 'zona', dir: 'asc' })
+  const [sortE, setSortE] = useState<Sort>({ key: 'coordenador', dir: 'asc' })
+  const [coordSel, setCoordSel] = useState('')
+  const [liderAberta, setLiderAberta] = useState<string | null>(null)
   const [zonaSel, setZonaSel] = useState('')
   const [status, setStatus] = useState<StatusFiltro>('todos')
   const [query, setQuery] = useState('')
@@ -258,6 +283,57 @@ export function AuditoriaPage() {
     return t
   }, [linhas, validas, alvos])
 
+  /** Coordenação → liderança, com a leitura do BU de cada ficha. */
+  const equipe = useMemo<LinhaEquipe[]>(() => {
+    const secoes = new Map(linhas.map((l) => [l.key, l]))
+    const grupos = new Map<string, LinhaEquipe>()
+    for (const f of validas) {
+      const sec = secoes.get(buKey(f.zona, f.secao))
+      if (!sec) continue
+      const coordenador = f.coordenador || 'Sem coordenação'
+      const lider = f.lider || 'Sem liderança'
+      const key = `${coordenador.toLowerCase()}|${lider.toLowerCase()}`
+      const g = grupos.get(key) ?? {
+        key, coordenador, lider, fichas: [], constaTodos: 0, provaveis: alvos.map(() => 0),
+      }
+      const n = sec.fichas.length
+      const chance = sec.votos.map((v) => Math.min(1, v / n))
+      g.fichas.push({ ficha: f, votosSecao: sec.votos, fichasSecao: n, chance })
+      if (sec.votos.every((v) => v > 0)) g.constaTodos += 1
+      chance.forEach((c, i) => { g.provaveis[i] += c })
+      grupos.set(key, g)
+    }
+    return [...grupos.values()]
+  }, [validas, linhas, alvos])
+
+  const coordenadores = useMemo(
+    () => [...new Set(equipe.map((e) => e.coordenador))].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [equipe],
+  )
+
+  const equipeFiltrada = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const val = (e: LinhaEquipe): string | number => {
+      if (sortE.key.startsWith('prov')) return e.provaveis[Number(sortE.key.slice(4))]
+      if (sortE.key.startsWith('pct')) return e.provaveis[Number(sortE.key.slice(3))] / e.fichas.length
+      switch (sortE.key) {
+        case 'lider': return e.lider
+        case 'votaram': return e.fichas.length
+        case 'consta': return e.constaTodos
+        default: return e.coordenador
+      }
+    }
+    const m = sortE.dir === 'asc' ? 1 : -1
+    return equipe
+      .filter((e) => {
+        if (coordSel && e.coordenador !== coordSel) return false
+        if (!q) return true
+        return e.lider.toLowerCase().includes(q) || e.coordenador.toLowerCase().includes(q)
+          || e.fichas.some((x) => x.ficha.nome_completo.toLowerCase().includes(q) || x.ficha.titulo.includes(q))
+      })
+      .sort((a, b) => m * cmp(val(a), val(b)) || a.lider.localeCompare(b.lider, 'pt-BR'))
+  }, [equipe, coordSel, query, sortE])
+
   const totalPages = Math.max(1, Math.ceil(filtradas.length / pageSize))
   const pageSafe = Math.min(page, totalPages - 1)
   const visiveis = filtradas.slice(pageSafe * pageSize, (pageSafe + 1) * pageSize)
@@ -401,6 +477,7 @@ export function AuditoriaPage() {
       <nav className="aud-tabs" aria-label="Seções da auditoria">
         <button type="button" className={tab === 'zona' ? 'is-on' : ''} onClick={() => setTab('zona')}>Por zona</button>
         <button type="button" className={tab === 'secao' ? 'is-on' : ''} onClick={() => setTab('secao')}>Por seção</button>
+        <button type="button" className={tab === 'equipe' ? 'is-on' : ''} onClick={() => setTab('equipe')}>Coordenação e liderança</button>
         <button type="button" className={tab === 'corrigir' ? 'is-on' : ''} onClick={() => setTab('corrigir')}>
           Corrigir zona/seção <span className="aud-badge">{invalidas.length}</span>
         </button>
@@ -582,6 +659,127 @@ export function AuditoriaPage() {
           <p className="aud-nota">
             <b>{STATUS_LABEL.abaixo}</b>: os votos de Fabiana Vilar (Federal) ou de Josimar (Estadual) ficaram abaixo de 75% das fichas “Votou” na
             seção. <b>{STATUS_LABEL.excede}</b>: há mais fichas “Votou” do que eleitores que compareceram.
+          </p>
+        </>
+      )}
+
+      {tab === 'equipe' && (
+        <>
+          <div className="aud-filtros">
+            <select value={coordSel} onChange={(e) => setCoordSel(e.target.value)} aria-label="Coordenação">
+              <option value="">Todas as coordenações</option>
+              {coordenadores.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <div className="aud-busca">
+              <Search size={15} />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Liderança, coordenação, nome ou título" />
+              {query ? (
+                <button type="button" onClick={() => setQuery('')} aria-label="Limpar"><X size={15} /></button>
+              ) : null}
+            </div>
+            <span className="aud-contagem">{fmt(equipeFiltrada.length)} lideranças</span>
+          </div>
+          <div className="aud-card">
+            {!equipeFiltrada.length ? (
+              <EmptyState title="Nenhuma liderança" description="Nada encontrado com os filtros atuais." />
+            ) : (
+              <div className="table-wrapper">
+                <table className="aud-table">
+                  <thead>
+                    <tr>
+                      {th(sortE, setSortE, 'coordenador', 'Coordenação')}
+                      {th(sortE, setSortE, 'lider', 'Liderança')}
+                      {th(sortE, setSortE, 'votaram', 'Votaram', true)}
+                      {th(sortE, setSortE, 'consta', 'Consta nos dois', true)}
+                      {alvos.map((a, i) => (
+                        <Fragment key={a.id}>
+                          {th(sortE, setSortE, `prov${i}`, <span className="aud-alvo">{a.nome}<small>votos prováveis</small></span>, true)}
+                          {th(sortE, setSortE, `pct${i}`, <span className="aud-alvo">{a.nome}<small>possibilidade</small></span>, true)}
+                        </Fragment>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {equipeFiltrada.map((e) => {
+                      const open = liderAberta === e.key
+                      return (
+                        <Fragment key={e.key}>
+                          <tr className={`aud-row ${open ? 'is-open' : ''}`} onClick={() => setLiderAberta(open ? null : e.key)}>
+                            <td>{e.coordenador}</td>
+                            <td><strong>{e.lider}</strong></td>
+                            <td className="aud-num"><strong>{e.fichas.length}</strong></td>
+                            <td className="aud-num">{e.constaTodos}</td>
+                            {alvos.map((a, i) => (
+                              <Fragment key={a.id}>
+                                <td className="aud-num">{e.provaveis[i].toLocaleString('pt-BR', { maximumFractionDigits: 1 })}</td>
+                                <td className="aud-num">{Math.round((e.provaveis[i] / e.fichas.length) * 100)}%</td>
+                              </Fragment>
+                            ))}
+                          </tr>
+                          {open && (
+                            <tr className="aud-detalhe">
+                              <td colSpan={4 + alvos.length * 2}>
+                                <table className="aud-table aud-interna">
+                                  <thead>
+                                    <tr>
+                                      <th>Eleitor</th>
+                                      <th>Zona / seção</th>
+                                      <th className="aud-num">Fichas na seção</th>
+                                      {alvos.map((a) => (
+                                        <Fragment key={a.id}>
+                                          <th className="aud-num">{a.nome} na seção</th>
+                                          <th className="aud-num">Possibilidade</th>
+                                        </Fragment>
+                                      ))}
+                                      <th />
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {e.fichas
+                                      .slice()
+                                      .sort((x, y) => x.ficha.nome_completo.localeCompare(y.ficha.nome_completo, 'pt-BR'))
+                                      .map((x) => (
+                                        <tr key={x.ficha.id}>
+                                          <td>{x.ficha.nome_completo}</td>
+                                          <td>{x.ficha.zona} / {x.ficha.secao}</td>
+                                          <td className="aud-num">{x.fichasSecao}</td>
+                                          {alvos.map((a, i) => (
+                                            <Fragment key={a.id}>
+                                              <td className="aud-num">{x.votosSecao[i] > 0 ? fmt(x.votosSecao[i]) : <span className="aud-muted">sem voto</span>}</td>
+                                              <td className="aud-num">
+                                                <span className={`aud-flag ${x.chance[i] >= 1 ? 'is-ok' : x.chance[i] > 0 ? 'is-warn' : 'is-err'}`}>
+                                                  {Math.round(x.chance[i] * 100)}%
+                                                </span>
+                                              </td>
+                                            </Fragment>
+                                          ))}
+                                          <td className="aud-num">
+                                            {x.ficha.voto_foto_path ? (
+                                              <button type="button" className="aud-link" onClick={() => void abrirFoto(x.ficha)}>
+                                                <Eye size={13} /> Anexo
+                                              </button>
+                                            ) : null}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                  </tbody>
+                                </table>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          <p className="aud-nota">
+            Para cada eleitor, o BU mostra se há votos do candidato na seção onde ele votou. <b>Possibilidade</b> =
+            votos do candidato na seção ÷ fichas “Votou” na mesma seção (máximo 100%): se a seção teve 26 votos e há
+            32 fichas, cada uma tem cerca de 81% de chance de estar entre eles. “Votos prováveis” da liderança é a soma
+            dessas chances. É uma estimativa: o voto é secreto e o BU não identifica o eleitor.
           </p>
         </>
       )}
