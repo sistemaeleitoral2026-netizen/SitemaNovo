@@ -62,7 +62,8 @@ const VERM: [number, number, number] = [163, 36, 36]
 const M = 20
 
 const fmt = (n: number) => n.toLocaleString('pt-BR')
-const fmt2 = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+/** Voto é unitário: a contagem interna é fracionária (reparte o teto da seção entre as fichas), mas na exibição arredondamos para inteiro. */
+const fmtI = (n: number) => Math.round(n).toLocaleString('pt-BR')
 const pct2 = (a: number, b: number) =>
   b > 0 ? `${((a / b) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : '-'
 const pct1 = (a: number, b: number) =>
@@ -359,14 +360,14 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
       doc.setFillColor(...AZUL)
       doc.rect(M + labelW, y + 0.6, (a.conf / maior) * barW, h - 1.2, 'F')
       doc.setFont('helvetica', 'normal'); doc.setFontSize(7.4); doc.setTextColor(...GRAFITE)
-      doc.text(`${fmt2(a.conf)} / ${fmt(a.fichas)}   ${pct1(a.conf, a.fichas)}`, W - M, y + 3.7, { align: 'right' })
+      doc.text(`${fmtI(a.conf)} / ${fmt(a.fichas)}   ${pct1(a.conf, a.fichas)}`, W - M, y + 3.7, { align: 'right' })
       y += h
     }
     y += 5
   }
 
   const colAlvoHead = (prefixo: string) => alvos.map((a) => `${prefixo} ${primeiroNome(a.nome)}`)
-  const confAlvoCells = (a: Agg) => a.confAlvo.map((v) => fmt2(v))
+  const confAlvoCells = (a: Agg) => a.confAlvo.map((v) => fmtI(v))
   const corAprov = (col: number, v: string, idxCol: number) => {
     if (col !== idxCol) return undefined
     const n = Number(v.replace('%', '').replace('.', '').replace(',', '.'))
@@ -494,7 +495,7 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
     'Totais consolidados da auditoria, com os marcos que resumem o resultado da equipe.')
 
   destaque(
-    'votos confirmados da equipe', fmt2(totalConf),
+    'votos confirmados da equipe', fmtI(totalConf),
     `de um universo de ${fmt(totalFichas)} fichas marcadas como “Votou” em ${fmt(secoes.length)} seções `
     + `(${pct2(totalConf, totalFichas)} de aproveitamento).`,
     BORDO,
@@ -502,7 +503,7 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
 
   kpis([
     { rotulo: 'Fichas que votaram', valor: fmt(totalFichas), nota: 'marcadas como “Votou” no sistema' },
-    { rotulo: 'Votos confirmados', valor: fmt2(totalConf), nota: `${pct2(totalConf, totalFichas)} de aproveitamento` },
+    { rotulo: 'Votos confirmados', valor: fmtI(totalConf), nota: `${pct2(totalConf, totalFichas)} de aproveitamento` },
     { rotulo: 'Seções auditadas', valor: fmt(secoes.length), nota: `em ${fmt(zonasTodas.size)} zonas e ${fmt(bairrosTodos.size)} bairros` },
     { rotulo: 'Equipe', valor: `${fmt(coords.length)}/${fmt(liders.length)}`, nota: 'coordenações e lideranças' },
     ...alvos.map((a, i) => ({
@@ -524,13 +525,13 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
   secao('II.1', 'Pontos de destaque')
   if (melhor) {
     nota('Melhor volume',
-      `${melhor.nome} liderou em votos confirmados, somando ${fmt2(melhor.conf)} fichas conferidas de `
+      `${melhor.nome} liderou em votos confirmados, somando ${fmtI(melhor.conf)} fichas conferidas de `
       + `${fmt(melhor.fichas)} marcadas (${pct2(melhor.conf, melhor.fichas)} de aproveitamento), em `
       + `${fmt(melhor.secoes.size)} seções e ${fmt(melhor.bairros.size)} bairros.`)
   }
   if (piorConf && coords.length > 1) {
     nota('Menor volume',
-      `${piorConf.nome} apresentou o menor número de votos confirmados: ${fmt2(piorConf.conf)} de `
+      `${piorConf.nome} apresentou o menor número de votos confirmados: ${fmtI(piorConf.conf)} de `
       + `${fmt(piorConf.fichas)} fichas (${pct2(piorConf.conf, piorConf.fichas)}). `
       + 'Convém revisar sua base cadastral e estratégia de mobilização.')
   }
@@ -553,9 +554,9 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
   const topZona = [...zonasAgg].sort(porConf)[0]
   if (topBairro && topZona) {
     nota('Território',
-      `O bairro com mais votos confirmados é ${topBairro.nome}, com ${fmt2(topBairro.conf)} fichas `
+      `O bairro com mais votos confirmados é ${topBairro.nome}, com ${fmtI(topBairro.conf)} fichas `
       + `conferidas de ${fmt(topBairro.fichas)}. A zona com maior volume é a zona ${topZona.nome}, `
-      + `com ${fmt2(topZona.conf)} de ${fmt(topZona.fichas)}.`)
+      + `com ${fmtI(topZona.conf)} de ${fmt(topZona.fichas)}.`)
   }
 
   // ╔══════════════════════════════════════════════════════════════════════╗
@@ -595,12 +596,12 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
         'total de votos no Boletim de Urna, nas seções em que a equipe tem fichas',
       ]),
       ...alvos.map((a, i) => [
-        `Votos confirmados — ${a.nome}`, fmt2(linhas.reduce((s, l) => s + l.fitAlvo[i], 0)),
+        `Votos confirmados — ${a.nome}`, fmtI(linhas.reduce((s, l) => s + l.fitAlvo[i], 0)),
         'fichas que cabem nos votos deste candidato',
       ]),
-      ['Votos confirmados da equipe', fmt2(totalConf),
+      ['Votos confirmados da equipe', fmtI(totalConf),
         'fichas que cabem simultaneamente nos votos de todos os candidatos'],
-      ['Fichas não confirmadas', fmt2(totalFichas - totalConf), 'diferença entre fichas e votos confirmados'],
+      ['Fichas não confirmadas', fmtI(totalFichas - totalConf), 'diferença entre fichas e votos confirmados'],
       ['Aproveitamento geral', pct2(totalConf, totalFichas), 'votos confirmados dividido pelas fichas'],
     ],
     larguras: [80, 32, undefined],
@@ -609,7 +610,9 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
   })
   paragrafo(
     'As fichas não confirmadas não indicam, isoladamente, má-fé. Elas podem decorrer de erro de marcação '
-    + 'no sistema, de eleitor que compareceu e optou por outro candidato, ou de abstenção não registrada.',
+    + 'no sistema, de eleitor que compareceu e optou por outro candidato, ou de abstenção não registrada. '
+    + 'Os totais são exibidos como voto inteiro (voto não se divide); pequenas diferenças de uma unidade entre '
+    + 'as linhas e a soma geral são apenas efeito do arredondamento final.',
     { size: 8.8, cor: CINZA, serif: true, gap: 2 },
   )
 
@@ -637,14 +640,14 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
     head: ['#', 'Coordenação', 'Lid.', 'Seções', 'Bairros', 'Fichas', ...colAlvoHead('Conf.'), 'Confirm.', 'Aprov.', 'Parecer'],
     body: coords.map((c, i) => [
       String(i + 1), c.nome, fmt(c.liderancas.size), fmt(c.secoes.size), fmt(c.bairros.size), fmt(c.fichas),
-      ...confAlvoCells(c), fmt2(c.conf), pct2(c.conf, c.fichas), parecer(c),
+      ...confAlvoCells(c), fmtI(c.conf), pct2(c.conf, c.fichas), parecer(c),
     ]),
     larguras: [9, undefined, 12, 14, 14, 14, undefined, undefined, 16, 16, 20],
     numericas: [0, 2, 3, 4, 5, ...alvos.map((_, i) => 6 + i), 6 + nA, 7 + nA],
     foot: [
       '', 'TOTAL', fmt(liders.length), fmt(secoes.length), fmt(bairrosTodos.size), fmt(totalFichas),
-      ...alvos.map((_, i) => fmt2(linhas.reduce((s, l) => s + l.fitAlvo[i], 0))),
-      fmt2(totalConf), pct2(totalConf, totalFichas), '',
+      ...alvos.map((_, i) => fmtI(linhas.reduce((s, l) => s + l.fitAlvo[i], 0))),
+      fmtI(totalConf), pct2(totalConf, totalFichas), '',
     ],
     corCelula: (col, v) => (col === 8 + nA ? corParecer(v) : corAprov(col, v, 7 + nA)),
   })
@@ -678,7 +681,7 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
 
     kpis([
       { rotulo: 'Fichas', valor: fmt(c.fichas) },
-      { rotulo: 'Votos confirmados', valor: fmt2(c.conf) },
+      { rotulo: 'Votos confirmados', valor: fmtI(c.conf) },
       { rotulo: 'Aproveitamento', valor: pct2(c.conf, c.fichas),
         cor: aprov(c) >= 0.9 ? VERDE : aprov(c) >= 0.75 ? AMBAR : VERM },
       { rotulo: 'Lideranças', valor: fmt(c.liderancas.size), nota: `${fmt(c.secoes.size)} seções · ${fmt(c.bairros.size)} bairros` },
@@ -688,7 +691,7 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
     const deste = liders.filter((l) => l.coord === c.nome)
     tabela({
       head: ['Liderança', 'Bairros', 'Seç.', 'Fichas', 'Confirm.', 'Aprov.'],
-      body: deste.map((l) => [l.nome, fmt(l.bairros.size), fmt(l.secoes.size), fmt(l.fichas), fmt2(l.conf), pct2(l.conf, l.fichas)]),
+      body: deste.map((l) => [l.nome, fmt(l.bairros.size), fmt(l.secoes.size), fmt(l.fichas), fmtI(l.conf), pct2(l.conf, l.fichas)]),
       larguras: [undefined, 16, 13, 16, 22, 22],
       numericas: [1, 2, 3, 4, 5],
       corCelula: (col, v) => corAprov(col, v, 5),
@@ -698,7 +701,7 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
     const bairrosC = agrupar(doCoord, nA, (l) => l.sec.bairro).sort(porConf)
     tabela({
       head: ['Bairro', 'Zona(s)', 'Seç.', 'Fichas', 'Confirm.', 'Aprov.'],
-      body: bairrosC.map((b) => [b.nome, [...b.zonas].sort().join(', '), fmt(b.secoes.size), fmt(b.fichas), fmt2(b.conf), pct2(b.conf, b.fichas)]),
+      body: bairrosC.map((b) => [b.nome, [...b.zonas].sort().join(', '), fmt(b.secoes.size), fmt(b.fichas), fmtI(b.conf), pct2(b.conf, b.fichas)]),
       larguras: [undefined, 22, 13, 16, 22, 22],
       numericas: [2, 3, 4, 5],
       corCelula: (col, v) => corAprov(col, v, 5),
@@ -716,7 +719,7 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
     } else {
       tabela({
         head: ['Zona/Seção', 'Bairro', 'Local de votação', 'Fichas', 'Confirm.', 'Aprov.'],
-        body: secC.map(({ a, sec }) => [`${sec.zona}/${sec.secao}`, sec.bairro, sec.local, fmt(a.fichas), fmt2(a.conf), pct2(a.conf, a.fichas)]),
+        body: secC.map(({ a, sec }) => [`${sec.zona}/${sec.secao}`, sec.bairro, sec.local, fmt(a.fichas), fmtI(a.conf), pct2(a.conf, a.fichas)]),
         larguras: [20, 34, undefined, 14, 20, 20],
         numericas: [3, 4, 5],
         fonte: 7.4,
@@ -753,7 +756,7 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
 
   const tabLider = (lista: typeof liders) => tabela({
     head: ['#', 'Liderança', 'Coordenação', 'Bairros', 'Fichas', 'Confirm.', 'Não conf.', 'Aprov.'],
-    body: lista.map((l, i) => [String(i + 1), l.nome, l.coord, fmt(l.bairros.size), fmt(l.fichas), fmt2(l.conf), fmt2(l.fichas - l.conf), pct2(l.conf, l.fichas)]),
+    body: lista.map((l, i) => [String(i + 1), l.nome, l.coord, fmt(l.bairros.size), fmt(l.fichas), fmtI(l.conf), fmtI(l.fichas - l.conf), pct2(l.conf, l.fichas)]),
     larguras: [9, undefined, 48, 14, 14, 20, 20, 20],
     numericas: [0, 3, 4, 5, 6, 7],
     fonte: 7.5,
@@ -783,7 +786,7 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
       return [
         `Zona ${z.nome}`, fmt(z.secoes.size), fmt(z.bairros.size), fmt(z.fichas),
         ...alvos.map((_, i) => fmt(secZ.reduce((s, x) => s + x.votos[i], 0))),
-        fmt2(z.conf), pct2(z.conf, z.fichas),
+        fmtI(z.conf), pct2(z.conf, z.fichas),
       ]
     }),
     numericas: [1, 2, 3, ...alvos.map((_, i) => 4 + i), 4 + nA, 5 + nA],
@@ -797,7 +800,7 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
     head: ['#', 'Bairro', 'Zona(s)', 'Seç.', 'Coord.', 'Fichas', 'Confirm.', 'Aprov.'],
     body: bairrosAgg.map((b, i) => {
       const nCoords = new Set(linhas.filter((l) => l.sec.bairro === b.nome).map((l) => l.coord)).size
-      return [String(i + 1), b.nome, [...b.zonas].sort().join(', '), fmt(b.secoes.size), fmt(nCoords), fmt(b.fichas), fmt2(b.conf), pct2(b.conf, b.fichas)]
+      return [String(i + 1), b.nome, [...b.zonas].sort().join(', '), fmt(b.secoes.size), fmt(nCoords), fmt(b.fichas), fmtI(b.conf), pct2(b.conf, b.fichas)]
     }),
     larguras: [9, undefined, 22, 13, 15, 16, 20, 20],
     numericas: [0, 3, 4, 5, 6, 7],
