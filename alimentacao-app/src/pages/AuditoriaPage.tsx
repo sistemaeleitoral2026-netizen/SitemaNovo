@@ -99,6 +99,11 @@ export function AuditoriaPage() {
   const [bairrosSel, setBairrosSel] = useState<Set<string>>(new Set())
   const [bairrosOpen, setBairrosOpen] = useState(false)
   const [bairrosQ, setBairrosQ] = useState('')
+  // Ordenação e filtro clicável da aba Resultado
+  type ResSortKey = 'conf' | 'fichas' | 'aprov' | 'nome' | 'lideres' | 'secoes' | 'bairros' | 'naoconf' | 'coord'
+  const [resSortC, setResSortC] = useState<{ k: ResSortKey; dir: 'asc' | 'desc' }>({ k: 'conf', dir: 'desc' })
+  const [resSortL, setResSortL] = useState<{ k: ResSortKey; dir: 'asc' | 'desc' }>({ k: 'conf', dir: 'desc' })
+  const [resFiltro, setResFiltro] = useState<{ tipo: 'coord' | 'lider' | 'bairro' | 'zona'; valor: string; coord?: string } | null>(null)
   const bairrosRef = useRef<HTMLDivElement | null>(null)
   const [status, setStatus] = useState<StatusFiltro>('todos')
   const [query, setQuery] = useState('')
@@ -1004,56 +1009,56 @@ export function AuditoriaPage() {
 
             <section className="res-destaques">
               {melhorC && (
-                <article className="res-card is-bom">
+                <button type="button" className="res-card is-bom" onClick={() => setResFiltro({ tipo: 'coord', valor: melhorC.nome })}>
                   <header><small>Melhor coordenação em volume</small><h3>{melhorC.nome}</h3></header>
                   <p><strong>{fmtF(melhorC.conf)}</strong> votos confirmados <em>de {melhorC.fichas} fichas · {pct(melhorC.conf, melhorC.fichas)}</em></p>
                   <footer>{melhorC.secoes} seções · {melhorC.bairros} bairros · {melhorC.liderancas} lideranças</footer>
-                </article>
+                </button>
               )}
               {piorC && r.coords.length > 1 && (
-                <article className="res-card is-ruim">
+                <button type="button" className="res-card is-ruim" onClick={() => setResFiltro({ tipo: 'coord', valor: piorC.nome })}>
                   <header><small>Coordenação com menos votos</small><h3>{piorC.nome}</h3></header>
                   <p><strong>{fmtF(piorC.conf)}</strong> votos confirmados <em>de {piorC.fichas} fichas · {pct(piorC.conf, piorC.fichas)}</em></p>
                   <footer>Convém revisar base e mobilização</footer>
-                </article>
+                </button>
               )}
               {melhorAprov && piorAprov && melhorAprov !== piorAprov && (
                 <>
-                  <article className="res-card is-bom">
+                  <button type="button" className="res-card is-bom" onClick={() => setResFiltro({ tipo: 'coord', valor: melhorAprov.nome })}>
                     <header><small>Maior aproveitamento{baseAprov === comMin ? ' (≥ 5 fichas)' : ''}</small><h3>{melhorAprov.nome}</h3></header>
                     <p><strong>{pct(melhorAprov.conf, melhorAprov.fichas)}</strong> <em>· {fmtF(melhorAprov.conf)} de {melhorAprov.fichas} fichas</em></p>
-                  </article>
-                  <article className="res-card is-ruim">
+                  </button>
+                  <button type="button" className="res-card is-ruim" onClick={() => setResFiltro({ tipo: 'coord', valor: piorAprov.nome })}>
                     <header><small>Menor aproveitamento{baseAprov === comMin ? ' (≥ 5 fichas)' : ''}</small><h3>{piorAprov.nome}</h3></header>
                     <p><strong>{pct(piorAprov.conf, piorAprov.fichas)}</strong> <em>· {fmtF(piorAprov.conf)} de {piorAprov.fichas} fichas</em></p>
-                  </article>
+                  </button>
                 </>
               )}
               {melhorL && piorL && melhorL !== piorL && (
                 <>
-                  <article className="res-card is-bom">
+                  <button type="button" className="res-card is-bom" onClick={() => setResFiltro({ tipo: 'lider', valor: melhorL.nome, coord: melhorL.coord })}>
                     <header><small>Melhor liderança (≥ 3 fichas)</small><h3>{melhorL.nome}</h3></header>
                     <p><strong>{pct(melhorL.conf, melhorL.fichas)}</strong> <em>· {fmtF(melhorL.conf)} de {melhorL.fichas} fichas</em></p>
                     <footer>{melhorL.coord}</footer>
-                  </article>
-                  <article className="res-card is-ruim">
+                  </button>
+                  <button type="button" className="res-card is-ruim" onClick={() => setResFiltro({ tipo: 'lider', valor: piorL.nome, coord: piorL.coord })}>
                     <header><small>Pior liderança (≥ 3 fichas)</small><h3>{piorL.nome}</h3></header>
                     <p><strong>{pct(piorL.conf, piorL.fichas)}</strong> <em>· {fmtF(piorL.conf)} de {piorL.fichas} fichas</em></p>
                     <footer>{piorL.coord}</footer>
-                  </article>
+                  </button>
                 </>
               )}
               {topBairro && (
-                <article className="res-card is-info">
+                <div className="res-card is-info">
                   <header><small>Bairro mais forte</small><h3>{topBairro.nome}</h3></header>
                   <p><strong>{fmtF(topBairro.conf)}</strong> votos confirmados <em>de {topBairro.fichas} fichas · {pct(topBairro.conf, topBairro.fichas)}</em></p>
-                </article>
+                </div>
               )}
               {topZona && (
-                <article className="res-card is-info">
+                <div className="res-card is-info">
                   <header><small>Zona mais forte</small><h3>Zona {topZona.nome}</h3></header>
                   <p><strong>{fmtF(topZona.conf)}</strong> votos confirmados <em>de {topZona.fichas} fichas · {pct(topZona.conf, topZona.fichas)}</em></p>
-                </article>
+                </div>
               )}
             </section>
 
@@ -1064,91 +1069,189 @@ export function AuditoriaPage() {
               <div className="res-faixa is-pe"><span>Amostra pequena</span><strong>{r.liders.length - lidsGrandes.length}</strong><em>menos de 3 fichas</em></div>
             </section>
 
-            <section className="aud-card">
-              <h3 className="res-titulo">Ranking de coordenações</h3>
-              <div className="table-wrapper">
-                <table className="aud-table">
-                  <thead>
-                    <tr>
-                      <th>#</th><th>Coordenação</th>
-                      <th className="aud-num">Lideranças</th><th className="aud-num">Seções</th><th className="aud-num">Bairros</th>
-                      <th className="aud-num">Fichas</th><th className="aud-num">Confirmadas</th>
-                      <th className="aud-num">Aprov.</th><th>Parecer</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {r.coords.map((c, i) => {
-                      const f = faixa(c)
-                      return (
-                        <tr key={c.nome}>
-                          <td className="aud-num">{i + 1}</td>
-                          <td><strong>{c.nome}</strong></td>
-                          <td className="aud-num">{c.liderancas}</td>
-                          <td className="aud-num">{c.secoes}</td>
-                          <td className="aud-num">{c.bairros}</td>
-                          <td className="aud-num">{c.fichas.toLocaleString('pt-BR')}</td>
-                          <td className="aud-num">{fmtF(c.conf)}</td>
-                          <td className="aud-num"><strong className={`res-pct is-${f}`}>{pct(c.conf, c.fichas)}</strong></td>
-                          <td><span className={`res-tag is-${f}`}>{faixaLabel[f]}</span></td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+            {/* Ordenações clicáveis */}
+            {(() => {
+              const toggleC = (k: ResSortKey) =>
+                setResSortC((s) => s.k === k ? { k, dir: s.dir === 'desc' ? 'asc' : 'desc' } : { k, dir: 'desc' })
+              const toggleL = (k: ResSortKey) =>
+                setResSortL((s) => s.k === k ? { k, dir: s.dir === 'desc' ? 'asc' : 'desc' } : { k, dir: 'desc' })
 
-            <section className="aud-card">
-              <h3 className="res-titulo">Ranking de lideranças <small>· ordenado por votos confirmados</small></h3>
-              <div className="table-wrapper">
-                <table className="aud-table">
-                  <thead>
-                    <tr>
-                      <th>#</th><th>Liderança</th><th>Coordenação</th>
-                      <th className="aud-num">Bairros</th><th className="aud-num">Fichas</th>
-                      <th className="aud-num">Confirmadas</th><th className="aud-num">Não cab.</th>
-                      <th className="aud-num">Aprov.</th><th>Parecer</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {r.liders.map((l, i) => {
-                      const amostra = l.fichas < 3
-                      const f = amostra ? 'pe' : faixa(l)
-                      const label = amostra ? 'Amostra pequena' : faixaLabel[f]
-                      return (
-                        <tr key={`${l.coord}|${l.nome}`}>
-                          <td className="aud-num">{i + 1}</td>
-                          <td><strong>{l.nome}</strong></td>
-                          <td>{l.coord}</td>
-                          <td className="aud-num">{l.bairros}</td>
-                          <td className="aud-num">{l.fichas}</td>
-                          <td className="aud-num">{fmtF(l.conf)}</td>
-                          <td className="aud-num">{fmtF(l.fichas - l.conf)}</td>
-                          <td className="aud-num">
-                            {amostra ? <em className="aud-muted">—</em>
-                              : <strong className={`res-pct is-${f}`}>{pct(l.conf, l.fichas)}</strong>}
-                          </td>
-                          <td><span className={`res-tag is-${f}`}>{label}</span></td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+              const valorC = (c: Resultado, k: ResSortKey): string | number => {
+                switch (k) {
+                  case 'nome': return c.nome
+                  case 'lideres': return c.liderancas ?? 0
+                  case 'secoes': return c.secoes
+                  case 'bairros': return c.bairros
+                  case 'fichas': return c.fichas
+                  case 'aprov': return c.fichas ? c.conf / c.fichas : 0
+                  default: return c.conf
+                }
+              }
+              const valorL = (l: Resultado, k: ResSortKey): string | number => {
+                switch (k) {
+                  case 'nome': return l.nome
+                  case 'coord': return l.coord ?? ''
+                  case 'bairros': return l.bairros
+                  case 'fichas': return l.fichas
+                  case 'naoconf': return l.fichas - l.conf
+                  case 'aprov': return l.fichas ? l.conf / l.fichas : 0
+                  default: return l.conf
+                }
+              }
+              const cmp = (a: string | number, b: string | number) =>
+                typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b), 'pt-BR')
 
-            <p className="aud-nota">
-              <b>Como contamos:</b> em cada seção, uma ficha é considerada confirmada quando entregou voto a <b>pelo menos um</b> dos
-              candidatos acompanhados — já que a estratégia da equipe era votar nos dois, mas na prática algumas fichas podem ter
-              votado só em um. O teto por seção é o número de votos do candidato que mais recebeu ali.
-              <br />
-              <b>Exemplo:</b> seção com 17 fichas, 12 votos de Fabiana e 10 de Josimar. Assumimos que 10 fichas (o mínimo entre os
-              dois) entregaram voto nos dois, outras 2 fichas só na Fabiana (os 12 − 10 restantes) e 5 fichas não entregaram voto a
-              nenhum. Confirmadas na seção: <b>12</b> (de 17).
-              <br />
-              O voto é unitário, por isso mostramos o <b>voto inteiro mais próximo</b>. Pequenas diferenças de 1 voto entre a soma
-              das linhas e o total vêm só do arredondamento final, não da conta.
-            </p>
+              const cFilt = r.coords.filter((c) => {
+                if (!resFiltro) return true
+                if (resFiltro.tipo === 'coord') return c.nome === resFiltro.valor
+                return true
+              })
+              const lFilt = r.liders.filter((l) => {
+                if (!resFiltro) return true
+                if (resFiltro.tipo === 'coord') return l.coord === resFiltro.valor
+                if (resFiltro.tipo === 'lider')
+                  return l.nome === resFiltro.valor && (!resFiltro.coord || l.coord === resFiltro.coord)
+                return true
+              })
+
+              const mulC = resSortC.dir === 'asc' ? 1 : -1
+              const mulL = resSortL.dir === 'asc' ? 1 : -1
+              const coordsOrd = [...cFilt].sort((a, b) => mulC * cmp(valorC(a, resSortC.k), valorC(b, resSortC.k)) || a.nome.localeCompare(b.nome, 'pt-BR'))
+              const lidersOrd = [...lFilt].sort((a, b) => mulL * cmp(valorL(a, resSortL.k), valorL(b, resSortL.k)) || a.nome.localeCompare(b.nome, 'pt-BR'))
+
+              const seta = (ativo: boolean, dir: 'asc' | 'desc') => (
+                <i className={`res-seta ${ativo ? 'is-on' : ''}`} aria-hidden>{ativo ? (dir === 'asc' ? '▲' : '▼') : '↕'}</i>
+              )
+              const thC = (k: ResSortKey, label: string, num = false) => (
+                <th className={`${num ? 'aud-num' : ''} ${resSortC.k === k ? 'is-sorted' : ''}`.trim()}
+                  aria-sort={resSortC.k === k ? (resSortC.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <button type="button" className="res-thbtn" onClick={() => toggleC(k)}>
+                    <span>{label}</span>{seta(resSortC.k === k, resSortC.dir)}
+                  </button>
+                </th>
+              )
+              const thL = (k: ResSortKey, label: string, num = false) => (
+                <th className={`${num ? 'aud-num' : ''} ${resSortL.k === k ? 'is-sorted' : ''}`.trim()}
+                  aria-sort={resSortL.k === k ? (resSortL.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <button type="button" className="res-thbtn" onClick={() => toggleL(k)}>
+                    <span>{label}</span>{seta(resSortL.k === k, resSortL.dir)}
+                  </button>
+                </th>
+              )
+
+              return (
+                <>
+                  {resFiltro && (
+                    <div className="res-filtro-ativo">
+                      Filtrando por <b>{resFiltro.tipo}</b>: <strong>{resFiltro.valor}</strong>
+                      {resFiltro.coord && resFiltro.tipo === 'lider' ? <> <em>({resFiltro.coord})</em></> : null}
+                      <button type="button" onClick={() => setResFiltro(null)} aria-label="Limpar filtro">
+                        <X size={13} /> limpar
+                      </button>
+                    </div>
+                  )}
+
+                  <section className="aud-card">
+                    <h3 className="res-titulo">Ranking de coordenações
+                      {resFiltro && <small> · {coordsOrd.length} resultado(s) após filtro</small>}
+                    </h3>
+                    <div className="table-wrapper">
+                      <table className="aud-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            {thC('nome', 'Coordenação')}
+                            {thC('lideres', 'Lideranças', true)}
+                            {thC('secoes', 'Seções', true)}
+                            {thC('bairros', 'Bairros', true)}
+                            {thC('fichas', 'Fichas', true)}
+                            {thC('conf', 'Confirmadas', true)}
+                            {thC('aprov', 'Aprov.', true)}
+                            <th>Parecer</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {coordsOrd.map((c, i) => {
+                            const f = faixa(c)
+                            return (
+                              <tr key={c.nome}
+                                className="res-clicavel"
+                                onClick={() => setResFiltro({ tipo: 'coord', valor: c.nome })}
+                                title="Clique para filtrar as lideranças desta coordenação">
+                                <td className="aud-num">{i + 1}</td>
+                                <td><strong>{c.nome}</strong></td>
+                                <td className="aud-num">{c.liderancas}</td>
+                                <td className="aud-num">{c.secoes}</td>
+                                <td className="aud-num">{c.bairros}</td>
+                                <td className="aud-num">{c.fichas.toLocaleString('pt-BR')}</td>
+                                <td className="aud-num">{fmtF(c.conf)}</td>
+                                <td className="aud-num"><strong className={`res-pct is-${f}`}>{pct(c.conf, c.fichas)}</strong></td>
+                                <td><span className={`res-tag is-${f}`}>{faixaLabel[f]}</span></td>
+                              </tr>
+                            )
+                          })}
+                          {!coordsOrd.length && (
+                            <tr><td colSpan={9} className="res-vazio">Nenhuma coordenação com os filtros atuais.</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  <section className="aud-card">
+                    <h3 className="res-titulo">Ranking de lideranças
+                      {resFiltro && <small> · {lidersOrd.length} resultado(s) após filtro</small>}
+                    </h3>
+                    <div className="table-wrapper">
+                      <table className="aud-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            {thL('nome', 'Liderança')}
+                            {thL('coord', 'Coordenação')}
+                            {thL('bairros', 'Bairros', true)}
+                            {thL('fichas', 'Fichas', true)}
+                            {thL('conf', 'Confirmadas', true)}
+                            {thL('naoconf', 'Não conf.', true)}
+                            {thL('aprov', 'Aprov.', true)}
+                            <th>Parecer</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {lidersOrd.map((l, i) => {
+                            const amostra = l.fichas < 3
+                            const f = amostra ? 'pe' : faixa(l)
+                            const label = amostra ? 'Amostra pequena' : faixaLabel[f]
+                            return (
+                              <tr key={`${l.coord}|${l.nome}`}
+                                className="res-clicavel"
+                                onClick={() => setResFiltro({ tipo: 'lider', valor: l.nome, coord: l.coord })}
+                                title="Clique para filtrar por esta liderança">
+                                <td className="aud-num">{i + 1}</td>
+                                <td><strong>{l.nome}</strong></td>
+                                <td>{l.coord}</td>
+                                <td className="aud-num">{l.bairros}</td>
+                                <td className="aud-num">{l.fichas}</td>
+                                <td className="aud-num">{fmtF(l.conf)}</td>
+                                <td className="aud-num">{fmtF(l.fichas - l.conf)}</td>
+                                <td className="aud-num">
+                                  {amostra ? <em className="aud-muted">—</em>
+                                    : <strong className={`res-pct is-${f}`}>{pct(l.conf, l.fichas)}</strong>}
+                                </td>
+                                <td><span className={`res-tag is-${f}`}>{label}</span></td>
+                              </tr>
+                            )
+                          })}
+                          {!lidersOrd.length && (
+                            <tr><td colSpan={9} className="res-vazio">Nenhuma liderança com os filtros atuais.</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                </>
+              )
+            })()}
           </div>
         )
       })()}

@@ -16886,7 +16886,11 @@ button.vot-kpi-btn.is-no.is-on {
 
 .res-destaques { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .8rem; }
 .res-card { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--border-strong);
-  border-radius: 8px; padding: .9rem 1rem; display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+  border-radius: 8px; padding: .9rem 1rem; display: flex; flex-direction: column; gap: .3rem; min-width: 0; font: inherit; text-align: left; color: inherit; }
+button.res-card { cursor: pointer; transition: box-shadow .15s ease, transform .05s ease, border-color .15s ease; }
+button.res-card:hover { box-shadow: 0 6px 18px rgba(16, 24, 40, .08); border-color: var(--border-strong); }
+button.res-card:active { transform: translateY(1px); }
+button.res-card:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 .res-card.is-bom { border-left-color: #16a34a; }
 .res-card.is-ruim { border-left-color: #b91c1c; }
 .res-card.is-info { border-left-color: #334155; }
@@ -16926,6 +16930,25 @@ button.vot-kpi-btn.is-no.is-on {
   .res-topo { grid-template-columns: 1fr; gap: .9rem; padding: 1.1rem 1.2rem; }
   .res-topo-num strong { font-size: 2.3rem; }
 }
+/* Cabeçalhos clicáveis das tabelas de Resultado */
+.res-thbtn { all: unset; cursor: pointer; display: inline-flex; align-items: baseline; gap: .35rem; width: 100%; }
+.aud-num .res-thbtn { justify-content: flex-end; }
+.res-thbtn:hover { color: var(--text); }
+.res-seta { font-style: normal; font-size: .62rem; color: #b6bcc8; }
+.res-seta.is-on { color: var(--brand); }
+.aud-table th.is-sorted { color: var(--text); background: #e9eef7; }
+.res-clicavel { cursor: pointer; }
+.res-clicavel:hover { background: #eef3ff !important; }
+.res-vazio { text-align: center; padding: 1.2rem !important; color: var(--muted); font-style: italic; }
+/* Chip de filtro ativo */
+.res-filtro-ativo { display: inline-flex; align-items: center; gap: .5rem; padding: .5rem .8rem;
+  background: #eef3ff; border: 1px solid #c6d4ff; border-radius: 999px; font-size: .85rem; color: #1f3fa0; align-self: flex-start; }
+.res-filtro-ativo b { font-weight: 600; text-transform: lowercase; }
+.res-filtro-ativo strong { font-weight: 700; }
+.res-filtro-ativo em { font-style: normal; color: var(--muted); }
+.res-filtro-ativo button { all: unset; display: inline-flex; align-items: center; gap: .2rem; cursor: pointer;
+  padding: .15rem .5rem; background: #fff; border-radius: 999px; font-size: .78rem; color: #1f3fa0; margin-left: .3rem; }
+.res-filtro-ativo button:hover { background: #dbe6ff; }
 
 /* Seletor múltiplo (dropdown com checkboxes), usado para filtrar bairros. */
 .aud-multi { position: relative; display: inline-flex; }
