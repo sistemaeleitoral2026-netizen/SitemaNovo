@@ -1,5 +1,5 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
-import { Download, Eye, FileText, Search, X } from 'lucide-react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronDown, Download, Eye, FileText, Search, X } from 'lucide-react'
 import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Button } from '../components/ui/Button'
@@ -96,6 +96,10 @@ export function AuditoriaPage() {
   const [sortE, setSortE] = useState<Sort>({ key: 'secao', dir: 'asc' })
   const [coordSel, setCoordSel] = useState('')
   const [zonaSel, setZonaSel] = useState('')
+  const [bairrosSel, setBairrosSel] = useState<Set<string>>(new Set())
+  const [bairrosOpen, setBairrosOpen] = useState(false)
+  const [bairrosQ, setBairrosQ] = useState('')
+  const bairrosRef = useRef<HTMLDivElement | null>(null)
   const [status, setStatus] = useState<StatusFiltro>('todos')
   const [query, setQuery] = useState('')
   const [aberta, setAberta] = useState<string | null>(null)
@@ -131,7 +135,17 @@ export function AuditoriaPage() {
     void carregar()
   }, [carregar])
 
-  useEffect(() => setPage(0), [zonaSel, status, query, tab, sortS, sortE, coordSel, liderSel])
+  useEffect(() => setPage(0), [zonaSel, status, query, tab, sortS, sortE, coordSel, liderSel, bairrosSel])
+
+  // Fecha o seletor de bairros ao clicar fora.
+  useEffect(() => {
+    if (!bairrosOpen) return
+    const onDoc = (e: MouseEvent) => {
+      if (bairrosRef.current && !bairrosRef.current.contains(e.target as Node)) setBairrosOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [bairrosOpen])
 
   const alvos: Alvo[] = bu?.alvos ?? []
 
@@ -286,6 +300,11 @@ export function AuditoriaPage() {
     )].sort((a, b) => a.localeCompare(b, 'pt-BR')),
     [validas, coordSel],
   )
+  /** Bairros que aparecem nas seções da equipe, ordenados por nome. */
+  const bairrosLista = useMemo(
+    () => [...new Set(linhas.map((l) => l.bairro))].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [linhas],
+  )
 
   /** Uma linha por ficha (filtrada), com os dados da seção onde votou. */
   const linhasEquipe = useMemo<LinhaEquipe[]>(() => {
@@ -293,6 +312,7 @@ export function AuditoriaPage() {
     const out: LinhaEquipe[] = []
     for (const linha of linhas) {
       if (zonaSel && linha.zona !== zonaSel) continue
+      if (bairrosSel.size > 0 && !bairrosSel.has(linha.bairro)) continue
       for (const f of linha.fichas) {
         const coordenador = f.coordenador || 'Sem coordenação'
         const lider = f.lider || 'Sem liderança'
@@ -320,7 +340,7 @@ export function AuditoriaPage() {
     // Mantém as fichas da mesma seção juntas (chave da seção como desempate).
     return out.sort((a, b) => m * cmp(val(a), val(b)) || a.linha.key.localeCompare(b.linha.key)
       || a.ficha.nome_completo.localeCompare(b.ficha.nome_completo, 'pt-BR'))
-  }, [linhas, coordSel, liderSel, zonaSel, query, sortE])
+  }, [linhas, coordSel, liderSel, zonaSel, bairrosSel, query, sortE])
 
   const eqPages = Math.max(1, Math.ceil(linhasEquipe.length / pageSize))
   const eqPageSafe = Math.min(page, eqPages - 1)
@@ -707,6 +727,69 @@ export function AuditoriaPage() {
               <option value="">Todas as zonas</option>
               {zonas.map((z) => <option key={z} value={z}>Zona {z}</option>)}
             </select>
+            <div className={`aud-multi ${bairrosOpen ? 'is-open' : ''}`} ref={bairrosRef}>
+              <button type="button" className="aud-multi-btn" onClick={() => setBairrosOpen((v) => !v)}
+                aria-haspopup="listbox" aria-expanded={bairrosOpen}>
+                <span>
+                  {bairrosSel.size === 0
+                    ? 'Todos os bairros'
+                    : bairrosSel.size === 1
+                      ? [...bairrosSel][0]
+                      : `${bairrosSel.size} bairros`}
+                </span>
+                <ChevronDown size={14} aria-hidden />
+              </button>
+              {bairrosOpen && (
+                <div className="aud-multi-pop" role="listbox" aria-label="Filtrar por bairros">
+                  <div className="aud-multi-top">
+                    <div className="aud-busca aud-multi-busca">
+                      <Search size={13} />
+                      <input autoFocus value={bairrosQ} onChange={(e) => setBairrosQ(e.target.value)}
+                        placeholder="Buscar bairro" />
+                      {bairrosQ ? (
+                        <button type="button" onClick={() => setBairrosQ('')} aria-label="Limpar">
+                          <X size={13} />
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="aud-multi-acoes">
+                      <button type="button" onClick={() => setBairrosSel(new Set(bairrosLista))}>
+                        Marcar todos
+                      </button>
+                      <button type="button" onClick={() => setBairrosSel(new Set())}
+                        disabled={bairrosSel.size === 0}>
+                        Limpar
+                      </button>
+                    </div>
+                  </div>
+                  <ul className="aud-multi-lista">
+                    {bairrosLista
+                      .filter((b) => !bairrosQ.trim() || b.toLowerCase().includes(bairrosQ.trim().toLowerCase()))
+                      .map((b) => {
+                        const marcado = bairrosSel.has(b)
+                        return (
+                          <li key={b}>
+                            <label className={marcado ? 'is-on' : ''}>
+                              <input type="checkbox" checked={marcado} onChange={() => {
+                                setBairrosSel((prev) => {
+                                  const next = new Set(prev)
+                                  if (next.has(b)) next.delete(b)
+                                  else next.add(b)
+                                  return next
+                                })
+                              }} />
+                              <span>{b}</span>
+                            </label>
+                          </li>
+                        )
+                      })}
+                    {bairrosLista.length === 0 && (
+                      <li className="aud-multi-vazia">Sem bairros disponíveis.</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </div>
             <div className="aud-busca">
               <Search size={15} />
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nome, título, liderança, bairro ou seção" />
