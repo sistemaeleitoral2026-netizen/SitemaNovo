@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
-import { Download, Eye, Search, X } from 'lucide-react'
+import { Download, Eye, FileText, Search, X } from 'lucide-react'
 import { Spinner } from '../components/ui/Spinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Button } from '../components/ui/Button'
@@ -34,6 +34,7 @@ type LinhaSecao = {
   zona: string
   secao: string
   local: string
+  bairro: string
   fichas: AuditoriaFicha[]
   comparecimento: number
   /** votos de cada candidato acompanhado, na ordem de `alvos` */
@@ -105,6 +106,7 @@ export function AuditoriaPage() {
   const [fotoTitle, setFotoTitle] = useState('')
   const [edits, setEdits] = useState<Record<string, { zona: string; secao: string }>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [gerando, setGerando] = useState(false)
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -177,6 +179,7 @@ export function AuditoriaPage() {
         zona,
         secao,
         local: lookupLocalVotacao(locais, zona, secao)?.local?.trim() || '—',
+        bairro: lookupLocalVotacao(locais, zona, secao)?.bairro?.trim() || '—',
         fichas: list,
         comparecimento,
         votos,
@@ -254,6 +257,7 @@ export function AuditoriaPage() {
       return (
         l.secao.includes(q)
         || l.local.toLowerCase().includes(q)
+        || l.bairro.toLowerCase().includes(q)
         || l.fichas.some((f) => f.nome_completo.toLowerCase().includes(q) || f.titulo.includes(q))
       )
     }).sort((a, b) => m * cmp(val(a), val(b))
@@ -296,7 +300,8 @@ export function AuditoriaPage() {
         if (liderSel && lider !== liderSel) continue
         if (q && !(f.nome_completo.toLowerCase().includes(q) || f.titulo.includes(q)
           || lider.toLowerCase().includes(q) || coordenador.toLowerCase().includes(q)
-          || linha.secao.includes(q) || linha.local.toLowerCase().includes(q))) continue
+          || linha.secao.includes(q) || linha.local.toLowerCase().includes(q)
+          || linha.bairro.toLowerCase().includes(q))) continue
         out.push({ linha, ficha: f })
       }
     }
@@ -305,6 +310,7 @@ export function AuditoriaPage() {
       switch (sortE.key) {
         case 'fichas': return r.linha.fichas.length
         case 'eleitor': return r.ficha.nome_completo
+        case 'bairro': return r.linha.bairro
         case 'lider': return r.ficha.lider || 'Sem liderança'
         case 'coord': return r.ficha.coordenador || 'Sem coordenação'
         default: return r.linha.key
@@ -381,11 +387,30 @@ export function AuditoriaPage() {
     }
   }
 
+  async function gerarRelatorio() {
+    setGerando(true)
+    setError(null)
+    try {
+      const { gerarRelatorioAuditoriaPdf } = await import('../lib/auditoriaRelatorioPdf')
+      gerarRelatorioAuditoriaPdf({
+        alvos,
+        secoes: linhas.map((l) => ({ ...l, statusLabel: STATUS_LABEL[l.status] })),
+        invalidas,
+        foraSl: foraSl.length,
+        locais,
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível gerar o relatório.')
+    } finally {
+      setGerando(false)
+    }
+  }
+
   async function exportar() {
     const XLSX = await import('xlsx')
-    const cab = ['Zona', 'Seção', 'Local', 'Votaram (sistema)', 'Comparecimento BU', ...alvos.map((a) => a.nome), 'Status']
+    const cab = ['Zona', 'Seção', 'Bairro', 'Local', 'Votaram (sistema)', 'Comparecimento BU', ...alvos.map((a) => a.nome), 'Status']
     const dados = linhas.map((l) => [
-      l.zona, l.secao, l.local, l.fichas.length, l.comparecimento, ...l.votos, STATUS_LABEL[l.status],
+      l.zona, l.secao, l.bairro, l.local, l.fichas.length, l.comparecimento, ...l.votos, STATUS_LABEL[l.status],
     ])
     const ws = XLSX.utils.aoa_to_sheet([cab, ...dados])
     const wb = XLSX.utils.book_new()
@@ -433,6 +458,10 @@ export function AuditoriaPage() {
         </div>
         <div className="aud-head-actions">
           <Button variant="secondary" onClick={() => void carregar()}>Atualizar</Button>
+          <Button variant="primary" onClick={() => void gerarRelatorio()} disabled={!linhas.length || gerando}>
+            <FileText size={15} style={{ verticalAlign: '-2px', marginRight: 6 }} />
+            {gerando ? 'Gerando…' : 'Relatório PDF'}
+          </Button>
           <Button variant="secondary" onClick={() => void exportar()} disabled={!linhas.length}>
             <Download size={15} style={{ verticalAlign: '-2px', marginRight: 6 }} />
             Exportar
@@ -588,7 +617,7 @@ export function AuditoriaPage() {
                           <tr className={`aud-row ${open ? 'is-open' : ''}`} onClick={() => setAberta(open ? null : l.key)}>
                             <td>{l.zona}</td>
                             <td>{l.secao}</td>
-                            <td className="aud-local">{l.local}</td>
+                            <td className="aud-local">{l.local}<small className="aud-sub">Bairro: {l.bairro}</small></td>
                             <td className="aud-num"><strong>{l.fichas.length}</strong></td>
                             <td className="aud-num">{fmt(l.comparecimento)}</td>
                             {l.votos.map((v, i) => <td key={alvos[i].id} className="aud-num">{fmt(v)}</td>)}
@@ -680,7 +709,7 @@ export function AuditoriaPage() {
             </select>
             <div className="aud-busca">
               <Search size={15} />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nome, título, liderança ou seção" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nome, título, liderança, bairro ou seção" />
               {query ? (
                 <button type="button" onClick={() => setQuery('')} aria-label="Limpar"><X size={15} /></button>
               ) : null}
@@ -704,6 +733,7 @@ export function AuditoriaPage() {
                           {th(sortE, setSortE, `alvo${i}`, <span className="aud-alvo">{a.nome}<small>votos na seção (TSE)</small></span>, true)}
                         </Fragment>
                       ))}
+                      {th(sortE, setSortE, 'bairro', 'Bairro')}
                       {th(sortE, setSortE, 'fichas', <span className="aud-alvo">Fichas<small>que votaram na seção</small></span>, true)}
                       {th(sortE, setSortE, 'eleitor', 'Eleitor')}
                       {th(sortE, setSortE, 'lider', 'Liderança')}
@@ -726,6 +756,7 @@ export function AuditoriaPage() {
                               </>
                             ) : null}
                           </td>
+                          <td>{novaSecao ? <strong>{r.linha.bairro}</strong> : null}</td>
                           {r.linha.votos.map((v, i) => (
                             <td key={alvos[i].id} className="aud-num">{novaSecao ? <strong>{fmt(v)}</strong> : null}</td>
                           ))}
