@@ -728,12 +728,12 @@ export function AuditoriaPage() {
                   <thead>
                     <tr>
                       {th(sortE, setSortE, 'secao', <span className="aud-alvo">Zona / seção<small>local de votação</small></span>)}
+                      {th(sortE, setSortE, 'bairro', <span className="aud-alvo">Bairro<small>do local de votação</small></span>, true)}
                       {alvos.map((a, i) => (
                         <Fragment key={a.id}>
                           {th(sortE, setSortE, `alvo${i}`, <span className="aud-alvo">{a.nome}<small>votos na seção (TSE)</small></span>, true)}
                         </Fragment>
                       ))}
-                      {th(sortE, setSortE, 'bairro', 'Bairro')}
                       {th(sortE, setSortE, 'fichas', <span className="aud-alvo">Fichas<small>que votaram na seção</small></span>, true)}
                       {th(sortE, setSortE, 'eleitor', 'Eleitor')}
                       {th(sortE, setSortE, 'lider', 'Liderança')}
@@ -756,7 +756,7 @@ export function AuditoriaPage() {
                               </>
                             ) : null}
                           </td>
-                          <td>{novaSecao ? <strong>{r.linha.bairro}</strong> : null}</td>
+                          <td className="aud-num">{novaSecao ? <strong>{r.linha.bairro}</strong> : null}</td>
                           {r.linha.votos.map((v, i) => (
                             <td key={alvos[i].id} className="aud-num">{novaSecao ? <strong>{fmt(v)}</strong> : null}</td>
                           ))}
