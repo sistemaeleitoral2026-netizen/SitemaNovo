@@ -428,9 +428,9 @@ export function AuditoriaPage() {
 
   async function exportar() {
     const XLSX = await import('xlsx')
-    const cab = ['Zona', 'Seção', 'Bairro', 'Local', 'Votaram (sistema)', 'Comparecimento BU', ...alvos.map((a) => a.nome), 'Status']
+    const cab = ['Zona', 'Seção', 'Bairro', 'Local', 'Votaram (sistema)', ...alvos.map((a) => a.nome), 'Status']
     const dados = linhas.map((l) => [
-      l.zona, l.secao, l.bairro, l.local, l.fichas.length, l.comparecimento, ...l.votos, STATUS_LABEL[l.status],
+      l.zona, l.secao, l.bairro, l.local, l.fichas.length, ...l.votos, STATUS_LABEL[l.status],
     ])
     const ws = XLSX.utils.aoa_to_sheet([cab, ...dados])
     const wb = XLSX.utils.book_new()
@@ -533,7 +533,6 @@ export function AuditoriaPage() {
                     {th(sortZ, setSortZ, 'zona', 'Zona')}
                     {th(sortZ, setSortZ, 'secoes', 'Seções', true)}
                     {th(sortZ, setSortZ, 'votaram', 'Votaram', true)}
-                    {th(sortZ, setSortZ, 'comparecimento', 'Comparecimento', true)}
                     {colAlvosZ}
                     {th(sortZ, setSortZ, 'problemas', 'A revisar', true)}
                     <th />
@@ -545,7 +544,6 @@ export function AuditoriaPage() {
                       <td><strong>Zona {z.zona}</strong></td>
                       <td className="aud-num">{z.secoes}</td>
                       <td className="aud-num"><strong>{fmt(z.votaram)}</strong></td>
-                      <td className="aud-num">{fmt(z.comparecimento)}</td>
                       {z.votos.map((v, i) => <td key={alvos[i].id} className="aud-num">{fmt(v)}</td>)}
                       <td className="aud-num">
                         {z.problemas ? <span className="aud-flag is-warn">{z.problemas}</span> : <span className="aud-muted">0</span>}
@@ -563,7 +561,6 @@ export function AuditoriaPage() {
                     <td>Total</td>
                     <td className="aud-num">{totais.secoes}</td>
                     <td className="aud-num">{fmt(totais.votaram)}</td>
-                    <td className="aud-num">{fmt(porZona.reduce((s, z) => s + z.comparecimento, 0))}</td>
                     {totais.votos.map((v, i) => <td key={alvos[i].id} className="aud-num">{fmt(v)}</td>)}
                     <td className="aud-num">{totais.problemas}</td>
                     <td />
@@ -624,7 +621,6 @@ export function AuditoriaPage() {
                       {th(sortS, setSortS, 'secao', 'Seção')}
                       {th(sortS, setSortS, 'local', 'Local de votação')}
                       {th(sortS, setSortS, 'votaram', 'Votaram', true)}
-                      {th(sortS, setSortS, 'comparecimento', 'Comparecimento', true)}
                       {colAlvosS}
                       {th(sortS, setSortS, 'status', 'Situação')}
                     </tr>
@@ -639,7 +635,6 @@ export function AuditoriaPage() {
                             <td>{l.secao}</td>
                             <td className="aud-local">{l.local}<small className="aud-sub">Bairro: {l.bairro}</small></td>
                             <td className="aud-num"><strong>{l.fichas.length}</strong></td>
-                            <td className="aud-num">{fmt(l.comparecimento)}</td>
                             {l.votos.map((v, i) => <td key={alvos[i].id} className="aud-num">{fmt(v)}</td>)}
                             <td>
                               <span className={`aud-flag ${l.status === 'confere' ? 'is-ok' : l.status === 'parcial' ? 'is-warn' : 'is-err'}`}>
@@ -654,7 +649,7 @@ export function AuditoriaPage() {
                           </tr>
                           {open && (
                             <tr className="aud-detalhe">
-                              <td colSpan={6 + alvos.length}>
+                              <td colSpan={5 + alvos.length}>
                                 <div className="aud-detalhe-grid">
                                   <div>
                                     <h4>Quem votou nesta seção ({l.fichas.length})</h4>
@@ -676,7 +671,6 @@ export function AuditoriaPage() {
                                     <h4>Conferência</h4>
                                     <dl>
                                       <dt>Fichas “Votou”</dt><dd>{l.fichas.length}</dd>
-                                      <dt>Comparecimento (BU)</dt><dd>{fmt(l.comparecimento)}</dd>
                                       <dt>Federal: Fabiana Vilar</dt><dd>{fmt(l.somaFederal)}</dd>
                                       <dt>Estadual: Josimar</dt><dd>{fmt(l.somaEstadual)}</dd>
                                       <dt>Brancos / Nulos</dt><dd>{l.branco} / {l.nulo}</dd>
@@ -707,7 +701,7 @@ export function AuditoriaPage() {
             )}
           </div>
           <p className="aud-nota">
-            <b>Ficha</b> = eleitor cadastrado no sistema e marcado como “Votou”. <b>Não cabem</b> = fichas − votos do candidato na seção: se a seção deu 26 votos a Fabiana e há 32 fichas, no máximo 26 podem ter votado nela e 6 não cabem. <b>{STATUS_LABEL.confere}</b>: Fabiana e Josimar têm, cada um, pelo menos tantos votos na seção quantas são as fichas “Votou”. <b>{STATUS_LABEL.parcial}</b>: algum deles tem menos votos que fichas (a diferença aparece embaixo), mas ainda 75% ou mais. <b>{STATUS_LABEL.abaixo}</b>: algum deles ficou abaixo de 75% das fichas. <b>{STATUS_LABEL.excede}</b>: há mais fichas “Votou” do que eleitores que compareceram.
+            <b>Ficha</b> = eleitor cadastrado no sistema e marcado como “Votou”. <b>Não cabem</b> = fichas − votos do candidato na seção: se a seção deu 26 votos a Fabiana e há 32 fichas, no máximo 26 podem ter votado nela e 6 não cabem. <b>{STATUS_LABEL.confere}</b>: Fabiana e Josimar têm, cada um, pelo menos tantos votos na seção quantas são as fichas “Votou”. <b>{STATUS_LABEL.parcial}</b>: algum deles tem menos votos que fichas (a diferença aparece embaixo), mas ainda 75% ou mais. <b>{STATUS_LABEL.abaixo}</b>: algum deles ficou abaixo de 75% das fichas. <b>{STATUS_LABEL.excede}</b>: inconsistência rara — há mais fichas “Votou” na seção do que eleitores que efetivamente foram votar nela.
           </p>
         </>
       )}
