@@ -949,7 +949,8 @@ export function AuditoriaPage() {
         const r = resultado
         const faixa = (a: Resultado) => (a.conf / a.fichas >= 0.9 ? 'bom' : a.conf / a.fichas >= 0.75 ? 'atencao' : 'reavaliar')
         const faixaLabel: Record<string, string> = { bom: 'Bom', atencao: 'Atenção', reavaliar: 'Reavaliar' }
-        const fmtF = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        // Voto é unitário: arredondamos para inteiro na exibição (a conta interna continua proporcional, para permitir atribuir a coord./liderança). O arredondamento é o "voto inteiro mais próximo" da estimativa segura.
+        const fmtF = (n: number) => Math.round(n).toLocaleString('pt-BR')
         const pct = (a: number, b: number) =>
           b > 0 ? `${((a / b) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : '—'
 
@@ -1130,10 +1131,11 @@ export function AuditoriaPage() {
             </section>
 
             <p className="aud-nota">
-              <b>Como lemos:</b> em cada seção, se há N fichas marcadas como “Votou” e o candidato recebeu V votos no BU,
-              no máximo min(1, V/N) de cada ficha pode ser atribuído a ele. Com dois candidatos acompanhados, vale o
-              menor dos dois (uma ficha só é 100% confirmada se couber nos votos dos dois). A soma desses pedacinhos
-              em todas as fichas da coordenação ou liderança é o número de votos confirmados.
+              <b>Como lemos:</b> em cada seção, se temos N fichas marcadas como “Votou” e o candidato recebeu V votos no BU, no máximo
+              V dessas N fichas realmente viraram voto nele. Como o voto é secreto, não dá para dizer <i>quais</i> fichas foram essas,
+              então a conta reparte esse teto entre as fichas da seção, proporcionalmente — o que acontece é que o total de votos confirmados
+              de uma coordenação ou liderança sai como um número fracionário. O voto é unitário, então na tela mostramos o <b>voto inteiro
+              mais próximo</b>. Pequenas diferenças de 1 voto entre a soma das linhas e o total vêm desse arredondamento, não da conta.
             </p>
           </div>
         )
