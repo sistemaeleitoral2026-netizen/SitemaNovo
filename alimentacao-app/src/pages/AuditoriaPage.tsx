@@ -183,10 +183,13 @@ export function AuditoriaPage() {
       const somaFederal = alvos.reduce((s, a, i) => (a.cargo === 'Deputado Federal' ? s + votos[i] : s), 0)
       const somaEstadual = alvos.reduce((s, a, i) => (a.cargo === 'Deputado Estadual' ? s + votos[i] : s), 0)
       const comparecimento = sec?.get(federal)?.total ?? 0
+      // Regra: ficha confirmada = entregou voto a PELO MENOS UM candidato acompanhado.
+      // Status olha o candidato que mais recebeu votos na seção (teto da conta).
+      const maxVotos = votos.length ? Math.max(...votos) : 0
       let st: StatusSecao = 'confere'
       if (list.length > comparecimento) st = 'excede'
-      else if (somaFederal < list.length * TOLERANCIA || somaEstadual < list.length * TOLERANCIA) st = 'abaixo'
-      else if (somaFederal < list.length || somaEstadual < list.length) st = 'parcial'
+      else if (maxVotos < list.length * TOLERANCIA) st = 'abaixo'
+      else if (maxVotos < list.length) st = 'parcial'
       const [zona, secao] = key.split('|')
       out.push({
         key,
@@ -332,7 +335,11 @@ export function AuditoriaPage() {
     let totalConf = 0
     for (const linha of linhas) {
       const n = linha.fichas.length
-      const fit = n ? Math.min(...linha.votos.map((v) => Math.min(1, v / n))) : 0
+      // Lógica: ficha confirmada = entregou voto a PELO MENOS UM candidato acompanhado.
+      // Em uma seção com N fichas, no cenário mais plausível (parte vota em todos; o resto
+      // vota só no que tem mais votos), o teto é max(V_i) fichas confirmadas. Dividido por N
+      // dá a probabilidade por ficha; a soma por coordenação/liderança preserva o teto.
+      const fit = n ? Math.min(1, Math.max(...linha.votos) / n) : 0
       for (const f of linha.fichas) {
         totalFichas += 1
         totalConf += fit
@@ -767,7 +774,7 @@ export function AuditoriaPage() {
             )}
           </div>
           <p className="aud-nota">
-            <b>Ficha</b> = eleitor cadastrado no sistema e marcado como “Votou”. <b>Não cabem</b> = fichas − votos do candidato na seção: se a seção deu 26 votos a Fabiana e há 32 fichas, no máximo 26 podem ter votado nela e 6 não cabem. <b>{STATUS_LABEL.confere}</b>: Fabiana e Josimar têm, cada um, pelo menos tantos votos na seção quantas são as fichas “Votou”. <b>{STATUS_LABEL.parcial}</b>: algum deles tem menos votos que fichas (a diferença aparece embaixo), mas ainda 75% ou mais. <b>{STATUS_LABEL.abaixo}</b>: algum deles ficou abaixo de 75% das fichas. <b>{STATUS_LABEL.excede}</b>: inconsistência rara — há mais fichas “Votou” na seção do que eleitores que efetivamente foram votar nela.
+            <b>Ficha</b> = eleitor cadastrado no sistema e marcado como “Votou”. <b>Não cabem</b> = fichas − votos daquele candidato na seção (informativo, por candidato). A conta usa o <b>candidato com mais votos na seção</b> como teto, porque basta a ficha ter entregue voto a <b>pelo menos um</b> dos candidatos para ser confirmada. <b>{STATUS_LABEL.confere}</b>: pelo menos um dos candidatos tem votos ≥ fichas (todas cabem). <b>{STATUS_LABEL.parcial}</b>: o candidato que mais votou ficou abaixo das fichas, mas ainda ≥ 75%. <b>{STATUS_LABEL.abaixo}</b>: ficou abaixo de 75%. <b>{STATUS_LABEL.excede}</b>: inconsistência rara — há mais fichas “Votou” na seção do que eleitores que efetivamente foram votar.
           </p>
         </>
       )}
@@ -1131,11 +1138,16 @@ export function AuditoriaPage() {
             </section>
 
             <p className="aud-nota">
-              <b>Como lemos:</b> em cada seção, se temos N fichas marcadas como “Votou” e o candidato recebeu V votos no BU, no máximo
-              V dessas N fichas realmente viraram voto nele. Como o voto é secreto, não dá para dizer <i>quais</i> fichas foram essas,
-              então a conta reparte esse teto entre as fichas da seção, proporcionalmente — o que acontece é que o total de votos confirmados
-              de uma coordenação ou liderança sai como um número fracionário. O voto é unitário, então na tela mostramos o <b>voto inteiro
-              mais próximo</b>. Pequenas diferenças de 1 voto entre a soma das linhas e o total vêm desse arredondamento, não da conta.
+              <b>Como contamos:</b> em cada seção, uma ficha é considerada confirmada quando entregou voto a <b>pelo menos um</b> dos
+              candidatos acompanhados — já que a estratégia da equipe era votar nos dois, mas na prática algumas fichas podem ter
+              votado só em um. O teto por seção é o número de votos do candidato que mais recebeu ali.
+              <br />
+              <b>Exemplo:</b> seção com 17 fichas, 12 votos de Fabiana e 10 de Josimar. Assumimos que 10 fichas (o mínimo entre os
+              dois) entregaram voto nos dois, outras 2 fichas só na Fabiana (os 12 − 10 restantes) e 5 fichas não entregaram voto a
+              nenhum. Confirmadas na seção: <b>12</b> (de 17).
+              <br />
+              O voto é unitário, por isso mostramos o <b>voto inteiro mais próximo</b>. Pequenas diferenças de 1 voto entre a soma
+              das linhas e o total vêm só do arredondamento final, não da conta.
             </p>
           </div>
         )
