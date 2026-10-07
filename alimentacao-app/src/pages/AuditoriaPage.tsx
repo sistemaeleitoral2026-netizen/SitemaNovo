@@ -18,7 +18,7 @@ import { loadLocaisVotacaoMa, lookupLocalVotacao, type LocalVotacaoRef } from '.
 import { normalizeSecao, normalizeZona } from '../lib/normalize'
 import { signVotoFoto } from '../lib/votacao'
 
-type Tab = 'zona' | 'secao' | 'equipe' | 'corrigir'
+type Tab = 'zona' | 'secao' | 'equipe' | 'resultado' | 'corrigir'
 type StatusSecao = 'confere' | 'parcial' | 'abaixo' | 'excede'
 type StatusFiltro = 'todos' | StatusSecao
 
@@ -306,6 +306,71 @@ export function AuditoriaPage() {
     [linhas],
   )
 
+  /**
+   * Agregados para a aba "Resultado": matemática idêntica à do PDF.
+   * Em cada seção, uma ficha vale min(1, votos_candidato / fichas) por candidato.
+   * A confirmação final é o mínimo entre os candidatos acompanhados (ficha
+   * só é totalmente confirmada se couber nos votos de todos).
+   */
+  type Resultado = {
+    nome: string
+    fichas: number
+    conf: number
+    secoes: number
+    bairros: number
+    liderancas?: number
+    coord?: string
+  }
+  const resultado = useMemo(() => {
+    type Agg = { fichas: number; conf: number; secoes: Set<string>; bairros: Set<string>; liderancas: Set<string>; coord?: string }
+    const vazio = (): Agg => ({ fichas: 0, conf: 0, secoes: new Set(), bairros: new Set(), liderancas: new Set() })
+    const porCoord = new Map<string, Agg>()
+    const porLider = new Map<string, Agg>()
+    const porBairro = new Map<string, Agg>()
+    const porZona = new Map<string, Agg>()
+    let totalFichas = 0
+    let totalConf = 0
+    for (const linha of linhas) {
+      const n = linha.fichas.length
+      const fit = n ? Math.min(...linha.votos.map((v) => Math.min(1, v / n))) : 0
+      for (const f of linha.fichas) {
+        totalFichas += 1
+        totalConf += fit
+        const coord = f.coordenador || 'Sem coordenação'
+        const lider = f.lider || 'Sem liderança'
+        const chaveL = `${coord}\u0000${lider}`
+        const incr = (m: Map<string, Agg>, k: string) => {
+          let a = m.get(k)
+          if (!a) { a = vazio(); m.set(k, a) }
+          a.fichas += 1; a.conf += fit
+          a.secoes.add(linha.key); a.bairros.add(linha.bairro); a.liderancas.add(lider)
+          return a
+        }
+        incr(porCoord, coord)
+        const al = incr(porLider, chaveL); al.coord = coord
+        incr(porBairro, linha.bairro)
+        incr(porZona, linha.zona)
+      }
+    }
+    const toRes = (m: Map<string, Agg>, lider = false): Resultado[] =>
+      [...m.entries()].map(([k, a]) => ({
+        nome: lider ? k.split('\u0000')[1] : k,
+        coord: lider ? k.split('\u0000')[0] : a.coord,
+        fichas: a.fichas, conf: a.conf,
+        secoes: a.secoes.size, bairros: a.bairros.size,
+        liderancas: a.liderancas.size,
+      }))
+    const porConf = (a: Resultado, b: Resultado) =>
+      b.conf - a.conf || b.conf / b.fichas - a.conf / a.fichas || a.nome.localeCompare(b.nome, 'pt-BR')
+    return {
+      totalFichas, totalConf,
+      coords: toRes(porCoord).sort(porConf),
+      liders: toRes(porLider, true).sort(porConf),
+      bairros: toRes(porBairro).sort(porConf),
+      zonas: toRes(porZona).sort(porConf),
+    }
+  }, [linhas])
+
   /** Uma linha por ficha (filtrada), com os dados da seção onde votou. */
   const linhasEquipe = useMemo<LinhaEquipe[]>(() => {
     const q = query.trim().toLowerCase()
@@ -513,6 +578,7 @@ export function AuditoriaPage() {
         <button type="button" className={tab === 'zona' ? 'is-on' : ''} onClick={() => setTab('zona')}>Por zona</button>
         <button type="button" className={tab === 'secao' ? 'is-on' : ''} onClick={() => setTab('secao')}>Por seção</button>
         <button type="button" className={tab === 'equipe' ? 'is-on' : ''} onClick={() => setTab('equipe')}>Fichas por equipe</button>
+        <button type="button" className={tab === 'resultado' ? 'is-on' : ''} onClick={() => setTab('resultado')}>Resultado</button>
         <button type="button" className={tab === 'corrigir' ? 'is-on' : ''} onClick={() => setTab('corrigir')}>
           Corrigir zona/seção <span className="aud-badge">{invalidas.length}</span>
         </button>
@@ -878,6 +944,200 @@ export function AuditoriaPage() {
           </p>
         </>
       )}
+
+      {tab === 'resultado' && (() => {
+        const r = resultado
+        const faixa = (a: Resultado) => (a.conf / a.fichas >= 0.9 ? 'bom' : a.conf / a.fichas >= 0.75 ? 'atencao' : 'reavaliar')
+        const faixaLabel: Record<string, string> = { bom: 'Bom', atencao: 'Atenção', reavaliar: 'Reavaliar' }
+        const fmtF = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        const pct = (a: number, b: number) =>
+          b > 0 ? `${((a / b) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : '—'
+
+        const melhorC = r.coords[0]
+        const piorC = r.coords[r.coords.length - 1]
+        const comMin = r.coords.filter((c) => c.fichas >= 5)
+        const baseAprov = comMin.length >= 2 ? comMin : r.coords
+        const melhorAprov = [...baseAprov].sort((a, b) => (b.conf / b.fichas) - (a.conf / a.fichas) || b.fichas - a.fichas)[0]
+        const piorAprov = [...baseAprov].sort((a, b) => (a.conf / a.fichas) - (b.conf / b.fichas) || b.fichas - a.fichas)[0]
+
+        const lidsGrandes = r.liders.filter((l) => l.fichas >= 3)
+        const melhorL = [...lidsGrandes].sort((a, b) => (b.conf / b.fichas) - (a.conf / a.fichas) || b.fichas - a.fichas)[0]
+        const piorL = [...lidsGrandes].sort((a, b) => (a.conf / a.fichas) - (b.conf / b.fichas) || b.fichas - a.fichas)[0]
+        const topBairro = r.bairros[0]
+        const topZona = [...r.zonas].sort((a, b) => b.conf - a.conf)[0]
+
+        const bomCount = lidsGrandes.filter((l) => l.conf / l.fichas >= 0.9).length
+        const atCount = lidsGrandes.filter((l) => l.conf / l.fichas >= 0.75 && l.conf / l.fichas < 0.9).length
+        const reavCount = lidsGrandes.filter((l) => l.conf / l.fichas < 0.75).length
+
+        const semAnalise = r.totalFichas === 0
+
+        if (semAnalise) {
+          return (
+            <div className="aud-card">
+              <EmptyState title="Sem resultado" description="Nenhuma ficha “Votou” em zona/seção válida de São Luís para analisar." />
+            </div>
+          )
+        }
+
+        return (
+          <div className="res-wrap">
+            <section className="res-topo">
+              <div className="res-topo-num">
+                <span>Votos confirmados da equipe</span>
+                <strong>{fmtF(r.totalConf)}</strong>
+                <em>de {r.totalFichas.toLocaleString('pt-BR')} fichas · {pct(r.totalConf, r.totalFichas)} de aproveitamento</em>
+              </div>
+              <p className="res-topo-sub">
+                Em cada seção, uma ficha só é confirmada se couber nos votos de todos os candidatos acompanhados.
+                O número acima é o máximo logicamente possível de atribuir à equipe sem contradizer o Boletim de Urna.
+              </p>
+            </section>
+
+            <section className="res-destaques">
+              {melhorC && (
+                <article className="res-card is-bom">
+                  <header><small>Melhor coordenação em volume</small><h3>{melhorC.nome}</h3></header>
+                  <p><strong>{fmtF(melhorC.conf)}</strong> votos confirmados <em>de {melhorC.fichas} fichas · {pct(melhorC.conf, melhorC.fichas)}</em></p>
+                  <footer>{melhorC.secoes} seções · {melhorC.bairros} bairros · {melhorC.liderancas} lideranças</footer>
+                </article>
+              )}
+              {piorC && r.coords.length > 1 && (
+                <article className="res-card is-ruim">
+                  <header><small>Coordenação com menos votos</small><h3>{piorC.nome}</h3></header>
+                  <p><strong>{fmtF(piorC.conf)}</strong> votos confirmados <em>de {piorC.fichas} fichas · {pct(piorC.conf, piorC.fichas)}</em></p>
+                  <footer>Convém revisar base e mobilização</footer>
+                </article>
+              )}
+              {melhorAprov && piorAprov && melhorAprov !== piorAprov && (
+                <>
+                  <article className="res-card is-bom">
+                    <header><small>Maior aproveitamento{baseAprov === comMin ? ' (≥ 5 fichas)' : ''}</small><h3>{melhorAprov.nome}</h3></header>
+                    <p><strong>{pct(melhorAprov.conf, melhorAprov.fichas)}</strong> <em>· {fmtF(melhorAprov.conf)} de {melhorAprov.fichas} fichas</em></p>
+                  </article>
+                  <article className="res-card is-ruim">
+                    <header><small>Menor aproveitamento{baseAprov === comMin ? ' (≥ 5 fichas)' : ''}</small><h3>{piorAprov.nome}</h3></header>
+                    <p><strong>{pct(piorAprov.conf, piorAprov.fichas)}</strong> <em>· {fmtF(piorAprov.conf)} de {piorAprov.fichas} fichas</em></p>
+                  </article>
+                </>
+              )}
+              {melhorL && piorL && melhorL !== piorL && (
+                <>
+                  <article className="res-card is-bom">
+                    <header><small>Melhor liderança (≥ 3 fichas)</small><h3>{melhorL.nome}</h3></header>
+                    <p><strong>{pct(melhorL.conf, melhorL.fichas)}</strong> <em>· {fmtF(melhorL.conf)} de {melhorL.fichas} fichas</em></p>
+                    <footer>{melhorL.coord}</footer>
+                  </article>
+                  <article className="res-card is-ruim">
+                    <header><small>Pior liderança (≥ 3 fichas)</small><h3>{piorL.nome}</h3></header>
+                    <p><strong>{pct(piorL.conf, piorL.fichas)}</strong> <em>· {fmtF(piorL.conf)} de {piorL.fichas} fichas</em></p>
+                    <footer>{piorL.coord}</footer>
+                  </article>
+                </>
+              )}
+              {topBairro && (
+                <article className="res-card is-info">
+                  <header><small>Bairro mais forte</small><h3>{topBairro.nome}</h3></header>
+                  <p><strong>{fmtF(topBairro.conf)}</strong> votos confirmados <em>de {topBairro.fichas} fichas · {pct(topBairro.conf, topBairro.fichas)}</em></p>
+                </article>
+              )}
+              {topZona && (
+                <article className="res-card is-info">
+                  <header><small>Zona mais forte</small><h3>Zona {topZona.nome}</h3></header>
+                  <p><strong>{fmtF(topZona.conf)}</strong> votos confirmados <em>de {topZona.fichas} fichas · {pct(topZona.conf, topZona.fichas)}</em></p>
+                </article>
+              )}
+            </section>
+
+            <section className="res-faixas">
+              <div className="res-faixa is-bom"><span>Bom</span><strong>{bomCount}</strong><em>liderança(s) com ≥ 90%</em></div>
+              <div className="res-faixa is-at"><span>Atenção</span><strong>{atCount}</strong><em>entre 75% e 90%</em></div>
+              <div className="res-faixa is-ruim"><span>Reavaliar</span><strong>{reavCount}</strong><em>abaixo de 75%</em></div>
+              <div className="res-faixa is-pe"><span>Amostra pequena</span><strong>{r.liders.length - lidsGrandes.length}</strong><em>menos de 3 fichas</em></div>
+            </section>
+
+            <section className="aud-card">
+              <h3 className="res-titulo">Ranking de coordenações</h3>
+              <div className="table-wrapper">
+                <table className="aud-table">
+                  <thead>
+                    <tr>
+                      <th>#</th><th>Coordenação</th>
+                      <th className="aud-num">Lideranças</th><th className="aud-num">Seções</th><th className="aud-num">Bairros</th>
+                      <th className="aud-num">Fichas</th><th className="aud-num">Confirmadas</th>
+                      <th className="aud-num">Aprov.</th><th>Parecer</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {r.coords.map((c, i) => {
+                      const f = faixa(c)
+                      return (
+                        <tr key={c.nome}>
+                          <td className="aud-num">{i + 1}</td>
+                          <td><strong>{c.nome}</strong></td>
+                          <td className="aud-num">{c.liderancas}</td>
+                          <td className="aud-num">{c.secoes}</td>
+                          <td className="aud-num">{c.bairros}</td>
+                          <td className="aud-num">{c.fichas.toLocaleString('pt-BR')}</td>
+                          <td className="aud-num">{fmtF(c.conf)}</td>
+                          <td className="aud-num"><strong className={`res-pct is-${f}`}>{pct(c.conf, c.fichas)}</strong></td>
+                          <td><span className={`res-tag is-${f}`}>{faixaLabel[f]}</span></td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section className="aud-card">
+              <h3 className="res-titulo">Ranking de lideranças <small>· ordenado por votos confirmados</small></h3>
+              <div className="table-wrapper">
+                <table className="aud-table">
+                  <thead>
+                    <tr>
+                      <th>#</th><th>Liderança</th><th>Coordenação</th>
+                      <th className="aud-num">Bairros</th><th className="aud-num">Fichas</th>
+                      <th className="aud-num">Confirmadas</th><th className="aud-num">Não cab.</th>
+                      <th className="aud-num">Aprov.</th><th>Parecer</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {r.liders.map((l, i) => {
+                      const amostra = l.fichas < 3
+                      const f = amostra ? 'pe' : faixa(l)
+                      const label = amostra ? 'Amostra pequena' : faixaLabel[f]
+                      return (
+                        <tr key={`${l.coord}|${l.nome}`}>
+                          <td className="aud-num">{i + 1}</td>
+                          <td><strong>{l.nome}</strong></td>
+                          <td>{l.coord}</td>
+                          <td className="aud-num">{l.bairros}</td>
+                          <td className="aud-num">{l.fichas}</td>
+                          <td className="aud-num">{fmtF(l.conf)}</td>
+                          <td className="aud-num">{fmtF(l.fichas - l.conf)}</td>
+                          <td className="aud-num">
+                            {amostra ? <em className="aud-muted">—</em>
+                              : <strong className={`res-pct is-${f}`}>{pct(l.conf, l.fichas)}</strong>}
+                          </td>
+                          <td><span className={`res-tag is-${f}`}>{label}</span></td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <p className="aud-nota">
+              <b>Como lemos:</b> em cada seção, se há N fichas marcadas como “Votou” e o candidato recebeu V votos no BU,
+              no máximo min(1, V/N) de cada ficha pode ser atribuído a ele. Com dois candidatos acompanhados, vale o
+              menor dos dois (uma ficha só é 100% confirmada se couber nos votos dos dois). A soma desses pedacinhos
+              em todas as fichas da coordenação ou liderança é o número de votos confirmados.
+            </p>
+          </div>
+        )
+      })()}
 
       {tab === 'corrigir' && (
         <>
