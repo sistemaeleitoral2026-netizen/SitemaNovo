@@ -16800,10 +16800,15 @@ button.vot-kpi-btn.is-no.is-on {
 .aud-busca button { border: 0; background: none; cursor: pointer; color: var(--muted); display: grid; place-items: center; padding: 0; }
 .aud-contagem { font-size: .82rem; color: var(--muted); margin-left: auto; }
 .aud-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
-.aud-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
-.aud-table th { text-align: left; font-weight: 600; font-size: .74rem; color: var(--muted); padding: .6rem .8rem; border-bottom: 1px solid var(--border); background: var(--surface-muted); white-space: nowrap; vertical-align: bottom; }
+/* Tabelas da Auditoria: visual de planilha — grade em todas as células (vertical + horizontal). */
+.aud-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .85rem; border: 1px solid var(--border); }
+.aud-table th { text-align: left; font-weight: 600; font-size: .74rem; color: var(--muted); padding: .6rem .8rem;
+  border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  background: var(--surface-muted); white-space: nowrap; vertical-align: bottom; }
 .aud-table th small { display: block; font-weight: 400; color: var(--muted-2); font-size: .68rem; }
-.aud-table td { padding: .55rem .8rem; border-bottom: 1px solid #eef0f3; vertical-align: middle; }
+.aud-table td { padding: .55rem .8rem; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); vertical-align: middle; }
+.aud-table th:last-child,
+.aud-table td:last-child { border-right: 0; }
 .aud-table tbody tr:last-child td { border-bottom: 0; }
 .aud-table tfoot td { font-weight: 700; background: var(--surface-muted); border-top: 1px solid var(--border); }
 .aud-num { text-align: right !important; font-variant-numeric: tabular-nums; }
@@ -16895,13 +16900,7 @@ button.vot-kpi-btn.is-no.is-on {
 .aud-multi-lista span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .aud-multi-vazia { padding: .6rem .8rem; color: var(--muted); font-size: .83rem; }
 
-/* Aba "Fichas por equipe": aparência de planilha, com linhas de grade em todas as células. */
-.aud-equipe { border: 1px solid var(--border); border-collapse: separate; border-spacing: 0; }
-.aud-equipe th,
-.aud-equipe td { border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); vertical-align: middle; }
-.aud-equipe th:last-child,
-.aud-equipe td:last-child { border-right: 0; }
-.aud-equipe tbody tr:last-child td { border-bottom: 0; }
+/* Aba "Fichas por equipe": separador grosso entre as fichas de cada seção. */
 .aud-equipe tr.aud-inicio td { border-top: 2px solid #c7cdd8; }
 .aud-equipe tbody tr:first-child td { border-top: 0; }
 /* Centraliza numéricas (votos / fichas) e a coluna de Bairro — tipo planilha. */
