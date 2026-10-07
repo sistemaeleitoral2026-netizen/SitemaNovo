@@ -117,7 +117,10 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
   for (const sec of secoes) {
     const n = sec.fichas.length
     const fitAlvo = sec.votos.map((v) => (n ? Math.min(1, v / n) : 0))
-    const fit = fitAlvo.length ? Math.min(...fitAlvo) : 1
+    // Ficha confirmada = entregou voto a PELO MENOS UM dos candidatos acompanhados.
+    // Em uma seção com N fichas, o teto de fichas confirmadas é max(V_i) (não min),
+    // porque quem votou no candidato que recebeu mais votos conta como confirmado.
+    const fit = fitAlvo.length ? Math.max(...fitAlvo) : 1
     for (const f of sec.fichas) {
       linhas.push({
         ficha: f,
@@ -430,7 +433,7 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
       ...alvos.map((a, i) => [
         `Votos válidos da equipe: ${a.nome}`, fmtI(confA[i]), 'por seção, fichas limitadas aos votos do candidato',
       ]),
-      ['VOTOS VÁLIDOS DA EQUIPE', fmtI(totalConf), 'fichas que cabem nos votos de todos os candidatos'],
+      ['VOTOS VÁLIDOS DA EQUIPE', fmtI(totalConf), 'fichas que entregaram voto a pelo menos um dos candidatos'],
       ['Fichas não confirmadas', fmtI(totalFichas - totalConf), 'fichas - votos válidos'],
       ['Aproveitamento geral', pct(totalConf, totalFichas), 'votos válidos ÷ fichas'],
     ],
@@ -655,7 +658,8 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
   titulo('7. Seções críticas')
   const criticas = secoes
     .map((x) => {
-      const conf = x.fichas.length ? Math.min(...x.votos.map((v) => Math.min(x.fichas.length, v))) : 0
+      // Fichas confirmadas na seção = teto pelo candidato com mais votos (quem votou nele conta como confirmado).
+      const conf = x.fichas.length ? Math.min(x.fichas.length, Math.max(...x.votos)) : 0
       return { x, dif: x.fichas.length - conf }
     })
     .filter((c) => c.dif >= 1 || c.x.statusLabel === 'Acima do comparecimento')
@@ -692,7 +696,7 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
   const metodo = [
     'Fonte das fichas: cadastro do sistema, apenas registros marcados como “Votou”. Fichas sem zona/seção válida na base de locais do TSE ficam fora dos cálculos (seção 8).',
     'Fonte dos votos: boletins de urna (BU) de São Luís, por zona e seção, para os candidatos acompanhados. O bairro vem do local de votação cadastrado no TSE para cada seção.',
-    'Fichas confirmadas: em cada seção, se há N fichas e o candidato recebeu V votos, no máximo V fichas podem ter votado nele; cada ficha vale min(1, V ÷ N). Com mais de um candidato acompanhado, usa-se o menor valor entre eles. A confirmação de uma coordenação é a soma desse valor nas suas fichas.',
+    'Fichas confirmadas: por seção, uma ficha é considerada confirmada quando entregou voto a pelo menos um dos candidatos acompanhados. Em uma seção com N fichas, o teto é max(V) — o candidato com mais votos naquela seção. Exemplo: 17 fichas, Fabiana 12, Josimar 10. Assume-se que 10 entregaram voto nos dois (mínimo entre os candidatos), outras 2 só na Fabiana (12 − 10), e 5 não entregaram voto. Total confirmado na seção: 12. A confirmação de uma coordenação é a soma por seção, repartida entre suas fichas.',
     'Aproveitamento: fichas confirmadas ÷ fichas que votaram. Parecer: Bom >= 90%, Atenção entre 75% e 90%, Reavaliar abaixo de 75%. Os cortes são critério de gestão e podem ser ajustados.',
     'Limitação: o voto é secreto. O BU informa quantos votos o candidato teve na seção, nunca quem votou em quem; a confirmação é, portanto, um limite máximo plausível e não uma prova individual. Seções com muitas fichas distribuem a diferença proporcionalmente entre as coordenações.',
   ]
