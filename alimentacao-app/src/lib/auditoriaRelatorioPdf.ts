@@ -30,9 +30,7 @@ type Linha = {
   sec: RelSecao
   coord: string
   lider: string
-  /** fração da ficha confirmada considerando todos os candidatos juntos */
   fit: number
-  /** fração confirmada por candidato */
   fitAlvo: number[]
 }
 
@@ -47,19 +45,21 @@ type Agg = {
   zonas: Set<string>
 }
 
-// Paleta sóbria, impressão em preto-e-branco segura.
-const PRETO: [number, number, number] = [20, 24, 32]
-const GRAFITE: [number, number, number] = [60, 68, 82]
+// Paleta institucional
+const TINTA: [number, number, number] = [18, 22, 30]
+const GRAFITE: [number, number, number] = [62, 70, 84]
 const CINZA: [number, number, number] = [120, 128, 140]
 const CINZA_CL: [number, number, number] = [196, 202, 212]
-const LINHA: [number, number, number] = [220, 224, 232]
-const SUAVE: [number, number, number] = [249, 250, 252]
-const AZUL: [number, number, number] = [36, 59, 108]
+const LINHA: [number, number, number] = [218, 222, 230]
+const PAPEL: [number, number, number] = [252, 252, 250]
+const CREME: [number, number, number] = [246, 243, 234]
+const BORDO: [number, number, number] = [124, 42, 48]
+const AZUL: [number, number, number] = [38, 61, 108]
 const VERDE: [number, number, number] = [26, 110, 66]
 const AMBAR: [number, number, number] = [168, 108, 10]
 const VERM: [number, number, number] = [163, 36, 36]
 
-const M = 18 // margem lateral
+const M = 20
 
 const fmt = (n: number) => n.toLocaleString('pt-BR')
 const fmt2 = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -69,17 +69,13 @@ const pct1 = (a: number, b: number) =>
   b > 0 ? `${((a / b) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : '-'
 const cmpNome = (a: string, b: string) => a.localeCompare(b, 'pt-BR')
 const primeiroNome = (n: string) => n.split(' ')[0]
+const smallCaps = (s: string) => s.toUpperCase()
 
 function novoAgg(nome: string, nAlvos: number): Agg {
   return {
-    nome,
-    fichas: 0,
-    conf: 0,
+    nome, fichas: 0, conf: 0,
     confAlvo: Array.from({ length: nAlvos }, () => 0),
-    secoes: new Set(),
-    bairros: new Set(),
-    liderancas: new Set(),
-    zonas: new Set(),
+    secoes: new Set(), bairros: new Set(), liderancas: new Set(), zonas: new Set(),
   }
 }
 
@@ -104,6 +100,15 @@ const porConf = (a: Agg, b: Agg) =>
   b.conf - a.conf || b.conf / b.fichas - a.conf / a.fichas || cmpNome(a.nome, b.nome)
 const aprov = (a: Agg) => (a.fichas ? a.conf / a.fichas : 0)
 
+const protocolo = (d: Date) => {
+  const yy = String(d.getFullYear()).slice(-2)
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  const m = String(d.getMinutes()).padStart(2, '0')
+  return `AE-${yy}${mm}${dd}-${h}${m}`
+}
+
 export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
   const { alvos, secoes, invalidas, foraSl } = input
   const nA = alvos.length
@@ -113,8 +118,9 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
   const agora = new Date()
   const dataStr = agora.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
   const horaStr = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  const protoStr = protocolo(agora)
 
-  // Base de cálculo
+  // ── Base de cálculo ────────────────────────────────────────────────────
   const linhas: Linha[] = []
   for (const sec of secoes) {
     const n = sec.fichas.length
@@ -132,7 +138,6 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
   const totalFichas = linhas.length
   const totalConf = linhas.reduce((s, l) => s + l.fit, 0)
   const totalVotosAlvo = alvos.map((_, i) => secoes.reduce((s, x) => s + (x.votos[i] ?? 0), 0))
-  const totalComparecimento = secoes.reduce((s, x) => s + x.comparecimento, 0)
   const bairrosTodos = new Set(secoes.map((s) => s.bairro))
   const zonasTodas = new Set(secoes.map((s) => s.zona))
 
@@ -147,93 +152,117 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
   let y = 0
   const ultimoY = () => (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY
 
-  function novaPagina() { doc.addPage(); y = 30 }
-  function garantir(espaco: number) { if (y + espaco > H - 22) novaPagina() }
+  function novaPagina() { doc.addPage(); y = 34 }
+  function garantir(espaco: number) { if (y + espaco > H - 24) novaPagina() }
 
-  function tituloSecao(numero: string, txt: string) {
-    garantir(20)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
-    doc.setTextColor(...CINZA)
-    doc.text(numero.toUpperCase(), M, y)
-    doc.setFontSize(16)
-    doc.setTextColor(...PRETO)
-    doc.text(txt, M, y + 7.5)
-    doc.setDrawColor(...PRETO); doc.setLineWidth(0.6)
-    doc.line(M, y + 10.5, M + 18, y + 10.5)
-    y += 16
+  function capitulo(numero: string, txt: string, bajada?: string) {
+    novaPagina()
+    doc.setFillColor(...CREME)
+    doc.rect(0, 20, W, 56, 'F')
+    doc.setDrawColor(...TINTA); doc.setLineWidth(0.5)
+    doc.line(M, 20, M + 10, 20)
+    doc.line(M, 76, W - M, 76)
+
+    doc.setFont('times', 'italic'); doc.setFontSize(10); doc.setTextColor(...BORDO)
+    doc.text(`capítulo ${numero}`, M, 32)
+    doc.setFont('times', 'bold'); doc.setFontSize(26); doc.setTextColor(...TINTA)
+    const titulos = doc.splitTextToSize(txt, W - 2 * M) as string[]
+    doc.text(titulos, M, 48)
+    if (bajada) {
+      doc.setFont('times', 'italic'); doc.setFontSize(10.5); doc.setTextColor(...GRAFITE)
+      const sub = doc.splitTextToSize(bajada, W - 2 * M) as string[]
+      doc.text(sub, M, 70)
+    }
+    y = 90
   }
-  function subTitulo(txt: string) {
-    garantir(10)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.setTextColor(...PRETO)
+
+  function secao(numero: string, txt: string) {
+    garantir(16)
+    doc.setFont('times', 'italic'); doc.setFontSize(9); doc.setTextColor(...BORDO)
+    doc.text(`§ ${numero}`, M, y)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...TINTA)
+    doc.text(txt, M + 14, y)
+    doc.setDrawColor(...LINHA); doc.setLineWidth(0.3)
+    doc.line(M, y + 3, W - M, y + 3)
+    y += 10
+  }
+
+  function subsecao(txt: string) {
+    garantir(8)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...TINTA)
     doc.text(txt, M, y + 2)
     y += 6
   }
 
-  function paragrafo(txt: string, opts?: { size?: number; cor?: [number, number, number]; bold?: boolean; gap?: number }) {
-    const size = opts?.size ?? 9.2
-    doc.setFont('helvetica', opts?.bold ? 'bold' : 'normal')
+  function paragrafo(txt: string, opts?: { size?: number; cor?: [number, number, number]; serif?: boolean; gap?: number }) {
+    const size = opts?.size ?? 9.5
+    doc.setFont(opts?.serif ? 'times' : 'helvetica', 'normal')
     doc.setFontSize(size)
     doc.setTextColor(...(opts?.cor ?? GRAFITE))
     const txts = doc.splitTextToSize(txt, W - 2 * M) as string[]
-    const alt = txts.length * size * 0.45
-    garantir(alt + 2)
+    const alt = txts.length * size * 0.46
+    garantir(alt + 3)
     doc.text(txts, M, y + 3)
-    y += alt + (opts?.gap ?? 3.5)
+    y += alt + (opts?.gap ?? 4)
   }
 
-  function card(titulo_: string, txt: string, cor: [number, number, number] = GRAFITE) {
-    const padL = 7
-    doc.setFontSize(8.8)
-    const txts = doc.splitTextToSize(txt, W - 2 * M - padL - 4) as string[]
-    const alt = 12 + txts.length * 3.9
+  /** Nota lateral tipo documento oficial */
+  function nota(label: string, txt: string) {
+    doc.setFontSize(8.4)
+    const txts = doc.splitTextToSize(txt, W - 2 * M - 32) as string[]
+    const alt = Math.max(10, txts.length * 3.9 + 4)
     garantir(alt + 3)
-    doc.setFillColor(252, 252, 253)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.4); doc.setTextColor(...CINZA)
+    doc.text(label.toUpperCase(), M, y + 4)
+    doc.setDrawColor(...LINHA); doc.setLineWidth(0.2)
+    doc.line(M + 26, y, M + 26, y + alt)
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.6); doc.setTextColor(...TINTA)
+    doc.text(txts, M + 30, y + 4)
+    y += alt + 4
+  }
+
+  /** Pull-quote: um número grande com legenda */
+  function destaque(label: string, valor: string, legenda: string, cor: [number, number, number] = TINTA) {
+    const alt = 24
+    garantir(alt + 3)
+    doc.setFillColor(...PAPEL)
     doc.rect(M, y, W - 2 * M, alt, 'F')
     doc.setDrawColor(...LINHA); doc.setLineWidth(0.2)
     doc.rect(M, y, W - 2 * M, alt)
-    doc.setFillColor(...cor)
-    doc.rect(M, y, 2, alt, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9.2)
-    doc.setTextColor(...cor)
-    doc.text(titulo_, M + padL, y + 6)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.8)
-    doc.setTextColor(...PRETO)
-    doc.text(txts, M + padL, y + 11)
-    y += alt + 5
+    doc.setDrawColor(...cor); doc.setLineWidth(0.9)
+    doc.line(M, y, M + 18, y)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.4); doc.setTextColor(...CINZA)
+    doc.text(label.toUpperCase(), M + 4, y + 6)
+    doc.setFont('times', 'bold'); doc.setFontSize(22); doc.setTextColor(...cor)
+    const vw = doc.getTextWidth(valor)
+    doc.text(valor, M + 4, y + 18)
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.4); doc.setTextColor(...GRAFITE)
+    const leg = doc.splitTextToSize(legenda, W - 2 * M - 14 - vw) as string[]
+    doc.text(leg, M + 10 + vw, y + 15)
+    y += alt + 4
   }
 
   function kpis(itens: Array<{ rotulo: string; valor: string; nota?: string; cor?: [number, number, number] }>, porLinha = 4) {
     const gap = 3
     const w = (W - 2 * M - gap * (porLinha - 1)) / porLinha
-    const h = 22
+    const h = 24
     for (let i = 0; i < itens.length; i += porLinha) {
       garantir(h + 3)
       itens.slice(i, i + porLinha).forEach((k, j) => {
         const x = M + j * (w + gap)
-        doc.setFillColor(252, 252, 253)
+        doc.setFillColor(...PAPEL)
         doc.rect(x, y, w, h, 'F')
         doc.setDrawColor(...LINHA); doc.setLineWidth(0.2)
         doc.rect(x, y, w, h)
-        doc.setDrawColor(...PRETO); doc.setLineWidth(0.6)
-        doc.line(x, y, x + 10, y)
-        doc.setFont('helvetica', 'normal')
-        doc.setFontSize(6.9)
-        doc.setTextColor(...CINZA)
-        doc.text(k.rotulo.toUpperCase(), x + 3, y + 5)
-        doc.setFont('helvetica', 'bold')
-        doc.setFontSize(16)
-        doc.setTextColor(...(k.cor ?? PRETO))
-        doc.text(k.valor, x + 3, y + 13.5)
+        doc.setDrawColor(...TINTA); doc.setLineWidth(0.6)
+        doc.line(x, y, x + 12, y)
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(6.8); doc.setTextColor(...CINZA)
+        doc.text(k.rotulo.toUpperCase(), x + 3, y + 5.5)
+        doc.setFont('times', 'bold'); doc.setFontSize(18); doc.setTextColor(...(k.cor ?? TINTA))
+        doc.text(k.valor, x + 3, y + 15)
         if (k.nota) {
-          doc.setFont('helvetica', 'normal')
-          doc.setFontSize(6.9)
-          doc.setTextColor(...CINZA)
-          doc.text(doc.splitTextToSize(k.nota, w - 6)[0] as string, x + 3, y + 18.5)
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(6.8); doc.setTextColor(...CINZA)
+          doc.text(doc.splitTextToSize(k.nota, w - 6)[0] as string, x + 3, y + 20)
         }
       })
       y += h + 3
@@ -264,32 +293,32 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
       foot: opts.foot ? [opts.foot] : undefined,
       showFoot: 'lastPage',
       theme: 'plain',
-      margin: { left: M, right: M, top: 26, bottom: 20 },
+      margin: { left: M, right: M, top: 32, bottom: 24 },
       styles: {
         font: 'helvetica',
         fontSize: opts.fonte ?? 7.8,
-        cellPadding: { top: 2, right: 2.4, bottom: 2, left: 2.4 },
-        textColor: PRETO,
+        cellPadding: { top: 2.4, right: 2.6, bottom: 2.4, left: 2.6 },
+        textColor: TINTA,
         overflow: 'linebreak',
         valign: 'middle',
       },
       headStyles: {
-        fillColor: [245, 246, 249],
-        textColor: GRAFITE,
+        fillColor: [255, 255, 255],
+        textColor: CINZA,
         fontStyle: 'bold',
-        fontSize: (opts.fonte ?? 7.8) - 0.2,
-        lineColor: LINHA,
-        lineWidth: { top: 0, right: 0, bottom: 0.5, left: 0 },
+        fontSize: (opts.fonte ?? 7.8) - 0.6,
+        lineColor: TINTA,
+        lineWidth: { top: 0.5, right: 0, bottom: 0.3, left: 0 },
       },
       footStyles: {
-        fillColor: [245, 246, 249],
-        textColor: PRETO,
+        fillColor: PAPEL,
+        textColor: TINTA,
         fontStyle: 'bold',
-        lineColor: PRETO,
-        lineWidth: { top: 0.5, right: 0, bottom: 0, left: 0 },
+        lineColor: TINTA,
+        lineWidth: { top: 0.5, right: 0, bottom: 0.5, left: 0 },
       },
-      alternateRowStyles: { fillColor: SUAVE },
-      bodyStyles: { lineColor: LINHA, lineWidth: { top: 0, right: 0, bottom: 0.1, left: 0 } },
+      alternateRowStyles: { fillColor: [250, 250, 249] },
+      bodyStyles: { lineColor: LINHA, lineWidth: { top: 0, right: 0, bottom: 0.15, left: 0 } },
       columnStyles: colStyles,
       didParseCell: (d) => {
         if (d.section === 'head' && opts.numericas?.includes(d.column.index)) d.cell.styles.halign = 'right'
@@ -305,37 +334,32 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
     y = ultimoY() + 7
   }
 
-  /** Barras: fichas (contorno fino) + confirmadas (azul). */
   function barras(itens: Agg[], max?: number) {
     const lista = max ? itens.slice(0, max) : itens
     const maior = Math.max(1, ...lista.map((a) => a.fichas))
-    const labelW = 60
-    const valorW = 46
+    const labelW = 62
+    const valorW = 50
     const barW = W - 2 * M - labelW - valorW
-    const h = 5.4
+    const h = 5.6
     garantir(lista.length * h + 14)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(6.8)
-    doc.setTextColor(...CINZA)
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(6.9); doc.setTextColor(...CINZA)
     doc.setDrawColor(...CINZA_CL); doc.setLineWidth(0.3)
-    doc.rect(M + labelW, y, 3, 2.5)
-    doc.text('fichas que votaram', M + labelW + 4.5, y + 2.1)
+    doc.rect(M + labelW, y, 3, 2.6)
+    doc.text('fichas que votaram', M + labelW + 4.5, y + 2.2)
     doc.setFillColor(...AZUL)
-    doc.rect(M + labelW + 38, y, 3, 2.5, 'F')
-    doc.text('fichas confirmadas', M + labelW + 42.5, y + 2.1)
+    doc.rect(M + labelW + 40, y, 3, 2.6, 'F')
+    doc.text('fichas confirmadas', M + labelW + 44.5, y + 2.2)
     y += 6
     for (const a of lista) {
-      doc.setFontSize(7.5)
-      doc.setTextColor(...PRETO)
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.6); doc.setTextColor(...TINTA)
       const nome = doc.splitTextToSize(a.nome, labelW - 2)[0] as string
-      doc.text(nome, M, y + 3.6)
+      doc.text(nome, M, y + 3.7)
       doc.setDrawColor(...CINZA_CL); doc.setLineWidth(0.25)
       doc.rect(M + labelW, y + 0.6, (a.fichas / maior) * barW, h - 1.2)
       doc.setFillColor(...AZUL)
       doc.rect(M + labelW, y + 0.6, (a.conf / maior) * barW, h - 1.2, 'F')
-      doc.setTextColor(...GRAFITE)
-      doc.setFontSize(7.3)
-      doc.text(`${fmt2(a.conf)} / ${fmt(a.fichas)}   ${pct1(a.conf, a.fichas)}`, W - M, y + 3.6, { align: 'right' })
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.4); doc.setTextColor(...GRAFITE)
+      doc.text(`${fmt2(a.conf)} / ${fmt(a.fichas)}   ${pct1(a.conf, a.fichas)}`, W - M, y + 3.7, { align: 'right' })
       y += h
     }
     y += 5
@@ -350,104 +374,143 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
     return n >= 90 ? VERDE : n >= 75 ? AMBAR : VERM
   }
   const parecer = (a: Agg) => (aprov(a) >= 0.9 ? 'Bom' : aprov(a) >= 0.75 ? 'Atenção' : 'Reavaliar')
-  const corParecer = (v: string) => (v === 'Bom' ? VERDE : v === 'Atenção' ? AMBAR : VERM)
+  const corParecer = (v: string) =>
+    (v === 'Bom' ? VERDE : v === 'Atenção' ? AMBAR : VERM)
 
-  // ── Capa ───────────────────────────────────────────────────────────────
-  // Faixa superior preta de identidade visual
-  doc.setFillColor(...PRETO)
-  doc.rect(0, 0, W, 3, 'F')
+  // ╔══════════════════════════════════════════════════════════════════════╗
+  // ║  CAPA                                                                 ║
+  // ╚══════════════════════════════════════════════════════════════════════╝
+  // Molduras: linha dupla superior e inferior (estilo documento oficial)
+  doc.setDrawColor(...TINTA); doc.setLineWidth(0.8); doc.line(M, 16, W - M, 16)
+  doc.setLineWidth(0.2); doc.line(M, 18.2, W - M, 18.2)
+  doc.setLineWidth(0.8); doc.line(M, H - 16, W - M, H - 16)
+  doc.setLineWidth(0.2); doc.line(M, H - 18.2, W - M, H - 18.2)
 
-  // Rodapé da capa — linha fina de assinatura
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.6); doc.setTextColor(...CINZA)
-  doc.text(`Emitido em ${dataStr}, ${horaStr}`, M, 16)
-  doc.text('São Luís — Maranhão', W - M, 16, { align: 'right' })
+  // Topo: protocolo e cidade
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...CINZA)
+  doc.text(smallCaps(`protocolo ${protoStr}`), M, 24)
+  doc.text(smallCaps('são luís · maranhão'), W - M, 24, { align: 'right' })
 
-  // Rótulo discreto
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...GRAFITE)
-  doc.text('AUDITORIA ELEITORAL', M, 54)
-  doc.setDrawColor(...PRETO); doc.setLineWidth(0.6)
-  doc.line(M, 57, M + 16, 57)
+  // Marca institucional (filete + rótulo)
+  const topoMarca = 50
+  doc.setDrawColor(...BORDO); doc.setLineWidth(1.2)
+  doc.line(M, topoMarca, M + 24, topoMarca)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8.2); doc.setTextColor(...BORDO)
+  doc.text(smallCaps('relatório de auditoria eleitoral'), M, topoMarca + 6)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...CINZA)
+  doc.text(smallCaps('documento interno · circulação restrita'), M, topoMarca + 11)
 
-  // Título grande
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(30); doc.setTextColor(...PRETO)
-  doc.text('Auditoria dos votos', M, 76)
-  doc.text('da equipe de campanha', M, 90)
+  // Título principal (serifada, documental)
+  doc.setFont('times', 'bold'); doc.setFontSize(34); doc.setTextColor(...TINTA)
+  doc.text('Auditoria dos votos', M, 95)
+  doc.text('da equipe de campanha', M, 108)
+  doc.setFont('times', 'italic'); doc.setFontSize(13); doc.setTextColor(...GRAFITE)
+  doc.text('Conferência das fichas registradas no sistema contra', M, 122)
+  doc.text('os Boletins de Urna oficiais, por coordenação,', M, 130)
+  doc.text('liderança, bairro e seção eleitoral.', M, 138)
 
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(...GRAFITE)
-  const sub = doc.splitTextToSize(
-    'Conferência das fichas marcadas como “Votou” contra os Boletins de Urna oficiais, '
-    + 'com desempenho por coordenação, liderança, bairro e seção.',
-    W - 2 * M,
-  ) as string[]
-  doc.text(sub, M, 104)
+  // Linha de corte
+  doc.setDrawColor(...TINTA); doc.setLineWidth(0.3)
+  doc.line(M, 150, W - M, 150)
 
-  // Bloco "candidatos acompanhados"
-  const by = 128
-  doc.setFillColor(248, 249, 251)
-  doc.rect(M, by, W - 2 * M, 12 + nA * 10, 'F')
-  doc.setDrawColor(...PRETO); doc.setLineWidth(0.6)
-  doc.line(M, by, M + 24, by)
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...CINZA)
-  doc.text('CANDIDATOS ACOMPANHADOS', M + 4, by + 7)
+  // Bloco "Objeto do relatório"
+  const by = 158
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(7.4); doc.setTextColor(...CINZA)
+  doc.text(smallCaps('candidatos acompanhados'), M, by)
   alvos.forEach((a, i) => {
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...PRETO)
-    doc.text(a.nome, M + 4, by + 16 + i * 10)
+    doc.setFont('times', 'bold'); doc.setFontSize(13); doc.setTextColor(...TINTA)
+    doc.text(a.nome, M, by + 10 + i * 11)
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...GRAFITE)
-    doc.text(`${a.cargo} · número ${a.numero}`, W - M - 4, by + 16 + i * 10, { align: 'right' })
+    doc.text(`${a.cargo}, nº ${a.numero}`, W - M, by + 10 + i * 11, { align: 'right' })
+    doc.setDrawColor(...LINHA); doc.setLineWidth(0.2)
+    doc.line(M, by + 13 + i * 11, W - M, by + 13 + i * 11)
   })
 
-  // Índice
-  let cy = by + 12 + nA * 10 + 18
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...PRETO)
-  doc.text('ÍNDICE', M, cy)
-  doc.setDrawColor(...PRETO); doc.setLineWidth(0.6)
-  doc.line(M, cy + 2.5, M + 14, cy + 2.5)
-  cy += 10
+  // Rodapé da capa: data, assinatura visual
+  const rodapeY = H - 54
+  doc.setDrawColor(...TINTA); doc.setLineWidth(0.3)
+  doc.line(M, rodapeY, M + 55, rodapeY)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(7.4); doc.setTextColor(...CINZA)
+  doc.text(smallCaps('emitido em'), M, rodapeY + 6)
+  doc.setFont('times', 'bold'); doc.setFontSize(12); doc.setTextColor(...TINTA)
+  doc.text(dataStr, M, rodapeY + 14)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...GRAFITE)
+  doc.text(`às ${horaStr}`, M, rodapeY + 20)
+
+  doc.setDrawColor(...TINTA); doc.setLineWidth(0.3)
+  doc.line(W - M - 55, rodapeY, W - M, rodapeY)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(7.4); doc.setTextColor(...CINZA)
+  doc.text(smallCaps('fontes'), W - M, rodapeY + 6, { align: 'right' })
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...GRAFITE)
+  doc.text('Cadastro interno de fichas', W - M, rodapeY + 12, { align: 'right' })
+  doc.text('Boletins de Urna oficiais do TSE', W - M, rodapeY + 18, { align: 'right' })
+
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.3); doc.setTextColor(...CINZA)
+  doc.text(smallCaps('página 1 · capa'), W / 2, H - 11, { align: 'center' })
+
+  // ╔══════════════════════════════════════════════════════════════════════╗
+  // ║  SUMÁRIO                                                              ║
+  // ╚══════════════════════════════════════════════════════════════════════╝
+  novaPagina()
+  secao('I', 'Sumário do documento')
   const indice = [
-    ['1', 'Sumário executivo'],
-    ['2', 'Como os votos são confirmados'],
-    ['3', 'Ranking de coordenações'],
-    ['4', 'Análise detalhada por coordenação'],
-    ['5', 'Lideranças por faixa de desempenho'],
-    ['6', 'Desempenho por zona eleitoral'],
-    ['7', 'Desempenho por bairro'],
-    ['8', 'Seções com maior divergência'],
-    ['9', 'Pendências cadastrais'],
+    ['I', 'Sumário do documento'],
+    ['II', 'Visão geral e indicadores principais'],
+    ['III', 'Método de conferência dos votos'],
+    ['IV', 'Classificação geral das coordenações'],
+    ['V', 'Análise por coordenação'],
+    ['VI', 'Avaliação das lideranças'],
+    ['VII', 'Desempenho por território'],
+    ['VIII', 'Seções com maior divergência'],
+    ['IX', 'Pendências cadastrais a regularizar'],
   ]
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5)
+  doc.setFont('times', 'normal'); doc.setFontSize(10.5); doc.setTextColor(...TINTA)
   for (const [n, t] of indice) {
-    doc.setTextColor(...CINZA); doc.text(n, M + 1, cy)
-    doc.setTextColor(...PRETO); doc.text(t, M + 10, cy)
-    cy += 6.4
+    garantir(8)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...BORDO)
+    doc.text(n, M + 2, y + 3)
+    doc.setFont('times', 'normal'); doc.setFontSize(10.5); doc.setTextColor(...TINTA)
+    doc.text(t, M + 16, y + 3)
+    // Pontilhado simulando sumário clássico
+    doc.setDrawColor(...CINZA_CL); doc.setLineWidth(0.15); doc.setLineDashPattern([0.6, 1.2], 0)
+    doc.line(M + 16 + doc.getTextWidth(t) + 3, y + 2.6, W - M - 2, y + 2.6)
+    doc.setLineDashPattern([], 0)
+    y += 7
   }
-  doc.setFontSize(7.5); doc.setTextColor(...CINZA)
-  doc.text(
-    'Fontes: cadastros internos com fichas marcadas como “Votou” e Boletins de Urna oficiais do TSE para o município de São Luís (MA).',
-    M, H - 14,
+  y += 4
+  paragrafo(
+    'Este documento consolida a conferência entre o cadastro interno de fichas marcadas como “Votou” '
+    + 'e os Boletins de Urna oficiais publicados pelo Tribunal Superior Eleitoral. O objetivo é medir, '
+    + 'com rigor, quantos dos votos reivindicados pela equipe são efetivamente sustentáveis pela urna '
+    + 'e identificar, com base nessa evidência, quais coordenações e lideranças devem ser mantidas, '
+    + 'reforçadas ou reavaliadas.',
+    { serif: true, size: 10 },
   )
 
-  // ── 1. Sumário executivo ───────────────────────────────────────────────
-  novaPagina()
-  tituloSecao('seção 1', 'Sumário executivo')
-  paragrafo(
-    `Este relatório confere ${fmt(totalFichas)} fichas marcadas como “Votou” contra os Boletins de Urna de `
-    + `${fmt(secoes.length)} seções eleitorais em ${fmt(zonasTodas.size)} zonas e ${fmt(bairrosTodos.size)} bairros de São Luís. `
-    + `No total, ${fmt2(totalConf)} fichas foram confirmadas (${pct2(totalConf, totalFichas)} de aproveitamento). `
-    + 'Abaixo, os números principais; o detalhamento vem a partir da seção seguinte.',
-    { size: 9.2 },
+  // ╔══════════════════════════════════════════════════════════════════════╗
+  // ║  CAPÍTULO II — VISÃO GERAL                                            ║
+  // ╚══════════════════════════════════════════════════════════════════════╝
+  capitulo('II', 'Visão geral e indicadores principais',
+    'Totais consolidados da auditoria, com os marcos que resumem o resultado da equipe.')
+
+  destaque(
+    'votos confirmados da equipe', fmt2(totalConf),
+    `de um universo de ${fmt(totalFichas)} fichas marcadas como “Votou” em ${fmt(secoes.length)} seções `
+    + `(${pct2(totalConf, totalFichas)} de aproveitamento).`,
+    BORDO,
   )
+
   kpis([
     { rotulo: 'Fichas que votaram', valor: fmt(totalFichas), nota: 'marcadas como “Votou” no sistema' },
     { rotulo: 'Votos confirmados', valor: fmt2(totalConf), nota: `${pct2(totalConf, totalFichas)} de aproveitamento` },
-    { rotulo: 'Seções auditadas', valor: fmt(secoes.length), nota: `${fmt(zonasTodas.size)} zonas · ${fmt(bairrosTodos.size)} bairros` },
-    { rotulo: 'Coord. e lideranças', valor: `${fmt(coords.length)} / ${fmt(liders.length)}`, nota: 'equipe envolvida' },
+    { rotulo: 'Seções auditadas', valor: fmt(secoes.length), nota: `em ${fmt(zonasTodas.size)} zonas e ${fmt(bairrosTodos.size)} bairros` },
+    { rotulo: 'Equipe', valor: `${fmt(coords.length)}/${fmt(liders.length)}`, nota: 'coordenações e lideranças' },
     ...alvos.map((a, i) => ({
       rotulo: a.nome,
       valor: fmt(totalVotosAlvo[i]),
-      nota: `${a.cargo === 'Deputado Federal' ? 'Dep. Federal' : 'Dep. Estadual'} ${a.numero}`,
+      nota: `${a.cargo}, nº ${a.numero}`,
     })),
-    { rotulo: 'Comparecimento BU', valor: fmt(totalComparecimento), nota: 'nas seções auditadas' },
-    { rotulo: 'Fichas a regularizar', valor: fmt(invalidas.length), nota: `${fmt(foraSl)} são de outro município`, cor: invalidas.length ? VERM : PRETO },
+    { rotulo: 'Pendências cadastrais', valor: fmt(invalidas.length), nota: `${fmt(foraSl)} em outro município`, cor: invalidas.length ? VERM : TINTA },
   ])
 
   const melhor = coords[0]
@@ -458,149 +521,160 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
   const piorAprov = porAprov[porAprov.length - 1]
   const piorConf = coords[coords.length - 1]
 
-  subTitulo('Síntese dos resultados')
+  secao('II.1', 'Pontos de destaque')
   if (melhor) {
-    card(
-      'Coordenação com mais votos confirmados',
-      `${melhor.nome} — ${fmt2(melhor.conf)} de ${fmt(melhor.fichas)} fichas confirmadas (${pct2(melhor.conf, melhor.fichas)}). `
-      + `Atua em ${fmt(melhor.secoes.size)} seções, ${fmt(melhor.bairros.size)} bairros e conta com ${fmt(melhor.liderancas.size)} lideranças.`,
-      VERDE,
-    )
+    nota('Melhor volume',
+      `${melhor.nome} liderou em votos confirmados, somando ${fmt2(melhor.conf)} fichas conferidas de `
+      + `${fmt(melhor.fichas)} marcadas (${pct2(melhor.conf, melhor.fichas)} de aproveitamento), em `
+      + `${fmt(melhor.secoes.size)} seções e ${fmt(melhor.bairros.size)} bairros.`)
   }
   if (piorConf && coords.length > 1) {
-    card(
-      'Coordenação com menos votos confirmados',
-      `${piorConf.nome} — ${fmt2(piorConf.conf)} de ${fmt(piorConf.fichas)} fichas confirmadas (${pct2(piorConf.conf, piorConf.fichas)}). `
-      + `Atua em ${fmt(piorConf.secoes.size)} seções e ${fmt(piorConf.bairros.size)} bairros.`,
-      VERM,
-    )
+    nota('Menor volume',
+      `${piorConf.nome} apresentou o menor número de votos confirmados: ${fmt2(piorConf.conf)} de `
+      + `${fmt(piorConf.fichas)} fichas (${pct2(piorConf.conf, piorConf.fichas)}). `
+      + 'Convém revisar sua base cadastral e estratégia de mobilização.')
   }
   if (melhorAprov && piorAprov && melhorAprov !== piorAprov) {
-    card(
-      `Aproveitamento${baseRank === comFichasMin ? ' (coordenações com cinco ou mais fichas)' : ''}`,
-      `Maior aproveitamento: ${melhorAprov.nome}, ${pct2(melhorAprov.conf, melhorAprov.fichas)} sobre ${fmt(melhorAprov.fichas)} fichas. `
-      + `Menor aproveitamento: ${piorAprov.nome}, ${pct2(piorAprov.conf, piorAprov.fichas)} sobre ${fmt(piorAprov.fichas)} fichas.`,
-      AMBAR,
-    )
+    nota('Aproveitamento',
+      `Dentre as coordenações com cinco ou mais fichas, a maior taxa de aproveitamento é de `
+      + `${melhorAprov.nome} (${pct2(melhorAprov.conf, melhorAprov.fichas)}); a menor, de `
+      + `${piorAprov.nome} (${pct2(piorAprov.conf, piorAprov.fichas)}).`)
   }
   const melhorLider = liders.filter((l) => l.fichas >= 3).sort((a, b) => aprov(b) - aprov(a) || b.fichas - a.fichas)[0]
   const piorLider = liders.filter((l) => l.fichas >= 3).sort((a, b) => aprov(a) - aprov(b) || b.fichas - a.fichas)[0]
   if (melhorLider && piorLider && melhorLider !== piorLider) {
-    card(
-      'Lideranças de referência (com três ou mais fichas)',
-      `Melhor desempenho: ${melhorLider.nome} (${melhorLider.coord}) — ${pct2(melhorLider.conf, melhorLider.fichas)} de ${fmt(melhorLider.fichas)} fichas. `
-      + `Pior desempenho: ${piorLider.nome} (${piorLider.coord}) — ${pct2(piorLider.conf, piorLider.fichas)} de ${fmt(piorLider.fichas)} fichas.`,
-      AZUL,
-    )
+    nota('Lideranças',
+      `Com três ou mais fichas, a liderança de maior aproveitamento é ${melhorLider.nome} `
+      + `(${melhorLider.coord}), com ${pct2(melhorLider.conf, melhorLider.fichas)}. `
+      + `A de menor aproveitamento é ${piorLider.nome} (${piorLider.coord}), com `
+      + `${pct2(piorLider.conf, piorLider.fichas)}.`)
   }
   const topBairro = bairrosAgg[0]
   const topZona = [...zonasAgg].sort(porConf)[0]
   if (topBairro && topZona) {
-    card(
-      'Concentração territorial',
-      `Bairro com mais votos confirmados: ${topBairro.nome} — ${fmt2(topBairro.conf)} de ${fmt(topBairro.fichas)} fichas. `
-      + `Zona com mais votos confirmados: zona ${topZona.nome} — ${fmt2(topZona.conf)} de ${fmt(topZona.fichas)} fichas.`,
-      GRAFITE,
-    )
+    nota('Território',
+      `O bairro com mais votos confirmados é ${topBairro.nome}, com ${fmt2(topBairro.conf)} fichas `
+      + `conferidas de ${fmt(topBairro.fichas)}. A zona com maior volume é a zona ${topZona.nome}, `
+      + `com ${fmt2(topZona.conf)} de ${fmt(topZona.fichas)}.`)
   }
 
-  // ── 2. Como os votos são confirmados ───────────────────────────────────
-  novaPagina()
-  tituloSecao('seção 2', 'Como os votos são confirmados')
+  // ╔══════════════════════════════════════════════════════════════════════╗
+  // ║  CAPÍTULO III — MÉTODO                                                ║
+  // ╚══════════════════════════════════════════════════════════════════════╝
+  capitulo('III', 'Método de conferência dos votos',
+    'Como as fichas da equipe são comparadas aos Boletins de Urna oficiais, e por que o resultado representa um limite máximo seguro.')
+
   paragrafo(
-    'O voto é secreto. O Boletim de Urna mostra quantos votos cada candidato recebeu em cada seção, '
-    + 'mas não revela quem votou em quem. Para medir quantas fichas da equipe realmente se transformaram em votos, '
-    + 'a conferência é feita seção a seção, com uma regra simples e conservadora.',
-    { size: 9.2 },
+    'O voto é secreto por natureza: o Boletim de Urna informa quantos votos cada candidato recebeu em cada '
+    + 'seção eleitoral, mas não revela a identidade de quem votou em quem. Dessa limitação legítima deriva '
+    + 'o método adotado nesta auditoria.',
+    { serif: true, size: 10 },
   )
   paragrafo(
-    'Em uma seção, se a equipe tem dez fichas marcadas como “Votou” mas a candidata recebeu apenas seis votos ali, '
-    + 'no máximo seis dessas fichas podem realmente ter votado nela — as outras quatro não cabem nos votos. '
-    + 'Quando acompanhamos dois candidatos ao mesmo tempo, a ficha só é totalmente confirmada se couber nos votos dos dois.',
-    { size: 9.2 },
+    'A conferência é feita seção a seção. Em uma seção onde a equipe tenha, por exemplo, dez fichas marcadas '
+    + 'como “Votou” e a candidata tenha recebido apenas seis votos naquela urna, no máximo seis dessas fichas '
+    + 'podem efetivamente ter se traduzido em voto — as quatro restantes não cabem no total registrado. Quando '
+    + 'são acompanhados dois candidatos simultaneamente, uma ficha só é integralmente confirmada se couber '
+    + 'nos votos de ambos.',
+    { serif: true, size: 10 },
   )
   paragrafo(
-    'Somando essa conta em todas as seções, chegamos ao número de votos confirmados da equipe. '
-    + 'Esse número é um limite máximo seguro: a equipe não pode ter entregue mais votos do que o Boletim de Urna registra.',
-    { size: 9.2 },
+    'Somando-se essas restrições em todas as seções, chega-se ao número de votos confirmados da equipe. '
+    + 'Esse valor é, por construção, um limite máximo seguro: é logicamente impossível que a equipe tenha '
+    + 'entregue mais votos do que a soma dos registros do Boletim de Urna permite.',
+    { serif: true, size: 10 },
   )
 
-  subTitulo('Resumo dos números')
+  secao('III.1', 'Resumo numérico do método')
   tabela({
-    head: ['Indicador', 'Valor', 'Explicação'],
+    head: ['Indicador', 'Valor', 'Como se obtém'],
     body: [
       ['Fichas que votaram', fmt(totalFichas), 'eleitores da equipe marcados como “Votou” em seções válidas'],
-      ...alvos.map((a, i) => [`Votos no BU — ${a.nome}`, fmt(totalVotosAlvo[i]), 'total de votos no Boletim de Urna, nas seções em que a equipe tem fichas']),
-      ...alvos.map((a, i) => [`Votos confirmados — ${a.nome}`, fmt2(linhas.reduce((s, l) => s + l.fitAlvo[i], 0)), 'fichas que cabem nos votos deste candidato']),
-      ['Votos confirmados da equipe', fmt2(totalConf), 'fichas que cabem nos votos de todos os candidatos ao mesmo tempo'],
+      ...alvos.map((a, i) => [
+        `Votos no BU — ${a.nome}`, fmt(totalVotosAlvo[i]),
+        'total de votos no Boletim de Urna, nas seções em que a equipe tem fichas',
+      ]),
+      ...alvos.map((a, i) => [
+        `Votos confirmados — ${a.nome}`, fmt2(linhas.reduce((s, l) => s + l.fitAlvo[i], 0)),
+        'fichas que cabem nos votos deste candidato',
+      ]),
+      ['Votos confirmados da equipe', fmt2(totalConf),
+        'fichas que cabem simultaneamente nos votos de todos os candidatos'],
       ['Fichas não confirmadas', fmt2(totalFichas - totalConf), 'diferença entre fichas e votos confirmados'],
-      ['Aproveitamento geral', pct2(totalConf, totalFichas), 'proporção de fichas que viraram votos confirmados'],
+      ['Aproveitamento geral', pct2(totalConf, totalFichas), 'votos confirmados dividido pelas fichas'],
     ],
-    larguras: [78, 30, undefined],
+    larguras: [80, 32, undefined],
     numericas: [1],
-    fonte: 8.4,
+    fonte: 8.6,
   })
   paragrafo(
-    'Diferenças entre fichas e votos podem ter várias origens: erro de marcação da ficha, '
-    + 'eleitor que foi à seção mas votou em outro candidato, ou abstenção não registrada no sistema.',
-    { size: 8.6, cor: CINZA },
+    'As fichas não confirmadas não indicam, isoladamente, má-fé. Elas podem decorrer de erro de marcação '
+    + 'no sistema, de eleitor que compareceu e optou por outro candidato, ou de abstenção não registrada.',
+    { size: 8.8, cor: CINZA, serif: true, gap: 2 },
   )
 
-  // ── 3. Ranking de coordenações ─────────────────────────────────────────
-  novaPagina()
-  tituloSecao('seção 3', 'Ranking de coordenações')
+  // ╔══════════════════════════════════════════════════════════════════════╗
+  // ║  CAPÍTULO IV — RANKING DE COORDENAÇÕES                                ║
+  // ╚══════════════════════════════════════════════════════════════════════╝
+  capitulo('IV', 'Classificação geral das coordenações',
+    'Ranking consolidado por volume de votos confirmados, com parecer técnico sobre o aproveitamento de cada coordenação.')
+
+  secao('IV.1', 'Volume de votos confirmados')
   paragrafo(
-    'As coordenações estão ordenadas pelo número de votos confirmados — quanto mais à esquerda a barra azul estende, '
-    + 'mais fichas da coordenação realmente viraram votos. O parecer segue o aproveitamento: '
-    + '"Bom" quando atinge 90% ou mais, "Atenção" entre 75% e 90% e "Reavaliar" quando fica abaixo de 75%.',
+    'A linha mais clara representa o total de fichas marcadas como “Votou”. A barra preenchida mostra, dentro '
+    + 'desse total, a parcela efetivamente confirmada pelos Boletins de Urna.',
     { size: 8.8, cor: CINZA },
   )
   barras(coords, 18)
+
+  secao('IV.2', 'Tabela comparativa')
+  paragrafo(
+    'O parecer segue a taxa de aproveitamento: "Bom" para noventa por cento ou mais; "Atenção" '
+    + 'entre setenta e cinco e noventa por cento; "Reavaliar" abaixo de setenta e cinco por cento.',
+    { size: 8.8, cor: CINZA },
+  )
   tabela({
-    head: ['#', 'Coordenação', 'Lid.', 'Seç.', 'Bairros', 'Fichas', ...colAlvoHead('Conf.'), 'Confirm.', 'Aprov.', 'Parecer'],
+    head: ['#', 'Coordenação', 'Lid.', 'Seções', 'Bairros', 'Fichas', ...colAlvoHead('Conf.'), 'Confirm.', 'Aprov.', 'Parecer'],
     body: coords.map((c, i) => [
       String(i + 1), c.nome, fmt(c.liderancas.size), fmt(c.secoes.size), fmt(c.bairros.size), fmt(c.fichas),
       ...confAlvoCells(c), fmt2(c.conf), pct2(c.conf, c.fichas), parecer(c),
     ]),
-    larguras: [8, undefined, 10, 10, 14, 14],
+    larguras: [9, undefined, 12, 14, 14, 14, undefined, undefined, 16, 16, 20],
     numericas: [0, 2, 3, 4, 5, ...alvos.map((_, i) => 6 + i), 6 + nA, 7 + nA],
     foot: [
       '', 'TOTAL', fmt(liders.length), fmt(secoes.length), fmt(bairrosTodos.size), fmt(totalFichas),
-      ...alvos.map((_, i) => fmt2(linhas.reduce((s, l) => s + l.fitAlvo[i], 0))), fmt2(totalConf), pct2(totalConf, totalFichas), '',
+      ...alvos.map((_, i) => fmt2(linhas.reduce((s, l) => s + l.fitAlvo[i], 0))),
+      fmt2(totalConf), pct2(totalConf, totalFichas), '',
     ],
     corCelula: (col, v) => (col === 8 + nA ? corParecer(v) : corAprov(col, v, 7 + nA)),
   })
 
-  // ── 4. Detalhe por coordenação ─────────────────────────────────────────
-  novaPagina()
-  tituloSecao('seção 4', 'Análise detalhada por coordenação')
-  paragrafo(
-    'Uma página por coordenação, com as lideranças envolvidas, os bairros onde a equipe atua e as seções com maior divergência '
-    + 'entre fichas e votos. Serve para identificar onde mobilizar reforço e onde revisar o cadastro.',
-    { size: 8.8, cor: CINZA, gap: 5 },
-  )
+  // ╔══════════════════════════════════════════════════════════════════════╗
+  // ║  CAPÍTULO V — ANÁLISE POR COORDENAÇÃO                                 ║
+  // ╚══════════════════════════════════════════════════════════════════════╝
+  capitulo('V', 'Análise por coordenação',
+    'Uma página dedicada a cada coordenação, com as lideranças que a compõem, os bairros em que atua e as seções que registraram a maior divergência entre fichas e votos.')
   coords.forEach((c, idx) => {
     const doCoord = linhas.filter((l) => l.coord === c.nome)
     if (idx > 0) novaPagina()
-    garantir(55)
-    // cabeçalho da coordenação: número grande cinza-claro + nome em preto, barra preta embaixo
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(32)
-    doc.setTextColor(...CINZA_CL)
-    doc.text(String(idx + 1).padStart(2, '0'), M, y + 10)
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...CINZA)
-    doc.text('COORDENAÇÃO', M + 20, y + 3)
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(...PRETO)
-    doc.text(c.nome, M + 20, y + 10.5)
-    const sel = idx === 0 ? 'MAIS VOTOS CONFIRMADOS'
-      : idx === coords.length - 1 && coords.length > 1 ? 'MENOS VOTOS CONFIRMADOS' : ''
+    garantir(60)
+
+    // Cabeçalho elegante da coordenação
+    doc.setFont('times', 'bold'); doc.setFontSize(44); doc.setTextColor(...CREME)
+    doc.text(String(idx + 1).padStart(2, '0'), M, y + 18)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.6); doc.setTextColor(...BORDO)
+    doc.text(smallCaps('coordenação'), M + 26, y + 4)
+    doc.setFont('times', 'bold'); doc.setFontSize(18); doc.setTextColor(...TINTA)
+    doc.text(c.nome, M + 26, y + 14)
+    const sel = idx === 0 ? 'Maior volume de votos confirmados'
+      : idx === coords.length - 1 && coords.length > 1 ? 'Menor volume de votos confirmados' : null
     if (sel) {
-      doc.setFontSize(7.8); doc.setTextColor(...(idx === 0 ? VERDE : VERM))
-      doc.text(sel, W - M, y + 10.5, { align: 'right' })
+      doc.setFont('times', 'italic'); doc.setFontSize(9); doc.setTextColor(...(idx === 0 ? VERDE : VERM))
+      doc.text(sel, W - M, y + 14, { align: 'right' })
     }
-    doc.setDrawColor(...PRETO); doc.setLineWidth(0.5)
-    doc.line(M, y + 14, W - M, y + 14)
-    y += 20
+    doc.setDrawColor(...TINTA); doc.setLineWidth(0.5)
+    doc.line(M, y + 20, W - M, y + 20)
+    y += 26
 
     kpis([
       { rotulo: 'Fichas', valor: fmt(c.fichas) },
@@ -610,7 +684,7 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
       { rotulo: 'Lideranças', valor: fmt(c.liderancas.size), nota: `${fmt(c.secoes.size)} seções · ${fmt(c.bairros.size)} bairros` },
     ])
 
-    subTitulo('Lideranças da coordenação')
+    subsecao('Lideranças que compõem a coordenação')
     const deste = liders.filter((l) => l.coord === c.nome)
     tabela({
       head: ['Liderança', 'Bairros', 'Seç.', 'Fichas', 'Confirm.', 'Aprov.'],
@@ -620,7 +694,7 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
       corCelula: (col, v) => corAprov(col, v, 5),
     })
 
-    subTitulo('Bairros onde a coordenação atua')
+    subsecao('Bairros de atuação')
     const bairrosC = agrupar(doCoord, nA, (l) => l.sec.bairro).sort(porConf)
     tabela({
       head: ['Bairro', 'Zona(s)', 'Seç.', 'Fichas', 'Confirm.', 'Aprov.'],
@@ -630,15 +704,15 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
       corCelula: (col, v) => corAprov(col, v, 5),
     })
 
-    subTitulo('Seções com maior divergência')
+    subsecao('Seções com maior divergência')
     const secC = agrupar(doCoord, nA, (l) => l.sec.key)
       .map((a) => ({ a, sec: secoes.find((s) => s.key === a.nome) as RelSecao }))
       .filter((x) => x.a.fichas - x.a.conf >= 0.5)
       .sort((p, q) => (q.a.fichas - q.a.conf) - (p.a.fichas - p.a.conf))
       .slice(0, 10)
     if (!secC.length) {
-      paragrafo('Todas as fichas desta coordenação cabem nos votos do Boletim de Urna. Sem divergência a destacar.',
-        { size: 8.6, cor: VERDE })
+      paragrafo('Nenhuma divergência relevante nesta coordenação: todas as fichas cabem nos votos do Boletim de Urna.',
+        { size: 8.8, cor: VERDE, serif: true })
     } else {
       tabela({
         head: ['Zona/Seção', 'Bairro', 'Local de votação', 'Fichas', 'Confirm.', 'Aprov.'],
@@ -651,25 +725,32 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
     }
   })
 
-  // ── 5. Lideranças ──────────────────────────────────────────────────────
-  novaPagina()
-  tituloSecao('seção 5', 'Lideranças por faixa de desempenho')
+  // ╔══════════════════════════════════════════════════════════════════════╗
+  // ║  CAPÍTULO VI — LIDERANÇAS                                             ║
+  // ╚══════════════════════════════════════════════════════════════════════╝
+  capitulo('VI', 'Avaliação das lideranças',
+    'Classificação individual das lideranças por faixa de aproveitamento, com indicação daquelas que merecem reforço ou revisão.')
+
   paragrafo(
-    'As lideranças aparecem agrupadas por faixa de aproveitamento. Lideranças com menos de três fichas ficam de fora da '
-    + 'classificação por não oferecerem amostra suficiente para julgar.',
-    { size: 8.8, cor: CINZA },
+    'A avaliação individual de uma liderança requer amostra mínima de três fichas para ser estatisticamente '
+    + 'significativa. Lideranças com uma ou duas fichas são contabilizadas à parte, pois um único caso pode '
+    + 'distorcer a leitura.',
+    { serif: true, size: 10 },
   )
+
   const grandes = liders.filter((l) => l.fichas >= 3)
   const pequenas = liders.filter((l) => l.fichas < 3)
   const gBom = grandes.filter((l) => aprov(l) >= 0.9).sort(porConf)
   const gAt = grandes.filter((l) => aprov(l) >= 0.75 && aprov(l) < 0.9).sort(porConf)
-  const gRuim = grandes.filter((l) => aprov(l) < 0.75).sort((a, b) => aprov(a) - aprov(b) || b.fichas - a.fichas)
+  const gRuim = grandes.filter((l) => aprov(l) < 0.75)
+    .sort((a, b) => aprov(a) - aprov(b) || b.fichas - a.fichas)
   kpis([
-    { rotulo: 'Bom (90% ou mais)', valor: fmt(gBom.length), cor: VERDE },
-    { rotulo: 'Atenção (75% a 90%)', valor: fmt(gAt.length), cor: AMBAR },
-    { rotulo: 'Reavaliar (menos de 75%)', valor: fmt(gRuim.length), cor: VERM },
-    { rotulo: 'Amostra pequena', valor: fmt(pequenas.length), nota: `${fmt(pequenas.reduce((x, l) => x + l.fichas, 0))} fichas, menos de 3 cada` },
+    { rotulo: 'Bom · 90% ou mais', valor: fmt(gBom.length), cor: VERDE },
+    { rotulo: 'Atenção · 75 a 90%', valor: fmt(gAt.length), cor: AMBAR },
+    { rotulo: 'Reavaliar · abaixo de 75%', valor: fmt(gRuim.length), cor: VERM },
+    { rotulo: 'Amostra insuficiente', valor: fmt(pequenas.length), nota: `${fmt(pequenas.reduce((x, l) => x + l.fichas, 0))} fichas no total` },
   ])
+
   const tabLider = (lista: typeof liders) => tabela({
     head: ['#', 'Liderança', 'Coordenação', 'Bairros', 'Fichas', 'Confirm.', 'Não conf.', 'Aprov.'],
     body: lista.map((l, i) => [String(i + 1), l.nome, l.coord, fmt(l.bairros.size), fmt(l.fichas), fmt2(l.conf), fmt2(l.fichas - l.conf), pct2(l.conf, l.fichas)]),
@@ -678,37 +759,39 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
     fonte: 7.5,
     corCelula: (col, v) => corAprov(col, v, 7),
   })
-  subTitulo('Reavaliar ou cancelar — abaixo de 75%')
+  secao('VI.1', 'Lideranças a reavaliar — abaixo de 75%')
   if (gRuim.length) tabLider(gRuim)
-  else paragrafo('Nenhuma liderança nessa faixa.', { size: 8.6, cor: VERDE })
-  subTitulo('Em atenção — entre 75% e 90%')
+  else paragrafo('Não há lideranças nesta faixa.', { size: 8.8, cor: VERDE, serif: true })
+  secao('VI.2', 'Lideranças em atenção — 75% a 90%')
   if (gAt.length) tabLider(gAt)
-  else paragrafo('Nenhuma liderança nessa faixa.', { size: 8.6 })
-  subTitulo('Bom desempenho — 90% ou mais')
+  else paragrafo('Não há lideranças nesta faixa.', { size: 8.8, serif: true })
+  secao('VI.3', 'Lideranças com bom desempenho — 90% ou mais')
   if (gBom.length) tabLider(gBom)
-  else paragrafo('Nenhuma liderança nessa faixa.', { size: 8.6 })
+  else paragrafo('Não há lideranças nesta faixa.', { size: 8.8, serif: true })
 
-  // ── 6. Zonas ───────────────────────────────────────────────────────────
-  garantir(80)
-  tituloSecao('seção 6', 'Desempenho por zona eleitoral')
+  // ╔══════════════════════════════════════════════════════════════════════╗
+  // ║  CAPÍTULO VII — TERRITÓRIO                                            ║
+  // ╚══════════════════════════════════════════════════════════════════════╝
+  capitulo('VII', 'Desempenho por território',
+    'Resultados por zona eleitoral e bairro, para identificar as regiões em que a equipe tem base real e aquelas em que precisa aprofundar presença.')
+
+  secao('VII.1', 'Por zona eleitoral')
   tabela({
-    head: ['Zona', 'Seç.', 'Bairros', 'Fichas', ...colAlvoHead('Votos'), 'Comparec.', 'Confirm.', 'Aprov.'],
+    head: ['Zona', 'Seç.', 'Bairros', 'Fichas', ...colAlvoHead('Votos'), 'Confirm.', 'Aprov.'],
     body: zonasAgg.map((z) => {
       const secZ = secoes.filter((s) => s.zona === z.nome)
       return [
         `Zona ${z.nome}`, fmt(z.secoes.size), fmt(z.bairros.size), fmt(z.fichas),
         ...alvos.map((_, i) => fmt(secZ.reduce((s, x) => s + x.votos[i], 0))),
-        fmt(secZ.reduce((s, x) => s + x.comparecimento, 0)), fmt2(z.conf), pct2(z.conf, z.fichas),
+        fmt2(z.conf), pct2(z.conf, z.fichas),
       ]
     }),
-    numericas: [1, 2, 3, ...alvos.map((_, i) => 4 + i), 4 + nA, 5 + nA, 6 + nA],
-    corCelula: (col, v) => corAprov(col, v, 6 + nA),
+    numericas: [1, 2, 3, ...alvos.map((_, i) => 4 + i), 4 + nA, 5 + nA],
+    corCelula: (col, v) => corAprov(col, v, 5 + nA),
   })
 
-  // ── 7. Bairros ─────────────────────────────────────────────────────────
-  novaPagina()
-  tituloSecao('seção 7', 'Desempenho por bairro')
-  paragrafo('O bairro vem do local de votação cadastrado no TSE para cada seção.',
+  secao('VII.2', 'Por bairro')
+  paragrafo('O bairro é obtido do local de votação cadastrado no TSE para cada seção.',
     { size: 8.8, cor: CINZA })
   tabela({
     head: ['#', 'Bairro', 'Zona(s)', 'Seç.', 'Coord.', 'Fichas', 'Confirm.', 'Aprov.'],
@@ -721,9 +804,12 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
     corCelula: (col, v) => corAprov(col, v, 7),
   })
 
-  // ── 8. Seções críticas ─────────────────────────────────────────────────
-  novaPagina()
-  tituloSecao('seção 8', 'Seções com maior divergência')
+  // ╔══════════════════════════════════════════════════════════════════════╗
+  // ║  CAPÍTULO VIII — SEÇÕES CRÍTICAS                                      ║
+  // ╚══════════════════════════════════════════════════════════════════════╝
+  capitulo('VIII', 'Seções com maior divergência',
+    'Relação das seções em que a soma das fichas marcadas como “Votou” supera os votos do candidato na urna, ordenadas da maior para a menor diferença.')
+
   const criticas = secoes
     .map((x) => {
       const conf = x.fichas.length ? Math.min(...x.votos.map((v) => Math.min(x.fichas.length, v))) : 0
@@ -732,8 +818,8 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
     .filter((c) => c.dif >= 1 || c.x.statusLabel === 'Acima do comparecimento')
     .sort((a, b) => b.dif - a.dif)
   paragrafo(
-    `${fmt(criticas.length)} seções apresentam fichas que não cabem nos votos do Boletim de Urna. `
-    + 'As quarenta maiores divergências estão abaixo.',
+    `Foram identificadas ${fmt(criticas.length)} seções com divergência entre fichas e votos. `
+    + 'A tabela abaixo lista as quarenta seções com maior diferença.',
     { size: 8.8, cor: CINZA },
   )
   tabela({
@@ -747,33 +833,45 @@ export function gerarRelatorioAuditoriaPdf(input: RelatorioInput) {
     corCelula: (col, v) => (col === 4 + nA ? (v === 'Parcial' ? AMBAR : VERM) : undefined),
   })
 
-  // ── 9. Pendências ──────────────────────────────────────────────────────
-  garantir(45)
-  tituloSecao('seção 9', 'Pendências cadastrais')
+  // ╔══════════════════════════════════════════════════════════════════════╗
+  // ║  CAPÍTULO IX — PENDÊNCIAS                                             ║
+  // ╚══════════════════════════════════════════════════════════════════════╝
+  capitulo('IX', 'Pendências cadastrais a regularizar',
+    'Fichas que ficaram de fora dos cálculos por falta ou inconsistência de dados.')
+
+  destaque('fichas a regularizar', fmt(invalidas.length),
+    `fichas marcadas como “Votou” estão com zona ou seção vazia, ou inexistente na base oficial do TSE. `
+    + `Outras ${fmt(foraSl)} fichas pertencem a seções de outro município.`,
+    invalidas.length ? AMBAR : VERDE)
+
   paragrafo(
-    `${fmt(invalidas.length)} fichas marcadas como “Votou” estão com zona ou seção vazia, ou inexistente na base do TSE, `
-    + `e por isso ficam de fora dos cálculos deste relatório. Outras ${fmt(foraSl)} fichas pertencem a seções fora de São Luís. `
-    + 'Para que entrem na próxima auditoria, basta regularizar os dados na aba “Corrigir zona/seção” do sistema.',
-    { size: 9.2 },
+    'Essas fichas foram excluídas do cálculo deste relatório porque não há base confiável de comparação para '
+    + 'elas. Para que entrem na próxima auditoria, basta corrigir os dados pela aba "Corrigir zona/seção" do '
+    + 'sistema; a correção também fica registrada no histórico.',
+    { serif: true, size: 10 },
   )
 
-  // ── Cabeçalho e rodapé em todas as páginas (exceto a capa) ─────────────
+  // ╔══════════════════════════════════════════════════════════════════════╗
+  // ║  Cabeçalho e rodapé em todas as páginas (exceto a capa)              ║
+  // ╚══════════════════════════════════════════════════════════════════════╝
   const total = doc.getNumberOfPages()
-  for (let p = 1; p <= total; p++) {
+  for (let p = 2; p <= total; p++) {
     doc.setPage(p)
-    if (p > 1) {
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.4); doc.setTextColor(...PRETO)
-      doc.text('AUDITORIA DOS VOTOS DA EQUIPE DE CAMPANHA', M, 12)
-      doc.setFont('helvetica', 'normal'); doc.setTextColor(...CINZA)
-      doc.text(dataStr, W - M, 12, { align: 'right' })
-      doc.setDrawColor(...LINHA); doc.setLineWidth(0.3)
-      doc.line(M, 15, W - M, 15)
-    }
-    doc.setDrawColor(...LINHA); doc.setLineWidth(0.3)
-    doc.line(M, H - 13, W - M, H - 13)
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.3); doc.setTextColor(...CINZA)
-    doc.text('Documento de uso interno · Auditoria eleitoral — São Luís (MA)', M, H - 7.5)
-    doc.text(`página ${p} de ${total}`, W - M, H - 7.5, { align: 'right' })
+    // Cabeçalho
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.2); doc.setTextColor(...TINTA)
+    doc.text(smallCaps('auditoria dos votos da equipe de campanha'), M, 13)
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...CINZA)
+    doc.text(dataStr, W - M, 13, { align: 'right' })
+    doc.setDrawColor(...TINTA); doc.setLineWidth(0.4); doc.line(M, 16, W - M, 16)
+    doc.setLineWidth(0.15); doc.line(M, 17.2, W - M, 17.2)
+
+    // Rodapé
+    doc.setDrawColor(...TINTA); doc.setLineWidth(0.4); doc.line(M, H - 15, W - M, H - 15)
+    doc.setLineWidth(0.15); doc.line(M, H - 16.2, W - M, H - 16.2)
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...CINZA)
+    doc.text(smallCaps(`protocolo ${protoStr}`), M, H - 10)
+    doc.text(smallCaps('documento interno · auditoria eleitoral · são luís — ma'), W / 2, H - 10, { align: 'center' })
+    doc.text(smallCaps(`página ${p} de ${total}`), W - M, H - 10, { align: 'right' })
   }
 
   doc.save(`relatorio-auditoria-${agora.toISOString().slice(0, 10)}.pdf`)
