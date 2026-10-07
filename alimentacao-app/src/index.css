@@ -16875,6 +16875,58 @@ button.vot-kpi-btn.is-no.is-on {
 .aud-tag { display: inline-block; padding: .1rem .5rem; border-radius: 4px; font-size: .76rem; font-weight: 600; }
 .aud-tag.is-lider { background: #eef3ff; color: #1f3fa0; }
 .aud-tag.is-coord { background: #f1f1f4; color: #3b4150; }
+/* ---------- Aba Resultado ---------- */
+.res-wrap { display: grid; gap: 1.1rem; }
+.res-topo { background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%); color: #fff;
+  border-radius: var(--radius); padding: 1.4rem 1.6rem; display: grid; grid-template-columns: minmax(220px, 320px) 1fr; gap: 1.6rem; align-items: center; }
+.res-topo-num span { display: block; font-size: .76rem; color: #cbd5e1; letter-spacing: .02em; text-transform: uppercase; }
+.res-topo-num strong { display: block; font-size: 2.9rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.05; margin: .25rem 0 .1rem; }
+.res-topo-num em { display: block; font-style: normal; font-size: .82rem; color: #e2e8f0; }
+.res-topo-sub { margin: 0; font-size: .88rem; color: #e2e8f0; line-height: 1.5; max-width: 60ch; }
+
+.res-destaques { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .8rem; }
+.res-card { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--border-strong);
+  border-radius: 8px; padding: .9rem 1rem; display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+.res-card.is-bom { border-left-color: #16a34a; }
+.res-card.is-ruim { border-left-color: #b91c1c; }
+.res-card.is-info { border-left-color: #334155; }
+.res-card header { display: flex; flex-direction: column; gap: .1rem; }
+.res-card header small { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; font-weight: 600; }
+.res-card header h3 { margin: 0; font-size: 1.02rem; color: var(--text); line-height: 1.25; }
+.res-card p { margin: .15rem 0; font-size: .9rem; color: var(--text); }
+.res-card p strong { font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.res-card.is-bom p strong { color: #15803d; }
+.res-card.is-ruim p strong { color: #b91c1c; }
+.res-card p em { font-style: normal; color: var(--muted); font-size: .82rem; }
+.res-card footer { font-size: .76rem; color: var(--muted); margin-top: .15rem; }
+
+.res-faixas { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .5rem; }
+.res-faixa { background: var(--surface); border: 1px solid var(--border); border-top: 3px solid; border-radius: 8px; padding: .7rem .9rem; }
+.res-faixa.is-bom { border-top-color: #16a34a; }
+.res-faixa.is-at { border-top-color: #c47808; }
+.res-faixa.is-ruim { border-top-color: #b91c1c; }
+.res-faixa.is-pe { border-top-color: #64748b; }
+.res-faixa span { font-size: .72rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.res-faixa strong { display: block; font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; margin: .1rem 0; color: var(--text); }
+.res-faixa em { font-style: normal; font-size: .76rem; color: var(--muted); }
+
+.res-titulo { margin: 0 0 .8rem; font-size: 1.02rem; font-weight: 700; color: var(--text); display: flex; align-items: baseline; gap: .5rem; }
+.res-titulo small { font-weight: 400; color: var(--muted); font-size: .78rem; }
+.res-pct { font-variant-numeric: tabular-nums; }
+.res-pct.is-bom { color: #15803d; }
+.res-pct.is-atencao { color: #c47808; }
+.res-pct.is-reavaliar { color: #b91c1c; }
+.res-pct.is-pe { color: var(--muted); }
+.res-tag { display: inline-block; padding: .18rem .55rem; border-radius: 999px; font-size: .74rem; font-weight: 700; }
+.res-tag.is-bom { background: #dcfce7; color: #15803d; }
+.res-tag.is-atencao { background: #fef3c7; color: #a16207; }
+.res-tag.is-reavaliar { background: #fee2e2; color: #b91c1c; }
+.res-tag.is-pe { background: #e2e8f0; color: #475569; }
+@media (max-width: 720px) {
+  .res-topo { grid-template-columns: 1fr; gap: .9rem; padding: 1.1rem 1.2rem; }
+  .res-topo-num strong { font-size: 2.3rem; }
+}
+
 /* Seletor múltiplo (dropdown com checkboxes), usado para filtrar bairros. */
 .aud-multi { position: relative; display: inline-flex; }
 .aud-multi-btn { display: inline-flex; align-items: center; gap: .5rem; justify-content: space-between;
