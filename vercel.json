@@ -5,7 +5,7 @@
   "outputDirectory": "alimentacao-app/dist",
   "rewrites": [
     {
-      "source": "/((?!api/|assets/|data/).*)",
+      "source": "/((?!api/|assets/|data/|assessoria-mb/).*)",
       "destination": "/index.html"
     }
   ]
