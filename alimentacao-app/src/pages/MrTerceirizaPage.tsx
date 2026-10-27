@@ -2,35 +2,32 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { hasRole } from '../lib/roles'
 import { writeSite } from '../lib/sites'
-import { Button } from '../components/ui/Button'
+import demoHtml from './mr-terceiriza-demo.html?raw'
 
 export function MrTerceirizaPage() {
   const { profile, signOut } = useAuth()
   const admin = hasRole(profile, 'admin')
 
   return (
-    <div className="site-home">
-      <header className="site-home-bar">
-        <strong>MR TERCERRIZA</strong>
-        <div className="site-home-actions">
+    <div className="mr-demo">
+      <header className="mr-demo-bar">
+        <span>MR Terceiriza · demonstração</span>
+        <div className="mr-demo-actions">
           {admin ? (
-            <Link to="/" className="site-switch" onClick={() => writeSite('nerites')}>
-              Ir para Sistema Nerites
+            <Link to="/" onClick={() => writeSite('nerites')}>
+              Sistema Nerites
             </Link>
           ) : null}
-          <Button variant="ghost" size="sm" onClick={() => void signOut()}>
+          <button type="button" onClick={() => void signOut()}>
             Sair
-          </Button>
+          </button>
         </div>
       </header>
-      <main className="site-home-body">
-        <p className="site-kicker">Sistema</p>
-        <h1>MR TERCERRIZA</h1>
-        <p>
-          Você entrou com o mesmo login. Este sistema está separado do Sistema Nerites.
-          {admin ? ' Como administrador, você também acessa o Sistema Nerites.' : ''}
-        </p>
-      </main>
+      <iframe
+        className="mr-demo-frame"
+        title="MR Terceiriza"
+        srcDoc={demoHtml}
+      />
     </div>
   )
 }
