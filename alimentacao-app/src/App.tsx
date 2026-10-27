@@ -7,11 +7,13 @@ import { Spinner } from './components/ui/Spinner'
 // baixar as bibliotecas pesadas das telas de gestão.
 import { LoginPage } from './pages/LoginPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
+import { MrTerceirizaPage } from './pages/MrTerceirizaPage'
 import { VotacaoLancarPage } from './pages/VotacaoLancarPage'
 import { VotacaoProgressoPage } from './pages/VotacaoProgressoPage'
 import { VotacaoHistoricoPage } from './pages/VotacaoHistoricoPage'
 import { canSeeFormigasWhatsapp } from './lib/formigasWhatsapp'
 import { hasRole } from './lib/roles'
+import { readSite } from './lib/sites'
 import type { Profile } from './types'
 
 // Telas de gestão (mapa/Leaflet, gráficos/Recharts, PDF/Excel) em chunks
@@ -45,6 +47,7 @@ const FormigasWhatsappPage = lazy(() => import('./pages/FormigasWhatsappPage').t
 
 function homeForProfile(profile: Profile | null | undefined) {
   if (!profile) return '/login'
+  if (readSite() === 'mr-terceiriza') return '/mr-terceiriza'
   if (hasRole(profile, 'admin') || hasRole(profile, 'diretoria')) return '/'
   if (hasRole(profile, 'coordenador')) return '/equipe?tab=auxiliares'
   if (hasRole(profile, 'auxiliar')) return '/votacao/lancar'
@@ -147,6 +150,18 @@ function FormigasWhatsappRoute({ children }: { children: React.ReactNode }) {
   return children
 }
 
+function MrSiteRoute({ children }: { children: React.ReactNode }) {
+  const { session, profile, loading } = useAuth()
+  if (loading) return <Spinner />
+  if (!session || !profile) return <Navigate to="/login" replace />
+  if (!profile.ativo) return <Navigate to="/login" replace />
+  const admin = hasRole(profile, 'admin')
+  if (!admin && readSite() !== 'mr-terceiriza') {
+    return <Navigate to={homeForProfile(profile)} replace />
+  }
+  return children
+}
+
 function NeriteRoute({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
   if (loading) return <Spinner />
@@ -196,6 +211,7 @@ function AppRoutes() {
       <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
       <Route path="/esqueci-senha" element={<PublicOnly><ForgotPasswordPage /></PublicOnly>} />
       <Route path="/tv" element={<TvDashboardPage />} />
+      <Route path="/mr-terceiriza" element={<MrSiteRoute><MrTerceirizaPage /></MrSiteRoute>} />
 
       <Route element={<AppShell />}>
         <Route index element={<HomeRedirect />} />
