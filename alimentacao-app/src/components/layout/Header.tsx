@@ -61,9 +61,14 @@ export function Header({ onMenuClick, title, online = [] }: HeaderProps) {
 
       <div className="app-header-user">
         {admin ? (
-          <Link to="/mr-terceiriza" className="site-switch" onClick={() => writeSite('mr-terceiriza')}>
-            Empresas
-          </Link>
+          <>
+            <Link to="/mr-terceiriza" className="site-switch" onClick={() => writeSite('mr-terceiriza')}>
+              Empresas
+            </Link>
+            <Link to="/assessoria-mb" className="site-switch" onClick={() => writeSite('assessoria-mb')}>
+              Assessoria MB
+            </Link>
+          </>
         ) : null}
         <VotacaoNotifBell />
         <OnlinePresence profile={profile} online={online} />
