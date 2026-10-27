@@ -33,7 +33,7 @@ export function MrTerceirizaPage() {
 
   return (
     <div className="mr-demo">
-      <iframe ref={frameRef} className="mr-demo-frame" title="Sistema Financeiro" srcDoc={srcDoc} />
+      <iframe ref={frameRef} className="mr-demo-frame" title="Empresas" srcDoc={srcDoc} />
     </div>
   )
 }
