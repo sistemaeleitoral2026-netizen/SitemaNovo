@@ -252,21 +252,20 @@ table {
   width: 100%;
   max-width: 400px;
   background: var(--color-white);
-  border: 1px solid #e0e6ef;
-  border-radius: 14px;
-  box-shadow: 0 12px 40px rgba(22, 38, 70, .08);
-  padding: 1.75rem 1.35rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.5rem 1.25rem;
 }
 
 .login-brand {
-  text-align: center;
-  margin-bottom: 1.35rem;
+  text-align: left;
+  margin-bottom: 1.15rem;
 }
 
 .login-brand h1 {
-  font-size: 1.45rem;
-  font-weight: 750;
-  letter-spacing: -.03em;
+  font-size: 1.25rem;
+  font-weight: 650;
   color: var(--color-navy);
 }
 
@@ -4171,28 +4170,6 @@ button.fichas-count.equipe-drill-count.zero:hover {
 .page-subtitle { max-width: 720px; line-height: 1.5; }
 .badge { padding: .22rem .55rem; border-radius: 6px; }
 
-/* Authentication — só formulário, mobile-first */
-.login-wordmark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: .55rem;
-  margin: 0 auto .9rem;
-  font-size: 1.05rem;
-  font-weight: 750;
-  letter-spacing: -.02em;
-  color: #14264b;
-}
-.login-wordmark span {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 9px;
-  background: #214890;
-  color: #fff;
-  font-size: .95rem;
-}
 .login-form {
   display: flex;
   flex-direction: column;
@@ -4226,6 +4203,46 @@ button.fichas-count.equipe-drill-count.zero:hover {
   font-weight: 600;
 }
 .login-help-link:hover { text-decoration: underline; }
+
+.site-switch {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0 .7rem;
+  border: 1px solid #d7deea;
+  border-radius: 999px;
+  color: #14264b;
+  font-size: .78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.site-home {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #f4f7fb;
+  color: #14264b;
+}
+.site-home-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+}
+.site-home-actions { display: flex; align-items: center; gap: .6rem; }
+.site-home-body { max-width: 40rem; padding: 2.5rem 1.25rem; }
+.site-kicker {
+  margin: 0 0 .35rem;
+  color: #6b7280;
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.site-home-body h1 { margin: 0 0 .6rem; font-size: 1.8rem; }
+.site-home-body p { margin: 0; color: #374151; line-height: 1.5; }
 
 @media (max-width: 900px) {
   .main-content-body { padding: 1.35rem 1.25rem 2.5rem; }

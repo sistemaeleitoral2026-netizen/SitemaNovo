@@ -3,10 +3,13 @@ import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { Select } from '../components/ui/Select'
 import { Spinner } from '../components/ui/Spinner'
+import { clearSite, isSiteId, readSite, SITES, siteById, writeSite, type SiteId } from '../lib/sites'
 
 export function LoginPage() {
   const { session, profile, loading, signIn } = useAuth()
+  const [siteId, setSiteId] = useState<SiteId | ''>('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(false)
@@ -22,20 +25,25 @@ export function LoginPage() {
   }
 
   if (session && profile) {
-    return <Navigate to="/" replace />
+    const escolhido = siteById(readSite())
+    return <Navigate to={escolhido?.home ?? '/'} replace />
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    if (!isSiteId(siteId)) {
+      setError('Selecione o sistema.')
+      return
+    }
+    writeSite(siteId)
     setSubmitting(true)
     const { error: err } = await signIn(email, password)
     setSubmitting(false)
     if (err) {
+      clearSite()
       setError('Usuário ou senha inválidos.')
-      return
-    }
-    if (remember) {
+    } else if (remember) {
       localStorage.setItem('alimentacao_remember', '1')
     } else {
       localStorage.removeItem('alimentacao_remember')
@@ -46,15 +54,22 @@ export function LoginPage() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
-          <div className="login-wordmark" aria-hidden>
-            <span>N</span>
-            Nerites
-          </div>
-          <h1>Entrar</h1>
-          <p>Use seu e-mail e senha para acessar.</p>
+          <h1>Acesso</h1>
         </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
+          <Select
+            label="Sistema"
+            value={siteId}
+            onChange={(e) => {
+              const value = e.target.value
+              setSiteId(isSiteId(value) ? value : '')
+              setError(null)
+            }}
+            placeholder="Selecione"
+            options={SITES.map((s) => ({ value: s.id, label: s.nome }))}
+            required
+          />
           <Input
             label="E-mail"
             type="email"
