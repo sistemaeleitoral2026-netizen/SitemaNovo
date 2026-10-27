@@ -4216,6 +4216,48 @@ button.fichas-count.equipe-drill-count.zero:hover {
   font-weight: 700;
   white-space: nowrap;
 }
+.mr-demo {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: #f5f7fa;
+}
+.mr-demo-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  height: 40px;
+  padding: 0 .9rem;
+  background: #fff;
+  border-bottom: 1px solid #e3e8ef;
+  color: #182437;
+  font-size: .8rem;
+}
+.mr-demo-actions {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+}
+.mr-demo-actions a,
+.mr-demo-actions button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: #2365c7;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mr-demo-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #f5f7fa;
+}
+
 .site-home {
   min-height: 100vh;
   min-height: 100dvh;
