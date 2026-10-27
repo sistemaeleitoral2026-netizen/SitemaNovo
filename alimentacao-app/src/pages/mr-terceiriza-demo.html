@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#14223a">
-<title>Sistema Financeiro</title>
+<title>Empresas</title>
 <!--MR_USER-->
 <style>
 :root{--nav:#14223a;--nav-line:#25344d;--bg:#f3f5f9;--card:#fff;--line:#e6eaf0;--ink:#0f1b2d;--muted:#6b778a;--blue:#2563eb;--blue-soft:#e8f0fe;--green:#16a34a;--green-soft:#e7f6ec;--red:#dc2626;--red-soft:#fdecec;--gray-soft:#eef1f5;--radius:10px}
@@ -108,6 +108,7 @@ svg{flex:none}
 
 .row-2{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(280px,1fr);gap:14px;margin-bottom:14px}
 .row-3{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:14px}
+.row-2>*,.row-3>*{min-width:0}
 .legend{display:flex;gap:16px;font-size:12px;font-weight:500;color:#334155}
 .dot{width:8px;height:8px;display:inline-block;border-radius:50%;margin-right:6px;background:var(--green)}
 .dot.red{background:var(--red)}
@@ -178,12 +179,88 @@ table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
 .lightbox img{max-width:100%;max-height:100%;border-radius:6px;background:#fff}
 .lightbox-close{position:absolute;top:calc(12px + env(safe-area-inset-top));right:12px;width:40px;height:40px;border-radius:50%;border:0;background:#fff;font-size:22px;line-height:1}
 
+/* Lançamentos */
+.mini-label{display:block;font-size:12px;color:#334155;margin-bottom:6px;font-weight:500}
+.head-actions{align-items:flex-end;gap:16px;flex-wrap:nowrap;flex:none}
+.sel-ico{position:relative;display:block;min-width:250px}
+.sel-ico svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:#475569;pointer-events:none}
+.sel-ico select{width:100%;height:42px;border:1px solid #d5dce6;border-radius:8px;background:#fff;padding:0 10px 0 40px;font-size:13px}
+.filters-card{margin-bottom:14px}
+.search{position:relative;display:block;margin-bottom:14px}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:#64748b}
+.search input{width:100%;height:42px;border:1px solid #d5dce6;border-radius:8px;padding:0 12px 0 40px;font-size:13px}
+.filter-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:14px}
+.filter-grid .field,.filter-foot .field{font-weight:500}
+.filter-grid select{height:42px;min-height:0;font-size:13px}
+.filter-foot{display:flex;justify-content:space-between;align-items:flex-end;gap:14px}
+.filter-foot .range{min-width:250px}
+.metric-grid.four{grid-template-columns:repeat(4,minmax(0,1fr))}
+.mi-yellow{background:#fef6e0;color:#d97706}
+.warn{color:#d97706}
+.tbl.lanc th{white-space:normal;vertical-align:bottom}
+.tbl.lanc td{vertical-align:middle}
+.tbl.lanc th,.tbl.lanc td{padding:9px 7px;font-size:11.5px;border:1px solid #e3e8ef}
+.tbl.lanc{border:1px solid #e3e8ef}
+.tbl.lanc tbody tr:hover td{background:#f8fafc}
+.tbl td.wrap{white-space:normal;min-width:70px;max-width:115px}
+.tbl td.desc{min-width:130px;max-width:170px}
+.file-link{font-size:12px;text-decoration:underline;text-align:left}
+.badge{display:inline-block;padding:4px 8px;border-radius:5px;font-size:11px;font-weight:600;white-space:nowrap}
+.st-ok{background:#e7f6ec;color:#15803d}.st-warn{background:#fef3c7;color:#b45309}.st-bad{background:#fdecec;color:#dc2626}
+.row-act{padding:4px}.row-act svg{width:18px;height:18px}
+.pager{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-top:14px;font-size:12px;flex-wrap:wrap}
+.pager-btns{display:flex;gap:6px;flex-wrap:wrap}
+.btn.sm{padding:6px 10px;font-size:12px;font-weight:500;gap:4px}
+.btn.sm svg{width:14px;height:14px}
+.btn.current{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn:disabled{opacity:.5;cursor:default;filter:none}
+.pop{position:absolute;background:#fff;border:1px solid var(--line);border-radius:9px;box-shadow:0 10px 30px #0f1b2d1f;min-width:180px;padding:6px;z-index:45}
+.pop button{display:block;width:100%;text-align:left;background:none;border:0;padding:9px 12px;border-radius:6px;font-size:13px}
+.pop button:hover{background:#f1f4f8}
+.pop .danger{color:var(--red)}
+
+/* Novo lançamento */
+.info-banner{display:flex;align-items:center;gap:10px;background:#eef4ff;border:1px solid #c7d7fb;color:#1d4ed8;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px}
+.info-banner>svg{width:18px;height:18px}
+.info-banner .icon-btn{margin-left:auto;padding:4px;color:#334155}
+.info-banner .icon-btn svg{width:16px;height:16px}
+.form-main{display:flex;flex-direction:column;gap:12px;min-width:0}
+.with-ico{display:flex;align-items:center;gap:10px}
+.with-ico svg{width:18px;height:18px;color:var(--blue)}
+.fsec .card-head{font-size:14px;padding-bottom:4px}
+.fsec .field{font-weight:500}
+.req{color:var(--red);font-weight:600}
+.notes{width:100%;min-height:72px;border:1px solid #d5dce6;border-radius:8px;padding:11px 12px;resize:vertical;font-size:13px}
+.dropzone{display:flex;flex-direction:column;align-items:center;gap:4px;border:1.5px dashed #b6c3d6;border-radius:8px;padding:18px;text-align:center;cursor:pointer;color:#334155;font-size:12px}
+.dropzone small{color:var(--muted);font-size:11px}
+.dropzone svg{width:26px;height:26px;color:var(--blue)}
+.dropzone input{display:none}
+.dropzone.over{background:#eef4ff;border-color:var(--blue)}
+.file-row{display:flex;align-items:center;gap:12px;padding:8px 6px;border-bottom:1px solid #eef1f5}
+.file-row:last-child{border-bottom:0}
+.file-thumb{width:34px;height:34px;border-radius:4px;object-fit:cover;background:#f1f4f8;display:grid;place-items:center;flex:none;font-size:9px;font-weight:700;color:#475569}
+.file-thumb.pdf{background:#fdecec;color:#dc2626}
+.file-info{flex:1;min-width:0}
+.file-info b{display:block;font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-info small{color:var(--muted);font-size:11px}
+.ok-ico{color:var(--green);display:inline-flex}.ok-ico svg{width:20px;height:20px}
+.file-row .icon-btn{padding:6px}.file-row .icon-btn svg{width:17px;height:17px}
+.field-err{color:var(--red);font-size:12px;margin-top:8px}
+.form-actions{display:flex;gap:10px;flex-wrap:wrap}
+.btn.outline{border-color:#93b4f4;color:var(--blue)}
+.rules .card-body{padding-top:16px}
+.rule{display:flex;gap:10px;font-size:12px;color:#334155;margin-bottom:16px;line-height:1.45}
+.rule:last-child{margin-bottom:0}
+.rule svg{width:18px;height:18px}
+.r-red svg{color:var(--red)}.r-blue svg{color:var(--blue)}.r-green svg{color:var(--green)}
+.rules .with-ico svg{color:#2563eb}
+
 /* Barra inferior do celular */
 .bottom-nav{display:none}
 .sidebar-overlay{display:none}
 
 @media(max-width:1100px){.co-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
-@media(max-width:1100px){.metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.row-2,.row-3,.form-layout{grid-template-columns:1fr}}
+@media(max-width:1100px){.filter-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.metric-grid.four{grid-template-columns:repeat(2,minmax(0,1fr))}.metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.row-2,.row-3,.form-layout{grid-template-columns:1fr}}
 
 @media(max-width:760px){
   body{background:#f6f7fa}
@@ -241,6 +318,34 @@ table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
   .field input,.field select,.field textarea{font-size:16px}
   .form-grid{grid-template-columns:1fr}
   .sheet-hint{display:block}
+  .head-actions{flex-direction:column;align-items:stretch;width:100%}
+  .head-actions .btn{width:100%;padding:12px}
+  .current-co{width:100%}
+  .sel-ico{min-width:0}
+  .sel-ico select,.search input,.filter-grid select{font-size:16px}
+  .filter-grid{grid-template-columns:1fr 1fr;gap:10px}
+  .filter-foot{flex-direction:column;align-items:stretch}
+  .filter-foot .range{min-width:0}
+  .metric-grid.four{grid-template-columns:1fr 1fr}
+  .pager{flex-direction:column;align-items:stretch}
+  .pager-btns{justify-content:center}
+  /* No celular cada lançamento vira um cartão */
+  #lancTable .table-wrap{overflow:visible}
+  .tbl.lanc{display:block;border:0}
+  .tbl.lanc thead{display:none}
+  .tbl.lanc tbody{display:block}
+  .tbl.lanc tr{display:grid;grid-template-columns:1fr;position:relative;border:1px solid #e3e8ef;border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff}
+  .tbl.lanc tbody tr:hover td{background:none}
+  .tbl.lanc td{display:flex;justify-content:space-between;align-items:baseline;gap:12px;border:0;padding:4px 0;min-width:0;max-width:none;font-size:13px;text-align:right;white-space:normal}
+  .tbl.lanc td::before{content:attr(data-label);color:var(--muted);font-weight:500;text-align:left;flex:none}
+  .tbl.lanc td.c-desc{order:-2;font-weight:600;font-size:14px;text-align:left;padding:0 34px 6px 0;border-bottom:1px solid #eef1f5;margin-bottom:4px}
+  .tbl.lanc td.c-desc::before,.tbl.lanc td.c-acoes::before{display:none}
+  .tbl.lanc td.c-valor{font-weight:700;font-size:14px}
+  .tbl.lanc td.c-acoes{position:absolute;top:4px;right:4px;padding:0}
+  .row-act{padding:8px}
+  .form-actions .btn{flex:1 1 100%;padding:12px}
+  .notes{font-size:16px}
+  .form-grid>div:empty{display:none}
   .bottom-nav{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:8px 4px calc(8px + env(safe-area-inset-bottom));z-index:20}
   .bottom-nav button{background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:#334155;padding:4px 0}
   .bottom-nav button svg{width:22px;height:22px}
@@ -252,7 +357,7 @@ table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
 <div class="sidebar-overlay" id="overlay"></div>
 <div class="app" id="app">
   <aside class="sidebar" id="sidebar">
-    <div class="brand"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="12" width="4.5" height="9" rx="1"/><rect x="9.75" y="7" width="4.5" height="14" rx="1"/><rect x="16.5" y="3" width="4.5" height="18" rx="1"/></svg><span>Sistema Financeiro</span></div>
+    <div class="brand"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="12" width="4.5" height="9" rx="1"/><rect x="9.75" y="7" width="4.5" height="14" rx="1"/><rect x="16.5" y="3" width="4.5" height="18" rx="1"/></svg><span>Empresas</span></div>
     <nav class="navigation" id="nav"></nav>
     <div class="side-bottom">
       <div class="side-user" id="sideUser"></div>
@@ -272,6 +377,7 @@ table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
   </div>
 </div>
 <nav class="bottom-nav" id="bottomNav"></nav>
+<div class="pop hidden" id="rowMenu"></div>
 <div class="lightbox hidden" id="lightbox" onclick="this.classList.add('hidden')"><button class="lightbox-close" aria-label="Fechar">×</button><img id="lightboxImg" alt=""></div>
 <script>
 // Protótipo local sem backend. Os dados ficam apenas nesta aba.
@@ -301,6 +407,19 @@ const icons={
   'download':"<path d='M12 3v12m-5-5 5 5 5-5M5 18v3h14v-3'/>",
   'paperclip':"<path d='m21 11.5-8.8 8.8a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5'/>",
   'bars-fill':"<rect x='4' y='12' width='4' height='9' rx='1' fill='currentColor' stroke='none'/><rect x='10' y='6' width='4' height='15' rx='1' fill='currentColor' stroke='none'/><rect x='16' y='9' width='4' height='12' rx='1' fill='currentColor' stroke='none'/>",
+  'search':"<circle cx='11' cy='11' r='7'/><path d='m20 20-3.5-3.5'/>",
+  'refresh':"<path d='M3 12a9 9 0 1 0 3-6.7L3 8'/><path d='M3 3v5h5'/>",
+  'info':"<circle cx='12' cy='12' r='9'/><path d='M12 11v5M12 8h.01'/>",
+  'x':"<path d='M6 6l12 12M18 6 6 18'/>",
+  'save':"<path d='M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z'/><path d='M7 3v5h8V3M7 21v-7h10v7'/>",
+  'send':"<path d='M21 3 10 14'/><path d='m21 3-7 18-4-7-7-4z'/>",
+  'cloud':"<path d='M7 18a5 5 0 1 1 .9-9.9A6 6 0 0 1 19 10a4 4 0 0 1-1 8z'/><path d='M12 12v6M9.5 14.5 12 12l2.5 2.5'/>",
+  'trash':"<path d='M4 7h16M10 11v6M14 11v6M6 7l1 14h10l1-14M9 7V4h6v3'/>",
+  'check-circle':"<circle cx='12' cy='12' r='10' fill='currentColor' stroke='none'/><path d='m8 12 3 3 5-6' stroke='#fff' stroke-width='2.4'/>",
+  'bulb':"<path d='M9 18h6M10 21h4'/><path d='M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z'/>",
+  'chevron-left':"<path d='m15 6-6 6 6 6'/>",
+  'file-alert':"<path d='M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z'/><path d='M14 3v5h5M12 11v4M12 18h.01'/>",
+  'shield-ok':"<path d='M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z' fill='currentColor' fill-opacity='.15'/><path d='m9 12 2 2 4-4'/>",
   // Ícones das empresas
   'hardhat':"<path d='M3 18h18v-1.5a9 9 0 0 0-18 0z' fill='currentColor'/><path d='M10 8V5h4v3' fill='currentColor'/><path d='M2 18h20' stroke-width='2.4'/>",
   'dress':"<path d='M9.5 3h5l-1 4.5L18 20H6l4.5-12.5z' fill='currentColor'/>",
@@ -339,9 +458,11 @@ const seed=[
   {id:7,company:'limpocar',date:'2026-10-07',type:'entrada',desc:'Venda de veículo (exemplo)',account:'Conta operacional',value:28900,method:'PIX'},
   {id:8,company:'tips-graf',date:'2026-10-05',type:'saida',desc:'Compra de papel e tinta (exemplo)',account:'Conta operacional',value:1280,method:'Boleto'},
   {id:9,company:'mr',date:'2026-10-03',type:'saida',desc:'Compra de material (exemplo)',account:'Conta operacional',value:3100,method:'Boleto'},
-  {id:10,company:'mr',date:'2026-10-27',type:'entrada',desc:'Medição da obra (exemplo)',account:'Conta operacional',value:6200,method:'Transferência bancária'}
+  {id:10,company:'mr',date:'2026-10-27',type:'entrada',desc:'Medição da obra (exemplo)',account:'Conta operacional',value:6200,method:'Transferência bancária'},
+  {id:11,company:'globo',date:'2026-10-01',type:'entrada',desc:'Adiantamento de evento (exemplo)',account:'Conta operacional',value:2500,method:'PIX'}
 ];
-let entries=seed.map(e=>({...e,files:[],notes:'',created:'Jurandy Santana'}));
+const seedStatus={3:'revisao',8:'revisao',6:'sem-comprovante',9:'sem-comprovante'};
+let entries=seed.map(e=>({...e,files:e.id===8?[{name:'Comprovante.pdf',type:'application/pdf',size:182000}]:[],notes:'',created:'Jurandy Santana',status:seedStatus[e.id]||'aprovado'}));
 let audit=[{date:'2026-10-21 11:00',user:'Jurandy Santana',action:'Edição',desc:'Descrição atualizada (exemplo)',company:'mr'},...entries.map(e=>({date:e.date+' 09:00',user:'Jurandy Santana',action:'Criação',desc:e.desc,company:e.company}))].sort((a,b)=>b.date.localeCompare(a.date));
 let page='dashboard',company='',filterFrom='2026-10-01',filterTo='2026-10-31',draftFiles=[],editing=null,showAll=false;
 
@@ -421,55 +542,132 @@ function openFile(id,i){const f=entries.find(e=>e.id===id)?.files[i];if(!f?.url)
 // Tabela no estilo planilha: letras de coluna, números de linha, grade e total no rodapé.
 function sheet(a,o={}){if(!a.length)return emptyBox('file','Nenhum lançamento encontrado','Ajuste a empresa ou o período.');a=a.slice().sort((x,y)=>y.date.localeCompare(x.date));const cols=[['Data',e=>short(e.date)],...(company?[]:[['Empresa',e=>esc(companyName(e.company))]]),...(o.type?[]:[['Tipo',e=>e.type==='entrada'?'Entrada':'Saída']]),['Descrição',e=>esc(e.desc),'wrap'],['Conta',e=>esc(e.account)],['Forma de pagamento',e=>esc(e.method||'—')],['Valor',e=>`<span class="${e.type==='entrada'?'positive':'negative'}">${fmt(e.value)}</span>`,'num'],['Comprovantes',thumbs],...(o.edit?[['',e=>`<button class="link" onclick="showForm(${e.id})">Editar</button>`]]:[])];const s=sums(a),total=o.type?(o.type==='entrada'?s.in:s.out):s.in-s.out,vi=cols.findIndex(c=>c[0]==='Valor');return `<div class="sheet-hint">Deslize a tabela para o lado para ver todas as colunas</div><div class="sheet-wrap"><table class="sheet"><thead><tr class="cols"><th class="rn"></th>${cols.map((_,i)=>`<th>${String.fromCharCode(65+i)}</th>`).join('')}</tr><tr class="heads"><th class="rn">1</th>${cols.map(c=>`<th class="${c[2]||''}">${c[0]}</th>`).join('')}</tr></thead><tbody>${a.map((e,r)=>`<tr><td class="rn">${r+2}</td>${cols.map(c=>`<td class="${c[2]||''}">${c[1](e)}</td>`).join('')}</tr>`).join('')}</tbody><tfoot><tr><td class="rn">${a.length+2}</td>${cols.map((c,i)=>`<td class="${c[2]||''}">${i===0?(o.type?'Total':'Saldo'):i===vi?`<span class="${total<0||o.type==='saida'?'negative':'positive'}">${fmt(total)}</span>`:''}</td>`).join('')}</tr></tfoot></table></div>`}
 
-function renderList(type){
-  const a=period().filter(e=>!type||e.type===type),o=type?{type}:{edit:true};
-  const name=type==='entrada'?'Entradas':type==='saida'?'Saídas':'Lançamentos';
-  view().innerHTML=title(name,`${companyLabel()} · ${type?'histórico com os comprovantes anexados':'cadastre e edite as entradas e saídas'}.`,newBtn)
-  +`<div class="filters"><input id="search" placeholder="Buscar descrição ou conta" aria-label="Buscar lançamentos">${coFilter()}</div><div class="page-heading" style="margin-bottom:14px"><div></div>${rangeBox()}</div>`
-  +card(type?'Histórico':'Histórico completo',`<div id="listTable">${sheet(a,o)}</div>`);
-  wireDates();
-  document.getElementById('search').oninput=ev=>{const q=ev.target.value.toLowerCase();document.getElementById('listTable').innerHTML=sheet(a.filter(e=>(e.desc+' '+e.account).toLowerCase().includes(q)),o)};
-}
+const METHODS=['PIX','Transferência bancária','Dinheiro','Boleto','Outro'];
+const STATUS={aprovado:['Aprovado','st-ok'],revisao:['Em revisão','st-warn'],'sem-comprovante':['Sem comprovante','st-bad']};
+const badge=s=>{const [t,c]=STATUS[s]||STATUS.aprovado;return `<span class="badge ${c}">${t}</span>`};
+const opt=(v,l,cur)=>`<option value="${esc(v)}" ${cur===v?'selected':''}>${esc(l)}</option>`;
+const fileSize=b=>b>=1048576?(b/1048576).toLocaleString('pt-BR',{maximumFractionDigits:1})+' MB':Math.max(1,Math.round(b/1024))+' KB';
+const PAGE=10,DEFAULT_FROM='2026-10-01',DEFAULT_TO='2026-10-31';
+let lf={q:'',type:'',account:'',method:'',status:'',page:1},keptFiles=[],tipClosed=false,lancType='';
+const LANC_TEXT={'':['Lançamentos','Gerencie todas as entradas e saídas da sua empresa de forma organizada e segura.'],entrada:['Entradas','Histórico de todas as entradas da empresa, com os comprovantes anexados.'],saida:['Saídas','Histórico de todas as saídas da empresa, com os comprovantes anexados.']};
+const companySelect=(id,val,withAll)=>`<label class="sel-ico">${ico('building')}<select id="${id}" aria-label="Empresa atual">${withAll?'<option value="">Todas as empresas</option>':(val?'':'<option value="">Selecione a empresa</option>')}${companies.map(c=>opt(c.id,`${c.nome} - ${c.tipo}`,val)).join('')}</select></label>`;
+const allAccounts=()=>[...new Set(company?accounts[company]:Object.values(accounts).flat())];
 
-function accountOptions(co,sel){return (accounts[co]||[]).map(n=>`<option ${sel===n?'selected':''}>${esc(n)}</option>`).join('')}
-function showForm(id){
-  editing=id??null;draftFiles=[];page='form';markNav('lancamentos');
-  const e=entries.find(x=>x.id===id),co=e?.company||company;
+function filtered(){const q=lf.q.trim().toLowerCase();const t=lancType||lf.type;return period().filter(e=>(!t||e.type===t)&&(!lf.account||e.account===lf.account)&&(!lf.method||e.method===lf.method)&&(!lf.status||e.status===lf.status)&&(!q||[e.desc,e.account,companyName(e.company),e.method].join(' ').toLowerCase().includes(q))).sort((x,y)=>y.date.localeCompare(x.date)||y.id-x.id)}
+function renderLancamentos(type=''){
+  lancType=type;const [h,sub]=LANC_TEXT[type];
+  view().innerHTML=`<div class="page-heading"><div><h1>${h}</h1><p class="sub">${sub}</p></div><div class="actions head-actions"><div class="current-co"><span class="mini-label">Empresa atual</span>${companySelect('curCo',company,true)}</div><button class="btn primary" onclick="showForm(null,'${type}')">${ico('plus')} ${type==='entrada'?'Nova entrada':type==='saida'?'Nova saída':'Novo lançamento'}</button></div></div>`
+  +`<section class="card filters-card"><div class="card-head"><span>Filtros</span></div><div class="card-body">
+    <label class="search">${ico('search')}<input id="search" placeholder="Buscar por descrição, conta, empresa..." value="${esc(lf.q)}" aria-label="Buscar"></label>
+    <div class="filter-grid">
+      <label class="field">Empresa<select id="fEmp"><option value="">Todas as empresas</option>${companies.map(c=>opt(c.id,c.nome,company)).join('')}</select></label>
+      <label class="field">Tipo<select id="fTipo" ${type?'disabled':''}>${type?opt(type,type==='entrada'?'Entrada':'Saída',type):opt('','Todos',lf.type)+opt('entrada','Entrada',lf.type)+opt('saida','Saída',lf.type)}</select></label>
+      <label class="field">Conta bancária<select id="fConta">${opt('','Todas as contas',lf.account)}${allAccounts().map(a=>opt(a,a,lf.account)).join('')}</select></label>
+      <label class="field">Forma de pagamento<select id="fForma">${opt('','Todas',lf.method)}${METHODS.map(m=>opt(m,m,lf.method)).join('')}</select></label>
+      <label class="field">Status<select id="fStatus">${opt('','Todos',lf.status)}${Object.entries(STATUS).map(([k,v])=>opt(k,v[0],lf.status)).join('')}</select></label>
+    </div>
+    <div class="filter-foot"><div class="field"><span>Período</span>${rangeBox()}</div><button class="btn" type="button" onclick="clearFilters()">${ico('refresh')} Limpar filtros</button></div>
+  </div></section>
+  <div id="lancStats"></div>
+  <section class="card"><div class="card-head"><span>${h}</span><button class="btn sm" onclick="exportCsv(filtered())">${ico('download')} Exportar</button></div><div class="card-body" id="lancTable"></div></section>`;
+  wireDates();
+  const on=(id,fn)=>document.getElementById(id).onchange=e=>{fn(e.target.value);lf.page=1;render()};
+  on('curCo',v=>{company=v;lf.account=''});on('fEmp',v=>{company=v;lf.account=''});on('fTipo',v=>lf.type=v);on('fConta',v=>lf.account=v);on('fForma',v=>lf.method=v);on('fStatus',v=>lf.status=v);
+  document.getElementById('search').oninput=e=>{lf.q=e.target.value;lf.page=1;updateLanc()};
+  updateLanc();
+}
+function updateLanc(){
+  const a=filtered(),s=sums(a),nIn=a.filter(e=>e.type==='entrada').length,pend=a.filter(e=>e.status==='revisao').length;
+  const pages=Math.max(1,Math.ceil(a.length/PAGE));lf.page=Math.min(lf.page,pages);const start=(lf.page-1)*PAGE,rows=a.slice(start,start+PAGE);
+  const semComp=a.filter(e=>!e.files.length).length;
+  document.getElementById('lancStats').innerHTML=`<div class="metric-grid four">${metric('file','mi-blue','Total de lançamentos','Lançamentos',a.length,'no período selecionado')}${lancType?(lancType==='entrada'?metric('arrow-down','mi-green','Total de entradas','Entradas',`<span class="positive">${fmt(s.in)}</span>`,`${nIn} lançamentos`):metric('arrow-up','mi-red','Total de saídas','Saídas',`<span class="negative">${fmt(s.out)}</span>`,`${a.length-nIn} lançamentos`))+metric('paperclip','mi-red','Sem comprovante','Sem comprovante',`<span class="negative">${semComp}</span>`,'lançamentos sem anexo'):metric('arrow-down','mi-green','Total de entradas','Entradas',`<span class="positive">${fmt(s.in)}</span>`,`${nIn} lançamentos`)+metric('arrow-up','mi-red','Total de saídas','Saídas',`<span class="negative">${fmt(s.out)}</span>`,`${a.length-nIn} lançamentos`)}${metric('clock','mi-yellow','Pendentes de revisão','Pendentes',`<span class="warn">${pend}</span>`,'lançamentos')}</div>`;
+  document.getElementById('lancTable').innerHTML=a.length?`<div class="table-wrap"><table class="tbl lanc"><thead><tr><th>Data</th><th>Empresa</th>${lancType?'':'<th>Tipo</th>'}<th>Descrição</th><th>Conta de origem/destino</th><th>Forma de pagamento</th><th>Valor</th><th>Comprovante</th><th>Ações</th></tr></thead><tbody>${rows.map(e=>`<tr><td data-label="Data">${short(e.date)}</td><td class="wrap" data-label="Empresa">${esc(companyName(e.company))}</td>${lancType?'':`<td data-label="Tipo" class="${e.type==='entrada'?'type-in':'type-out'}">${e.type==='entrada'?'Entrada':'Saída'}</td>`}<td class="wrap desc c-desc">${esc(e.desc)}</td><td class="wrap" data-label="Conta">${esc(e.account)}</td><td class="wrap" data-label="Pagamento">${esc(e.method)}</td><td data-label="Valor" class="c-valor ${e.type==='entrada'?'positive':'negative'}">${fmt(e.value)}</td><td data-label="Comprovante">${e.files.length?e.files.map((f,i)=>`<button class="link file-link" onclick="openFile(${e.id},${i})">${esc(f.name)}</button>`).join('<br>'):'<span class="muted">Sem anexo</span>'}</td><td class="c-acoes"><button class="icon-btn row-act" aria-label="Ações" onclick="rowMenu(event,${e.id})">${ico('dots')}</button></td></tr>`).join('')}</tbody></table></div><div class="pager"><span class="muted">Mostrando ${start+1} a ${start+rows.length} de ${a.length} lançamentos</span><div class="pager-btns"><button class="btn sm" ${lf.page===1?'disabled':''} onclick="goPage(${lf.page-1})">${ico('chevron-left',2)} Anterior</button>${Array.from({length:pages},(_,i)=>`<button class="btn sm ${i+1===lf.page?'current':''}" onclick="goPage(${i+1})">${i+1}</button>`).join('')}<button class="btn sm" ${lf.page===pages?'disabled':''} onclick="goPage(${lf.page+1})">Próxima ${ico('chevron-right',2)}</button></div></div>`:emptyBox('file','Nenhum lançamento encontrado','Ajuste os filtros ou o período.');
+}
+function goPage(p){lf.page=p;updateLanc()}
+function clearFilters(){lf={q:'',type:'',account:'',method:'',status:'',page:1};company='';filterFrom=DEFAULT_FROM;filterTo=DEFAULT_TO;render()}
+function hideMenus(){document.getElementById('userMenu').classList.add('hidden');document.getElementById('rowMenu').classList.add('hidden')}
+function rowMenu(ev,id){
+  ev.stopPropagation();const m=document.getElementById('rowMenu'),e=entries.find(x=>x.id===id),r=ev.currentTarget.getBoundingClientRect();
+  m.innerHTML=`<button onclick="showForm(${id})">Editar</button>${e.status!=='aprovado'?`<button onclick="setStatus(${id},'aprovado')">Aprovar</button>`:''}${e.status!=='revisao'?`<button onclick="setStatus(${id},'revisao')">Enviar para revisão</button>`:''}<button class="danger" onclick="removeEntry(${id})">Excluir</button>`;
+  m.classList.remove('hidden');m.style.top=(r.bottom+window.scrollY+4)+'px';m.style.left=Math.max(8,r.right+window.scrollX-m.offsetWidth)+'px';
+}
+function setStatus(id,st){entries=entries.map(e=>e.id===id?{...e,status:st}:e);const e=entries.find(x=>x.id===id);audit.unshift({date:stamp(),user:ME.nome,action:st==='aprovado'?'Aprovação':'Revisão',desc:e.desc,company:e.company});hideMenus();render()}
+function removeEntry(id){const e=entries.find(x=>x.id===id);hideMenus();if(!confirm(`Excluir o lançamento "${e.desc}"?`))return;entries=entries.filter(x=>x.id!==id);audit.unshift({date:stamp(),user:ME.nome,action:'Exclusão',desc:e.desc,company:e.company});render()}
+
+const fsec=(icon,head,body)=>`<section class="card fsec"><div class="card-head"><span class="with-ico">${ico(icon)} ${head}</span></div><div class="card-body">${body}</div></section>`;
+const req=t=>`<span>${t} <b class="req">*</b></span>`;
+function fillAccounts(co,sel){document.getElementById('fAccount').innerHTML='<option value="">Selecione a conta bancária</option>'+(accounts[co]||[]).map(n=>opt(n,n,sel)).join('')}
+let formBack='lancamentos';
+function showForm(id,presetType=''){
+  formBack=page==='form'?formBack:page;if(!['lancamentos','entradas','saidas'].includes(formBack))formBack='lancamentos';
+  editing=id??null;draftFiles=[];page='form';markNav(formBack);hideMenus();
+  const e=entries.find(x=>x.id===id),co=e?.company||company;keptFiles=[...(e?.files||[])];
   document.getElementById('topPage').textContent=id?'Editar lançamento':'Novo lançamento';
-  view().innerHTML=title(id?'Editar lançamento':'Novo lançamento','Cadastre movimentações diretamente no sistema, sem depender de planilhas.',`<button class="btn" onclick="navigate('lancamentos')">Voltar</button>`)
-  +`<div class="form-layout">${card('Dados do lançamento',`<form id="entryForm"><div class="form-grid">
-    <label class="field full">Empresa<select name="company" id="fCompany" required>${co?'':'<option value="">Selecione a empresa</option>'}${companies.map(c=>`<option value="${c.id}" ${co===c.id?'selected':''}>${esc(c.nome)} — ${esc(c.tipo)}${c.licitado?' (licitado)':''}</option>`).join('')}</select></label>
-    <label class="field">Tipo de lançamento<select name="type" required><option value="entrada" ${e?.type==='entrada'?'selected':''}>Entrada</option><option value="saida" ${e?.type==='saida'?'selected':''}>Saída</option></select></label>
-    <label class="field">Data da movimentação<input type="date" name="date" required value="${e?.date||new Date().toLocaleDateString('en-CA')}"></label>
-    <label class="field full">Descrição<input maxlength="200" name="desc" required placeholder="Ex.: Pagamento de serviço" value="${esc(e?.desc||'')}"></label>
-    <label class="field">Valor (R$)<input name="value" required type="number" min="0.01" step="0.01" placeholder="0,00" value="${e?.value??''}"></label>
-    <label class="field">Forma de pagamento<select name="method">${['PIX','Transferência bancária','Dinheiro','Boleto','Outro'].map(m=>`<option ${e?.method===m?'selected':''}>${m}</option>`).join('')}</select></label>
-    <label class="field full">Conta bancária de origem / destino<select name="account" id="fAccount" required>${co?accountOptions(co,e?.account):'<option value="">Escolha a empresa primeiro</option>'}</select></label>
-    <label class="field full">Observações<textarea name="notes" placeholder="Informações adicionais">${esc(e?.notes||'')}</textarea></label>
-    <div class="field full"><span>Comprovantes (foto ou PDF)</span><label class="upload">${ico('paperclip')}<div>Selecionar imagens ou arquivos PDF</div><small>JPG, PNG ou PDF · até 10 MB por arquivo</small><input id="files" type="file" accept="image/png,image/jpeg,application/pdf" multiple></label><div id="fileList"></div></div>
-  </div><div class="actions" style="margin-top:20px"><button type="submit" class="btn primary" id="saveBtn"></button><button type="button" class="btn" onclick="navigate('lancamentos')">Cancelar</button></div></form>`)}<aside>${card('Observação','<div class="muted">Escolha primeiro a empresa: as contas bancárias mostradas são só as dela. As fotos anexadas aparecem ao lado do lançamento nas tabelas de Entradas e Saídas.</div>')}</aside></div>`;
-  const fc=document.getElementById('fCompany'),save=document.getElementById('saveBtn');
-  const sync=()=>{save.textContent=fc.value?`Salvar na ${companyName(fc.value)}`:'Salvar lançamento'};
-  fc.onchange=()=>{document.getElementById('fAccount').innerHTML=fc.value?accountOptions(fc.value):'<option value="">Escolha a empresa primeiro</option>';sync()};sync();
-  const files=e?.files||[];document.getElementById('fileList').innerHTML=files.map(f=>`<div class="fileitem">${esc(f.name)} <span class="tag">Anexado</span></div>`).join('');
-  document.getElementById('files').onchange=ev=>{draftFiles=Array.from(ev.target.files).filter(f=>f.size<=10*1024*1024&&['image/jpeg','image/png','application/pdf'].includes(f.type));document.getElementById('fileList').innerHTML=files.concat(draftFiles).map(f=>`<div class="fileitem">${esc(f.name)} <span class="tag">${draftFiles.includes(f)?'Novo':'Anexado'}</span></div>`).join('')};
+  view().innerHTML=`<div class="page-heading"><div><h1>${id?'Editar lançamento':'Novo lançamento'}</h1><p class="sub">${id?'Altere os dados do lançamento. A alteração fica registrada na auditoria.':'Registre uma nova entrada ou saída no sistema.'}</p></div><div class="actions head-actions"><div class="current-co"><span class="mini-label">Empresa atual</span>${companySelect('curCo',co,false)}</div></div></div>`
+  +(tipClosed?'':`<div class="info-banner">${ico('info')}<span>Selecione a empresa para carregar automaticamente as contas bancárias vinculadas.</span><button class="icon-btn" type="button" aria-label="Fechar aviso" onclick="tipClosed=true;this.parentElement.remove()">${ico('x',2)}</button></div>`)
+  +`<form id="entryForm" class="form-layout"><div class="form-main">
+    ${fsec('list','Dados do lançamento',`<div class="form-grid">
+      <label class="field">${req('Empresa')}<select name="company" id="fCompany" required>${co?'':'<option value="">Selecione a empresa</option>'}${companies.map(c=>opt(c.id,`${c.nome} - ${c.tipo}`,co)).join('')}</select></label>
+      <label class="field">${req('Tipo do lançamento')}<select name="type" required>${opt('entrada','Entrada',e?.type||presetType||'entrada')}${opt('saida','Saída',e?.type||presetType)}</select></label>
+      <label class="field">${req('Data da movimentação')}<input type="date" name="date" required value="${e?.date||new Date().toLocaleDateString('en-CA')}"></label><div></div>
+      <label class="field full">${req('Descrição')}<input maxlength="200" name="desc" required placeholder="Ex.: Pagamento de serviço, recebimento de cliente..." value="${esc(e?.desc||'')}"></label>
+    </div>`)}
+    ${fsec('card','Conta e pagamento',`<div class="form-grid">
+      <label class="field">${req('Valor (R$)')}<input name="value" required type="number" min="0.01" step="0.01" placeholder="0,00" value="${e?.value??''}"></label>
+      <label class="field">${req('Forma de pagamento')}<select name="method" required>${METHODS.map(m=>opt(m,m,e?.method||'PIX')).join('')}</select></label>
+      <label class="field full">${req('Conta bancária de origem / destino')}<select name="account" id="fAccount" required></select></label>
+    </div>`)}
+    ${fsec('list','Observações',`<textarea name="notes" class="notes" aria-label="Observações" placeholder="Informações adicionais sobre o lançamento...">${esc(e?.notes||'')}</textarea>`)}
+    ${fsec('paperclip','Comprovantes (foto ou PDF)',`<label class="dropzone" id="drop">${ico('cloud')}<span>Clique para selecionar arquivos ou arraste aqui</span><small>JPG, PNG ou PDF • até 10 MB por arquivo</small><input id="files" type="file" accept="image/png,image/jpeg,application/pdf" multiple></label><div id="fileErr" class="field-err hidden"></div><div id="fileList"></div>`)}
+    <div class="form-actions"><button type="submit" class="btn primary" value="save">${ico('save')} Salvar lançamento</button><button type="submit" class="btn outline" value="review">${ico('send')} Salvar e enviar para revisão</button><button type="button" class="btn" onclick="navigate(formBack)">Cancelar</button></div>
+  </div><aside><section class="card rules"><div class="card-head"><span class="with-ico">${ico('bulb')} Regras e orientações</span></div><div class="card-body">
+    <div class="rule r-red">${ico('file-alert')}<span>Comprovante obrigatório para lançamentos de saída.</span></div>
+    <div class="rule r-blue">${ico('info')}<span>As contas bancárias são filtradas de acordo com a empresa selecionada.</span></div>
+    <div class="rule r-green">${ico('shield-ok')}<span>As ações ficam registradas na auditoria do sistema.</span></div>
+  </div></section></aside></form>`;
+  const fc=document.getElementById('fCompany'),cur=document.getElementById('curCo');
+  fillAccounts(co,e?.account);
+  fc.onchange=()=>{cur.value=fc.value;fillAccounts(fc.value)};
+  cur.onchange=()=>{if(fc.querySelector('option[value=""]')&&cur.value)fc.querySelector('option[value=""]').remove();fc.value=cur.value;fillAccounts(cur.value)};
+  const drop=document.getElementById('drop');
+  document.getElementById('files').onchange=ev=>{addFiles(ev.target.files);ev.target.value=''};
+  drop.ondragover=ev=>{ev.preventDefault();drop.classList.add('over')};
+  drop.ondragleave=()=>drop.classList.remove('over');
+  drop.ondrop=ev=>{ev.preventDefault();drop.classList.remove('over');addFiles(ev.dataTransfer.files)};
+  renderFileList();
   document.getElementById('entryForm').onsubmit=submitForm;
   window.scrollTo(0,0);
 }
+function addFiles(list){
+  const ok=[],bad=[];
+  Array.from(list).forEach(f=>(f.size<=10*1024*1024&&['image/jpeg','image/png','application/pdf'].includes(f.type)?ok:bad).push(f));
+  draftFiles.push(...ok.map(f=>({name:f.name,size:f.size,type:f.type,url:URL.createObjectURL(f)})));
+  const err=document.getElementById('fileErr');err.textContent=bad.length?`Não anexado: ${bad.map(f=>f.name).join(', ')}. Use JPG, PNG ou PDF de até 10 MB.`:'';err.classList.toggle('hidden',!bad.length);
+  renderFileList();
+}
+function removeFile(kind,i){(kind==='kept'?keptFiles:draftFiles).splice(i,1);renderFileList()}
+function renderFileList(){
+  const row=(f,kind,i)=>`<div class="file-row">${f.type==='application/pdf'?'<span class="file-thumb pdf">PDF</span>':f.url?`<img class="file-thumb" src="${f.url}" alt="">`:'<span class="file-thumb">ARQ</span>'}<div class="file-info"><b title="${esc(f.name)}">${esc(f.name)}</b><small>${f.size?fileSize(f.size):''}</small></div><span class="ok-ico" title="Pronto para salvar">${ico('check-circle')}</span><button type="button" class="icon-btn" aria-label="Remover ${esc(f.name)}" onclick="removeFile('${kind}',${i})">${ico('trash')}</button></div>`;
+  document.getElementById('fileList').innerHTML=keptFiles.map((f,i)=>row(f,'kept',i)).join('')+draftFiles.map((f,i)=>row(f,'draft',i)).join('');
+}
 function submitForm(ev){
   ev.preventDefault();
-  const x=Object.fromEntries(new FormData(ev.target).entries()),now=stamp(),old=entries.find(e=>e.id===editing);
-  const record={id:old?.id||Date.now(),company:x.company,type:x.type,date:x.date,desc:x.desc,value:Number(x.value),account:x.account,method:x.method,notes:x.notes,created:old?.created||ME.nome,files:[...(old?.files||[]),...draftFiles.map(f=>({name:f.name,size:f.size,type:f.type,url:URL.createObjectURL(f)}))]};
+  const review=ev.submitter?.value==='review',x=Object.fromEntries(new FormData(ev.target).entries()),files=[...keptFiles,...draftFiles];
+  if(x.type==='saida'&&!files.length&&!review&&!confirm('Saída sem comprovante. Salvar mesmo assim? O lançamento ficará marcado como "Sem comprovante".'))return;
+  const now=stamp(),old=entries.find(e=>e.id===editing);
+  const status=review?'revisao':(files.length||x.type==='entrada')?'aprovado':'sem-comprovante';
+  const record={id:old?.id||Date.now(),company:x.company,type:x.type,date:x.date,desc:x.desc,value:Number(x.value),account:x.account,method:x.method,notes:x.notes,created:old?.created||ME.nome,files,status};
   if(old)entries=entries.map(e=>e.id===old.id?record:e);else entries.unshift(record);
   audit.unshift({date:now,user:ME.nome,action:old?'Edição':'Criação',desc:x.desc,company:x.company});
   if(draftFiles.length)audit.unshift({date:now,user:ME.nome,action:'Anexo',desc:`${draftFiles.length} comprovante(s) em ${x.desc}`,company:x.company});
-  company=x.company;navigate('lancamentos');
+  if(review)audit.unshift({date:now,user:ME.nome,action:'Revisão',desc:`Enviado para revisão: ${x.desc}`,company:x.company});
+  company=x.company;navigate(formBack);
 }
 
 function renderAudit(){const a=audit.filter(inCompany);view().innerHTML=title('Auditoria',`${companyLabel()} · histórico de registros e alterações.`)+`<div class="filters">${coFilter()}</div>`+card('Histórico de atividades',a.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Data</th><th>Usuário</th><th>Ação</th><th>Empresa</th><th>Descrição</th></tr></thead><tbody>${a.map(x=>`<tr><td>${short(x.date)} ${x.date.slice(11)}</td><td>${esc(x.user)}</td><td>${esc(x.action)}</td><td>${esc(companyName(x.company))}</td><td>${esc(x.desc)}</td></tr>`).join('')}</tbody></table></div>`:emptyBox('clock','Nenhum registro de auditoria','Ainda não há alterações nesta empresa.'));wireDates()}
 function renderFiles(){const rows=entries.filter(inCompany).flatMap(e=>e.files.map(f=>({f,e})));view().innerHTML=title('Comprovantes',`${companyLabel()} · arquivos vinculados aos lançamentos.`)+`<div class="filters">${coFilter()}</div>`+card('Arquivos anexados',rows.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Data</th><th>Empresa</th><th>Lançamento</th><th>Arquivo</th><th>Responsável</th></tr></thead><tbody>${rows.map(({e,f})=>`<tr><td>${short(e.date)}</td><td>${esc(companyName(e.company))}</td><td>${esc(e.desc)}</td><td>${esc(f.name)}</td><td>${esc(e.created)}</td></tr>`).join('')}</tbody></table></div>`:emptyBox('file','Nenhum comprovante anexado','Adicione fotos ou PDFs ao cadastrar um lançamento.'));wireDates()}
 function renderReports(){const p=period(),s=sums(p);view().innerHTML=title('Relatórios',`${companyLabel()} · resumo das movimentações no período.`,`<button class="btn" onclick="exportCsv()">${ico('download')} Exportar CSV</button>`)+`<div class="filters">${coFilter()}</div><div class="page-heading" style="margin-bottom:14px"><div></div>${rangeBox()}</div><div class="metric-grid">${metric('arrow-down','mi-green','Total de entradas','Entradas',fmt(s.in),'No período')}${metric('arrow-up','mi-red','Total de saídas','Saídas',fmt(s.out),'No período')}${metric('building','mi-gray','Diferença','Diferença',fmt(s.in-s.out),'Entradas menos saídas')}${metric('list','mi-blue','Movimentações','Movimentações',p.length,'Registros encontrados')}</div>`+(company?'':card('Por empresa',`<div class="table-wrap"><table class="tbl"><thead><tr><th>Empresa</th><th>Entradas</th><th>Saídas</th><th>Diferença</th></tr></thead><tbody>${companies.map(c=>{const z=sums(entries.filter(e=>inPeriod(e)&&e.company===c.id));return `<tr><td><b>${esc(c.nome)}</b> ${tagLicitado(c)}</td><td class="positive">${fmt(z.in)}</td><td class="negative">${fmt(z.out)}</td><td>${fmt(z.in-z.out)}</td></tr>`}).join('')}</tbody></table></div>`)+'<div style="height:14px"></div>')+card('Movimentações',sheet(p));wireDates()}
-function exportCsv(){const header=['Empresa','Data','Tipo','Descrição','Conta','Valor','Forma de pagamento'];const lines=period().map(e=>[companyName(e.company),e.date,e.type,e.desc,e.account,e.value.toFixed(2).replace('.',','),e.method||'']);const csv='﻿'+[header,...lines].map(r=>r.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(';')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='lancamentos-empresas.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function exportCsv(list=period()){const header=['Empresa','Data','Tipo','Descrição','Conta','Valor','Forma de pagamento'];const lines=list.map(e=>[companyName(e.company),e.date,e.type,e.desc,e.account,e.value.toFixed(2).replace('.',','),e.method||'']);const csv='﻿'+[header,...lines].map(r=>r.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(';')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='lancamentos-empresas.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 function renderCompanies(){view().innerHTML=title('Empresas','Escolha uma empresa para abrir o painel dela.',rangeBox())+`<div class="co-cards">${companies.map(c=>{const z=sums(entries.filter(e=>inPeriod(e)&&e.company===c.id));return `<button class="co-card" onclick="company='${c.id}';navigate('dashboard')"><div class="co-card-head">${coIcon(c)}<div><b>${esc(c.nome)}</b><div class="co-meta" style="flex-direction:row;align-items:center;gap:8px;margin-top:4px"><small>${esc(c.tipo)}</small>${tagLicitado(c)}</div></div></div><div><div class="sumline"><span>Entradas</span><b class="positive">${fmt(z.in)}</b></div><div class="sumline"><span>Saídas</span><b class="negative">${fmt(z.out)}</b></div><div class="sumline"><span>Diferença</span><b>${fmt(z.in-z.out)}</b></div></div></button>`}).join('')}</div>`;wireDates()}
 function renderAccounts(){view().innerHTML=title('Contas bancárias','Contas de cada empresa. No cadastro só aparecem as contas da empresa escolhida.')+`<div class="co-cards">${companies.map(c=>`<section class="co-card"><div class="co-card-head">${coIcon(c)}<b>${esc(c.nome)}</b></div><div>${accounts[c.id].map(n=>`<div class="sumline"><span>${esc(n)}</span><span class="muted">${entries.filter(e=>e.company===c.id&&e.account===n).length} lanç.</span></div>`).join('')}</div><form class="inline-form" onsubmit="addAccount(event,'${c.id}')"><input name="nome" placeholder="Nova conta" required maxlength="60"><button class="btn">${ico('plus')}</button></form></section>`).join('')}</div>`}
 function addAccount(ev,id){ev.preventDefault();const n=ev.target.nome.value.trim();if(n&&!accounts[id].includes(n))accounts[id].push(n);renderAccounts()}
@@ -480,10 +678,10 @@ const titles={dashboard:'Painel',lancamentos:'Lançamentos',entradas:'Entradas',
 const bottomItems=[['dashboard','Painel','home'],['lancamentos','Lançamentos','list'],['comprovantes','Comprovantes','file'],['relatorios','Relatórios','chart'],['mais','Mais','dots']];
 function markNav(p){document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===p||(b.dataset.page==='mais'&&!bottomItems.some(i=>i[0]===p))))}
 function closeDrawer(){document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('show')}
-function navigate(p){page=p;closeDrawer();render();window.scrollTo(0,0)}
+function navigate(p){if(p!==page)lf.page=1;page=p;closeDrawer();render();window.scrollTo(0,0)}
 function render(){
   markNav(page);document.getElementById('topPage').textContent=titles[page]||'Painel';
-  ({dashboard:renderDashboard,lancamentos:()=>renderList(),entradas:()=>renderList('entrada'),saidas:()=>renderList('saida'),comprovantes:renderFiles,auditoria:renderAudit,relatorios:renderReports,empresas:renderCompanies,contas:renderAccounts,usuarios:renderUsers}[page]||(()=>{view().innerHTML=title('Configurações','Definições do ambiente financeiro das empresas.')+card('Ambiente de demonstração','<div class="muted">Esta versão é um protótipo local e não está conectada ao banco de dados. Para uso real será necessário salvar lançamentos, comprovantes e auditoria no servidor.</div>')}))();
+  ({dashboard:renderDashboard,lancamentos:()=>renderLancamentos(),entradas:()=>renderLancamentos('entrada'),saidas:()=>renderLancamentos('saida'),comprovantes:renderFiles,auditoria:renderAudit,relatorios:renderReports,empresas:renderCompanies,contas:renderAccounts,usuarios:renderUsers}[page]||(()=>{view().innerHTML=title('Configurações','Definições do ambiente financeiro das empresas.')+card('Ambiente de demonstração','<div class="muted">Esta versão é um protótipo local e não está conectada ao banco de dados. Para uso real será necessário salvar lançamentos, comprovantes e auditoria no servidor.</div>')}))();
 }
 function toParent(type){try{window.parent.postMessage({type},'*')}catch{}}
 
@@ -496,7 +694,7 @@ document.getElementById('avatar').textContent=initials(ME.nome);document.getElem
 document.getElementById('userMenu').innerHTML=userActions;
 document.getElementById('sideUser').innerHTML=`<div class="side-user-head"><span class="avatar">${esc(initials(ME.nome))}</span>${esc(ME.nome)}</div>${userActions}`;
 document.getElementById('userChip').onclick=ev=>{ev.stopPropagation();document.getElementById('userMenu').classList.toggle('hidden')};
-document.addEventListener('click',()=>document.getElementById('userMenu').classList.add('hidden'));
+document.addEventListener('click',hideMenus);
 const toggleCollapse=()=>document.getElementById('app').classList.toggle('collapsed');
 document.getElementById('collapse').onclick=toggleCollapse;document.getElementById('toggle').onclick=toggleCollapse;
 document.getElementById('overlay').onclick=closeDrawer;
