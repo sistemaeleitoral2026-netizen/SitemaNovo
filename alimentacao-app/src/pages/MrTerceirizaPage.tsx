@@ -11,7 +11,7 @@ export function MrTerceirizaPage() {
   return (
     <div className="mr-demo">
       <header className="mr-demo-bar">
-        <span>MR Terceiriza · demonstração</span>
+        <span>Empresas · demonstração</span>
         <div className="mr-demo-actions">
           {admin ? (
             <Link to="/" onClick={() => writeSite('nerites')}>
@@ -25,7 +25,7 @@ export function MrTerceirizaPage() {
       </header>
       <iframe
         className="mr-demo-frame"
-        title="MR Terceiriza"
+        title="Empresas"
         srcDoc={demoHtml}
       />
     </div>
