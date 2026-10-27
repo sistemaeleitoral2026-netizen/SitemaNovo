@@ -62,7 +62,7 @@ export function Header({ onMenuClick, title, online = [] }: HeaderProps) {
       <div className="app-header-user">
         {admin ? (
           <Link to="/mr-terceiriza" className="site-switch" onClick={() => writeSite('mr-terceiriza')}>
-            MR TERCERRIZA
+            Empresas
           </Link>
         ) : null}
         <VotacaoNotifBell />

@@ -8,7 +8,7 @@ export type SiteDef = {
 
 export const SITES: SiteDef[] = [
   { id: 'nerites', nome: 'Sistema Nerites', home: '/' },
-  { id: 'mr-terceiriza', nome: 'MR TERCERRIZA', home: '/mr-terceiriza' },
+  { id: 'mr-terceiriza', nome: 'Empresas', home: '/mr-terceiriza' },
 ]
 
 const STORAGE_KEY = 'alimentacao_site'
