@@ -1,8 +1,11 @@
+import { Link } from 'react-router-dom'
 import { LogOut, Menu } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { Button } from '../ui/Button'
 import { VotacaoNotifBell } from '../votacao/VotacaoNotifBell'
 import { OnlinePresence } from './OnlinePresence'
+import { hasRole } from '../../lib/roles'
+import { writeSite } from '../../lib/sites'
 import type { PresenceUser } from '../../hooks/usePresence'
 
 interface HeaderProps {
@@ -13,6 +16,7 @@ interface HeaderProps {
 
 export function Header({ onMenuClick, title, online = [] }: HeaderProps) {
   const { profile, signOut } = useAuth()
+  const admin = hasRole(profile, 'admin')
 
   const roleLabel =
     profile?.role === 'admin'
@@ -56,6 +60,11 @@ export function Header({ onMenuClick, title, online = [] }: HeaderProps) {
       </div>
 
       <div className="app-header-user">
+        {admin ? (
+          <Link to="/mr-terceiriza" className="site-switch" onClick={() => writeSite('mr-terceiriza')}>
+            MR TERCERRIZA
+          </Link>
+        ) : null}
         <VotacaoNotifBell />
         <OnlinePresence profile={profile} online={online} />
         <div className="header-user-copy">

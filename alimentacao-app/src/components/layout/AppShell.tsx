@@ -1,14 +1,16 @@
 import { useState, type ReactNode } from 'react'
-import { Navigate, Outlet } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Spinner } from '../ui/Spinner'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
-import { profileRoles } from '../../lib/roles'
+import { hasRole, profileRoles } from '../../lib/roles'
+import { readSite } from '../../lib/sites'
 import { usePresence } from '../../hooks/usePresence'
 
 export function AppShell({ children }: { children?: ReactNode }) {
   const { session, profile, loading } = useAuth()
+  const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const online = usePresence(profile)
 
@@ -30,6 +32,14 @@ export function AppShell({ children }: { children?: ReactNode }) {
         <p>Sua conta está inativa. Entre em contato com o administrador.</p>
       </div>
     )
+  }
+
+  if (
+    readSite() === 'mr-terceiriza'
+    && !hasRole(profile, 'admin')
+    && !location.pathname.startsWith('/mr-terceiriza')
+  ) {
+    return <Navigate to="/mr-terceiriza" replace />
   }
 
   return (
