@@ -5,7 +5,7 @@ import { Spinner } from '../ui/Spinner'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { hasRole, profileRoles } from '../../lib/roles'
-import { readSite } from '../../lib/sites'
+import { readSite, siteById } from '../../lib/sites'
 import { usePresence } from '../../hooks/usePresence'
 
 export function AppShell({ children }: { children?: ReactNode }) {
@@ -34,12 +34,14 @@ export function AppShell({ children }: { children?: ReactNode }) {
     )
   }
 
+  const siteHome = siteById(readSite())?.home
   if (
-    readSite() === 'mr-terceiriza'
+    siteHome
+    && siteHome !== '/'
     && !hasRole(profile, 'admin')
-    && !location.pathname.startsWith('/mr-terceiriza')
+    && !location.pathname.startsWith(siteHome)
   ) {
-    return <Navigate to="/mr-terceiriza" replace />
+    return <Navigate to={siteHome} replace />
   }
 
   return (

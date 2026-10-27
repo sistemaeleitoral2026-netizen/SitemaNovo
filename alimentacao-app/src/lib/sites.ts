@@ -1,4 +1,4 @@
-export type SiteId = 'nerites' | 'mr-terceiriza'
+export type SiteId = 'nerites' | 'mr-terceiriza' | 'assessoria-mb'
 
 export type SiteDef = {
   id: SiteId
@@ -9,12 +9,13 @@ export type SiteDef = {
 export const SITES: SiteDef[] = [
   { id: 'nerites', nome: 'Sistema Nerites', home: '/' },
   { id: 'mr-terceiriza', nome: 'Empresas', home: '/mr-terceiriza' },
+  { id: 'assessoria-mb', nome: 'Assessoria MB', home: '/assessoria-mb' },
 ]
 
 const STORAGE_KEY = 'alimentacao_site'
 
 export function isSiteId(value: string | null | undefined): value is SiteId {
-  return value === 'nerites' || value === 'mr-terceiriza'
+  return value === 'nerites' || value === 'mr-terceiriza' || value === 'assessoria-mb'
 }
 
 export function readSite(): SiteId | null {
