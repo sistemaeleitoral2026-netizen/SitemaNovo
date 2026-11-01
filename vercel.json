@@ -5,7 +5,7 @@
   "outputDirectory": "alimentacao-app/dist",
   "rewrites": [
     {
-      "source": "/((?!api/|assets/|data/|assessoria-mb/).*)",
+      "source": "/((?!api/|assets/|data/|assessoria-mb/|painel-do-mandato/).*)",
       "destination": "/index.html"
     }
   ]
