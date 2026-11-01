@@ -9,6 +9,7 @@ import { LoginPage } from './pages/LoginPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { MrTerceirizaPage } from './pages/MrTerceirizaPage'
 import { AssessoriaMbPage } from './pages/AssessoriaMbPage'
+import { PainelMandatoPage } from './pages/PainelMandatoPage'
 import { VotacaoLancarPage } from './pages/VotacaoLancarPage'
 import { VotacaoProgressoPage } from './pages/VotacaoProgressoPage'
 import { VotacaoHistoricoPage } from './pages/VotacaoHistoricoPage'
@@ -214,6 +215,7 @@ function AppRoutes() {
       <Route path="/tv" element={<TvDashboardPage />} />
       <Route path="/mr-terceiriza" element={<DemoSiteRoute site="mr-terceiriza"><MrTerceirizaPage /></DemoSiteRoute>} />
       <Route path="/assessoria-mb" element={<DemoSiteRoute site="assessoria-mb"><AssessoriaMbPage /></DemoSiteRoute>} />
+      <Route path="/painel-do-mandato" element={<DemoSiteRoute site="painel-do-mandato"><PainelMandatoPage /></DemoSiteRoute>} />
 
       <Route element={<AppShell />}>
         <Route index element={<HomeRedirect />} />
