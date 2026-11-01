@@ -16,6 +16,7 @@ export function AssessoriaMbPage() {
             <>
               <Link to="/" onClick={() => writeSite('nerites')}>Sistema Nerites</Link>
               <Link to="/mr-terceiriza" onClick={() => writeSite('mr-terceiriza')}>Empresas</Link>
+              <Link to="/painel-do-mandato" onClick={() => writeSite('painel-do-mandato')}>Painel do Mandato</Link>
             </>
           ) : null}
           <button type="button" onClick={() => void signOut()}>Sair</button>
