@@ -188,7 +188,8 @@ export function PainelMandatoPage() {
       if (evento.origin !== window.location.origin) return
       const data = evento.data as { type?: string; q?: string; pessoa?: FichaBusca; alvo?: string; id?: string }
       if (!data?.type) return
-      if (data.type !== 'mandato-buscar' && !feed.current) return
+      const painel = feed.current
+      if (data.type !== 'mandato-buscar' && !painel) return
       if (data.type === 'mandato-buscar') {
         buscarFichasPorNome(String(data.q || ''))
           .then((lista) => {
@@ -203,33 +204,36 @@ export function PainelMandatoPage() {
         const atual = lerJson<FichaBusca[]>(CHAVE_ATENDIDOS, [])
         if (!atual.some((item) => item.id === data.pessoa?.id)) atual.unshift(data.pessoa)
         localStorage.setItem(CHAVE_ATENDIDOS, JSON.stringify(atual.slice(0, 200)))
-        feed.current.cidadoes = atual.slice(0, 200).map(tuplaCidadao)
-        feed.current.busca = []
+        if (!painel) return
+        painel.cidadoes = atual.slice(0, 200).map(tuplaCidadao)
+        painel.busca = []
         publicar()
         return
       }
       if (data.type === 'mandato-excluir' && data.id) {
+        if (!painel) return
         if (data.alvo === 'cidadao') {
           const atual = lerJson<FichaBusca[]>(CHAVE_ATENDIDOS, []).filter((item) => item.id !== data.id)
           localStorage.setItem(CHAVE_ATENDIDOS, JSON.stringify(atual))
-          feed.current.cidadoes = atual.map(tuplaCidadao)
+          painel.cidadoes = atual.map(tuplaCidadao)
         }
         if (data.alvo === 'agenda') {
-          const agenda = (feed.current.agenda as AgendaDia[])
+          const agenda = (painel.agenda as AgendaDia[])
             .map((dia) => ({ ...dia, ev: dia.ev.filter((ev) => ev.id !== data.id) }))
             .filter((dia) => dia.ev.length > 0)
           localStorage.setItem(CHAVE_AGENDA, JSON.stringify(agenda))
-          feed.current.agenda = agenda
+          painel.agenda = agenda
         }
         publicar()
         return
       }
       if (data.type === 'mandato-agenda' && data.pessoa?.n) {
+        if (!painel) return
         const agenda = normalizarAgenda(lerJson<unknown[]>(CHAVE_AGENDA, []))
         agenda.unshift(compromissoDe(data.pessoa))
         localStorage.setItem(CHAVE_AGENDA, JSON.stringify(agenda.slice(0, 60)))
-        feed.current.agenda = agenda.slice(0, 60)
-        feed.current.busca = []
+        painel.agenda = agenda.slice(0, 60)
+        painel.busca = []
         publicar()
       }
     }
