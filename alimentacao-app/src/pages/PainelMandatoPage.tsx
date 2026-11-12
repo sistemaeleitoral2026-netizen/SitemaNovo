@@ -183,7 +183,7 @@ export function PainelMandatoPage() {
   function publicar() {
     const janela = frame.current?.contentWindow as PainelWin | null
     if (!janela) return
-    janela.__MANDATO__ = feed.current ?? {
+    const dados: Record<string, unknown> = feed.current ?? {
       cidadoes: [],
       lideres: [],
       agenda: [],
@@ -196,8 +196,12 @@ export function PainelMandatoPage() {
       propsTotal: '…',
       cidResumo: 'carregando fichas…',
     }
-    janela.__MANDATO__.fin = financeiro.current
-    janela.__MANDATO__.finErro = finErro.current
+    dados.fin = financeiro.current
+    dados.finErro = finErro.current
+    janela.__MANDATO__ = dados
+    // O painel empacotado executa o app em um contexto próprio. A propriedade
+    // direta fica como fallback; postMessage é o canal que atravessa esse limite.
+    janela.postMessage({ type: 'mandato-dados', payload: dados }, window.location.origin)
     const patch: Record<string, unknown> = { real: Date.now() }
     if (!limpouDemo.current) {
       patch.dem = []
