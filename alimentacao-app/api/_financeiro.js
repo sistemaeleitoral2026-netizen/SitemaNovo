@@ -60,7 +60,10 @@ function gabineteDoMes(mes) {
 }
 
 async function baixar(url) {
-  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+  // Não invente um User-Agent de navegador aqui. O portal da Câmara rejeita
+  // especificamente o identificador incompleto "Mozilla/5.0" com HTTP 406.
+  // A rota pública responde normalmente ao fetch padrão do servidor.
+  const res = await fetch(url)
   if (!res.ok) throw new Error(`Portal respondeu ${res.status} em ${url.slice(0, 60)}`)
   return res
 }
