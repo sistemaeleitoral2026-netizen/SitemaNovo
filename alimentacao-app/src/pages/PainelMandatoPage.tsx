@@ -267,6 +267,10 @@ export function PainelMandatoPage() {
       if (evento.origin !== window.location.origin) return
       const data = evento.data as { type?: string; q?: string; pessoa?: FichaBusca; alvo?: string; id?: string }
       if (!data?.type) return
+      if (data.type === 'mandato-pronto') {
+        if (evento.source === frame.current?.contentWindow) publicar()
+        return
+      }
       const painel = feed.current
       if (data.type !== 'mandato-buscar' && !painel) return
       if (data.type === 'mandato-buscar') {
