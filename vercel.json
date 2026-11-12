@@ -4,12 +4,13 @@
   "buildCommand": "npm run build --prefix alimentacao-app",
   "outputDirectory": "alimentacao-app/dist",
   "functions": {
-    "api/folha-cron.js": { "maxDuration": 60 },
-    "api/gabinete.js": { "maxDuration": 30 }
+    "api/folha-cron.js": {
+      "maxDuration": 60
+    },
+    "api/gabinete.js": {
+      "maxDuration": 30
+    }
   },
-  "crons": [
-    { "path": "/api/folha-cron", "schedule": "0 12 * * *" }
-  ],
   "rewrites": [
     {
       "source": "/((?!api/|assets/|data/|assessoria-mb/|painel-do-mandato/).*)",

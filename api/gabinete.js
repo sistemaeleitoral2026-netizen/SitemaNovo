@@ -1,8 +1,8 @@
 const NERITES_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const NERITES_ANON = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
 const NERITES_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY
-const GABINETE_URL = process.env.GABINETE_SUPABASE_URL
-const GABINETE_SERVICE = process.env.GABINETE_SERVICE_ROLE_KEY
+const GABINETE_URL = String(process.env.GABINETE_SUPABASE_URL || '').trim().replace(/\/+$/, '').replace(/\/rest\/v1$/i, '').replace(/\/+$/, '')
+const GABINETE_SERVICE = String(process.env.GABINETE_SERVICE_ROLE_KEY || '').trim()
 
 const LIMITE = 20
 
