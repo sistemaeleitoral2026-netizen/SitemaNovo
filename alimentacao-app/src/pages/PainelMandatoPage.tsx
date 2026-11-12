@@ -2,7 +2,17 @@ import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { hasRole } from '../lib/roles'
-import { listarProposicoes, type ProposicaoMandato } from '../lib/gabinete'
+import {
+  carregarFinanceiro,
+  definirCompetencia,
+  excluirLancamento,
+  listarProposicoes,
+  mudarStatusLancamento,
+  salvarInfoEquipe,
+  salvarLancamento,
+  type FinLancamentoEntrada,
+  type ProposicaoMandato,
+} from '../lib/gabinete'
 import {
   buscarFichasPorNome,
   carregarResumoFichas,
@@ -20,7 +30,16 @@ const CHAVE_AGENDA = 'alimentacao_mandato_agenda'
 
 type PainelWin = Window & {
   __MANDATO__?: Record<string, unknown>
-  __mandatoApp?: { setState: (patch: Record<string, unknown>) => void; atualizarBusca?: () => void }
+  __mandatoApp?: { setState: (patch: Record<string, unknown>) => void; atualizarBusca?: () => void; flash?: (t: string) => void }
+}
+
+type FinMensagem = {
+  type?: string
+  lancamento?: FinLancamentoEntrada
+  id?: string
+  status?: string
+  pagamento?: { empenho: string; num_pagamento: string; data: string; competencia: string | null }
+  info?: { matricula: string; funcao_real?: string; telefone?: string; indicado_por?: string; observacao?: string }
 }
 
 type Feed = ReturnType<typeof montarFeed>
@@ -143,6 +162,23 @@ export function PainelMandatoPage() {
   const frame = useRef<HTMLIFrameElement>(null)
   const feed = useRef<Feed | null>(null)
   const limpouDemo = useRef(false)
+  const financeiro = useRef<Record<string, unknown> | null>(null)
+  const finErro = useRef<string>('')
+
+  function avisar(texto: string) {
+    const janela = frame.current?.contentWindow as PainelWin | null
+    janela?.__mandatoApp?.flash?.(texto)
+  }
+
+  async function recarregarFinanceiro() {
+    try {
+      financeiro.current = await carregarFinanceiro()
+      finErro.current = ''
+    } catch (e) {
+      finErro.current = e instanceof Error ? e.message : 'Falha ao carregar o financeiro.'
+    }
+    publicar()
+  }
 
   function publicar() {
     const janela = frame.current?.contentWindow as PainelWin | null
@@ -160,6 +196,8 @@ export function PainelMandatoPage() {
       propsTotal: '…',
       cidResumo: 'carregando fichas…',
     }
+    janela.__MANDATO__.fin = financeiro.current
+    janela.__MANDATO__.finErro = finErro.current
     const patch: Record<string, unknown> = { real: Date.now() }
     if (!limpouDemo.current) {
       patch.dem = []
@@ -180,7 +218,44 @@ export function PainelMandatoPage() {
       .catch(() => {
         /* o layout continua; as listas inventadas não voltam */
       })
+    void recarregarFinanceiro()
     return () => { vivo = false }
+  }, [])
+
+  // Mensagens do menu Financeiro (iframe -> página): grava pela ponte e recarrega
+  useEffect(() => {
+    async function aoMensagemFin(evento: MessageEvent) {
+      if (evento.origin !== window.location.origin) return
+      const d = evento.data as FinMensagem
+      if (!d?.type || !d.type.startsWith('mandato-fin-')) return
+      try {
+        if (d.type === 'mandato-fin-salvar' && d.lancamento) {
+          await salvarLancamento(d.lancamento)
+          avisar(d.lancamento.id ? 'Lançamento atualizado' : 'Despesa lançada')
+        } else if (d.type === 'mandato-fin-excluir' && d.id) {
+          await excluirLancamento(d.id)
+          avisar('Lançamento excluído')
+        } else if (d.type === 'mandato-fin-status' && d.id && d.status) {
+          await mudarStatusLancamento(d.id, d.status)
+          avisar('Situação atualizada')
+        } else if (d.type === 'mandato-fin-competencia' && d.pagamento) {
+          await definirCompetencia(d.pagamento)
+          avisar('Reembolso vinculado ao mês')
+        } else if (d.type === 'mandato-fin-equipe' && d.info?.matricula) {
+          await salvarInfoEquipe(d.info)
+          avisar('Dados da pessoa salvos')
+        } else if (d.type === 'mandato-fin-recarregar') {
+          avisar('Atualizando…')
+        } else {
+          return
+        }
+        await recarregarFinanceiro()
+      } catch (e) {
+        avisar(e instanceof Error ? e.message : 'Não foi possível salvar.')
+      }
+    }
+    window.addEventListener('message', aoMensagemFin)
+    return () => window.removeEventListener('message', aoMensagemFin)
   }, [])
 
   useEffect(() => {

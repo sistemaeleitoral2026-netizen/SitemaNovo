@@ -243,6 +243,86 @@ module.exports = async function handler(req, res) {
       })
     }
 
+    // ===================== FINANCEIRO DO MANDATO =====================
+    if (recurso.startsWith('financeiro')) {
+      if (!exigirGabinete(res)) return
+      const fin = require('./_financeiro')
+      const db = fin.criarDb(GABINETE_URL, GABINETE_SERVICE)
+      const podeEditar = ['admin', 'diretoria'].includes(profile.role)
+      const exigirEdicao = () => {
+        if (podeEditar) return true
+        json(res, 403, { error: 'Só administrador ou diretoria podem alterar o financeiro.' })
+        return false
+      }
+
+      if (recurso === 'financeiro' && req.method === 'GET') {
+        const resumo = await fin.montarResumo(db)
+        return json(res, 200, { ...resumo, podeEditar })
+      }
+
+      if (req.method !== 'POST') return json(res, 405, { error: 'Use POST.' })
+      if (!exigirEdicao()) return
+
+      if (recurso === 'financeiro-lancamento') {
+        let linha
+        try { linha = fin.validarLancamento(body) } catch (e) { return json(res, e.status || 400, { error: e.message }) }
+        const agora = new Date().toISOString()
+        if (body.id) {
+          const id = String(body.id).replace(/[^0-9a-f-]/gi, '')
+          await db.patch(`fin_lancamento?id=eq.${id}`, { ...linha, atualizado_em: agora })
+        } else {
+          await db.upsert('fin_lancamento', 'id', { ...linha, criado_por: user.id, criado_em: agora, atualizado_em: agora })
+        }
+        return json(res, 200, { ok: true })
+      }
+
+      if (recurso === 'financeiro-excluir') {
+        const id = String(body.id || '').replace(/[^0-9a-f-]/gi, '')
+        if (!id) return json(res, 400, { error: 'Informe o lançamento.' })
+        await db.del(`fin_lancamento?id=eq.${id}`)
+        return json(res, 200, { ok: true })
+      }
+
+      if (recurso === 'financeiro-status') {
+        const id = String(body.id || '').replace(/[^0-9a-f-]/gi, '')
+        const status = ['pendente', 'enviado', 'reembolsado', 'glosado', 'pago'].includes(body.status) ? body.status : ''
+        if (!id || !status) return json(res, 400, { error: 'Informe o lançamento e o status.' })
+        await db.patch(`fin_lancamento?id=eq.${id}`, { status, atualizado_em: new Date().toISOString() })
+        return json(res, 200, { ok: true })
+      }
+
+      if (recurso === 'financeiro-competencia') {
+        // Conciliação: define a qual mês (competência) um pagamento da Câmara se refere
+        const empenho = String(body.empenho || '').slice(0, 20)
+        const numPag = String(body.num_pagamento || '').slice(0, 20)
+        const data = String(body.data || '').slice(0, 10)
+        const comp = body.competencia ? String(body.competencia).slice(0, 7) : null
+        if (!empenho || !numPag || !/^\d{4}-\d{2}-\d{2}$/.test(data)) return json(res, 400, { error: 'Pagamento inválido.' })
+        if (comp && !/^\d{4}-\d{2}$/.test(comp)) return json(res, 400, { error: 'Competência inválida (AAAA-MM).' })
+        await db.patch(
+          `fin_pagamento?empenho=eq.${encodeURIComponent(empenho)}&num_pagamento=eq.${encodeURIComponent(numPag)}&data=eq.${data}`,
+          { competencia: comp },
+        )
+        return json(res, 200, { ok: true })
+      }
+
+      if (recurso === 'financeiro-equipe') {
+        const matricula = String(body.matricula || '').trim().slice(0, 40)
+        if (!matricula) return json(res, 400, { error: 'Informe a matrícula.' })
+        await db.upsert('fin_equipe_info', 'matricula', {
+          matricula,
+          funcao_real: body.funcao_real ? String(body.funcao_real).slice(0, 120) : null,
+          telefone: body.telefone ? String(body.telefone).slice(0, 30) : null,
+          indicado_por: body.indicado_por ? String(body.indicado_por).slice(0, 120) : null,
+          observacao: body.observacao ? String(body.observacao).slice(0, 500) : null,
+          atualizado_em: new Date().toISOString(),
+        })
+        return json(res, 200, { ok: true })
+      }
+
+      return json(res, 404, { error: 'Recurso do financeiro não encontrado.' })
+    }
+
     return json(res, 404, { error: 'Recurso não encontrado.' })
   } catch (err) {
     return json(res, 500, { error: err instanceof Error ? err.message : 'Falha na ponte.' })

@@ -1,0 +1,906 @@
+<main class="p-4 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
+        
+        <!-- Dashboard Subheader & Filter Row -->
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <span class="text-[11px] font-bold tracking-wider uppercase text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-100/60">Painel Administrativo</span>
+            <h2 class="text-2xl font-bold text-slate-900 mt-1.5 tracking-tight">Visão geral da operação</h2>
+            <p class="text-xs text-slate-500 font-normal mt-0.5">
+              Exibindo: <strong class="text-slate-700 font-semibold">Geral</strong> · Últimos 30 dias · Atualizado hoje às 23:03
+            </p>
+          </div>
+
+          <!-- Controls: View tabs and Period selector -->
+          <div class="flex flex-wrap items-center gap-2.5">
+            <!-- View Segment Filter -->
+            <div class="inline-flex bg-slate-200/80 p-1 rounded-xl text-xs font-medium">
+              <button class="px-3.5 py-1.5 rounded-lg bg-white text-slate-900 shadow-sm transition-all font-semibold">Geral</button>
+              <button class="px-3.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition-all">Zona</button>
+              <button class="px-3.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition-all">Equipe</button>
+            </div>
+
+            <!-- Date Dropdown Filter -->
+            <div class="relative">
+              <select class="appearance-none bg-white border border-slate-200 text-slate-700 text-xs font-medium rounded-xl px-3.5 py-2 pr-8 shadow-sm hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+                <option selected>Últimos 30 dias</option>
+                <option>Últimos 7 dias</option>
+                <option>Este mês</option>
+                <option>Todo o período</option>
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-400">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Refresh / Action Button -->
+            <button class="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 hover:text-blue-600 hover:border-blue-200 text-xs font-medium rounded-xl px-3 py-2 shadow-sm transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              <span>Atualizar</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- EXECUTIVE OVERVIEW: Clean Meta Card + Unified Key Metrics Grid -->
+        <!-- (Notice: Alert box has been removed and layout is cleanly balanced) -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          
+          <!-- Primary Meta Progress Card (Balanced 7 Cols) -->
+          <div class="lg:col-span-7 bg-gradient-to-br from-[#0B132B] via-[#0E1B3E] to-[#122353] rounded-2xl p-6 text-white shadow-md border border-slate-800 flex flex-col justify-between relative overflow-hidden">
+            <!-- Subtle background decorative mesh -->
+            <div class="absolute -right-12 -bottom-12 w-48 h-48 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
+            
+            <div>
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                  <span class="text-xs font-bold tracking-wider uppercase text-slate-300">Meta da Equipe — Geral</span>
+                </div>
+                <button class="text-xs text-blue-300 hover:text-white transition-colors underline decoration-blue-400/50 underline-offset-4 font-medium">
+                  Configurar meta
+                </button>
+              </div>
+
+              <!-- Main Big Numbers -->
+              <div class="mt-4 flex flex-wrap items-baseline justify-between gap-2">
+                <div class="flex items-baseline gap-2.5">
+                  <span class="text-4xl sm:text-5xl font-extrabold tracking-tight text-white">1.535</span>
+                  <span class="text-sm font-medium text-slate-400">de 6.000 fichas</span>
+                </div>
+                <div class="inline-flex items-center px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-sm font-bold">
+                  25,6% <span class="text-[11px] font-normal ml-1 text-slate-300">atingido</span>
+                </div>
+              </div>
+
+              <!-- Progress Bar -->
+              <div class="mt-4">
+                <div class="w-full bg-slate-800/80 rounded-full h-3 p-0.5 overflow-hidden">
+                  <div class="bg-gradient-to-r from-blue-500 to-sky-400 h-2 rounded-full transition-all duration-1000 shadow-sm" style="width: 25.6%"></div>
+                </div>
+                <div class="flex justify-between text-[11px] text-slate-400 mt-1.5 font-medium">
+                  <span>0 fichas</span>
+                  <span>Meta: 6.000 fichas</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Meta Execution Indicators -->
+            <div class="grid grid-cols-3 gap-3 pt-5 mt-5 border-t border-slate-700/60 text-center sm:text-left">
+              <div>
+                <p class="text-[10px] uppercase font-bold tracking-wider text-slate-400">Faltam</p>
+                <p class="text-lg font-bold text-white mt-0.5">4.465</p>
+                <p class="text-[10px] text-slate-400">fichas para meta</p>
+              </div>
+              <div>
+                <p class="text-[10px] uppercase font-bold tracking-wider text-slate-400">Ritmo Atual</p>
+                <p class="text-lg font-bold text-emerald-400 mt-0.5">384<span class="text-xs font-normal text-slate-300">/dia</span></p>
+                <p class="text-[10px] text-slate-400">nos últimos dias ativos</p>
+              </div>
+              <div>
+                <p class="text-[10px] uppercase font-bold tracking-wider text-slate-400">Projeção</p>
+                <p class="text-lg font-bold text-amber-300 mt-0.5">12 dias</p>
+                <p class="text-[10px] text-slate-400">de coleta para fechar</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4 Executive KPI Metric Cards (Balanced 5 Cols) -->
+          <div class="lg:col-span-5 grid grid-cols-2 gap-3.5">
+            
+            <!-- KPI 1: Fichas no Período -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 flex flex-col justify-between hover:border-slate-300 transition-colors">
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400">Fichas no Período</span>
+                <div class="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="mt-2">
+                <span class="text-2xl font-black text-slate-900 tracking-tight">1.535</span>
+                <div class="inline-flex items-center text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md mt-1 ml-1">
+                  26% da meta
+                </div>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1">Total contabilizado nos 30 dias</p>
+            </div>
+
+            <!-- KPI 2: Cadastros nas últimas 24h -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 flex flex-col justify-between hover:border-slate-300 transition-colors">
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400">Cadastros 24h</span>
+                <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="mt-2">
+                <span class="text-2xl font-black text-slate-900 tracking-tight">33</span>
+                <div class="inline-flex items-center text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md mt-1 ml-1">
+                  +14% hoje
+                </div>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1">Último lançamento: 23:01 (03/11)</p>
+            </div>
+
+            <!-- KPI 3: Zonas Alcançadas -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 flex flex-col justify-between hover:border-slate-300 transition-colors">
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400">Zonas Cobertas</span>
+                <div class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="mt-2">
+                <span class="text-2xl font-black text-slate-900 tracking-tight">6</span>
+                <div class="inline-flex items-center text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md mt-1 ml-1">
+                  100% ativas
+                </div>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1">2 frentes com alto volume</p>
+            </div>
+
+            <!-- KPI 4: Equipe Ativa -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 flex flex-col justify-between hover:border-slate-300 transition-colors">
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400">Equipe Ativa</span>
+                <div class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="mt-2">
+                <span class="text-2xl font-black text-slate-900 tracking-tight">5</span>
+                <div class="inline-flex items-center text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md mt-1 ml-1">
+                  frentes
+                </div>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1">100% de presença nas ruas</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- SECTION: FRENTES & DIVISÃO ENTRE EQUIPES -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h3 class="text-sm font-bold text-slate-900">Divisão entre as equipes</h3>
+              <p class="text-xs text-slate-500">Distribuição comparativa entre as duas frentes de trabalho</p>
+            </div>
+            <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">1.535 fichas contabilizadas • 2 frentes ativas</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            <!-- Equipe Geral Card -->
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 hover:shadow-md transition-shadow">
+              <div class="flex items-start justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm border border-blue-100">
+                    EG
+                  </div>
+                  <div>
+                    <h4 class="font-bold text-slate-900 text-sm">Equipe Geral</h4>
+                    <p class="text-xs text-slate-500 font-medium">47% das fichas · 238 fichas por membro</p>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <span class="text-2xl font-black text-slate-900">714</span>
+                  <span class="block text-[10px] text-slate-400 font-medium uppercase">fichas</span>
+                </div>
+              </div>
+
+              <!-- Progress bar -->
+              <div class="w-full bg-slate-100 rounded-full h-2 mt-4 overflow-hidden">
+                <div class="bg-blue-600 h-2 rounded-full" style="width: 47%"></div>
+              </div>
+
+              <!-- Squad stats breakdown -->
+              <div class="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-100 text-center">
+                <div class="bg-slate-50 py-1.5 px-2 rounded-lg">
+                  <span class="text-[10px] uppercase font-semibold text-slate-400 block">Coord.</span>
+                  <span class="text-sm font-bold text-slate-800">1</span>
+                </div>
+                <div class="bg-slate-50 py-1.5 px-2 rounded-lg">
+                  <span class="text-[10px] uppercase font-semibold text-slate-400 block">Lideranças</span>
+                  <span class="text-sm font-bold text-slate-800">15</span>
+                </div>
+                <div class="bg-slate-50 py-1.5 px-2 rounded-lg">
+                  <span class="text-[10px] uppercase font-semibold text-slate-400 block">Membros</span>
+                  <span class="text-sm font-bold text-slate-800">3</span>
+                </div>
+              </div>
+
+              <div class="mt-4 flex items-center justify-between text-xs pt-2">
+                <span class="text-slate-500 text-[11px]">8 coletas por liderança · ritmo estável</span>
+                <a href="#" class="text-blue-600 hover:text-blue-700 font-semibold inline-flex items-center gap-1 group">
+                  Abrir frente <span class="group-hover:translate-x-0.5 transition-transform">→</span>
+                </a>
+              </div>
+            </div>
+
+            <!-- Equipe Mandato Card -->
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 hover:shadow-md transition-shadow">
+              <div class="flex items-start justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm border border-emerald-100">
+                    EM
+                  </div>
+                  <div>
+                    <h4 class="font-bold text-slate-900 text-sm">Equipe Mandato</h4>
+                    <p class="text-xs text-slate-500 font-medium">53% das fichas · 205 fichas por membro</p>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <span class="text-2xl font-black text-slate-900">821</span>
+                  <span class="block text-[10px] text-slate-400 font-medium uppercase">fichas</span>
+                </div>
+              </div>
+
+              <!-- Progress bar -->
+              <div class="w-full bg-slate-100 rounded-full h-2 mt-4 overflow-hidden">
+                <div class="bg-emerald-500 h-2 rounded-full" style="width: 53%"></div>
+              </div>
+
+              <!-- Squad stats breakdown -->
+              <div class="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-100 text-center">
+                <div class="bg-slate-50 py-1.5 px-2 rounded-lg">
+                  <span class="text-[10px] uppercase font-semibold text-slate-400 block">Coord.</span>
+                  <span class="text-sm font-bold text-slate-800">1</span>
+                </div>
+                <div class="bg-slate-50 py-1.5 px-2 rounded-lg">
+                  <span class="text-[10px] uppercase font-semibold text-slate-400 block">Lideranças</span>
+                  <span class="text-sm font-bold text-slate-800">18</span>
+                </div>
+                <div class="bg-slate-50 py-1.5 px-2 rounded-lg">
+                  <span class="text-[10px] uppercase font-semibold text-slate-400 block">Membros</span>
+                  <span class="text-sm font-bold text-slate-800">4</span>
+                </div>
+              </div>
+
+              <div class="mt-4 flex items-center justify-between text-xs pt-2">
+                <span class="text-slate-500 text-[11px]">11 coletas por liderança · maior penetração</span>
+                <a href="#" class="text-emerald-600 hover:text-emerald-700 font-semibold inline-flex items-center gap-1 group">
+                  Abrir frente <span class="group-hover:translate-x-0.5 transition-transform">→</span>
+                </a>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- SECTION: RITMO DE COLETA (Chart Timeline) -->
+        <div class="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="font-bold text-slate-900 text-base">Ritmo de coleta</h3>
+                <span class="bg-blue-50 text-blue-700 text-[11px] font-semibold px-2 py-0.5 rounded-md border border-blue-100">Diário vs. Acumulado</span>
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5">Todos os mobilizadores • Todas as zonas e seções • Últimos 30 dias</p>
+            </div>
+
+            <!-- Chart summary badges & Legends -->
+            <div class="flex flex-wrap items-center gap-4 text-xs">
+              <div class="flex items-center gap-1.5 font-medium text-slate-700">
+                <span class="w-3 h-3 rounded-sm bg-blue-600 inline-block"></span>
+                <span>Fichas no dia</span>
+              </div>
+              <div class="flex items-center gap-1.5 font-medium text-slate-700">
+                <span class="w-3 h-0.5 bg-emerald-500 inline-block"></span>
+                <span>Acumulado no período</span>
+              </div>
+              <div class="flex items-center gap-1.5 font-medium text-slate-400">
+                <span class="w-3 border-t-2 border-dashed border-slate-300 inline-block"></span>
+                <span>Ritmo necessário p/ meta</span>
+              </div>
+              <div class="pl-3 border-l border-slate-200 text-right">
+                <span class="text-[10px] text-slate-400 uppercase font-semibold block">Pico registrado</span>
+                <span class="font-bold text-slate-900 text-xs">857 fichas (Dia 28)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chart.js Canvas Container -->
+          <div class="relative h-64 sm:h-72 w-full mt-4">
+            <canvas id="rhythmChart"></canvas>
+          </div>
+          
+          <div class="mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 pt-3">
+            <span>Volume acumulado atual: <strong>1.535 fichas</strong> (Média diária efetiva em campo: 384 fichas)</span>
+            <span>Meta final do ciclo: <strong>6.000 fichas</strong></span>
+          </div>
+        </div>
+
+        <!-- SECTION: MAPA POR ZONA ELEITORAL & CONCENTRAÇÃO TERRITORIAL -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          
+          <!-- Map Column (7 Cols) -->
+          <div class="lg:col-span-7 bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <div>
+                  <h3 class="font-bold text-slate-900 text-sm">Mapa por zona eleitoral</h3>
+                  <p class="text-xs text-slate-500">Intensidade pelas fichas no ciclo atual</p>
+                </div>
+                <a href="#" class="text-xs font-semibold text-blue-600 hover:text-blue-700">Visão completa →</a>
+              </div>
+
+              <!-- Interactive Leaflet Map Container -->
+              <div class="relative rounded-xl overflow-hidden border border-slate-200 mt-2">
+                <div id="territoryMap" class="w-full h-80 bg-slate-100"></div>
+
+                <!-- Floating Map Legend Overlay -->
+                <div class="absolute bottom-3 left-3 bg-white/95 backdrop-blur-sm p-2.5 rounded-xl shadow-lg border border-slate-200/80 z-[1000] text-[11px] space-y-1">
+                  <div class="font-bold text-slate-700 text-[10px] uppercase tracking-wider mb-1">Intensidade</div>
+                  <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+                    <span class="text-slate-600">Baixa (1-50)</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                    <span class="text-slate-600">Média (51-200)</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                    <span class="text-slate-600">Alta (201-800)</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
+                    <span class="text-slate-600">Muito Alta (800+)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-3 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>Focos principais: São Luís (Ilha de Upaon-Açu)</span>
+              <span class="text-blue-600 font-medium cursor-pointer" onclick="centerMapOnHub()">Recentralizar</span>
+            </div>
+          </div>
+
+          <!-- Territory Distribution Column (5 Cols) -->
+          <div class="lg:col-span-5 bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h3 class="font-bold text-slate-900 text-sm">Concentração territorial</h3>
+                  <p class="text-xs text-slate-500">1.535 fichas distribuídas por zona</p>
+                </div>
+                <span class="text-xs font-semibold text-slate-500">Top 4 Zonas</span>
+              </div>
+
+              <!-- Zone Progress Rows -->
+              <div class="space-y-4">
+                
+                <!-- Zone 089 -->
+                <div>
+                  <div class="flex justify-between text-xs font-semibold text-slate-800 mb-1">
+                    <span class="flex items-center gap-2">
+                      <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+                      Zona 089
+                    </span>
+                    <span class="font-bold text-slate-900">1.246 <span class="text-slate-400 font-normal">(81%)</span></span>
+                  </div>
+                  <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                    <div class="bg-blue-600 h-2.5 rounded-full" style="width: 81%"></div>
+                  </div>
+                </div>
+
+                <!-- Zone 010 -->
+                <div>
+                  <div class="flex justify-between text-xs font-semibold text-slate-800 mb-1">
+                    <span class="flex items-center gap-2">
+                      <span class="w-2 h-2 rounded-full bg-sky-500"></span>
+                      Zona 010
+                    </span>
+                    <span class="font-bold text-slate-900">215 <span class="text-slate-400 font-normal">(14%)</span></span>
+                  </div>
+                  <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                    <div class="bg-sky-500 h-2.5 rounded-full" style="width: 14%"></div>
+                  </div>
+                </div>
+
+                <!-- Zone 001 -->
+                <div>
+                  <div class="flex justify-between text-xs font-semibold text-slate-800 mb-1">
+                    <span class="flex items-center gap-2">
+                      <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                      Zona 001
+                    </span>
+                    <span class="font-bold text-slate-900">61 <span class="text-slate-400 font-normal">(4%)</span></span>
+                  </div>
+                  <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                    <div class="bg-amber-500 h-2.5 rounded-full" style="width: 4%"></div>
+                  </div>
+                </div>
+
+                <!-- Zone 090 -->
+                <div>
+                  <div class="flex justify-between text-xs font-semibold text-slate-800 mb-1">
+                    <span class="flex items-center gap-2">
+                      <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+                      Zona 090
+                    </span>
+                    <span class="font-bold text-slate-900">13 <span class="text-slate-400 font-normal">(1%)</span></span>
+                  </div>
+                  <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                    <div class="bg-slate-400 h-2.5 rounded-full" style="width: 1%"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Analysis Callout box -->
+              <div class="bg-blue-50/70 border border-blue-100 rounded-xl p-3 mt-4 text-[11px] text-blue-900">
+                <strong>Análise:</strong> Alta concentração (81%) na Zona 089. As zonas 010 e 001 mantêm crescimento gradativo.
+              </div>
+
+              <!-- Top Voting Sections breakdown -->
+              <div class="mt-4 pt-3 border-t border-slate-100">
+                <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-2">Seções com Maior Coleta</span>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                  <div class="flex items-center justify-between bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">
+                    <span class="text-slate-600 font-medium">Seção 089</span>
+                    <span class="font-bold text-slate-900">49 fichas</span>
+                  </div>
+                  <div class="flex items-center justify-between bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">
+                    <span class="text-slate-600 font-medium">Seção 010</span>
+                    <span class="font-bold text-slate-900">40 fichas</span>
+                  </div>
+                  <div class="flex items-center justify-between bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">
+                    <span class="text-slate-600 font-medium">Seção 001</span>
+                    <span class="font-bold text-slate-900">28 fichas</span>
+                  </div>
+                  <div class="flex items-center justify-between bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">
+                    <span class="text-slate-600 font-medium">Seção 989</span>
+                    <span class="font-bold text-slate-900">18 fichas</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-3 text-right">
+              <a href="#" class="text-xs font-semibold text-blue-600 hover:text-blue-700">Ver todas as 38 seções →</a>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- SECTION: MOBILIZAÇÃO DE RUA & GESTÃO DE DEMANDAS -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          
+          <!-- Formigas - Mobilização de Rua -->
+          <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <div>
+                  <h3 class="font-bold text-slate-900 text-sm">Mobilização de rua — Ativação</h3>
+                  <p class="text-xs text-slate-500">Adesivagem de carros, casas, postagens e contatos</p>
+                </div>
+                <a href="#" class="text-xs font-semibold text-blue-600 hover:text-blue-700">Abrir painel →</a>
+              </div>
+
+              <!-- Street Counters Grid -->
+              <div class="grid grid-cols-4 gap-2.5 mt-4 text-center">
+                <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Carros</span>
+                  <span class="text-xl font-bold text-slate-800 mt-1 block">0</span>
+                  <span class="text-[9px] text-slate-400">veículos adesiv.</span>
+                </div>
+                <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Casas</span>
+                  <span class="text-xl font-bold text-slate-800 mt-1 block">0</span>
+                  <span class="text-[9px] text-slate-400">casas adesivadas</span>
+                </div>
+                <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Postagens</span>
+                  <span class="text-xl font-bold text-slate-800 mt-1 block">0</span>
+                  <span class="text-[9px] text-slate-400">redes / mídias</span>
+                </div>
+                <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">% Ativado</span>
+                  <span class="text-xl font-bold text-slate-800 mt-1 block">0%</span>
+                  <span class="text-[9px] text-slate-400">conversão direta</span>
+                </div>
+              </div>
+
+              <!-- Potential Base Status Card -->
+              <div class="mt-4 bg-slate-50 rounded-xl p-3.5 border border-slate-200/70 flex items-center justify-between">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-slate-800">Base total de eleitores contatados</span>
+                    <span class="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-semibold">Cadastros</span>
+                  </div>
+                  <p class="text-[11px] text-slate-500 mt-0.5">Cadastros aptos para receberem kits de rua e materiais de campanha</p>
+                </div>
+                <span class="text-2xl font-black text-slate-900 ml-4">1.696</span>
+              </div>
+            </div>
+
+            <div class="mt-3 text-[11px] text-slate-400">
+              Próxima rodada de distribuição: <span class="text-slate-600 font-medium">Equipe Mandato e Geral na terça-feira</span>
+            </div>
+          </div>
+
+          <!-- Demandas da Comunidade -->
+          <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <div>
+                  <h3 class="font-bold text-slate-900 text-sm">Demandas da comunidade</h3>
+                  <p class="text-xs text-slate-500">Pedidos registrados pelos eleitores durante a coleta</p>
+                </div>
+                <a href="#" class="text-xs font-semibold text-blue-600 hover:text-blue-700">Ver todas →</a>
+              </div>
+
+              <!-- Open / Completed Overview -->
+              <div class="grid grid-cols-2 gap-3 mt-4">
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
+                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Em Aberto</span>
+                  <span class="text-2xl font-black text-slate-900 mt-0.5 block">0</span>
+                  <span class="text-[10px] text-slate-400">aguardando triagem</span>
+                </div>
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
+                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Concluídas</span>
+                  <span class="text-2xl font-black text-emerald-600 mt-0.5 block">0</span>
+                  <span class="text-[10px] text-slate-400">resolvidas no período</span>
+                </div>
+              </div>
+
+              <!-- Urgency Breakdown List -->
+              <div class="mt-4 space-y-1.5 text-xs font-medium">
+                <div class="flex items-center justify-between py-1 px-2 rounded-lg hover:bg-slate-50">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                    <span class="text-slate-700">Urgente</span>
+                  </div>
+                  <span class="font-bold text-slate-900">0</span>
+                </div>
+                <div class="flex items-center justify-between py-1 px-2 rounded-lg hover:bg-slate-50">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                    <span class="text-slate-700">Alta prioridade</span>
+                  </div>
+                  <span class="font-bold text-slate-900">0</span>
+                </div>
+                <div class="flex items-center justify-between py-1 px-2 rounded-lg hover:bg-slate-50">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                    <span class="text-slate-700">Normal</span>
+                  </div>
+                  <span class="font-bold text-slate-900">0</span>
+                </div>
+                <div class="flex items-center justify-between py-1 px-2 rounded-lg hover:bg-slate-50">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+                    <span class="text-slate-700">Baixa</span>
+                  </div>
+                  <span class="font-bold text-slate-900">0</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-3 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>Fila zerada no momento</span>
+              <span class="text-blue-600 font-semibold cursor-pointer">Cadastrar nova demanda</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- SECTION: DESEMPENHO DA OPERAÇÃO & FEED EM TEMPO REAL -->
+        <div>
+          <div class="mb-3">
+            <h3 class="font-bold text-slate-900 text-sm">Desempenho da operação</h3>
+            <p class="text-xs text-slate-500">Quem produz, quem entrega e as últimas fichas registradas no sistema</p>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            
+            <!-- Column 1: Produção por Equipe / Mobilizadores -->
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
+              <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+                <div>
+                  <h4 class="font-bold text-slate-900 text-xs uppercase tracking-wider">Produção por membro</h4>
+                  <span class="text-[11px] text-slate-400">Top 5 no ciclo atual</span>
+                </div>
+                <a href="#" class="text-xs font-semibold text-blue-600 hover:text-blue-700">Ver todos →</a>
+              </div>
+
+              <div class="space-y-3">
+                <!-- User 1 -->
+                <div class="flex items-center gap-3">
+                  <span class="w-5 text-xs font-bold text-slate-400">1</span>
+                  <div class="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center shrink-0">
+                    WF
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex justify-between text-xs font-semibold text-slate-800">
+                      <span class="truncate">Walber Fonseca</span>
+                      <span>441 <span class="text-slate-400 font-normal">fichas</span></span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5 mt-1 overflow-hidden">
+                      <div class="bg-blue-600 h-1.5 rounded-full" style="width: 85%"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- User 2 -->
+                <div class="flex items-center gap-3">
+                  <span class="w-5 text-xs font-bold text-slate-400">2</span>
+                  <div class="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center justify-center shrink-0">
+                    SR
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex justify-between text-xs font-semibold text-slate-800">
+                      <span class="truncate">Severino Rocha Ramos</span>
+                      <span>401 <span class="text-slate-400 font-normal">fichas</span></span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5 mt-1 overflow-hidden">
+                      <div class="bg-emerald-500 h-1.5 rounded-full" style="width: 78%"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- User 3 -->
+                <div class="flex items-center gap-3">
+                  <span class="w-5 text-xs font-bold text-slate-400">3</span>
+                  <div class="w-7 h-7 rounded-full bg-amber-100 text-amber-700 font-bold text-xs flex items-center justify-center shrink-0">
+                    AD
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex justify-between text-xs font-semibold text-slate-800">
+                      <span class="truncate">Admilton Ramos</span>
+                      <span>380 <span class="text-slate-400 font-normal">fichas</span></span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5 mt-1 overflow-hidden">
+                      <div class="bg-amber-500 h-1.5 rounded-full" style="width: 72%"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- User 4 -->
+                <div class="flex items-center gap-3">
+                  <span class="w-5 text-xs font-bold text-slate-400">4</span>
+                  <div class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center shrink-0">
+                    HS
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex justify-between text-xs font-semibold text-slate-800">
+                      <span class="truncate">Hayde D Santos</span>
+                      <span>198 <span class="text-slate-400 font-normal">fichas</span></span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5 mt-1 overflow-hidden">
+                      <div class="bg-indigo-500 h-1.5 rounded-full" style="width: 42%"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- User 5 -->
+                <div class="flex items-center gap-3">
+                  <span class="w-5 text-xs font-bold text-slate-400">5</span>
+                  <div class="w-7 h-7 rounded-full bg-purple-100 text-purple-700 font-bold text-xs flex items-center justify-center shrink-0">
+                    TM
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex justify-between text-xs font-semibold text-slate-800">
+                      <span class="truncate">Temyto Mesquita</span>
+                      <span>71 <span class="text-slate-400 font-normal">fichas</span></span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5 mt-1 overflow-hidden">
+                      <div class="bg-purple-500 h-1.5 rounded-full" style="width: 20%"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-400">
+                5 frentes respondem por 97% das coletas
+              </div>
+            </div>
+
+            <!-- Column 2: Lideranças que Entregam -->
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
+              <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+                <div>
+                  <h4 class="font-bold text-slate-900 text-xs uppercase tracking-wider">Lideranças que entregam</h4>
+                  <span class="text-[11px] text-slate-400">Mais ativas na última semana</span>
+                </div>
+                <a href="#" class="text-xs font-semibold text-blue-600 hover:text-blue-700">Ver todas →</a>
+              </div>
+
+              <div class="space-y-3">
+                <!-- Leader 1 -->
+                <div class="flex items-center gap-3">
+                  <span class="w-5 text-xs font-bold text-slate-400">1</span>
+                  <div class="w-7 h-7 rounded-full bg-sky-100 text-sky-700 font-bold text-xs flex items-center justify-center shrink-0">
+                    WD
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex justify-between text-xs font-semibold text-slate-800">
+                      <span class="truncate">Wanderson Silva</span>
+                      <span>41 <span class="text-slate-400 font-normal">fichas</span></span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5 mt-1 overflow-hidden">
+                      <div class="bg-blue-600 h-1.5 rounded-full" style="width: 80%"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Leader 2 -->
+                <div class="flex items-center gap-3">
+                  <span class="w-5 text-xs font-bold text-slate-400">2</span>
+                  <div class="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center justify-center shrink-0">
+                    CF
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex justify-between text-xs font-semibold text-slate-800">
+                      <span class="truncate">Claudio Feio</span>
+                      <span>29 <span class="text-slate-400 font-normal">fichas</span></span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5 mt-1 overflow-hidden">
+                      <div class="bg-blue-600 h-1.5 rounded-full" style="width: 65%"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Leader 3 -->
+                <div class="flex items-center gap-3">
+                  <span class="w-5 text-xs font-bold text-slate-400">3</span>
+                  <div class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center shrink-0">
+                    AR
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex justify-between text-xs font-semibold text-slate-800">
+                      <span class="truncate">Arislan Costa</span>
+                      <span>23 <span class="text-slate-400 font-normal">fichas</span></span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5 mt-1 overflow-hidden">
+                      <div class="bg-blue-600 h-1.5 rounded-full" style="width: 52%"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Leader 4 -->
+                <div class="flex items-center gap-3">
+                  <span class="w-5 text-xs font-bold text-slate-400">4</span>
+                  <div class="w-7 h-7 rounded-full bg-amber-100 text-amber-700 font-bold text-xs flex items-center justify-center shrink-0">
+                    JA
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex justify-between text-xs font-semibold text-slate-800">
+                      <span class="truncate">José Anastácio</span>
+                      <span>21 <span class="text-slate-400 font-normal">fichas</span></span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5 mt-1 overflow-hidden">
+                      <div class="bg-blue-600 h-1.5 rounded-full" style="width: 48%"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Leader 5 -->
+                <div class="flex items-center gap-3">
+                  <span class="w-5 text-xs font-bold text-slate-400">5</span>
+                  <div class="w-7 h-7 rounded-full bg-rose-100 text-rose-700 font-bold text-xs flex items-center justify-center shrink-0">
+                    EN
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex justify-between text-xs font-semibold text-slate-800">
+                      <span class="truncate">Enilce Moreira</span>
+                      <span>21 <span class="text-slate-400 font-normal">fichas</span></span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5 mt-1 overflow-hidden">
+                      <div class="bg-blue-600 h-1.5 rounded-full" style="width: 48%"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-400">
+                As 5 maiores lideranças respondem por 43% das fichas de base
+              </div>
+            </div>
+
+            <!-- Column 3: Últimas Fichas Cadastradas (Live Stream) -->
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+                  <div>
+                    <h4 class="font-bold text-slate-900 text-xs uppercase tracking-wider">Últimas fichas cadastradas</h4>
+                    <span class="text-[11px] text-slate-400">Fluxo em tempo real da equipe</span>
+                  </div>
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 badge-pulse"></span>
+                </div>
+
+                <!-- Live Records Stream -->
+                <div class="divide-y divide-slate-100 text-xs">
+                  
+                  <div class="py-2 flex items-center justify-between">
+                    <div>
+                      <p class="font-bold text-slate-800 tracking-tight">Janilse da Silva Costa</p>
+                      <span class="text-[10px] text-slate-400">Zona 089 · Seção 001 · Geral</span>
+                    </div>
+                    <span class="text-[10px] font-mono font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">23:01</span>
+                  </div>
+
+                  <div class="py-2 flex items-center justify-between">
+                    <div>
+                      <p class="font-bold text-slate-800 tracking-tight">Deannynza da Costa Lotes</p>
+                      <span class="text-[10px] text-slate-400">Zona 089 · Seção 089 · Geral</span>
+                    </div>
+                    <span class="text-[10px] font-mono font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">22:45</span>
+                  </div>
+
+                  <div class="py-2 flex items-center justify-between">
+                    <div>
+                      <p class="font-bold text-slate-800 tracking-tight">Raimundo de Araújo Teles</p>
+                      <span class="text-[10px] text-slate-400">Zona 010 · Seção 040 · Mandato</span>
+                    </div>
+                    <span class="text-[10px] font-mono font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">22:42</span>
+                  </div>
+
+                  <div class="py-2 flex items-center justify-between">
+                    <div>
+                      <p class="font-bold text-slate-800 tracking-tight">Raimundo Helo Couto Ericeira</p>
+                      <span class="text-[10px] text-slate-400">Zona 089 · Seção 001 · Geral</span>
+                    </div>
+                    <span class="text-[10px] font-mono font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">22:34</span>
+                  </div>
+
+                  <div class="py-2 flex items-center justify-between">
+                    <div>
+                      <p class="font-bold text-slate-800 tracking-tight">Nelsan Ryan Frazão Costa</p>
+                      <span class="text-[10px] text-slate-400">Zona 089 · Seção 010 · Mandato</span>
+                    </div>
+                    <span class="text-[10px] font-mono font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">21:50</span>
+                  </div>
+
+                  <div class="py-2 flex items-center justify-between">
+                    <div>
+                      <p class="font-bold text-slate-800 tracking-tight">Jaim Carlos Rosa Araújo</p>
+                      <span class="text-[10px] text-slate-400">Zona 089 · Seção 089 · Geral</span>
+                    </div>
+                    <span class="text-[10px] font-mono font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">21:41</span>
+                  </div>
+
+                </div>
+              </div>
+
+              <div class="mt-3 pt-2 border-t border-slate-100 text-center">
+                <a href="#" class="text-xs font-semibold text-blue-600 hover:text-blue-700">Ver todas as 1.535 fichas →</a>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </main>
