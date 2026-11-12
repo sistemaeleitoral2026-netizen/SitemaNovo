@@ -10,7 +10,7 @@
 | `alimentacao-app/api/*` | Cópias idênticas dos 3 arquivos acima (o repositório mantém as duas pastas) |
 | `alimentacao-app/src/lib/gabinete.ts` | Funções do financeiro no front |
 | `alimentacao-app/src/pages/PainelMandatoPage.tsx` | Carrega o financeiro e grava o que o painel manda |
-| `alimentacao-app/public/painel-do-mandato/index.html` | Painel com o menu **Financeiro** e os 5 submenus |
+| `alimentacao-app/public/mandato-embed/index.html` | Painel interno com o menu **Financeiro** e os 5 submenus |
 | `vercel.json` | Cron diário (9h de Brasília) + tempo máximo das funções |
 
 ## Passo a passo
