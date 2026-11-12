@@ -1,0 +1,52 @@
+Evolução de cadastros</h2>
+              <p style="margin:4px 0 0;font-size:12.5px;color:#6b7280">{{ escopoCurto }} · {{ periodoLabel }}</p>
+            </div>
+            <div style="display:flex;gap:18px;font-variant-numeric:tabular-nums;text-align:right">
+              <div>
+                <div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#8a92a1;font-weight:600">Total</div>
+                <div style="font-size:17px;font-weight:650">{{ fichas }}</div>
+              </div>
+              <div>
+                <div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#8a92a1;font-weight:600">Dias ativos</div>
+                <div style="font-size:17px;font-weight:650">{{ diasAtivos }}</div>
+              </div>
+              <div>
+                <div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#8a92a1;font-weight:600">Melhor dia</div>
+                <div style="font-size:17px;font-weight:650">{{ melhorDia }}</div>
+              </div>
+            </div>
+          </div>
+          <div style="padding:22px 22px 16px;display:flex;gap:14px;flex:1">
+            <div style="display:flex;flex-direction:column;justify-content:space-between;font-size:11px;color:#9aa1ad;font-variant-numeric:tabular-nums;padding-bottom:22px;text-align:right;width:28px">
+              <sc-for list="{{ eixoY }}" as="t" hint-placeholder-count="5">
+                <span>{{ t }}</span>
+              </sc-for>
+            </div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+              <div style="flex:1;min-height:190px;display:flex;align-items:flex-end;gap:6px;border-bottom:1px solid #e5e7eb;background:linear-gradient(to top,transparent 0,transparent 24.8%,#f1f2f5 24.8%,#f1f2f5 25.2%,transparent 25.2%,transparent 49.8%,#f1f2f5 49.8%,#f1f2f5 50.2%,transparent 50.2%,transparent 74.8%,#f1f2f5 74.8%,#f1f2f5 75.2%,transparent 75.2%)">
+                <sc-for list="{{ barras }}" as="b" hint-placeholder-count="14">
+                  <div style="flex:1;min-width:0;display:flex;align-items:flex-end;height:100%">
+                    <div style="position:relative;width:100%;border-radius:3px 3px 0 0;height:{{ b.h }};background:{{ b.bg }}">
+                      <sc-if value="{{ b.tip }}" hint-placeholder-val="{{ false }}">
+                        <div style="position:absolute;top:-24px;left:50%;transform:translateX(-50%);background:#0d1524;color:#fff;font-size:11px;font-weight:600;padding:3px 7px;border-radius:5px;white-space:nowrap;font-variant-numeric:tabular-nums">{{ b.valor }}</div>
+                      </sc-if>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:flex;gap:6px;padding-top:8px;font-size:10.5px;color:#9aa1ad;font-variant-numeric:tabular-nums">
+                <sc-for list="{{ barras }}" as="b" hint-placeholder-count="14">
+                  <span style="flex:1;min-width:0;text-align:center;color:{{ b.labelCor }};font-weight:{{ b.labelPeso }}">{{ b.label }}</span>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+          <div style="padding:0 22px 18px">
+            <div style="border-top:1px dashed #e5e7eb;padding-top:12px;font-size:12px;color:#6b7280">{{ notaEvolucao }}</div>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 22px;border-bottom:1px solid #eef0f3">
+            <div>
+              <h2 style="margin:0;font-size:15px;font-weight:650;letter-spacing:-0.01em;display:flex;align-items:center;gap:9px"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M5 21V4M5 4h11l-1.5 3.5L16 11H5"></path></svg>

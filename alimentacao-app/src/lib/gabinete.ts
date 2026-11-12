@@ -111,3 +111,37 @@ export function vincularPessoa(pessoa: PessoaNerites) {
     body: JSON.stringify({ recurso: 'vincular', ...pessoa }),
   })
 }
+
+// ===================== FINANCEIRO DO MANDATO =====================
+// Tudo passa pela ponte /api/gabinete (o navegador não usa a chave do projeto GABINETE).
+
+export type FinLancamentoEntrada = {
+  id?: string
+  data: string
+  competencia: string
+  origem: 'VIEP' | 'PROPRIO' | 'OUTRO'
+  categoria: string
+  descricao: string
+  fornecedor?: string
+  documento?: string
+  valor: number | string
+  status?: string
+  observacao?: string
+}
+
+/** Resumo completo do financeiro (meses, lançamentos, pagamentos da Câmara, equipe). */
+export function carregarFinanceiro() {
+  return ponte('/api/gabinete?recurso=financeiro') as Promise<Record<string, unknown>>
+}
+
+function postFin(recurso: string, dados: Record<string, unknown>) {
+  return ponte('/api/gabinete', { method: 'POST', body: JSON.stringify({ recurso, ...dados }) })
+}
+
+export const salvarLancamento = (l: FinLancamentoEntrada) => postFin('financeiro-lancamento', l)
+export const excluirLancamento = (id: string) => postFin('financeiro-excluir', { id })
+export const mudarStatusLancamento = (id: string, status: string) => postFin('financeiro-status', { id, status })
+export const definirCompetencia = (p: { empenho: string; num_pagamento: string; data: string; competencia: string | null }) =>
+  postFin('financeiro-competencia', p)
+export const salvarInfoEquipe = (i: { matricula: string; funcao_real?: string; telefone?: string; indicado_por?: string; observacao?: string }) =>
+  postFin('financeiro-equipe', i)

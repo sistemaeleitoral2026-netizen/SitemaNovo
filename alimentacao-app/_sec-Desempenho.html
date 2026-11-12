@@ -1,0 +1,99 @@
+>Desempenho</h2>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px">
+
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 22px;border-bottom:1px solid #eef0f3">
+              <div>
+                <h3 style="margin:0;font-size:14.5px;font-weight:650;letter-spacing:-0.01em;display:flex;align-items:center;gap:9px"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><circle cx="12" cy="15" r="5"></circle><path d="M8.5 10 6 3h12l-2.5 7"></path></svg>Top nerites</h3>
+                <p style="margin:4px 0 0;font-size:12.5px;color:#6b7280">Com fichas no filtro atual</p>
+              </div>
+              <a href="/nerites" style="font-size:12px;font-weight:500;white-space:nowrap">Ver tudo →</a>
+            </div>
+            <sc-if value="{{ temNerites }}" hint-placeholder-val="{{ true }}">
+              <div style="padding:18px 22px;display:flex;flex-direction:column;gap:15px">
+                <sc-for list="{{ topNerites }}" as="n" hint-placeholder-count="1">
+                  <a href="{{ n.link }}" style="display:flex;align-items:center;gap:12px;color:inherit">
+                    <span style="width:22px;height:22px;flex:none;border-radius:6px;background:{{ n.posBg }};color:{{ n.posFg }};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">{{ n.pos }}</span>
+                    <div style="flex:1;min-width:0">
+                      <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;font-variant-numeric:tabular-nums">
+                        <span style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ n.nome }}</span>
+                        <span style="font-size:13px;font-weight:650">{{ n.valor }}</span>
+                      </div>
+                      <div style="height:6px;border-radius:99px;background:#eceef2;overflow:hidden"><div style="height:100%;background:{{ n.cor }};width:{{ n.barra }}"></div></div>
+                    </div>
+                  </a>
+                </sc-for>
+                <div style="border-top:1px dashed #e5e7eb;padding-top:14px;font-size:12px;color:#6b7280">{{ notaNerites }}</div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ semNerites }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:34px 22px;text-align:center;color:#8a92a1;font-size:13px">Nenhuma nerite com lançamentos neste filtro.</div>
+            </sc-if>
+          </div>
+
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 22px;border-bottom:1px solid #eef0f3">
+              <div>
+                <h3 style="margin:0;font-size:14.5px;font-weight:650;letter-spacing:-0.01em;display:flex;align-items:center;gap:9px"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><circle cx="12" cy="12" r="9"></circle><path d="M12 7.5V12l3 2"></path></svg>Atividade recente</h3>
+                <p style="margin:4px 0 0;font-size:12.5px;color:#6b7280">Últimas 6 fichas · clique para editar</p>
+              </div>
+              <a href="{{ linkCadastros }}" style="font-size:12px;font-weight:500;white-space:nowrap">Ver tudo →</a>
+            </div>
+            <sc-if value="{{ temDados }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column">
+                <sc-for list="{{ atividade }}" as="a" hint-placeholder-count="6">
+                  <a href="{{ a.link }}" style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:13px 22px;border-bottom:1px solid #f1f2f5;color:inherit" style-hover="background:#fafbfc">
+                    <div style="min-width:0">
+                      <div style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ a.nome }}</div>
+                      <div style="font-size:11.5px;color:#6b7280;margin-top:3px">{{ a.detalhe }}</div>
+                    </div>
+                    <span style="font-size:11.5px;color:#9aa1ad;font-variant-numeric:tabular-nums;white-space:nowrap">{{ a.hora }}</span>
+                  </a>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ semDados }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:34px 22px;text-align:center;color:#8a92a1;font-size:13px">Sem fichas registradas neste filtro.</div>
+            </sc-if>
+          </div>
+
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 22px;border-bottom:1px solid #eef0f3">
+              <div>
+                <h3 style="margin:0;font-size:14.5px;font-weight:650;letter-spacing:-0.01em;display:flex;align-items:center;gap:9px"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M3 18h18M4 16 3 7l5 4 4-6 4 6 5-4-1 9z"></path></svg>Top lideranças</h3>
+                <p style="margin:4px 0 0;font-size:12.5px;color:#6b7280">{{ lideresResumo }}</p>
+              </div>
+              <a href="/lideranca" style="font-size:12px;font-weight:500;white-space:nowrap">Ver tudo →</a>
+            </div>
+            <sc-if value="{{ temDados }}" hint-placeholder-val="{{ true }}">
+              <div style="padding:18px 22px;display:flex;flex-direction:column;gap:15px">
+                <sc-for list="{{ topLideres }}" as="l" hint-placeholder-count="5">
+                  <a href="{{ l.link }}" style="display:flex;align-items:center;gap:12px;color:inherit">
+                    <span style="width:22px;height:22px;flex:none;border-radius:6px;background:{{ l.posBg }};color:{{ l.posFg }};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">{{ l.pos }}</span>
+                    <div style="flex:1;min-width:0">
+                      <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;font-variant-numeric:tabular-nums">
+                        <span style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ l.nome }}</span>
+                        <span style="font-size:13px;font-weight:650">{{ l.valor }} <span style="color:#9aa1ad;font-weight:500">{{ l.pct }}</span></span>
+                      </div>
+                      <div style="height:6px;border-radius:99px;background:#eceef2;overflow:hidden"><div style="height:100%;background:{{ l.cor }};width:{{ l.barra }}"></div></div>
+                    </div>
+                  </a>
+                </sc-for>
+                <div style="border-top:1px dashed #e5e7eb;padding-top:14px;font-size:12px;color:#6b7280">{{ notaLideres }}</div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ semDados }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:34px 22px;text-align:center;color:#8a92a1;font-size:13px">Sem lideranças com fichas neste filtro.</div>
+            </sc-if>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <sc-if value="{{ popupAberto }}" hint-placeholder-val="{{ false }}">
+    <div sc-camel-on-click="{{ fecharPopup }}" style="position:fixed;inset:0;background:rgba(13,21,36,.55);display:flex;align-items:center;justify-content:center;padding:24px;z-index:50">
+      <div sc-camel-on-click="{{ stop }}" style="background:#fff;border-radius:14px;max-width:420px;width:100%;padding:26px 26px 22px;box-shadow:0 18px 48px rgba(13,21,36,.28)">
+        <div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#8a92a1;font-weight:600">Meta do sistema</div>
+        <h2 style="margin:8px 0 8px;font-size:22px;font-weight:700;letter-spacing:-0.02em">
