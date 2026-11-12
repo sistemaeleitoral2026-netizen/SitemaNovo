@@ -343,7 +343,7 @@ export function PainelMandatoPage() {
         ref={frame}
         className="mr-demo-frame"
         title="Painel do Mandato"
-        src="/painel-do-mandato/index.html"
+        src="/mandato-embed/index.html"
         onLoad={publicar}
       />
     </div>
