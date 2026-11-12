@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="f4ac20c4-a147-4e88-8f36-f2b09396df25"></script>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  html, body { margin: 0; padding: 0; background: #f4f5f7; }
+  body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #111827; line-height: 1.5; letter-spacing: -.006em; -webkit-font-smoothing: antialiased; }
+  * { box-sizing: border-box; }
+  a { color: #1f4fd8; text-decoration: none; }
+  a:hover { color: #16389c; }
+</style>
+</helmet>
+<div style="display:flex;min-height:100vh;background:#f4f5f7;align-items:stretch">
+
+  <aside style="width:232px;flex:0 0 232px;background:#0d1524;color:#e8ebf2;padding:20px 14px;display:flex;flex-direction:column;gap:26px;position:sticky;top:0;height:100vh;align-self:flex-start">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 6px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:30px;height:30px;border-radius:8px;background:#1f4fd8;display:grid;place-items:center;font-size:14px;font-weight:700;color:#fff">N</div>
+        <div>
+          <div style="font-size:14px;font-weight:600;letter-spacing:-.01em;color:#e8ebf2">Nerites</div>
+          <div style="font-size:11px;color:#7c879b">Gestão de cadastros</div>
+        </div>
+      </div>
+    </div>
+
+    <nav style="flex:1;min-height:0;display:flex;flex-direction:column;gap:22px;overflow-y:auto">
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <div style="padding:0 8px 8px;color:#5d6a80;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase">Menu</div>
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:500;background:#1f4fd8;color:#fff"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect></svg><span style="flex:1;min-width:0">Dashboard</span></a>
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:500;color:#9aa3b5" style-hover="background:#162033;color:#e8ebf2"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none" aria-hidden="true"><rect x="16" y="16" width="6" height="6" rx="1"></rect><rect x="2" y="16" width="6" height="6" rx="1"></rect><rect x="9" y="2" width="6" height="6" rx="1"></rect><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"></path><path d="M12 12V8"></path></svg><span style="flex:1;min-width:0">Equipe</span></a>
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:500;color:#9aa3b5" style-hover="background:#162033;color:#e8ebf2"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg><span style="flex:1;min-width:0">Nerites</span></a>
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:500;color:#9aa3b5" style-hover="background:#162033;color:#e8ebf2"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none" aria-hidden="true"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="M12 11h4"></path><path d="M12 16h4"></path><path d="M8 11h.01"></path><path d="M8 16h.01"></path></svg><span style="flex:1;min-width:0">Todos os cadastros</span></a>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <div style="padding:0 8px 8px;color:#5d6a80;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase">Formigas</div>
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:500;color:#9aa3b5" style-hover="background:#162033;color:#e8ebf2"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z"></path><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"></path></svg><span style="flex:1;min-width:0">Lançar</span></a>
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:500;color:#9aa3b5" style-hover="background:#162033;color:#e8ebf2"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none" aria-hidden="true"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="M12 11h4"></path><path d="M12 16h4"></path><path d="M8 11h.01"></path><path d="M8 16h.01"></path></svg><span style="flex:1;min-width:0">Painel</span></a>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <div style="padding:0 8px 8px;color:#5d6a80;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase">Demandas</div>
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:500;color:#9aa3b5" style-hover="background:#162033;color:#e8ebf2"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none" aria-hidden="true"><rect width="8" height="4" x="8" y="2" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v4"></path><path d="M4 13.5V6a2 2 0 0 1 2-2h2"></path><path d="M8.5 22H18a2 2 0 0 0 2-2v-.5"></path><path d="M21.4 12.6a1 1 0 0 0-3-3l-4 4a2 2 0 0 0-.5.9l-.9 2.9a.5.5 0 0 0 .6.6l2.9-.9a2 2 0 0 0 .9-.5z"></path></svg><span style="flex:1;min-width:0">Lançar</span></a>
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:500;color:#9aa3b5" style-hover="background:#162033;color:#e8ebf2"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none" aria-hidden="true"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg><span style="flex:1;min-width:0">Visualizar</span></a>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <div style="padding:0 8px 8px;color:#5d6a80;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase">Gestão</div>
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:500;color:#9aa3b5" style-hover="background:#162033;color:#e8ebf2"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none" aria-hidden="true"><path d="m3 17 2 2 4-4"></path><path d="m3 7 2 2 4-4"></path><path d="M13 6h8"></path><path d="M13 12h8"></path><path d="M13 18h8"></path></svg><span style="flex:1;min-width:0">Liderança</span></a>
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:500;color:#9aa3b5" style-hover="background:#162033;color:#e8ebf2"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none" aria-hidden="true"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.382V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"></path><path d="M15 5.764v15"></path><path d="M9 3.236v15"></path></svg><span style="flex:1;min-width:0">Mapa por zona</span></a>
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:500;color:#9aa3b5" style-hover="background:#162033;color:#e8ebf2"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none" aria-hidden="true"><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg><span style="flex:1;min-width:0">Relatórios</span></a>
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:500;color:#9aa3b5" style-hover="background:#162033;color:#e8ebf2"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg><span style="flex:1;min-width:0">Configurações</span></a>
+      </div>
+    </nav>
+
+    <div style="margin-top:auto;flex-shrink:0;display:flex;flex-direction:column;gap:10px">
+      <div style="padding:11px 12px;border-radius:9px;background:#162033;color:#e8ebf2">
+        <strong style="display:block;font-size:12px;font-weight:600">Sistema de gestão</strong>
+        <span style="display:block;font-size:11px;color:#7c879b;margin-top:2px">Painel administrativo</span>
+      </div>
+      <div style="padding:0 4px;color:#4d5870;font-size:10.5px">v 1.0.0</div>
+    </div>
+  </aside>
+
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+    <header style="background:#fff;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 28px;position:sticky;top:0;z-index:30">
+      <div style="display:flex;align-items:center;gap:8px;color:#4b5563;font-size:12px">
+        <span style="width:6px;height:6px;border-radius:50%;background:#0f8a5f;flex:none"></span>
+        <span>Sessão autenticada</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="text-align:right;line-height:1.25">
+          <div style="font-size:13px;font-weight:600">Administrador</div>
+          <span style="display:block;color:#6b7280;font-size:11px">Acesso total</span>
+        </div>
+        <div style="width:32px;height:32px;border-radius:50%;background:#0d1524;color:#fff;display:grid;place-items:center;font-size:13px;font-weight:600">A</div>
+        <button type="button" style="border:0;background:transparent;color:#647187;display:grid;place-items:center;padding:.45rem;border-radius:9px;cursor:pointer" style-hover="background:#f0f3f8;color:#111827"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><path d="M21 12H9"></path></svg></button>
+      </div>
+    </header>
+
+    <main style="flex:1;padding:26px 28px 44px;display:flex;flex-direction:column;gap:24px;width:100%">
+
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap">
+        <div style="min-width:0">
+          <p style="margin:0;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#8a92a1">Painel administrativo</p>
+          <h1 style="margin:8px 0 6px;font-size:30px;font-weight:700;letter-spacing:-.035em;color:#111827">Visão geral</h1>
+          <p style="margin:0;font-size:13.5px;color:#6b7280">Exibindo <strong style="font-weight:600;color:#111827">{{ escopoNome }}</strong> · últimos 30 dias · atualizado 19/09 às 18:32</p>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div style="display:flex;background:#eceef2;border-radius:8px;padding:3px;gap:2px">
+            <button type="button" sc-camel-on-click="{{ verGeral }}" style="border:0;border-radius:6px;padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;background:{{ tabGeralBg }};color:{{ tabGeralFg }}">Geral</button>
+            <button type="button" sc-camel-on-click="{{ verCarol }}" style="border:0;border-radius:6px;padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;background:{{ tabCarolBg }};color:{{ tabCarolFg }}">Carol</button>
+            <button type="button" sc-camel-on-click="{{ verNicole }}" style="border:0;border-radius:6px;padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;background:{{ tabNicoleBg }};color:{{ tabNicoleFg }}">Nicole</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border:1px solid #e0e3e9;border-radius:8px;background:#fff;font-size:12.5px;color:#374151">
+            <svg width="14" height="14" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none" aria-hidden="true"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path><path d="M8 14h.01"></path><path d="M12 14h.01"></path><path d="M16 14h.01"></path><path d="M8 18h.01"></path><path d="M12 18h.01"></path><path d="M16 18h.01"></path></svg>
+            <span>Últimos 30 dias</span>
+          </div>
+        </div>
+      </div>
+
+      <section data-section="meta" aria-label="Meta de fichas e alertas" style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr);gap:16px;align-items:stretch">
+        <div style="background:#0d1524;border-radius:14px;padding:24px 26px;color:#e8ebf2;display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+            <span style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#7c879b">Meta de fichas · global</span>
+            <a href="#" style="font-size:12px;font-weight:500;color:#9db6f5">Configurar meta</a>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap">
+            <strong style="font-size:52px;font-weight:700;letter-spacing:-.045em;line-height:.9;color:#fff;font-variant-numeric:tabular-nums">{{ totalFmt }}</strong>
+            <span style="font-size:15px;color:#9aa3b5;padding-bottom:4px">de {{ metaFmt }} fichas</span>
+            <span style="margin-left:auto;display:inline-flex;align-items:baseline;gap:6px;padding-bottom:4px">
+              <em style="font-style:normal;font-size:24px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums">{{ pctLabel }}</em>
+              <span style="font-size:12px;color:#7c879b">da meta</span>
+            </span>
+          </div>
+          <div style="height:10px;border-radius:99px;background:#1c2740;overflow:hidden;position:relative">
+            <i style="display:block;height:100%;border-radius:99px;background:#2f6bff;width:{{ pctWidth }}"></i>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;border-top:1px solid #1c2740;padding-top:16px">
+            <div>
+              <span style="display:block;font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#6c7a93">Faltam</span>
+              <strong style="display:block;margin-top:5px;font-size:20px;font-weight:650;color:#fff;font-variant-numeric:tabular-nums">{{ restanteFmt }}</strong>
+              <span style="display:block;margin-top:2px;font-size:11.5px;color:#7c879b">fichas para a meta</span>
+            </div>
+            <div>
+              <span style="display:block;font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#6c7a93">Ritmo</span>
+              <strong style="display:block;margin-top:5px;font-size:20px;font-weight:650;color:#fff;font-variant-numeric:tabular-nums">{{ ritmoFmt }}/dia</strong>
+              <span style="display:block;margin-top:2px;font-size:11.5px;color:#7c879b">média dos {{ diasAtivos }} dias com coleta</span>
+            </div>
+            <div>
+              <span style="display:block;font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#6c7a93">Projeção</span>
+              <strong style="display:block;margin-top:5px;font-size:20px;font-weight:650;color:#fff;font-variant-numeric:tabular-nums">{{ diasParaMeta }} dias</strong>
+              <span style="display:block;margin-top:2px;font-size:11.5px;color:#7c879b">de coleta para fechar a meta</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,.035), 0 5px 18px rgba(15,23,42,.035);padding:20px 22px;display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+            <span style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#6b7280">Precisa da sua atenção</span>
+            <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:#fdf3dd;color:#9b6919">{{ alertasCount }}</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <sc-for list="{{ alertas }}" as="a" hint-placeholder-count="3">
+              <a href="#" style="display:flex;gap:12px;align-items:flex-start;padding:12px 13px;border:1px solid #edeff3;border-radius:10px;background:#fbfcfe" style-hover="border-color:#b9cbf5;background:#f8faff">
+                <span style="width:8px;height:8px;border-radius:50%;flex:none;margin-top:6px;background:{{ a.cor }}"></span>
+                <span style="flex:1;min-width:0">
+                  <strong style="display:block;font-size:12.5px;font-weight:650;color:#111827">{{ a.titulo }}</strong>
+                  <span style="display:block;margin-top:3px;font-size:11.5px;color:#6b7280;line-height:1.45">{{ a.texto }}</span>
+                </span>
+                <strong style="font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:#111827;white-space:nowrap">{{ a.valor }}</strong>
+              </a>
+            </sc-for>
+          </div>
+        </div>
+      </section>
+
+      <section data-section="indicadores" aria-label="Indicadores do período" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px">
+        <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.035), 0 5px 18px rgba(15,23,42,.035);padding:16px 18px;display:flex;flex-direction:column;gap:6px">
+            <span style="font-size:10.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:#8a92a1">{{ k.label }}</span>
+            <div style="display:flex;align-items:baseline;gap:8px">
+              <strong style="font-size:26px;font-weight:700;letter-spacing:-.04em;font-variant-numeric:tabular-nums">{{ k.valor }}</strong>
+              <em style="font-style:normal;font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;background:{{ k.tagBg }};color:{{ k.tagFg }}">{{ k.tag }}</em>
+            </div>
+            <span style="font-size:11.5px;color:#8a92a1">{{ k.hint }}</span>
+          </div>
+        </sc-for>
+      </section>
+
+      <section data-section="diretorias" aria-label="Diretorias e equipes" style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px">
+          <div>
+            <h2 style="margin:0;font-size:15px;font-weight:650;letter-spacing:-.02em">Diretorias e suas equipes</h2>
+            <p style="margin:4px 0 0;font-size:12.5px;color:#6b7280">Clique no card para filtrar o painel inteiro</p>
+          </div>
+          <span style="font-size:12px;color:#8a92a1">{{ totalSistemaFmt }} fichas no sistema · 0 sem diretoria</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px">
+          <sc-for list="{{ diretorias }}" as="d" hint-placeholder-count="2">
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.035), 0 5px 18px rgba(15,23,42,.035);padding:18px 20px;display:flex;flex-direction:column;gap:14px;cursor:pointer" style-hover="border-color:#b9cbf5">
+              <div style="display:flex;align-items:flex-start;gap:12px">
+                <span style="width:36px;height:36px;flex:none;border-radius:9px;background:#e8eefc;color:#1f4fd8;display:grid;place-items:center;font-size:12px;font-weight:700">{{ d.iniciais }}</span>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:15px;font-weight:650;letter-spacing:-.015em">{{ d.nome }}</div>
+                  <p style="margin:3px 0 0;font-size:12px;color:#6b7280">{{ d.share }}% das fichas · {{ d.porNerite }} fichas por nerite</p>
+                </div>
+                <div style="text-align:right;font-variant-numeric:tabular-nums">
+                  <strong style="display:block;font-size:26px;font-weight:700;letter-spacing:-.035em;line-height:1.05">{{ d.fichasFmt }}</strong>
+                  <span style="display:block;font-size:11px;color:#8a92a1;margin-top:2px">fichas</span>
+                </div>
+              </div>
+              <div style="height:6px;border-radius:99px;background:#eceef2;overflow:hidden">
+                <i style="display:block;height:100%;background:#1f4fd8;width:{{ d.barWidth }}"></i>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid #eef0f3;border-radius:9px;overflow:hidden">
+                <a href="#" style="padding:10px 12px;border-right:1px solid #eef0f3;display:block">
+                  <span style="display:block;font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#8a92a1">Coord.</span>
+                  <strong style="display:block;margin-top:3px;font-size:15px;font-weight:650;color:#1f4fd8;font-variant-numeric:tabular-nums">{{ d.coord }}</strong>
+                </a>
+                <a href="#" style="padding:10px 12px;border-right:1px solid #eef0f3;display:block">
+                  <span style="display:block;font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#8a92a1">Lideranças</span>
+                  <strong style="display:block;margin-top:3px;font-size:15px;font-weight:650;color:#1f4fd8;font-variant-numeric:tabular-nums">{{ d.lider }}</strong>
+                </a>
+                <a href="#" style="padding:10px 12px;display:block">
+                  <span style="display:block;font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#8a92a1">Nerites</span>
+                  <strong style="display:block;margin-top:3px;font-size:15px;font-weight:650;color:#1f4fd8;font-variant-numeric:tabular-nums">{{ d.nerites }}</strong>
+                </a>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:2px;border-top:1px solid #f4f5f7">
+                <span style="font-size:11.5px;color:#8a92a1;padding-top:10px">{{ d.rodape }}</span>
+                <a href="#" style="font-size:12px;font-weight:600;padding-top:10px;white-space:nowrap">Abrir fichas →</a>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+
+      <section data-section="ritmo" aria-label="Ritmo de coleta" style="display:grid;grid-template-columns:minmax(0,1fr);gap:16px">
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.035), 0 5px 18px rgba(15,23,42,.035);display:flex;flex-direction:column">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:18px 20px 12px;border-bottom:1px solid #f1f2f5">
+            <div>
+              <h2 style="margin:0;font-size:14.5px;font-weight:650;letter-spacing:-.02em">Ritmo de coleta</h2>
+              <p style="margin:4px 0 0;font-size:12px;color:#6b7280">{{ escopoCurto }} · fichas por dia nos últimos 14 dias</p>
+            </div>
+            <div style="display:flex;gap:24px;text-align:right">
+              <div>
+                <span style="display:block;font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#8a92a1">Dias ativos</span>
+                <strong style="font-size:15px;font-weight:650;font-variant-numeric:tabular-nums">{{ diasAtivos }}/30</strong>
+              </div>
+              <div>
+                <span style="display:block;font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#8a92a1">Melhor dia</span>
+                <strong style="font-size:15px;font-weight:650;font-variant-numeric:tabular-nums">{{ melhorDiaFmt }}</strong>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:18px;padding:12px 20px 0;font-size:11.5px;color:#6b7280">
+            <span style="display:inline-flex;align-items:center;gap:7px"><span style="width:10px;height:10px;border-radius:3px;background:#1f4fd8"></span>Fichas por dia</span>
+            <span style="display:inline-flex;align-items:center;gap:7px"><span style="width:14px;height:2px;border-radius:2px;background:#0f8a5f"></span>Acumulado (eixo direito)</span>
+            <span style="display:inline-flex;align-items:center;gap:7px"><span style="width:14px;height:0;border-top:2px dashed #c3cbd8"></span>Ritmo necessário p/ meta</span>
+          </div>
+          <div style="flex:1;display:flex;gap:12px;padding:14px 20px 10px">
+            <div style="display:flex;flex-direction:column;justify-content:space-between;height:230px;font-size:10.5px;color:#a3a9b5;font-variant-numeric:tabular-nums;text-align:right;min-width:26px">
+              <span>800</span><span>600</span><span>400</span><span>200</span><span>0</span>
+            </div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+              <div style="position:relative;height:230px;border-bottom:1px solid #e5e7eb">
+                <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between">
+                  <div style="border-top:1px solid #f1f2f5"></div>
+                  <div style="border-top:1px solid #f1f2f5"></div>
+                  <div style="border-top:1px solid #f1f2f5"></div>
+                  <div style="border-top:1px solid #f1f2f5"></div>
+                  <div style="border-top:1px solid #f1f2f5"></div>
+                </div>
+                <div style="position:relative;height:100%;display:flex;align-items:flex-end;gap:5px">
+                  <sc-for list="{{ barras }}" as="b" hint-placeholder-count="14">
+                    <div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">
+                      <div style="width:100%;border-radius:3px 3px 0 0;background:{{ b.cor }};height:{{ b.altura }}"></div>
+                    </div>
+                  </sc-for>
+                </div>
+                <svg sc-camel-view-box="0 0 100 100" sc-camel-preserve-aspect-ratio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" aria-hidden="true">
+                  <path d="{{ areaPath }}" fill="rgba(15,138,95,.08)" stroke="none"></path>
+                  <polyline points="{{ metaPoints }}" fill="none" stroke="#c3cbd8" stroke-width="1.5" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"></polyline>
+                  <polyline points="{{ acumPoints }}" fill="none" stroke="#0f8a5f" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"></polyline>
+                </svg>
+                <div style="position:absolute;right:0;top:6px;display:flex;flex-direction:column;align-items:flex-end;gap:2px;background:rgba(255,255,255,.92);border:1px solid #edeff3;border-radius:8px;padding:7px 10px">
+                  <span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8a92a1">Acumulado</span>
+                  <strong style="font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:#111827">{{ totalFmt }}</strong>
+                  <span style="font-size:10.5px;color:#0f8a5f;font-weight:650">{{ pctLabel }} da meta · {{ gapMetaFmt }} atrás do ritmo</span>
+                </div>
+              </div>
+              <div style="display:flex;gap:5px;padding-top:8px">
+                <sc-for list="{{ barras }}" as="b" hint-placeholder-count="14">
+                  <span style="flex:1;min-width:0;text-align:center;font-size:10.5px;color:{{ b.labelCor }};font-weight:{{ b.labelPeso }};font-variant-numeric:tabular-nums">{{ b.label }}</span>
+                </sc-for>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;justify-content:space-between;height:230px;font-size:10.5px;color:#0f8a5f;font-variant-numeric:tabular-nums;text-align:left;min-width:34px">
+              <sc-for list="{{ eixoAcum }}" as="t" hint-placeholder-count="5">
+                <span>{{ t }}</span>
+              </sc-for>
+            </div>
+          </div>
+          <div style="padding:12px 20px 16px;border-top:1px solid #f1f2f5;font-size:12px;color:#6b7280;line-height:1.5">{{ notaGrafico }}</div>
+        </div>
+
+      </section>
+
+      <section data-section="campo" aria-label="Formigas e demandas" style="display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,1fr);gap:16px">
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.035), 0 5px 18px rgba(15,23,42,.035);display:flex;flex-direction:column">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 14px;border-bottom:1px solid #f1f2f5">
+            <div>
+              <h2 style="margin:0;font-size:14.5px;font-weight:650;letter-spacing:-.02em">Formigas · mobilização de rua</h2>
+              <p style="margin:4px 0 0;font-size:12px;color:#6b7280">1.564 pessoas no escopo · carro, casa, postagem e contato</p>
+            </div>
+            <a href="#" style="font-size:12px;font-weight:600;white-space:nowrap">Abrir painel →</a>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));border-bottom:1px solid #f1f2f5">
+            <sc-for list="{{ formigasTiles }}" as="t" hint-placeholder-count="4">
+              <a href="#" data-metric="{{ t.chave }}" style="padding:16px 14px;border-right:1px solid #f1f2f5;display:flex;flex-direction:column;gap:5px;min-width:0" style-hover="background:#fbfcfe">
+                <span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8a92a1;white-space:nowrap">{{ t.label }}</span>
+                <strong style="font-size:24px;font-weight:700;letter-spacing:-.04em;color:#111827;font-variant-numeric:tabular-nums">{{ t.valor }}</strong>
+                <span style="font-size:11.5px;color:#8a92a1">{{ t.hint }}</span>
+              </a>
+            </sc-for>
+          </div>
+          <div style="padding:16px 20px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+              <div>
+                <span style="display:block;font-size:12.5px;font-weight:650;color:#111827">Sem nenhum lançamento</span>
+                <span style="display:block;margin-top:2px;font-size:11.5px;color:#8a92a1">pessoas que ainda não tiveram carro, casa, postagem ou contato registrados</span>
+              </div>
+              <span style="display:inline-flex;align-items:center;gap:8px">
+                <em style="font-style:normal;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;background:#fdf3dd;color:#9b6919">pendente</em>
+                <strong style="font-size:22px;font-weight:700;font-variant-numeric:tabular-nums">1.564</strong>
+              </span>
+            </div>
+            <div style="height:8px;border-radius:99px;background:#e8eaee;overflow:hidden">
+              <i style="display:block;height:100%;width:2%;background:#b98a2e"></i>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11.5px;color:#8a92a1">
+              <span>Cobertura de mobilização</span>
+              <span style="font-variant-numeric:tabular-nums">0 de 1.564 · 0%</span>
+            </div>
+          </div>
+          <div style="margin-top:auto;padding:12px 20px 16px;border-top:1px solid #f1f2f5;font-size:11.5px;color:#8a92a1;line-height:1.5">Estrutura montada, execução parada: comece pelas 145 lideranças — elas puxam carro e postagem da própria base.</div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.035), 0 5px 18px rgba(15,23,42,.035);display:flex;flex-direction:column">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 14px;border-bottom:1px solid #f1f2f5">
+            <div>
+              <h2 style="margin:0;font-size:14.5px;font-weight:650;letter-spacing:-.02em">Demandas</h2>
+              <p style="margin:4px 0 0;font-size:12px;color:#6b7280">Pedidos registrados pelo administrativo</p>
+            </div>
+            <a href="#" style="font-size:12px;font-weight:600;white-space:nowrap">Visualizar →</a>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-bottom:1px solid #f1f2f5">
+            <a href="#" data-metric="demandas.abertas" style="padding:16px 18px;border-right:1px solid #f1f2f5;display:flex;flex-direction:column;gap:5px" style-hover="background:#fbfcfe">
+              <span style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#8a92a1">Em aberto</span>
+              <strong style="font-size:26px;font-weight:700;letter-spacing:-.04em;font-variant-numeric:tabular-nums">{{ demandasAbertas }}</strong>
+              <span style="font-size:11.5px;color:#8a92a1">aguardando resposta</span>
+            </a>
+            <a href="#" data-metric="demandas.concluidas" style="padding:16px 18px;display:flex;flex-direction:column;gap:5px" style-hover="background:#fbfcfe">
+              <span style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#8a92a1">Concluídas</span>
+              <strong style="font-size:26px;font-weight:700;letter-spacing:-.04em;font-variant-numeric:tabular-nums">{{ demandasFeitas }}</strong>
+              <span style="font-size:11.5px;color:#8a92a1">histórico do período</span>
+            </a>
+          </div>
+          <div style="padding:16px 20px;display:flex;flex-direction:column;gap:11px">
+            <span style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#8a92a1">Fila por urgência</span>
+            <sc-for list="{{ urgencias }}" as="u" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:10px;font-size:12.5px;color:#374151">
+                <span style="width:8px;height:8px;border-radius:50%;flex:none;background:{{ u.cor }}"></span>
+                <span style="flex:1;min-width:0">{{ u.label }}</span>
+                <strong style="font-variant-numeric:tabular-nums;font-weight:650;color:{{ u.valorCor }}">{{ u.valor }}</strong>
+              </div>
+            </sc-for>
+          </div>
+          <div style="margin-top:auto;padding:0 20px 18px">
+            <div style="padding:14px 16px;border:1px solid #edeff3;border-radius:10px;background:#fbfcfe">
+              <strong style="display:block;font-size:12.5px;font-weight:650;color:#111827">Fila zerada</strong>
+              <span style="display:block;margin-top:4px;font-size:11.5px;color:#8a92a1;line-height:1.5">O administrativo registra os pedidos do eleitorado. Enquanto nada entra, não há nada represado — o indicador a observar é o tempo de resposta quando a fila encher.</span>
+              <a href="#" style="display:inline-block;margin-top:10px;font-size:12px;font-weight:650">Ver histórico de demandas →</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section data-section="territorio" aria-label="Mapa e concentração territorial" style="display:grid;grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr);gap:16px">
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.035), 0 5px 18px rgba(15,23,42,.035);display:flex;flex-direction:column">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 12px">
+            <div>
+              <h2 style="margin:0;font-size:14.5px;font-weight:650;letter-spacing:-.02em">Mapa por zona eleitoral</h2>
+              <p style="margin:4px 0 0;font-size:12px;color:#6b7280">Intensidade pelas fichas do filtro atual</p>
+            </div>
+            <a href="#" style="font-size:12px;font-weight:600;white-space:nowrap">Mapa completo →</a>
+          </div>
+          <div style="padding:0 20px 20px">
+            <div style="position:relative;height:330px;border-radius:10px;border:1px solid #e8edf4;overflow:hidden;background:repeating-linear-gradient(135deg,#f3f5f8 0 12px,#eef1f6 12px 24px);display:grid;place-items:center">
+              <div style="text-align:center">
+                <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;letter-spacing:.06em;color:#8a92a1;text-transform:uppercase">mapa leaflet · zonas eleitorais</div>
+                <div style="margin-top:6px;font-size:12px;color:#a3a9b5">marcadores do filtro atual</div>
+              </div>
+              <div style="position:absolute;left:14px;bottom:14px;background:rgba(255,255,255,.96);border:1px solid #e5e7eb;border-radius:9px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;box-shadow:0 6px 18px rgba(15,23,42,.06)">
+                <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#8a92a1">Intensidade</div>
+                <div style="display:flex;align-items:center;gap:8px;font-size:11.5px;color:#4b5563"><span style="width:10px;height:10px;border-radius:3px;background:#7fd8c4"></span>Baixa</div>
+                <div style="display:flex;align-items:center;gap:8px;font-size:11.5px;color:#4b5563"><span style="width:10px;height:10px;border-radius:3px;background:#f2cf6a"></span>Média</div>
+                <div style="display:flex;align-items:center;gap:8px;font-size:11.5px;color:#4b5563"><span style="width:10px;height:10px;border-radius:3px;background:#f0a355"></span>Alta</div>
+                <div style="display:flex;align-items:center;gap:8px;font-size:11.5px;color:#4b5563"><span style="width:10px;height:10px;border-radius:3px;background:#e2614f"></span>Muito alta</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.035), 0 5px 18px rgba(15,23,42,.035);display:flex;flex-direction:column">
+          <div style="padding:18px 20px 12px;border-bottom:1px solid #f1f2f5">
+            <h2 style="margin:0;font-size:14.5px;font-weight:650;letter-spacing:-.02em">Concentração territorial</h2>
+            <p style="margin:4px 0 0;font-size:12px;color:#6b7280">{{ totalFmt }} fichas em 6 zonas eleitorais</p>
+          </div>
+          <div style="padding:16px 20px;display:flex;flex-direction:column;gap:14px">
+            <sc-for list="{{ zonas }}" as="z" hint-placeholder-count="4">
+              <div style="display:flex;flex-direction:column;gap:7px">
+                <div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:#374151">
+                  <span style="font-weight:600">Zona {{ z.nome }}</span>
+                  <span style="font-variant-numeric:tabular-nums;color:#6b7280">{{ z.valor }} · {{ z.pct }}%</span>
+                </div>
+                <div style="height:6px;border-radius:99px;background:#eceef2;overflow:hidden">
+                  <i style="display:block;height:100%;background:{{ z.cor }};width:{{ z.barWidth }}"></i>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="padding:0 20px 16px">
+            <div style="padding:12px 14px;border-radius:10px;background:#fbfcfe;border:1px solid #edeff3;font-size:11.5px;color:#6b7280;line-height:1.5">Risco de concentração: <strong style="color:#111827;font-weight:650">79%</strong> das fichas estão na zona 089. As zonas 090 e 989 somam 11 fichas — território praticamente inexplorado.</div>
+          </div>
+          <div style="margin-top:auto;padding:14px 20px 18px;border-top:1px solid #f1f2f5">
+            <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#8a92a1;margin-bottom:8px">Seções mais ativas</div>
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ secoes }}" as="s" hint-placeholder-count="5">
+                <a href="#" style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f4f5f7;font-size:12.5px;color:#374151">
+                  <span>Seção {{ s.n }}</span>
+                  <span style="font-variant-numeric:tabular-nums;font-weight:650;color:#111827">{{ s.v }}</span>
+                </a>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section data-section="desempenho" aria-label="Desempenho da operação" style="display:flex;flex-direction:column;gap:12px">
+        <div>
+          <h2 style="margin:0;font-size:15px;font-weight:650;letter-spacing:-.02em">Desempenho da operação</h2>
+          <p style="margin:4px 0 0;font-size:12.5px;color:#6b7280">Quem produz, quem entrega e o que entrou por último</p>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
+
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.035), 0 5px 18px rgba(15,23,42,.035);display:flex;flex-direction:column">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 12px;border-bottom:1px solid #f1f2f5">
+              <div>
+                <h3 style="margin:0;font-size:14px;font-weight:650;letter-spacing:-.02em">Produção por nerite</h3>
+                <p style="margin:4px 0 0;font-size:12px;color:#6b7280">Fichas no filtro atual</p>
+              </div>
+              <a href="#" style="font-size:12px;font-weight:600;white-space:nowrap">Ver tudo →</a>
+            </div>
+            <div style="padding:8px 20px 4px;display:flex;flex-direction:column">
+              <sc-for list="{{ nerites }}" as="n" hint-placeholder-count="5">
+                <a href="#" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #f4f5f7">
+                  <span style="width:22px;height:22px;flex:none;border-radius:6px;display:grid;place-items:center;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;background:{{ n.posBg }};color:{{ n.posFg }}">{{ n.pos }}</span>
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+                    <div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px">
+                      <span style="font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ n.nome }}</span>
+                      <strong style="font-variant-numeric:tabular-nums;font-weight:650;color:#111827">{{ n.total }} <em style="font-style:normal;font-weight:500;color:#8a92a1">{{ n.share }}%</em></strong>
+                    </div>
+                    <div style="height:5px;border-radius:99px;background:#eceef2;overflow:hidden">
+                      <i style="display:block;height:100%;background:#1f4fd8;width:{{ n.barWidth }}"></i>
+                    </div>
+                  </div>
+                </a>
+              </sc-for>
+            </div>
+            <div style="margin-top:auto;padding:12px 20px 16px;font-size:11.5px;color:#8a92a1">{{ notaNerites }}</div>
+          </div>
+
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.035), 0 5px 18px rgba(15,23,42,.035);display:flex;flex-direction:column">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 12px;border-bottom:1px solid #f1f2f5">
+              <div>
+                <h3 style="margin:0;font-size:14px;font-weight:650;letter-spacing:-.02em">Lideranças que entregam</h3>
+                <p style="margin:4px 0 0;font-size:12px;color:#6b7280">Top 5 entre 145 lideranças cadastradas</p>
+              </div>
+              <a href="#" style="font-size:12px;font-weight:600;white-space:nowrap">Ver tudo →</a>
+            </div>
+            <div style="padding:8px 20px 4px;display:flex;flex-direction:column">
+              <sc-for list="{{ lideres }}" as="l" hint-placeholder-count="5">
+                <a href="#" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #f4f5f7">
+                  <span style="width:22px;height:22px;flex:none;border-radius:6px;display:grid;place-items:center;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;background:{{ l.posBg }};color:{{ l.posFg }}">{{ l.pos }}</span>
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+                    <div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px">
+                      <span style="font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ l.nome }}</span>
+                      <strong style="font-variant-numeric:tabular-nums;font-weight:650;color:#111827">{{ l.total }} <em style="font-style:normal;font-weight:500;color:#8a92a1">{{ l.share }}%</em></strong>
+                    </div>
+                    <div style="height:5px;border-radius:99px;background:#eceef2;overflow:hidden">
+                      <i style="display:block;height:100%;background:#1f4fd8;width:{{ l.barWidth }}"></i>
+                    </div>
+                  </div>
+                </a>
+              </sc-for>
+            </div>
+            <div style="margin-top:auto;padding:12px 20px 16px;font-size:11.5px;color:#8a92a1;line-height:1.5">{{ notaLideres }}</div>
+          </div>
+
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.035), 0 5px 18px rgba(15,23,42,.035);display:flex;flex-direction:column">
+            <div style="padding:18px 20px 12px;border-bottom:1px solid #f1f2f5">
+              <h3 style="margin:0;font-size:14px;font-weight:650;letter-spacing:-.02em">Últimas fichas</h3>
+              <p style="margin:4px 0 0;font-size:12px;color:#6b7280">Entradas mais recentes do filtro</p>
+            </div>
+            <div style="padding:4px 20px;display:flex;flex-direction:column">
+              <sc-for list="{{ atividade }}" as="a" hint-placeholder-count="6">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #f4f5f7">
+                  <div style="min-width:0">
+                    <strong style="display:block;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ a.nome }}</strong>
+                    <span style="display:block;margin-top:3px;font-size:11.5px;color:#8a92a1">{{ a.detalhe }}</span>
+                  </div>
+                  <time style="font-size:11.5px;color:#8a92a1;white-space:nowrap;font-variant-numeric:tabular-nums">{{ a.hora }}</time>
+                </div>
+              </sc-for>
+            </div>
+            <div style="margin-top:auto;padding:12px 20px 16px;font-size:11.5px;color:#8a92a1">Todas as entradas de hoje entre 18:09 e 18:32</div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script="" data-props="{&quot;metaFichas&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:6000,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:1000,&quot;max&quot;:20000,&quot;step&quot;:500,&quot;section&quot;:&quot;Meta&quot;}}">
+const DADOS = {
+  geral: {
+    nome: 'Geral', curto: 'todas as diretorias', total: 1403, hoje: 758,
+    nerites: [['VALERIA FERNANDES', 443], ['ADRIELLY', 361], ['Ana Clara de Sousa', 273], ['THAYLLA GABRIELA', 194], ['RENATO MESQUITA', 77]],
+    lideres: [['FERNANDA', 41], ['GISELE PEIXE', 22], ['ARIKAN', 22], ['JOSÉ RIBAMAR', 21], ['EDILDE', 21]],
+    zonas: [['089', 1114], ['010', 273], ['090', 9], ['989', 2]],
+    serie: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 75, 570, 758],
+  },
+  carol: {
+    nome: 'Diretora Carol', curto: 'Diretora Carol', total: 714, hoje: 402,
+    nerites: [['VALERIA FERNANDES', 443], ['Ana Clara de Sousa', 194], ['RENATO MESQUITA', 77]],
+    lideres: [['FERNANDA', 41], ['ARIKAN', 22], ['EDILDE', 21], ['LIVIA CARLA', 18], ['LUCAS EDUARDO', 14]],
+    zonas: [['089', 566], ['010', 142], ['090', 4], ['989', 2]],
+    serie: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 40, 272, 402],
+  },
+  nicole: {
+    nome: 'Diretora Nicole', curto: 'Diretora Nicole', total: 689, hoje: 356,
+    nerites: [['ADRIELLY', 361], ['THAYLLA GABRIELA', 194], ['Ana Clara de Sousa', 79]],
+    lideres: [['GISELE PEIXE', 22], ['JOSÉ RIBAMAR', 21], ['MARIA DEUZILENE', 19], ['VALDELIR', 16], ['LIVIA CARLA', 12]],
+    zonas: [['089', 548], ['010', 131], ['090', 5], ['989', 0]],
+    serie: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 35, 298, 356],
+  },
+}
+
+const LABELS = ['06', '07', '08', '09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19']
+
+class Component extends DCLogic {
+  state = { escopo: 'geral' }
+
+  f(n) { return Number(n).toLocaleString('pt-BR') }
+
+  renderVals() {
+    const esc = this.state.escopo
+    const d = DADOS[esc]
+    const meta = this.props.metaFichas ?? 6000
+    const total = d.total
+    const pct = Math.round((total / meta) * 1000) / 10
+    const diasAtivos = d.serie.filter((v) => v > 0).length
+    const ritmo = Math.round(total / diasAtivos)
+    const restante = Math.max(meta - total, 0)
+    const diasParaMeta = Math.ceil(restante / ritmo)
+    const maxSerie = Math.max(...d.serie, 1)
+    const escala = 800
+
+    const tab = (id) => ({
+      bg: esc === id ? '#fff' : 'transparent',
+      fg: esc === id ? '#111827' : '#6b7280',
+    })
+    const g = tab('geral'), c = tab('carol'), n = tab('nicole')
+
+    const barras = d.serie.map((valor, i) => {
+      const ativo = valor === maxSerie && valor > 0
+      return {
+        label: LABELS[i], valor: this.f(valor),
+        altura: valor > 0 ? `${Math.max((valor / escala) * 100, 1.5)}%` : '3px',
+        cor: ativo ? '#1f4fd8' : valor > 0 ? '#c3cfe4' : '#edeff3',
+        tipDisplay: ativo ? 'block' : 'none',
+        labelCor: ativo ? '#111827' : '#a3a9b5',
+        labelPeso: ativo ? '700' : '400',
+      }
+    })
+
+    // eixo direito = fichas acumuladas, de 0 até a meta (mesma escala para as duas linhas)
+    const pontos = d.serie.length
+    const passo = pontos > 1 ? 100 / (pontos - 1) : 100
+    const diasPeriodo = 30
+    const primeiroDia = diasPeriodo - pontos + 1 // os 14 dias exibidos são o fim do período
+    const y = (valor) => (100 - (valor / meta) * 100).toFixed(2)
+
+    let acum = 0
+    const acumPts = d.serie.map((v, i) => {
+      acum += v
+      return `${(i * passo).toFixed(2)},${y(acum)}`
+    })
+    const acumPoints = acumPts.join(' ')
+    const areaPath = `M0,100 L${acumPts.join(' L')} L100,100 Z`
+
+    const porDiaNecessario = meta / diasPeriodo
+    const metaPoints = d.serie
+      .map((_, i) => `${(i * passo).toFixed(2)},${y((primeiroDia + i) * porDiaNecessario)}`)
+      .join(' ')
+
+    const eixoAcum = [1, 0.75, 0.5, 0.25, 0].map((k) => this.f(Math.round(meta * k)))
+    const gapMeta = Math.round(diasPeriodo * porDiaNecessario - total)
+
+    const dirBase = [
+      { id: 'carol', nome: 'Diretora Carol', iniciais: 'DC', fichas: 714, coord: 8, lider: 70, nerites: 3 },
+      { id: 'nicole', nome: 'Diretora Nicole', iniciais: 'DN', fichas: 689, coord: 8, lider: 75, nerites: 4 },
+    ]
+    const totalSistema = 1403
+    const diretorias = dirBase.map((x) => {
+      const share = Math.round((x.fichas / totalSistema) * 100)
+      const porLider = (x.fichas / x.lider).toFixed(1).replace('.', ',')
+      return {
+        ...x,
+        share,
+        fichasFmt: this.f(x.fichas),
+        porNerite: this.f(Math.round(x.fichas / x.nerites)),
+        barWidth: `${share}%`,
+        rodape: `${porLider} fichas por liderança · clique para filtrar`,
+      }
+    })
+
+    const posStyle = (i) => ({
+      posBg: i === 0 ? '#111827' : '#f1f3f7',
+      posFg: i === 0 ? '#fff' : '#6b7280',
+    })
+
+    const maxNerite = Math.max(...d.nerites.map((x) => x[1]))
+    const nerites = d.nerites.map(([nome, v], i) => ({
+      pos: i + 1, nome, total: this.f(v),
+      share: Math.round((v / total) * 100),
+      barWidth: `${Math.max((v / maxNerite) * 100, 4)}%`,
+      ...posStyle(i),
+    }))
+    const somaNerites = d.nerites.reduce((a, x) => a + x[1], 0)
+
+    const maxLider = Math.max(...d.lideres.map((x) => x[1]))
+    const lideres = d.lideres.map(([nome, v], i) => ({
+      pos: i + 1, nome, total: this.f(v),
+      share: Math.round((v / total) * 100),
+      barWidth: `${Math.max((v / maxLider) * 100, 4)}%`,
+      ...posStyle(i),
+    }))
+    const somaLideres = d.lideres.reduce((a, x) => a + x[1], 0)
+
+    const zonasAtivas = d.zonas.filter((z) => z[1] > 0)
+    const maiorZona = zonasAtivas[0]
+    const zonas = d.zonas.map(([nome, v]) => {
+      const p = Math.round((v / total) * 100)
+      return {
+        nome, valor: this.f(v), pct: p,
+        barWidth: `${Math.max(p, v > 0 ? 1.5 : 0)}%`,
+        cor: p >= 50 ? '#1f4fd8' : p >= 10 ? '#5b84e6' : '#b9cbf5',
+      }
+    })
+
+    return {
+      escopoNome: d.nome,
+      escopoCurto: d.curto,
+      totalFmt: this.f(total),
+      totalSistemaFmt: this.f(totalSistema),
+      metaFmt: this.f(meta),
+      pctLabel: `${pct.toFixed(1).replace('.', ',')}%`,
+      pctWidth: `${Math.max(pct, 1)}%`,
+      restanteFmt: this.f(restante),
+      ritmoFmt: this.f(ritmo),
+      diasAtivos,
+      diasParaMeta,
+      melhorDiaFmt: `${this.f(maxSerie)} · 19/09`,
+
+      verGeral: () => this.setState({ escopo: 'geral' }),
+      verCarol: () => this.setState({ escopo: 'carol' }),
+      verNicole: () => this.setState({ escopo: 'nicole' }),
+      tabGeralBg: g.bg, tabGeralFg: g.fg,
+      tabCarolBg: c.bg, tabCarolFg: c.fg,
+      tabNicoleBg: n.bg, tabNicoleFg: n.fg,
+
+      alertasCount: 3,
+      alertas: [
+        { cor: '#d97706', titulo: 'Formigas sem nenhum lançamento', texto: 'Nenhum carro, casa ou postagem registrado desde o início', valor: '1.564' },
+        { cor: '#d97706', titulo: 'Zonas quase sem cobertura', texto: 'Zonas 090 e 989 somam 11 fichas — abrir frente de campo', valor: '11' },
+        { cor: '#1f4fd8', titulo: 'Coleta parada em 27 dos 30 dias', texto: `Todo o volume veio de ${diasAtivos} dias; sem ritmo diário a meta não fecha`, valor: `${diasAtivos}/30` },
+      ],
+
+      kpis: [
+        { label: 'Fichas no período', valor: this.f(total), tag: `${pct.toFixed(0)}% da meta`, tagBg: '#eef2f8', tagFg: '#5b6b84', hint: `${d.curto} · últimos 30 dias` },
+        { label: 'Cadastradas hoje', valor: this.f(d.hoje), tag: `${Math.round((d.hoje / total) * 100)}% do total`, tagBg: '#e6f7f2', tagFg: '#067d60', hint: 'último lançamento 19/09, 18:32' },
+        { label: 'Zonas alcançadas', valor: '6', tag: `${maiorZona[0]} lidera`, tagBg: '#eef2f8', tagFg: '#5b6b84', hint: `${Math.round((maiorZona[1] / total) * 100)}% das fichas em uma zona só` },
+        { label: 'Equipe ativa', valor: this.f(d.nerites.length), tag: 'nerites', tagBg: '#eef2f8', tagFg: '#5b6b84', hint: `${this.f(Math.round(total / d.nerites.length))} fichas por nerite em média` },
+      ],
+
+      diretorias,
+      barras,
+      acumPoints,
+      areaPath,
+      metaPoints,
+      eixoAcum,
+      gapMetaFmt: this.f(gapMeta),
+      notaGrafico: `Barras = fichas lançadas por dia (eixo à esquerda). Linhas = acumulado real contra o ritmo necessário de ${this.f(Math.round(porDiaNecessario))} fichas/dia (eixo à direita). Hoje o acumulado está ${this.f(gapMeta)} fichas atrás desse ritmo.`,
+      notaRitmo: `Volume concentrado em ${diasAtivos} dias · pico de ${this.f(maxSerie)} fichas em 19/09 (${Math.round((maxSerie / total) * 100)}% do período).`,
+
+      formigasTiles: [
+        { chave: 'formigas.carros', label: 'Carros', valor: '0', hint: 'veículos adesivados' },
+        { chave: 'formigas.casas', label: 'Casas', valor: '0', hint: 'adesivo residencial' },
+        { chave: 'formigas.postagens', label: 'Postagens', valor: '0', hint: 'links validados' },
+        { chave: 'formigas.whatsapp', label: 'WhatsApp', valor: '0', hint: 'contatos confirmados' },
+      ],
+
+      demandasAbertas: '0',
+      demandasFeitas: '0',
+      urgencias: [
+        { label: 'Urgente', valor: '0', cor: '#f43f5e', valorCor: '#9aa1ad' },
+        { label: 'Alta', valor: '0', cor: '#f59e0b', valorCor: '#9aa1ad' },
+        { label: 'Normal', valor: '0', cor: '#60a5fa', valorCor: '#9aa1ad' },
+        { label: 'Baixa', valor: '0', cor: '#94a3b8', valorCor: '#9aa1ad' },
+      ],
+
+      zonas,
+      secoes: [
+        { n: '000324', v: 62 }, { n: '029120', v: 54 }, { n: '000120', v: 48 },
+        { n: '010819', v: 41 }, { n: '022619', v: 37 },
+      ],
+
+      nerites,
+      notaNerites: `${d.nerites.length} nerites concentram ${this.f(somaNerites)} das ${this.f(total)} fichas (${Math.round((somaNerites / total) * 100)}%).`,
+      lideres,
+      notaLideres: `As 5 maiores lideranças respondem por ${Math.round((somaLideres / total) * 100)}% das fichas — base pulverizada, sem dependência de um único nome.`,
+
+      atividade: [
+        { nome: 'Carlos Rafael Pimenta', detalhe: 'Zona 089 · Seção 0305 · LIVIA CARLA', hora: '18:32' },
+        { nome: 'Maria Raimunda Oliveira Dutra', detalhe: 'Zona 089 · Seção 0308 · GISELE PEIXE', hora: '18:14' },
+        { nome: 'Lorena Carneiro Leite', detalhe: 'Zona 089 · Seção 0122 · LUCAS EDUARDO', hora: '18:12' },
+        { nome: 'Maria dos Remédios Pacheco Serra', detalhe: 'Zona 089 · Seção 0501 · MARIA DEUZILENE', hora: '18:11' },
+        { nome: 'Nycolas Gabriel Pereira Amorim', detalhe: 'Zona 089 · Seção 0263 · MARIA DEUZILENE', hora: '18:10' },
+        { nome: 'Beatriz Paixão Amador Silva', detalhe: 'Zona 010 · Seção 0729 · VALDELIR', hora: '18:09' },
+      ],
+    }
+  }
+}
+</script>
+
+
+</body></html>

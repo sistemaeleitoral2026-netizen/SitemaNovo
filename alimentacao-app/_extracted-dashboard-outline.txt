@@ -1,0 +1,22 @@
+button: 
+h1: Visão geral
+button: Geral
+button: Carol
+button: Nicole
+section: 
+section: 
+section: 
+h2: Diretorias e suas equipes
+section: 
+h2: Ritmo de coleta
+section: 
+h2: Formigas · mobilização de rua
+h2: Demandas
+section: 
+h2: Mapa por zona eleitoral
+h2: Concentração territorial
+section: 
+h2: Desempenho da operação
+h3: Produção por nerite
+h3: Lideranças que entregam
+h3: Últimas fichas

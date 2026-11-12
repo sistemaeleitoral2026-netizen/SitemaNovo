@@ -1,0 +1,18 @@
+h1: Nerites
+h2: Visão geral da operação
+button: Geral
+button: Zona
+button: Equipe
+button: Configurar meta
+h3: Divisão entre as equipes
+h4: Equipe Geral
+h4: Equipe Mandato
+h3: Ritmo de coleta
+h3: Mapa por zona eleitoral
+h3: Concentração territorial
+h3: Mobilização de rua — Ativação
+h3: Demandas da comunidade
+h3: Desempenho da operação
+h4: Produção por membro
+h4: Lideranças que entregam
+h4: Últimas fichas cadastradas

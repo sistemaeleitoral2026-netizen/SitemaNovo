@@ -30,13 +30,10 @@ select
   l.telefone,
   (
     select count(*) from public.cadastros x
-    where x.lider_id = l.id
-       or (
-         regexp_replace(upper(btrim(coalesce(x.lider, ''))), '\s+', ' ', 'g')
-           = regexp_replace(upper(btrim(l.nome)), '\s+', ' ', 'g')
-         and regexp_replace(upper(btrim(coalesce(x.coordenador, ''))), '\s+', ' ', 'g')
-           ~ 'YURI'
-       )
+    where regexp_replace(upper(btrim(coalesce(x.lider, ''))), '\s+', ' ', 'g')
+            = regexp_replace(upper(btrim(l.nome)), '\s+', ' ', 'g')
+      and regexp_replace(upper(btrim(coalesce(x.coordenador, ''))), '\s+', ' ', 'g')
+            ~ 'YURI'
   ) as fichas
 from public.lideres l
 join public.coordenadores c on c.id = l.coordenador_id
