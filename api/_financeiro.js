@@ -147,7 +147,14 @@ async function listarPagamentos(link) {
 }
 
 // ===================== BANCO DO GABINETE (REST com service key) =====================
-function criarDb(url, key) {
+// Aceita a URL do projeto com barra no fim, com /rest/v1 colado, com espaços ou quebras de linha
+function limparUrlSupabase(url) {
+  return String(url || '').trim().replace(/\/+$/, '').replace(/\/rest\/v1$/i, '').replace(/\/+$/, '')
+}
+
+function criarDb(urlBruta, keyBruta) {
+  const url = limparUrlSupabase(urlBruta)
+  const key = String(keyBruta || '').trim()
   async function req(path, { method = 'GET', body, prefer } = {}) {
     const headers = { Authorization: `Bearer ${key}`, apikey: key }
     if (body !== undefined) {
@@ -403,7 +410,7 @@ function validarLancamento(b) {
 }
 
 module.exports = {
-  CONFIG, CATEGORIAS, criarDb, sincronizarFolha, sincronizarDespesas, montarResumo, validarLancamento,
+  CONFIG, CATEGORIAS, criarDb, limparUrlSupabase, sincronizarFolha, sincronizarDespesas, montarResumo, validarLancamento,
   // exportados para teste
   refParaMes, listarEmpenhos, listarPagamentos, normNome, mesEsperado,
 }
