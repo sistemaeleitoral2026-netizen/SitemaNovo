@@ -4,13 +4,14 @@ import { useAuth } from '../contexts/AuthContext'
 import { hasRole } from '../lib/roles'
 import { Spinner } from '../components/ui/Spinner'
 import {
-  carregarFinanceiro,
+  garantirCargaFinanceiro,
   definirCompetencia,
   excluirLancamento,
   listarProposicoes,
   mudarStatusLancamento,
   salvarInfoEquipe,
   salvarLancamento,
+  sincronizarFinanceiro,
   type FinLancamentoEntrada,
   type ProposicaoMandato,
 } from '../lib/gabinete'
@@ -177,9 +178,12 @@ export function PainelMandatoPage() {
     janela?.__mandatoApp?.flash?.(texto)
   }
 
-  async function recarregarFinanceiro() {
+  async function recarregarFinanceiro(opts?: { sincronizar?: boolean }) {
     try {
-      financeiro.current = await carregarFinanceiro()
+      if (opts?.sincronizar) {
+        await sincronizarFinanceiro(false)
+      }
+      financeiro.current = await garantirCargaFinanceiro()
       finErro.current = ''
     } catch (e) {
       finErro.current = e instanceof Error ? e.message : 'Falha ao carregar o financeiro.'
@@ -264,7 +268,9 @@ export function PainelMandatoPage() {
           await salvarInfoEquipe(d.info)
           avisar('Dados da pessoa salvos')
         } else if (d.type === 'mandato-fin-recarregar') {
-          avisar('Atualizando…')
+          avisar('Atualizando dados oficiais…')
+          await recarregarFinanceiro({ sincronizar: true })
+          return
         } else {
           return
         }
@@ -309,6 +315,8 @@ export function PainelMandatoPage() {
                 bairrosN: '…',
                 propsTotal: '…',
                 cidResumo: '…',
+                maxBairro: 1,
+                propStats: [],
               }
             } else {
               feed.current.busca = lista

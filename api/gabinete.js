@@ -263,6 +263,25 @@ module.exports = async function handler(req, res) {
       if (req.method !== 'POST') return json(res, 405, { error: 'Use POST.' })
       if (!exigirEdicao()) return
 
+      // Carga/atualização dos portais oficiais (folha + despesas). Até 4 meses por chamada.
+      if (recurso === 'financeiro-sincronizar') {
+        const forcar = body.forcar === true || body.forcar === 1 || body.forcar === '1'
+        const resultado = {}
+        let falhou = false
+        for (const [parte, fn] of [
+          ['folha', () => fin.sincronizarFolha(db, { forcar })],
+          ['despesas', () => fin.sincronizarDespesas(db)],
+        ]) {
+          try {
+            resultado[parte] = await fn()
+          } catch (err) {
+            falhou = true
+            resultado[parte] = { erro: err instanceof Error ? err.message : String(err) }
+          }
+        }
+        return json(res, falhou ? 500 : 200, { ok: !falhou, ...resultado })
+      }
+
       if (recurso === 'financeiro-lancamento') {
         let linha
         try { linha = fin.validarLancamento(body) } catch (e) { return json(res, e.status || 400, { error: e.message }) }
