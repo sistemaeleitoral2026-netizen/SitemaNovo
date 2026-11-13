@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { hasRole } from '../lib/roles'
+import { Spinner } from '../components/ui/Spinner'
 import {
   carregarFinanceiro,
   definirCompetencia,
@@ -30,7 +31,12 @@ const CHAVE_AGENDA = 'alimentacao_mandato_agenda'
 
 type PainelWin = Window & {
   __MANDATO__?: Record<string, unknown>
-  __mandatoApp?: { setState: (patch: Record<string, unknown>) => void; atualizarBusca?: () => void; flash?: (t: string) => void }
+  __mandatoApp?: {
+    setState: (patch: Record<string, unknown>) => void
+    atualizarBusca?: () => void
+    pintarDemSug?: () => void
+    flash?: (t: string) => void
+  }
 }
 
 type FinMensagem = {
@@ -164,6 +170,7 @@ export function PainelMandatoPage() {
   const limpouDemo = useRef(false)
   const financeiro = useRef<Record<string, unknown> | null>(null)
   const finErro = useRef<string>('')
+  const [pronto, setPronto] = useState(false)
 
   function avisar(texto: string) {
     const janela = frame.current?.contentWindow as PainelWin | null
@@ -209,10 +216,15 @@ export function PainelMandatoPage() {
     }
     janela.__mandatoApp?.setState(patch)
     janela.__mandatoApp?.atualizarBusca?.()
+    window.setTimeout(() => janela.__mandatoApp?.pintarDemSug?.(), 0)
   }
 
   useEffect(() => {
     let vivo = true
+    // Se o handshake atrasar, mostra o painel mesmo assim para não travar a tela.
+    const fallback = window.setTimeout(() => {
+      if (vivo) setPronto(true)
+    }, 8000)
     Promise.all([carregarResumoFichas(), listarProposicoes(), listarLiderancasNerites()])
       .then(([resumo, lista, lideres]) => {
         if (!vivo) return
@@ -223,7 +235,10 @@ export function PainelMandatoPage() {
         /* o layout continua; as listas inventadas não voltam */
       })
     void recarregarFinanceiro()
-    return () => { vivo = false }
+    return () => {
+      vivo = false
+      window.clearTimeout(fallback)
+    }
   }, [])
 
   // Mensagens do menu Financeiro (iframe -> página): grava pela ponte e recarrega
@@ -268,19 +283,43 @@ export function PainelMandatoPage() {
       const data = evento.data as { type?: string; q?: string; pessoa?: FichaBusca; alvo?: string; id?: string }
       if (!data?.type) return
       if (data.type === 'mandato-pronto') {
-        if (evento.source === frame.current?.contentWindow) publicar()
+        if (evento.source === frame.current?.contentWindow) {
+          publicar()
+          // Espera o primeiro paint do painel empacotado para não mostrar o "Unpacking..."
+          requestAnimationFrame(() => setPronto(true))
+        }
         return
       }
       const painel = feed.current
       if (data.type !== 'mandato-buscar' && !painel) return
       if (data.type === 'mandato-buscar') {
-        buscarFichasPorNome(String(data.q || ''))
+        const termo = String(data.q || '')
+        buscarFichasPorNome(termo)
           .then((lista) => {
-            if (!feed.current) return
-            feed.current.busca = lista
+            if (!feed.current) {
+              feed.current = {
+                cidadoes: [],
+                lideres: [],
+                agenda: [],
+                bairros: [],
+                props: [],
+                propsByTab: { pl: [], req: [], ind: [] },
+                busca: lista,
+                cidadaos: '…',
+                bairrosN: '…',
+                propsTotal: '…',
+                cidResumo: '…',
+              }
+            } else {
+              feed.current.busca = lista
+            }
             publicar()
           })
-          .catch(() => undefined)
+          .catch(() => {
+            if (!feed.current) return
+            feed.current.busca = []
+            publicar()
+          })
         return
       }
       if (data.type === 'mandato-vincular' && data.pessoa?.id) {
@@ -339,13 +378,21 @@ export function PainelMandatoPage() {
           <button type="button" onClick={() => void signOut()}>Sair</button>
         </div>
       </header>
-      <iframe
-        ref={frame}
-        className="mr-demo-frame"
-        title="Painel do Mandato"
-        src="/mandato-embed/index.html"
-        onLoad={publicar}
-      />
+      <div className="mr-demo-stage">
+        {!pronto ? (
+          <div className="mr-demo-loading" aria-live="polite">
+            <Spinner size={36} />
+            <span>Carregando o Painel do Mandato…</span>
+          </div>
+        ) : null}
+        <iframe
+          ref={frame}
+          className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
+          title="Painel do Mandato"
+          src="/mandato-embed/index.html"
+          onLoad={publicar}
+        />
+      </div>
     </div>
   )
 }
