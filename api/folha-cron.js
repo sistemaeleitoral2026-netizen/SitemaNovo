@@ -3,8 +3,9 @@
 // B) Portal de despesas: VIEP, diárias e outros pagamentos em nome do vereador (todo dia).
 // Chamada manual (carga inicial): GET /api/folha-cron com "Authorization: Bearer <CRON_SECRET>".
 // A carga inicial grava até 4 meses por execução; chame de novo até "faltam" chegar a 0.
+// Regravação completa: GET /api/folha-cron?forcar=1
 
-const { criarDb, sincronizarFolha, sincronizarDespesas } = require('./_financeiro')
+const { criarDb, sincronizarFolha, sincronizarDespesas, diagnosticoFinanceiro } = require('./_financeiro')
 
 module.exports = async function handler(req, res) {
   const json = (status, body) => {
@@ -35,5 +36,12 @@ module.exports = async function handler(req, res) {
       resultado[parte] = { erro: err instanceof Error ? err.message : String(err) }
     }
   }
+
+  try {
+    resultado.base = await diagnosticoFinanceiro(db)
+  } catch (err) {
+    resultado.base = { erro: err instanceof Error ? err.message : String(err) }
+  }
+
   return json(falhou ? 500 : 200, { ok: !falhou, ...resultado })
 }

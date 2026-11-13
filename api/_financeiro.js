@@ -193,14 +193,31 @@ async function sincronizarFolha(db, { forcar = false } = {}) {
   const gravados = new Set((await db.get('fin_folha_publicacao?select=mes')).map((r) => r.mes))
   const cargaInicial = gravados.size === 0
   const esperado = mesEsperado()
-  if (!forcar && gravados.has(esperado)) return { status: `folha ${esperado} já gravada` }
-
-  const novos = (await listarMesesPublicados())
-    .filter((p) => p.mes >= CONFIG.desde && !gravados.has(p.mes))
+  const publicados = (await listarMesesPublicados())
+    .filter((p) => p.mes >= CONFIG.desde)
     .sort((a, b) => a.mes.localeCompare(b.mes))
-  if (!novos.length) return { status: `folha ${esperado} ainda não publicada` }
 
-  const lote = novos.slice(0, MAX_MESES_POR_EXECUCAO)
+  // Sem forçar: só meses que ainda não entraram na base.
+  // Com forçar: regrava todos os meses publicados (alimenta de novo salário/equipe).
+  const pendentes = forcar
+    ? publicados
+    : publicados.filter((p) => !gravados.has(p.mes))
+
+  if (!forcar && !pendentes.length && gravados.has(esperado)) {
+    return { status: `folha ${esperado} já gravada`, gravados: gravados.size, publicados: publicados.length }
+  }
+  if (!pendentes.length) {
+    return {
+      status: publicados.length
+        ? `folha em dia (${gravados.size} mês(es) na base)`
+        : `folha ${esperado} ainda não publicada`,
+      gravados: gravados.size,
+      publicados: publicados.length,
+      faltam: 0,
+    }
+  }
+
+  const lote = pendentes.slice(0, MAX_MESES_POR_EXECUCAO)
   const alvo = normNome(CONFIG.vereador)
   const lotacoes = new Set(CONFIG.gabinetes.map((g) => g.lotacao.toUpperCase()))
   const desdeGab = CONFIG.gabinetes.reduce((m, g) => (g.desde < m ? g.desde : m), '9999-99')
@@ -230,7 +247,35 @@ async function sincronizarFolha(db, { forcar = false } = {}) {
 
     await db.insertIgnorando('fin_folha_publicacao', 'mes', { mes, referencia, carga_inicial: cargaInicial })
   }
-  return { status: 'folha gravada', meses: lote.map((l) => l.mes), faltam: novos.length - lote.length }
+  return {
+    status: 'folha gravada',
+    meses: lote.map((l) => l.mes),
+    faltam: pendentes.length - lote.length,
+    gravados: gravados.size + lote.filter((l) => !gravados.has(l.mes)).length,
+    publicados: publicados.length,
+  }
+}
+
+/** Contagens rápidas para saber se a base GABINETE tem dados. */
+async function diagnosticoFinanceiro(db) {
+  const [pubs, sal, emp, pag, pes, lan] = await Promise.all([
+    db.get('fin_folha_publicacao?select=mes'),
+    db.get('fin_salario?select=mes,recebeu,bruto'),
+    db.get('fin_empenho?select=empenho'),
+    db.get('fin_pagamento?select=empenho'),
+    db.get('fin_gabinete_pessoa?select=mes'),
+    db.get('fin_lancamento?select=id'),
+  ])
+  return {
+    publicacoes: pubs.length,
+    salarios: sal.length,
+    salariosComValor: sal.filter((s) => s.recebeu || Number(s.bruto) > 0).length,
+    empenhos: emp.length,
+    pagamentos: pag.length,
+    pessoasFolha: pes.length,
+    lancamentos: lan.length,
+    mesesSalario: sal.map((s) => s.mes).sort(),
+  }
 }
 
 async function sincronizarDespesas(db) {
@@ -414,6 +459,7 @@ function validarLancamento(b) {
 
 module.exports = {
   CONFIG, CATEGORIAS, criarDb, limparUrlSupabase, sincronizarFolha, sincronizarDespesas, montarResumo, validarLancamento,
+  diagnosticoFinanceiro,
   // exportados para teste
   refParaMes, listarEmpenhos, listarPagamentos, normNome, mesEsperado,
 }
