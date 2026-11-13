@@ -8,7 +8,7 @@
       "maxDuration": 60
     },
     "api/gabinete.js": {
-      "maxDuration": 30
+      "maxDuration": 60
     }
   },
   "rewrites": [
