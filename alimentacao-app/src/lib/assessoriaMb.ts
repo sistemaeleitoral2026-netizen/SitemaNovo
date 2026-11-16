@@ -9,6 +9,7 @@ export type MbAnexoMeta = {
   size?: number
   path?: string
   signedUrl?: string
+  createdAt?: string
 }
 
 export type MbFinance = {
@@ -151,13 +152,13 @@ async function signPaths(paths: string[]) {
 async function listAnexos() {
   const { data, error } = await supabase
     .from('mb_anexos')
-    .select('id,entidade,entidade_id,nome,mime,tamanho,storage_path')
+    .select('id,entidade,entidade_id,nome,mime,tamanho,storage_path,created_at')
   if (error) throw error
   return data || []
 }
 
 function anexosFor(
-  rows: { id: string; entidade: string; entidade_id: string; nome: string; mime: string | null; tamanho: number | null; storage_path: string }[],
+  rows: { id: string; entidade: string; entidade_id: string; nome: string; mime: string | null; tamanho: number | null; storage_path: string; created_at?: string }[],
   entidade: string,
   entidadeId: string,
   signed: Map<string, string>,
@@ -169,6 +170,7 @@ function anexosFor(
       name: a.nome,
       type: a.mime || undefined,
       size: a.tamanho || undefined,
+      createdAt: a.created_at || undefined,
       path: a.storage_path,
       signedUrl: signed.get(a.storage_path),
     }))
