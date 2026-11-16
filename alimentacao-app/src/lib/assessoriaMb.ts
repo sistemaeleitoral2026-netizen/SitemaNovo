@@ -78,6 +78,7 @@ export type MbDbPayload = {
   templates: string[]
   staff: string[]
   centers: Record<string, unknown>
+  companies?: string[]
   historyEdits: Record<string, Partial<MbHistoryRow>>
   prestacao: MbHistoryRow[]
   _files?: Record<string, { name: string; type: string; size: number; dataBase64: string }>
@@ -85,6 +86,17 @@ export type MbDbPayload = {
 
 function isUuid(v: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v)
+}
+
+function asError(err: unknown, fallback = 'Falha ao salvar na nuvem.'): Error {
+  if (err instanceof Error && err.message) return err
+  if (err && typeof err === 'object') {
+    const o = err as { message?: string; error?: string; details?: string; hint?: string }
+    const msg = [o.message || o.error, o.details, o.hint].filter(Boolean).join(' — ')
+    if (msg) return new Error(msg)
+  }
+  if (typeof err === 'string' && err.trim()) return new Error(err)
+  return new Error(fallback)
 }
 
 function makeIdCache() {
@@ -253,8 +265,6 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
     if (row.anexos?.length) historyEdits[row.id] = { anexos: row.anexos }
   }
 
-  void empresas
-
   return {
     finance,
     tasks,
@@ -262,25 +272,32 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
     banks: (bancos.data || []).map((b) => b.nome as string),
     templates: (templates.data || []).map((t) => t.titulo as string),
     staff: (equipe.data || []).map((e) => e.nome as string),
-    centers: Object.fromEntries((centros.data || []).map((c) => [c.codigo as string, c.nome || c.codigo])),
+    centers: Object.fromEntries((centros.data || []).map((c) => [c.codigo as string, (c.nome as string) || ''])),
+    companies: (empresas.data || []).map((e) => (e.codigo as string) || (e.nome as string)).filter(Boolean),
     historyEdits,
     prestacao: prestacaoRows,
   }
 }
 
 async function uploadBytes(userId: string, fileId: string, meta: { name: string; type: string; dataBase64: string }) {
-  const raw = meta.dataBase64.includes(',') ? meta.dataBase64.split(',')[1] : meta.dataBase64
-  const bin = atob(raw)
-  const bytes = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-  const safe = meta.name.replace(/[^\w.\-]+/g, '_').slice(0, 80) || 'arquivo'
-  const path = `${userId}/${fileId}-${safe}`
-  const { error } = await supabase.storage.from(BUCKET).upload(path, bytes, {
-    upsert: true,
-    contentType: meta.type || 'application/octet-stream',
-  })
-  if (error) throw error
-  return path
+  try {
+    const raw = meta.dataBase64.includes(',') ? meta.dataBase64.split(',')[1] : meta.dataBase64
+    const bin = atob(raw)
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    const mime = meta.type || 'application/octet-stream'
+    const blob = new Blob([bytes], { type: mime })
+    const safe = meta.name.replace(/[^\w.\-]+/g, '_').slice(0, 80) || 'arquivo'
+    const path = `${userId}/${fileId}-${safe}`
+    const { error } = await supabase.storage.from(BUCKET).upload(path, blob, {
+      upsert: true,
+      contentType: mime,
+    })
+    if (error) throw asError(error, 'Falha no upload do comprovante.')
+    return path
+  } catch (e) {
+    throw asError(e, 'Falha no upload do comprovante.')
+  }
 }
 
 async function replaceAuxList(
@@ -318,6 +335,75 @@ async function replaceAuxList(
   if (insErr) throw insErr
 }
 
+async function syncCentros(centers: Record<string, unknown>) {
+  const entries = Object.entries(centers || {})
+    .map(([codigo, nome]) => ({
+      codigo: String(codigo || '')
+        .trim()
+        .toUpperCase(),
+      nome: String(nome || '').trim(),
+    }))
+    .filter((r) => r.codigo)
+  const { data: existing, error } = await supabase.from('mb_centros_custo').select('id,codigo')
+  if (error) throw error
+  const byCode = new Map((existing || []).map((r) => [String(r.codigo), r.id as string]))
+  const keep = new Set(entries.map((e) => e.codigo))
+  const toDelete = (existing || []).filter((r) => !keep.has(String(r.codigo))).map((r) => r.id as string)
+  if (toDelete.length) {
+    const { error: delErr } = await supabase.from('mb_centros_custo').delete().in('id', toDelete)
+    if (delErr) throw delErr
+  }
+  for (const [i, row] of entries.entries()) {
+    const id = byCode.get(row.codigo)
+    if (id) {
+      const { error: upErr } = await supabase
+        .from('mb_centros_custo')
+        .update({ nome: row.nome || row.codigo, ordem: i + 1, ativo: true })
+        .eq('id', id)
+      if (upErr) throw upErr
+    } else {
+      const { error: insErr } = await supabase.from('mb_centros_custo').insert({
+        codigo: row.codigo,
+        nome: row.nome || row.codigo,
+        ordem: i + 1,
+        ativo: true,
+      })
+      if (insErr) throw insErr
+    }
+  }
+}
+
+async function syncEmpresas(companies: string[]) {
+  const clean = [...new Set((companies || []).map((c) => String(c || '').trim()).filter(Boolean))]
+  const { data: existing, error } = await supabase.from('mb_empresas').select('id,codigo')
+  if (error) throw error
+  const byCode = new Map((existing || []).map((r) => [String(r.codigo), r.id as string]))
+  const keep = new Set(clean)
+  const toDelete = (existing || []).filter((r) => !keep.has(String(r.codigo))).map((r) => r.id as string)
+  if (toDelete.length) {
+    const { error: delErr } = await supabase.from('mb_empresas').delete().in('id', toDelete)
+    if (delErr) throw delErr
+  }
+  for (const [i, codigo] of clean.entries()) {
+    const id = byCode.get(codigo)
+    if (id) {
+      const { error: upErr } = await supabase
+        .from('mb_empresas')
+        .update({ nome: codigo, ordem: i + 1, ativo: true })
+        .eq('id', id)
+      if (upErr) throw upErr
+    } else {
+      const { error: insErr } = await supabase.from('mb_empresas').insert({
+        codigo,
+        nome: codigo,
+        ordem: i + 1,
+        ativo: true,
+      })
+      if (insErr) throw insErr
+    }
+  }
+}
+
 export async function salvarEstadoAssessoria(
   payload: MbDbPayload,
   opts: { userId: string; userName: string },
@@ -347,19 +433,26 @@ export async function salvarEstadoAssessoria(
   }))
   const audit = payload.audit.slice(0, 500).map((r) => ({ ...r, id: ensureUuid(String(r.id)) }))
 
+  try {
   await replaceAuxList('mb_bancos', 'nome', payload.banks || [])
   await replaceAuxList('mb_templates_tarefa', 'titulo', payload.templates || [])
   await replaceAuxList('mb_equipe', 'nome', payload.staff || [])
+  if (payload.centers && Object.keys(payload.centers).length) {
+    await syncCentros(payload.centers)
+  }
+  if (Array.isArray(payload.companies) && payload.companies.length) {
+    await syncEmpresas(payload.companies)
+  }
 
   // ---- lançamentos ----
   const { data: remoteFin, error: finListErr } = await supabase.from('mb_lancamentos').select('id')
-  if (finListErr) throw finListErr
+  if (finListErr) throw asError(finListErr)
   const localFin = new Set(finance.map((f) => f.id))
   const delFin = (remoteFin || []).map((r) => r.id as string).filter((id) => !localFin.has(id))
   if (delFin.length) {
     await supabase.from('mb_anexos').delete().eq('entidade', 'lancamento').in('entidade_id', delFin)
     const { error } = await supabase.from('mb_lancamentos').delete().in('id', delFin)
-    if (error) throw error
+    if (error) throw asError(error)
   }
   if (finance.length) {
     const rows = finance.map((r) => ({
@@ -380,18 +473,18 @@ export async function salvarEstadoAssessoria(
       created_by: opts.userId,
     }))
     const { error } = await supabase.from('mb_lancamentos').upsert(rows, { onConflict: 'id' })
-    if (error) throw error
+    if (error) throw asError(error, 'Falha ao gravar lançamentos.')
   }
 
   // ---- tarefas ----
   const { data: remoteTasks, error: taskListErr } = await supabase.from('mb_tarefas').select('id')
-  if (taskListErr) throw taskListErr
+  if (taskListErr) throw asError(taskListErr)
   const localTasks = new Set(tasks.map((t) => t.id))
   const delTasks = (remoteTasks || []).map((r) => r.id as string).filter((id) => !localTasks.has(id))
   if (delTasks.length) {
     await supabase.from('mb_anexos').delete().eq('entidade', 'tarefa').in('entidade_id', delTasks)
     const { error } = await supabase.from('mb_tarefas').delete().in('id', delTasks)
-    if (error) throw error
+    if (error) throw asError(error)
   }
   if (tasks.length) {
     const rows = tasks.map((r) => ({
@@ -415,17 +508,17 @@ export async function salvarEstadoAssessoria(
       created_by: opts.userId,
     }))
     const { error } = await supabase.from('mb_tarefas').upsert(rows, { onConflict: 'id' })
-    if (error) throw error
+    if (error) throw asError(error, 'Falha ao gravar tarefas.')
   }
 
   // ---- auditoria (substitui pelas 500 mais recentes do painel) ----
   const { data: remoteAudit, error: auditListErr } = await supabase.from('mb_auditoria').select('id')
-  if (auditListErr) throw auditListErr
+  if (auditListErr) throw asError(auditListErr)
   const localAudit = new Set(audit.map((a) => a.id))
   const delAudit = (remoteAudit || []).map((r) => r.id as string).filter((id) => !localAudit.has(id))
   if (delAudit.length) {
     const { error } = await supabase.from('mb_auditoria').delete().in('id', delAudit)
-    if (error) throw error
+    if (error) throw asError(error)
   }
   if (audit.length) {
     const rows = audit.map((a) => ({
@@ -437,26 +530,24 @@ export async function salvarEstadoAssessoria(
       detail: a.detail || null,
     }))
     const { error } = await supabase.from('mb_auditoria').upsert(rows, { onConflict: 'id' })
-    if (error) throw error
+    if (error) throw asError(error, 'Falha ao gravar auditoria.')
   }
 
-  // ---- prestação (seed embutido + edições) ----
+  // ---- prestação: só edições do usuário (não reenvia a planilha embutida inteira) ----
   const prestacaoMap = new Map<string, MbHistoryRow>()
-  for (const row of payload.prestacao || []) prestacaoMap.set(row.id, { ...row })
   for (const [codigo, edit] of Object.entries(payload.historyEdits || {})) {
-    const base = prestacaoMap.get(codigo) || ({ id: codigo, mes: String(edit.data || '').slice(0, 7) } as MbHistoryRow)
     prestacaoMap.set(codigo, {
-      ...base,
-      ...edit,
       id: codigo,
-      anexos: remapAnexos(edit.anexos || base.anexos),
+      mes: String(edit.mes || edit.data || '').slice(0, 7) || new Date().toISOString().slice(0, 7),
+      ...edit,
+      anexos: remapAnexos(edit.anexos),
     })
   }
 
   const { data: remotePrest, error: prestListErr } = await supabase
     .from('mb_prestacao_contas')
     .select('id,codigo_origem')
-  if (prestListErr) throw prestListErr
+  if (prestListErr) throw asError(prestListErr)
   const codigoToUuid = new Map<string, string>()
   for (const r of remotePrest || []) {
     const codigo = (r.codigo_origem as string) || (r.id as string)
@@ -487,7 +578,7 @@ export async function salvarEstadoAssessoria(
       },
       { onConflict: 'id' },
     )
-    if (error) throw error
+    if (error) throw asError(error, 'Falha ao gravar prestação de contas.')
   }
 
   // ---- anexos ----
@@ -502,26 +593,29 @@ export async function salvarEstadoAssessoria(
       .select('id,storage_path')
       .eq('entidade', entidade)
       .eq('entidade_id', entidadeId)
-    if (error) throw error
+    if (error) throw asError(error, 'Falha ao ler anexos.')
     const keepIds = new Set(wanted.map((a) => a.id))
     const toRemove = (existing || []).filter((a) => !keepIds.has(a.id as string))
     if (toRemove.length) {
       const paths = toRemove.map((a) => a.storage_path as string).filter(Boolean)
       if (paths.length) void supabase.storage.from(BUCKET).remove(paths)
-      await supabase.from('mb_anexos').delete().in(
+      const { error: delErr } = await supabase.from('mb_anexos').delete().in(
         'id',
         toRemove.map((a) => a.id as string),
       )
+      if (delErr) throw asError(delErr, 'Falha ao remover anexo.')
     }
     for (const a of wanted) {
       const anexoId = ensureUuid(a.id)
       let path = a.path
-      // arquivos novos ainda vêm com a chave original do painel (_files)
-      const pending = files[a.id] || files[anexoId] || Object.values(files).find((f) => f.name === a.name)
+      const pending = files[a.id] || files[anexoId]
       if (pending?.dataBase64) {
         path = await uploadBytes(opts.userId, anexoId, pending)
       }
-      if (!path) continue
+      if (!path) {
+        // Sem arquivo no payload (refresh / IndexedDB vazio): segue sem derrubar o save.
+        continue
+      }
       const { error: upErr } = await supabase.from('mb_anexos').upsert(
         {
           id: anexoId,
@@ -535,7 +629,7 @@ export async function salvarEstadoAssessoria(
         },
         { onConflict: 'id' },
       )
-      if (upErr) throw upErr
+      if (upErr) throw asError(upErr, 'Falha ao gravar metadados do comprovante.')
     }
   }
 
@@ -544,11 +638,14 @@ export async function salvarEstadoAssessoria(
   for (const [codigo, row] of prestacaoMap) {
     const uuid = codigoToUuid.get(codigo)
     if (!uuid) continue
-    const anexos = row.anexos || payload.historyEdits?.[codigo]?.anexos
-    await syncAnexos('prestacao', uuid, anexos)
+    if (!row.anexos?.length) continue
+    await syncAnexos('prestacao', uuid, row.anexos)
   }
 
   return carregarEstadoAssessoria()
+  } catch (e) {
+    throw asError(e)
+  }
 }
 
 export async function baixarAnexoAssessoria(path: string): Promise<Blob> {
