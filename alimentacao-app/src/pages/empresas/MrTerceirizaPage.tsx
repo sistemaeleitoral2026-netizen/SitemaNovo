@@ -2,14 +2,16 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { hasRole } from '../../lib/roles'
-import { writeSite } from '../../lib/sites'
+import { isAdminNoSiteExterno, writeSite } from '../../lib/sites'
 import demoHtml from './mr-terceiriza-demo.html?raw'
 
 export function MrTerceirizaPage() {
   const { profile, signOut } = useAuth()
   const navigate = useNavigate()
   const frameRef = useRef<HTMLIFrameElement>(null)
-  const admin = hasRole(profile, 'admin')
+  const neritesAdmin = hasRole(profile, 'admin')
+  // Admin dentro deste painel: admin do Nerites (como já era) ou acesso "admin" cadastrado em /admin.
+  const admin = neritesAdmin || isAdminNoSiteExterno(profile, 'mr-terceiriza')
 
   // O painel roda num iframe; o nome do usuário entra no HTML e as ações do menu voltam por postMessage.
   const srcDoc = useMemo(() => {
@@ -22,14 +24,14 @@ export function MrTerceirizaPage() {
       if (ev.source !== frameRef.current?.contentWindow) return
       const type = (ev.data as { type?: string } | null)?.type
       if (type === 'mr-sair') void signOut()
-      if (type === 'mr-nerites' && admin) {
+      if (type === 'mr-nerites' && neritesAdmin) {
         writeSite('nerites')
         navigate('/')
       }
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [admin, navigate, signOut])
+  }, [neritesAdmin, navigate, signOut])
 
   return (
     <div className="mr-demo">

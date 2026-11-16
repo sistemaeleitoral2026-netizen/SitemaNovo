@@ -6,6 +6,8 @@ export type UserRole =
   | 'administrativo'
   | 'coordenador'
   | 'auxiliar'
+  /** Login cadastrado em /admin só para acessar outros sistemas (fora do Nerites). */
+  | 'externo'
 
 export type DemandaStatus = 'aberta' | 'feita'
 export type DemandaOrigem = 'cadastro' | 'avulso'
@@ -42,6 +44,12 @@ export interface Profile {
   diretoria_id?: string | null
   coordenador_id?: string | null
   lider_id?: string | null
+  /**
+   * Acesso extra a sistemas fora do Nerites (Assessoria MB, Painel do
+   * Mandato, Empresas), cadastrado em /admin. Chave = id do sistema,
+   * valor = 'admin' ou 'editor'. Não interfere no role/hierarquia do Nerites.
+   */
+  acessos_externos?: Record<string, 'admin' | 'editor'> | null
   created_at: string
 }
 

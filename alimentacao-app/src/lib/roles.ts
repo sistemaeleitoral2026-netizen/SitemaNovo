@@ -41,6 +41,8 @@ export function hasRole(
 }
 
 export function canLogin(profile: Pick<Profile, 'role' | 'extra_roles'> | null | undefined): boolean {
+  // Login cadastrado em /admin só para os outros sistemas — fora do bloqueio do Nerites.
+  if (hasRole(profile, 'externo')) return true
   if (!LOGIN_ALLOWED_ROLES) return true
   return hasRole(profile, LOGIN_ALLOWED_ROLES)
 }
@@ -69,6 +71,8 @@ export function labelRole(role: UserRole): string {
       return 'Coordenador'
     case 'auxiliar':
       return 'Auxiliar'
+    case 'externo':
+      return 'Acesso externo'
     default:
       return role
   }

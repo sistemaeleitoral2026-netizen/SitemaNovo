@@ -35,6 +35,20 @@ interface AuthContextValue {
     lider_id?: string | null
     lider_ids?: string[]
   }) => Promise<{ error: string | null }>
+  criarUsuarioExterno: (input: {
+    nome: string
+    email: string
+    password: string
+    acessos_externos: Record<string, 'admin' | 'editor'>
+  }) => Promise<{ error: string | null }>
+  editarUsuarioExterno: (input: {
+    id: string
+    nome?: string
+    ativo?: boolean
+    password?: string
+    acessos_externos?: Record<string, 'admin' | 'editor'>
+  }) => Promise<{ error: string | null }>
+  excluirUsuarioExterno: (id: string) => Promise<{ error: string | null }>
   refreshProfile: () => Promise<void>
 }
 
@@ -243,6 +257,81 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  /** Chama uma API /api/admin-* com o token do admin logado (cria/edita/exclui logins "externos"). */
+  const callAdminApi = useCallback(async (
+    path: string,
+    body: Record<string, unknown>,
+    method: 'POST' | 'DELETE' = 'POST',
+  ): Promise<{ error: string | null }> => {
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
+    const adminSession = refreshed.session
+      ?? (await supabase.auth.getSession()).data.session
+    if (!adminSession?.access_token) {
+      return {
+        error: refreshError?.message
+          ? `Sessão expirada (${refreshError.message}). Saia e entre novamente.`
+          : 'Sessão expirada. Saia e entre novamente.',
+      }
+    }
+
+    try {
+      const res = await fetch(path, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminSession.access_token}`,
+        },
+        body: JSON.stringify(body),
+      })
+
+      const contentType = res.headers.get('content-type') || ''
+      const raw = await res.text()
+      let payload: { error?: string; ok?: boolean } = {}
+      if (contentType.includes('application/json') || raw.trim().startsWith('{')) {
+        try {
+          payload = JSON.parse(raw) as { error?: string; ok?: boolean }
+        } catch {
+          payload = {}
+        }
+      } else {
+        return { error: `API indisponível (HTTP ${res.status}).` }
+      }
+
+      if (!res.ok) {
+        return { error: payload.error || `Não foi possível concluir (HTTP ${res.status}).` }
+      }
+      return { error: null }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err)
+      return { error: `Falha de conexão (${detail}).` }
+    }
+  }, [])
+
+  const criarUsuarioExterno = useCallback((input: {
+    nome: string
+    email: string
+    password: string
+    acessos_externos: Record<string, 'admin' | 'editor'>
+  }) => callAdminApi('/api/admin-create-user', {
+    nome: input.nome.trim(),
+    email: input.email.trim().toLowerCase(),
+    password: input.password,
+    acessos_externos: input.acessos_externos,
+  }), [callAdminApi])
+
+  const editarUsuarioExterno = useCallback((input: {
+    id: string
+    nome?: string
+    ativo?: boolean
+    password?: string
+    acessos_externos?: Record<string, 'admin' | 'editor'>
+  }) => callAdminApi('/api/admin-manage-user', input), [callAdminApi])
+
+  const excluirUsuarioExterno = useCallback(
+    (id: string) => callAdminApi('/api/admin-manage-user', { id }, 'DELETE'),
+    [callAdminApi],
+  )
+
   const value = useMemo(
     () => ({
       session,
@@ -253,9 +342,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resetPassword,
       updatePassword,
       createNerite,
+      criarUsuarioExterno,
+      editarUsuarioExterno,
+      excluirUsuarioExterno,
       refreshProfile,
     }),
-    [session, profile, loading, signIn, signOut, resetPassword, updatePassword, createNerite, refreshProfile],
+    [
+      session, profile, loading, signIn, signOut, resetPassword, updatePassword, createNerite,
+      criarUsuarioExterno, editarUsuarioExterno, excluirUsuarioExterno, refreshProfile,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
