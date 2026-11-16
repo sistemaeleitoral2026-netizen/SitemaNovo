@@ -40,7 +40,7 @@ export function AssessoriaMbPage() {
   }
 
   function enviarUsuario() {
-    postar({ type: 'mb-user', nome, admin })
+    postar({ type: 'mb-user', nome, admin, userId })
   }
 
   async function hidratar() {
@@ -154,7 +154,7 @@ export function AssessoriaMbPage() {
           ref={frameRef}
           className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
           title="Financeiro Corporativo"
-          src="/sistemas/assessoria-mb/index.html?v=prestacao-vazia-2"
+          src="/sistemas/assessoria-mb/index.html?v=owner-delete-1"
           onLoad={() => window.setTimeout(() => setPronto(true), 4000)}
         />
       </div>
