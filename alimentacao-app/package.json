@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "node build-checks/validate-embeds.cjs && tsc && vite build",
+    "validate-embeds": "node build-checks/validate-embeds.cjs",
     "preview": "vite preview"
   },
   "devDependencies": {
