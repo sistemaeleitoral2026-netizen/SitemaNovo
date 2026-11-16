@@ -22,9 +22,10 @@ function mustReplace(from, to, label) {
   console.log('ok', label)
 }
 
+// IMPORTANTE: o original já tem `const fileStore=...` — não prefixar outro `const`.
 mustReplace(
-  "fileStore={put:(id,blob)=>fileDB.then(d=>new Promise((res,rej)=>{const tx=d.transaction('files','readwrite');tx.objectStore('files').put(blob,id);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})).catch(()=>toast('Não foi possível guardar o arquivo neste navegador')),get:id=>fileDB.then(d=>new Promise(res=>{const q=d.transaction('files').objectStore('files').get(id);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)})).catch(()=>null)};",
-  "const fileMem={};fileStore={put:(id,blob)=>{fileMem[id]=blob;return fileDB.then(d=>new Promise((res,rej)=>{const tx=d.transaction('files','readwrite');tx.objectStore('files').put(blob,id);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})).catch(()=>toast('Não foi possível guardar o arquivo neste navegador'))},get:async id=>{if(fileMem[id])return fileMem[id];const blob=await fileDB.then(d=>new Promise(res=>{const q=d.transaction('files').objectStore('files').get(id);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)})).catch(()=>null);if(blob)fileMem[id]=blob;return blob}};",
+  "const fileStore={put:(id,blob)=>fileDB.then(d=>new Promise((res,rej)=>{const tx=d.transaction('files','readwrite');tx.objectStore('files').put(blob,id);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})).catch(()=>toast('Não foi possível guardar o arquivo neste navegador')),get:id=>fileDB.then(d=>new Promise(res=>{const q=d.transaction('files').objectStore('files').get(id);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)})).catch(()=>null)};",
+  "const fileMem={};const fileStore={put:(id,blob)=>{fileMem[id]=blob;return fileDB.then(d=>new Promise((res,rej)=>{const tx=d.transaction('files','readwrite');tx.objectStore('files').put(blob,id);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})).catch(()=>toast('Não foi possível guardar o arquivo neste navegador'))},get:async id=>{if(fileMem[id])return fileMem[id];const blob=await fileDB.then(d=>new Promise(res=>{const q=d.transaction('files').objectStore('files').get(id);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)})).catch(()=>null);if(blob)fileMem[id]=blob;return blob}};",
   'fileMem cache',
 )
 
