@@ -35,7 +35,15 @@ export function MrTerceirizaPage() {
 
   return (
     <div className="mr-demo">
-      <iframe ref={frameRef} className="mr-demo-frame" title="Empresas" srcDoc={srcDoc} />
+      <div className="mr-demo-stage">
+        {/* is-ready: o CSS esconde .mr-demo-frame até essa classe (loading da Assessoria/Mandato). */}
+        <iframe
+          ref={frameRef}
+          className="mr-demo-frame is-ready"
+          title="Empresas"
+          srcDoc={srcDoc}
+        />
+      </div>
     </div>
   )
 }
