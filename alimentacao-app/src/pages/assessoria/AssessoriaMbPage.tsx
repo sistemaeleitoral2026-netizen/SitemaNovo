@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { hasRole } from '../../lib/roles'
-import { isSiteId, siteById, writeSite } from '../../lib/sites'
+import { canAccessAssessoriaMb, isSiteId, siteById, writeSite } from '../../lib/sites'
 import { Spinner } from '../../components/ui/Spinner'
 import {
   baixarAnexoAssessoria,
@@ -26,7 +26,7 @@ export function AssessoriaMbPage() {
   const [pronto, setPronto] = useState(false)
   const [erroSync, setErroSync] = useState('')
   const admin = hasRole(profile, 'admin')
-  const podeEditar = hasRole(profile, ['admin', 'diretoria'])
+  const podeEditar = canAccessAssessoriaMb(profile)
   const nome = profile?.nome || 'Usuário'
   const userId = profile?.id || ''
   const persistindo = useRef(false)

@@ -5,7 +5,7 @@ import { Button } from '../ui/Button'
 import { VotacaoNotifBell } from '../votacao/VotacaoNotifBell'
 import { OnlinePresence } from './OnlinePresence'
 import { hasRole } from '../../lib/roles'
-import { writeSite } from '../../lib/sites'
+import { canAccessAssessoriaMb, writeSite } from '../../lib/sites'
 import type { PresenceUser } from '../../hooks/usePresence'
 
 interface HeaderProps {
@@ -17,6 +17,7 @@ interface HeaderProps {
 export function Header({ onMenuClick, title, online = [] }: HeaderProps) {
   const { profile, signOut } = useAuth()
   const admin = hasRole(profile, 'admin')
+  const assessoriaOk = canAccessAssessoriaMb(profile)
 
   const roleLabel =
     profile?.role === 'admin'
@@ -65,13 +66,15 @@ export function Header({ onMenuClick, title, online = [] }: HeaderProps) {
             <Link to="/mr-terceiriza" className="site-switch" onClick={() => writeSite('mr-terceiriza')}>
               Empresas
             </Link>
-            <Link to="/assessoria-mb" className="site-switch" onClick={() => writeSite('assessoria-mb')}>
-              Assessoria MB
-            </Link>
             <Link to="/painel-do-mandato" className="site-switch" onClick={() => writeSite('painel-do-mandato')}>
               Painel do Mandato
             </Link>
           </>
+        ) : null}
+        {assessoriaOk ? (
+          <Link to="/assessoria-mb" className="site-switch" onClick={() => writeSite('assessoria-mb')}>
+            Assessoria MB
+          </Link>
         ) : null}
         <VotacaoNotifBell />
         <OnlinePresence profile={profile} online={online} />
