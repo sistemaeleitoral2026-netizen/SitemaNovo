@@ -154,7 +154,7 @@ export function AssessoriaMbPage() {
           ref={frameRef}
           className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
           title="Financeiro Corporativo"
-          src="/sistemas/assessoria-mb/index.html?v=mes-atual-1"
+          src="/sistemas/assessoria-mb/index.html?v=fin-excluir-1"
           onLoad={() => window.setTimeout(() => setPronto(true), 4000)}
         />
       </div>
