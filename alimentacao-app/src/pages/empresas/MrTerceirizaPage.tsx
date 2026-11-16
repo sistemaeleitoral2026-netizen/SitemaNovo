@@ -6,7 +6,9 @@ import { isAdminNoSiteExterno, writeSite } from '../../lib/sites'
 import { Spinner } from '../../components/ui/Spinner'
 import {
   carregarEstadoMrTerceriza,
+  conectarPhibo,
   salvarEstadoMrTerceriza,
+  sincronizarPhibo,
   type MrDbPayload,
 } from '../../lib/mrTerceriza'
 import demoHtml from './mr-terceiriza-demo.html?raw'
@@ -15,6 +17,12 @@ type MrMensagem = {
   type?: string
   requestId?: string
   payload?: MrDbPayload
+  token?: string
+}
+
+function mensagemDe(e: unknown, padrao: string) {
+  const o = e as { message?: string; error?: string } | null
+  return (e instanceof Error && e.message) || o?.message || o?.error || padrao
 }
 
 export function MrTerceirizaPage() {
@@ -29,11 +37,12 @@ export function MrTerceirizaPage() {
   const nome = profile?.nome || 'Usuário'
   const userId = profile?.id || ''
   const persistindo = useRef(false)
+  const vistoEm = useRef('')
 
   const srcDoc = useMemo(() => {
-    const user = JSON.stringify({ nome, admin }).replace(/</g, '\\u003c')
+    const user = JSON.stringify({ id: userId, nome, admin }).replace(/</g, '\\u003c')
     return demoHtml.replace('<!--MR_USER-->', `<script>window.MR_USER=${user}</script>`)
-  }, [nome, admin])
+  }, [userId, nome, admin])
 
   function postar(msg: Record<string, unknown>) {
     // srcDoc: o documento do iframe tem origin opaco ("null"), não dá pra mirar
@@ -43,7 +52,9 @@ export function MrTerceirizaPage() {
 
   async function hidratar() {
     try {
-      const estado = await carregarEstadoMrTerceriza()
+      const inicio = new Date().toISOString()
+      const estado = await carregarEstadoMrTerceriza({ userId, admin })
+      vistoEm.current = inicio
       setErroSync('')
       postar({ type: 'mr-hydrate', payload: estado })
     } catch (e) {
@@ -83,28 +94,47 @@ export function MrTerceirizaPage() {
         }
         persistindo.current = true
         try {
-          const estado = await salvarEstadoMrTerceriza(dados.payload, { userId, userName: nome })
+          const inicio = new Date().toISOString()
+          const estado = await salvarEstadoMrTerceriza(dados.payload, {
+            userId,
+            userName: nome,
+            admin,
+            vistoEm: vistoEm.current || undefined,
+          })
+          vistoEm.current = inicio
           setErroSync('')
           postar({ type: 'mr-persist-ok', requestId: dados.requestId, payload: estado })
         } catch (e) {
-          const o = e as { message?: string; error?: string } | null
-          const msg =
-            (e instanceof Error && e.message) ||
-            o?.message ||
-            o?.error ||
-            'Falha ao salvar na nuvem.'
+          const msg = mensagemDe(e, 'Falha ao salvar na nuvem.')
           console.error('[mr-terceiriza] persist', e)
           setErroSync(msg)
           postar({ type: 'mr-persist-erro', requestId: dados.requestId, erro: msg })
         } finally {
           persistindo.current = false
         }
+        return
+      }
+      if ((dados.type === 'mr-phibo-conectar' || dados.type === 'mr-phibo-sync') && admin) {
+        try {
+          if (dados.type === 'mr-phibo-conectar') await conectarPhibo(String(dados.token || ''))
+          const r = await sincronizarPhibo().catch((e) => ({ ok: false, erro: mensagemDe(e, 'Falha ao sincronizar.') }))
+          await hidratar()
+          postar({
+            type: r.ok ? 'mr-phibo-ok' : 'mr-phibo-erro',
+            requestId: dados.requestId,
+            msg: r.ok
+              ? `Phibo sincronizado: ${'dias' in r ? r.dias : 0} dia(s) de vendas.`
+              : `${dados.type === 'mr-phibo-conectar' ? 'Chave salva, mas a ' : 'A '}sincronização falhou: ${r.erro}`,
+          })
+        } catch (e) {
+          postar({ type: 'mr-phibo-erro', requestId: dados.requestId, msg: mensagemDe(e, 'Falha no Phibo.') })
+        }
       }
     }
     window.addEventListener('message', aoMensagem)
     return () => window.removeEventListener('message', aoMensagem)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [neritesAdmin, nome, navigate, signOut, userId])
+  }, [admin, neritesAdmin, nome, navigate, signOut, userId])
 
   return (
     <div className="mr-demo">

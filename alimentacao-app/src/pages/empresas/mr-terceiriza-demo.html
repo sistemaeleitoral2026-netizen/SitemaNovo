@@ -255,6 +255,63 @@ table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
 .r-red svg{color:var(--red)}.r-blue svg{color:var(--blue)}.r-green svg{color:var(--green)}
 .rules .with-ico svg{color:#2563eb}
 
+/* Vendas da loja (Phibo) */
+.auto-tag{display:inline-block;font-size:11px;font-weight:600;color:#7c3aed;background:#f3e8ff;border-radius:999px;padding:2px 8px;white-space:nowrap;vertical-align:middle}
+.ph-status{display:flex;align-items:center;gap:10px;background:var(--green-soft);color:#14532d;border:1px solid #bbe5c8;border-radius:var(--radius);padding:10px 14px;margin:0 0 14px;font-size:13px}
+.ph-status>svg{width:18px;height:18px;flex:none;color:var(--green)}
+.ph-status span{flex:1}
+.ph-status.warn{background:#fef6e0;border-color:#f6dfa4;color:#7c4a03}.ph-status.warn>svg{color:#d97706}
+.ph-status.bad{background:var(--red-soft);border-color:#f5c2c2;color:#7f1d1d}.ph-status.bad>svg{color:var(--red)}
+.dot.gray{background:#94a3b8}
+.ph-steps{font-size:13px;line-height:1.6;margin:12px 0 8px;padding-left:20px}
+.ph-code{display:block;font-size:11px;background:var(--gray-soft);border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin:0 0 8px;word-break:break-all;user-select:all}
+
+/* Contratos */
+.co-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:0 0 14px}
+.co-tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:10px 18px;font-weight:600;font-size:14px;color:var(--muted);margin-bottom:-1px}
+.co-tabs button.active{color:var(--blue);border-bottom-color:var(--blue)}
+.co-tabs button:hover{color:var(--ink)}
+.k-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 12px}
+.k-head b{font-size:16px}
+.k-card{cursor:pointer}
+.k-card .k-title{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.k-card .k-title b{font-size:15px}
+.k-card small{color:var(--muted);font-size:12px}
+.k-bar{height:7px;background:#eef1f5;border-radius:4px;overflow:hidden}
+.k-bar i{display:block;height:100%;background:var(--green)}
+.k-foot{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.sheet tr.cur td:not(.rn){background:#fff8e1}
+.cc-row{display:flex;gap:8px;align-items:stretch}
+.cc-row select{flex:1}
+.cc-row .btn{padding:0 12px;flex:none}
+.cc-row input{flex:1;min-width:0}
+.cc-row+.cc-row{margin-top:8px}
+.k-form{grid-template-columns:minmax(0,1fr);max-width:980px}
+.k-calc{background:#f6f8fb;border:1px solid var(--line);border-radius:8px;padding:11px 12px;font-size:13px;color:#334155}
+.k-calc b{color:var(--ink)}
+.perm-tbl th,.perm-tbl td{text-align:center}
+.perm-tbl th:first-child,.perm-tbl td:first-child,.perm-tbl th:nth-child(2),.perm-tbl td:nth-child(2){text-align:left}
+.perm-tbl input[type=checkbox]{width:18px;height:18px;cursor:pointer}
+.perm-all{color:var(--muted);font-size:12px}
+
+/* Calendário em português */
+.dp-input{cursor:pointer;caret-color:transparent;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E") no-repeat right 10px center/18px;padding-right:36px!important}
+.dp{position:fixed;z-index:70;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 32px #0f1b2d29;padding:10px;width:284px;font-size:13px;color:var(--ink)}
+.dp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.dp-head b{font-size:14px}
+.dp-nav{background:none;border:0;width:34px;height:34px;border-radius:6px;font-size:20px;line-height:1;color:#334155}
+.dp-nav:hover{background:#f1f4f8}
+.dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
+.dp-grid.m{grid-template-columns:repeat(3,1fr);gap:6px}
+.dp-wd{font-size:11px;color:var(--muted);font-weight:600;padding:4px 0}
+.dp-day{background:none;border:0;height:34px;border-radius:6px;font-size:13px;text-transform:capitalize}
+.dp-grid.m .dp-day{height:40px}
+.dp-day:hover{background:#eef4ff}
+.dp-day.out{color:#b6c0cc}
+.dp-day.today{box-shadow:inset 0 0 0 1px var(--blue)}
+.dp-day.sel{background:var(--blue);color:#fff;font-weight:600}
+.dp-foot{display:flex;justify-content:space-between;margin-top:8px;border-top:1px solid #eef1f5;padding-top:8px}
+
 /* Barra inferior do celular */
 .bottom-nav{display:none}
 .sidebar-overlay{display:none}
@@ -431,7 +488,7 @@ const icons={
 };
 const ico=(k,w=1.8)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[k]||''}</svg>`;
 
-const companies=[
+const ALL_COMPANIES=[
   {id:'mr',nome:'MR',tipo:'Empresa de Obra',licitado:true,icon:'hardhat',cor:'#f59e0b',fundo:'#fff4df'},
   {id:'re-fashion',nome:'RE FASHION',tipo:'Loja',icon:'dress',cor:'#ef4444',fundo:'#feecec'},
   {id:'iron',nome:'IRON',tipo:'Loja',icon:'store',cor:'#16a34a',fundo:'#e7f6ec'},
@@ -440,13 +497,16 @@ const companies=[
   {id:'limpocar',nome:'LIMPOCAR SEMINOVOS',tipo:'Venda de Carro',icon:'car',cor:'#334155',fundo:'#eef1f5'},
   {id:'tips-graf',nome:'TIPS GRÁF',tipo:'Gráfica',icon:'printer',cor:'#eab308',fundo:'#fdf6dc'}
 ];
-const companyById=id=>companies.find(c=>c.id===id);
+// Empresas que o usuário atual vê. Editor dentro do Nerites começa sem nenhuma
+// até o banco dizer quais foram liberadas (mr-hydrate → minhasEmpresas).
+let companies=(window.parent!==window&&!ME.admin)?[]:ALL_COMPANIES.slice();
+const companyById=id=>ALL_COMPANIES.find(c=>c.id===id);
 const companyName=id=>companyById(id)?.nome||'—';
 const tagLicitado=c=>c?.licitado?'<span class="tag-licitado">LICITADO</span>':'';
 const coIcon=c=>`<span class="co-ico" style="color:${c.cor};background:${c.fundo}">${ico(c.icon)}</span>`;
 
 // Contas bancárias de cada empresa (exemplo)
-const accounts={};companies.forEach(c=>accounts[c.id]=['Conta operacional','Caixa']);accounts.mr.unshift('Mateus do Beiju');
+const accounts={};ALL_COMPANIES.forEach(c=>accounts[c.id]=['Conta operacional','Caixa']);accounts.mr.unshift('Mateus do Beiju');
 
 const seed=[
   {id:1,company:'mr',date:'2026-10-21',type:'entrada',desc:'Recebimento de contrato (exemplo)',account:'Mateus do Beiju',value:8400,method:'PIX'},
@@ -466,6 +526,10 @@ const seed=[
 const EMBED=window.parent!==window;
 let entries=EMBED?[]:seed.map(e=>({...e,files:e.id===8?[{name:'Comprovante.pdf',type:'application/pdf',size:182000}]:[],notes:'',created:'Jurandy Santana'}));
 let audit=[];
+let contracts=EMBED?[]:[{id:'k-demo',company:'globo',name:'Contrato A',total:120000,cc:'Eventos',start:'2026-10',months:12,notes:'',createdById:''}];
+let centros=EMBED?[]:['Eventos','Coleta','Obras'];
+let perms={},users=[],structOk=true,coTab='geral',contractId=null,contractEditing=null;
+let phibo=null,phiboBusy=false;
 let page='dashboard',company='',filterFrom='2026-10-01',filterTo='2026-10-31',draftFiles=[],editing=null,showAll=false;
 let fileMem={},cloudTimer=null,cloudReq=0,cloudPending={},persistBusyRetries=0;
 
@@ -482,11 +546,14 @@ const title=(name,desc,tools='')=>`<div class="page-heading"><div><h1>${name}</h
 const card=(head,body,action='',cls='')=>`<section class="card ${cls}"><div class="card-head"><span>${head}</span>${action}</div><div class="card-body">${body}</div></section>`;
 const emptyBox=(icon,head,text)=>`<div class="empty">${ico(icon,1.6)}<b>${head}</b>${text}</div>`;
 const newBtn=`<button class="btn primary" onclick="showForm()">${ico('plus')} Novo lançamento</button>`;
+const isAuto=e=>e?.origem==='phibo';
+const autoTag='<span class="auto-tag" title="Importado automaticamente do Phibo">Automático</span>';
+const editCell=e=>isAuto(e)?autoTag:`<button class="link" onclick="showForm('${e.id}')">Editar</button>`;
 const companyLabel=()=>{const c=companyById(company);return c?`${esc(c.nome)} · ${esc(c.tipo)}`:'Todas as empresas'};
 const coFilter=()=>`<select id="coFilter" aria-label="Empresa"><option value="">Todas as empresas</option>${companies.map(c=>`<option value="${c.id}" ${company===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}</select>`;
 
 function rangeBox(){return `<div class="range">${ico('calendar')}<label class="range-part"><span>${short(filterFrom)}</span><input type="date" id="from" value="${filterFrom}" aria-label="Data inicial"></label><span>-</span><label class="range-part"><span>${short(filterTo)}</span><input type="date" id="to" value="${filterTo}" aria-label="Data final"></label><button class="range-chev" type="button" aria-label="Escolher período" onclick="openPicker('from')">${ico('chevron-down')}</button></div>`}
-function openPicker(id){const el=document.getElementById(id);try{el.showPicker()}catch{el.focus()}}
+function openPicker(id){const el=document.getElementById(id);if(el)dpOpen(el)}
 function wireDates(){[['from',v=>filterFrom=v],['to',v=>filterTo=v]].forEach(([id,set])=>{const el=document.getElementById(id);if(!el)return;el.onclick=()=>openPicker(id);el.onchange=e=>{if(e.target.value){set(e.target.value);render()}}});const f=document.getElementById('coFilter');if(f)f.onchange=e=>{company=e.target.value;render()}}
 
 // Gráfico de linhas acumulado no período
@@ -514,14 +581,23 @@ function pickCompany(id){company=company===id?'':id;render()}
 function toggleAll(){showAll=!showAll;render()}
 function metric(icon,cls,label,shortLabel,value,note,extra=''){return `<div class="card metric ${extra}"><span class="metric-ico ${cls}">${ico(icon,2)}</span><div><div class="metric-label"><span class="l-full">${label}</span><span class="l-short">${shortLabel}</span></div><div class="metric-value">${value}</div><div class="metric-note">${note}</div></div></div>`}
 
+function noCompanies(){view().innerHTML=title('Painel Financeiro','Nenhuma empresa liberada para o seu usuário.')+card('Acesso',emptyBox('shield','Nenhuma empresa liberada','Peça ao administrador para liberar o acesso às empresas que você vai usar.'))}
+function setCoTab(t){coTab=t;render()}
 function renderDashboard(){
+  if(!companies.length){noCompanies();return}
   const c=companyById(company),a=c?period():[],s=sums(a),files=a.reduce((n,e)=>n+e.files.length,0),pick='Selecione uma empresa';
   const nIn=a.filter(e=>e.type==='entrada').length,nOut=a.filter(e=>e.type==='saida').length;
   const last=a.slice().sort((x,y)=>y.date.localeCompare(x.date)).slice(0,5);
   const aud=c?audit.filter(x=>x.company===company).slice(0,5):[];
-  view().innerHTML=title('Painel Financeiro',c?`Mostrando ${esc(c.nome)} · ${esc(c.tipo)}. Clique na empresa de novo para limpar.`:'Selecione uma empresa para visualizar as informações.',rangeBox())
+  const tabList=c?.licitado?[['geral','Geral'],['contratos',`Contratos (${contracts.filter(k=>k.company===c.id).length})`]]:c?.id==='re-fashion'?[['geral','Geral'],['vendas','Vendas da loja']]:[];
+  const tab=tabList.some(t=>t[0]===coTab)?coTab:'geral';
+  const tabs=tabList.length?`<div class="co-tabs">${tabList.map(([id,l])=>`<button class="${tab===id?'active':''}" onclick="setCoTab('${id}')">${l}</button>`).join('')}</div>`:'';
+  const head=title('Painel Financeiro',c?`Mostrando ${esc(c.nome)} · ${esc(c.tipo)}. Clique na empresa de novo para limpar.`:'Selecione uma empresa para visualizar as informações.',tab==='geral'?rangeBox():'')
   +`<div class="section-title"><span>Empresas</span><button class="link" onclick="toggleAll()">${showAll?'Ver menos':'Ver todas'}</button></div>`
-  +card('Empresas',companyTiles(),'','companies')
+  +card('Empresas',companyTiles(),'','companies')+tabs;
+  if(tab==='contratos'){view().innerHTML=head+contractsBlock(c.id);return}
+  if(tab==='vendas'){view().innerHTML=head+vendasBlock();return}
+  view().innerHTML=head
   +`<div class="metric-grid">`
     +metric('arrow-down','mi-green','Total de entradas','Entradas',fmt(s.in),c?`${nIn} lançamento(s)`:pick)
     +metric('arrow-up','mi-red','Total de saídas','Saídas',fmt(s.out),c?`${nOut} lançamento(s)`:pick)
@@ -534,7 +610,7 @@ function renderDashboard(){
     +card('Resumo do período',`<div class="sumline"><span>Total de entradas</span><b>${fmt(s.in)}</b></div><div class="sumline"><span>Total de saídas</span><b class="negative">${fmt(s.out)}</b></div><div class="sumline"><span>Diferença</span><b>${fmt(s.in-s.out)}</b></div><div class="sumline"><span>Total de lançamentos</span><b>${a.length}</b></div>`)
   +`</div>`
   +`<div class="row-3">`
-    +card('Últimos lançamentos',`<div class="table-wrap"><table class="tbl"><thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Empresa</th><th>Conta de origem</th><th>Ações</th></tr></thead>${last.length?`<tbody>${last.map(e=>`<tr><td>${short(e.date)}</td><td>${esc(e.desc)}</td><td class="${e.type==='entrada'?'type-in':'type-out'}">${e.type==='entrada'?'Entrada':'Saída'}</td><td>${fmt(e.value)}</td><td>${esc(companyName(e.company))}</td><td>${esc(e.account)}</td><td><button class="link" onclick="showForm('${e.id}')">Editar</button></td></tr>`).join('')}</tbody>`:''}</table></div>${last.length?'':emptyBox('file','Nenhum lançamento encontrado',c?'Esta empresa não tem lançamentos no período.':'Selecione uma empresa para visualizar os lançamentos.')}`,`<button class="link" onclick="navigate('lancamentos')">Ver todos</button>`)
+    +card('Últimos lançamentos',`<div class="table-wrap"><table class="tbl"><thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Empresa</th><th>Conta de origem</th><th>Ações</th></tr></thead>${last.length?`<tbody>${last.map(e=>`<tr><td>${short(e.date)}</td><td>${esc(e.desc)}</td><td class="${e.type==='entrada'?'type-in':'type-out'}">${e.type==='entrada'?'Entrada':'Saída'}</td><td>${fmt(e.value)}</td><td>${esc(companyName(e.company))}</td><td>${esc(e.account)}</td><td>${editCell(e)}</td></tr>`).join('')}</tbody>`:''}</table></div>${last.length?'':emptyBox('file','Nenhum lançamento encontrado',c?'Esta empresa não tem lançamentos no período.':'Selecione uma empresa para visualizar os lançamentos.')}`,`<button class="link" onclick="navigate('lancamentos')">Ver todos</button>`)
     +card('Últimas auditorias',`<div class="table-wrap"><table class="tbl"><thead><tr><th>Data</th><th>Usuário</th><th>Ação</th><th>Descrição</th></tr></thead>${aud.length?`<tbody>${aud.map(x=>`<tr><td>${short(x.date)}</td><td>${esc(x.user)}</td><td>${esc(x.action)}</td><td>${esc(x.desc)}</td></tr>`).join('')}</tbody>`:''}</table></div>${aud.length?'':emptyBox('clock','Nenhum registro de auditoria',c?'Ainda não há alterações registradas nesta empresa.':'Selecione uma empresa para visualizar o histórico.')}`,`<button class="link" onclick="navigate('auditoria')">Ver todas</button>`)
   +`</div>`;
   wireDates();
@@ -543,7 +619,192 @@ function renderDashboard(){
 function thumbs(e){return e.files.length?`<div class="thumbs">${e.files.map((f,i)=>f.url&&f.type!=='application/pdf'?`<img class="thumb" src="${f.url}" alt="${esc(f.name)}" title="${esc(f.name)}" onclick="openFile('${e.id}',${i})">`:`<button class="thumb" title="${esc(f.name)}" onclick="openFile('${e.id}',${i})">${f.type==='application/pdf'?'PDF':'ARQ'}</button>`).join('')}</div>`:'<span class="muted">Sem anexo</span>'}
 function openFile(id,i){const f=entries.find(e=>e.id===id)?.files[i];if(!f?.url)return;if(f.type==='application/pdf')window.open(f.url,'_blank');else{document.getElementById('lightboxImg').src=f.url;document.getElementById('lightbox').classList.remove('hidden')}}
 // Tabela no estilo planilha: letras de coluna, números de linha, grade e total no rodapé.
-function sheet(a,o={}){if(!a.length)return emptyBox('file','Nenhum lançamento encontrado','Ajuste a empresa ou o período.');a=a.slice().sort((x,y)=>y.date.localeCompare(x.date));const cols=[['Data',e=>short(e.date)],...(company?[]:[['Empresa',e=>esc(companyName(e.company))]]),...(o.type?[]:[['Tipo',e=>e.type==='entrada'?'Entrada':'Saída']]),['Descrição',e=>esc(e.desc),'wrap'],['Conta',e=>esc(e.account)],['Forma de pagamento',e=>esc(e.method||'—')],['Valor',e=>`<span class="${e.type==='entrada'?'positive':'negative'}">${fmt(e.value)}</span>`,'num'],['Comprovantes',thumbs],...(o.edit?[['',e=>`<button class="link" onclick="showForm('${e.id}')">Editar</button>`]]:[])];const s=sums(a),total=o.type?(o.type==='entrada'?s.in:s.out):s.in-s.out,vi=cols.findIndex(c=>c[0]==='Valor');return `<div class="sheet-hint">Deslize a tabela para o lado para ver todas as colunas</div><div class="sheet-wrap"><table class="sheet"><thead><tr class="cols"><th class="rn"></th>${cols.map((_,i)=>`<th>${String.fromCharCode(65+i)}</th>`).join('')}</tr><tr class="heads"><th class="rn">1</th>${cols.map(c=>`<th class="${c[2]||''}">${c[0]}</th>`).join('')}</tr></thead><tbody>${a.map((e,r)=>`<tr><td class="rn">${r+2}</td>${cols.map(c=>`<td class="${c[2]||''}">${c[1](e)}</td>`).join('')}</tr>`).join('')}</tbody><tfoot><tr><td class="rn">${a.length+2}</td>${cols.map((c,i)=>`<td class="${c[2]||''}">${i===0?(o.type?'Total':'Saldo'):i===vi?`<span class="${total<0||o.type==='saida'?'negative':'positive'}">${fmt(total)}</span>`:''}</td>`).join('')}</tr></tfoot></table></div>`}
+function sheet(a,o={}){if(!a.length)return emptyBox('file','Nenhum lançamento encontrado','Ajuste a empresa ou o período.');a=a.slice().sort((x,y)=>y.date.localeCompare(x.date));const cols=[['Data',e=>short(e.date)],...(company?[]:[['Empresa',e=>esc(companyName(e.company))]]),...(o.type?[]:[['Tipo',e=>e.type==='entrada'?'Entrada':'Saída']]),['Descrição',e=>esc(e.desc),'wrap'],['Conta',e=>esc(e.account)],['Forma de pagamento',e=>esc(e.method||'—')],['Valor',e=>`<span class="${e.type==='entrada'?'positive':'negative'}">${fmt(e.value)}</span>`,'num'],['Comprovantes',thumbs],...(o.edit?[['',editCell]]:[])];const s=sums(a),total=o.type?(o.type==='entrada'?s.in:s.out):s.in-s.out,vi=cols.findIndex(c=>c[0]==='Valor');return `<div class="sheet-hint">Deslize a tabela para o lado para ver todas as colunas</div><div class="sheet-wrap"><table class="sheet"><thead><tr class="cols"><th class="rn"></th>${cols.map((_,i)=>`<th>${String.fromCharCode(65+i)}</th>`).join('')}</tr><tr class="heads"><th class="rn">1</th>${cols.map(c=>`<th class="${c[2]||''}">${c[0]}</th>`).join('')}</tr></thead><tbody>${a.map((e,r)=>`<tr><td class="rn">${r+2}</td>${cols.map(c=>`<td class="${c[2]||''}">${c[1](e)}</td>`).join('')}</tr>`).join('')}</tbody><tfoot><tr><td class="rn">${a.length+2}</td>${cols.map((c,i)=>`<td class="${c[2]||''}">${i===0?(o.type?'Total':'Saldo'):i===vi?`<span class="${total<0||o.type==='saida'?'negative':'positive'}">${fmt(total)}</span>`:''}</td>`).join('')}</tr></tfoot></table></div>`}
+
+// ====== Vendas da loja (RE FASHION, importadas do Phibo pelo servidor) ======
+const dtHora=iso=>{if(!iso)return '—';const d=new Date(iso);return isNaN(d)?'—':d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})};
+const num=v=>Number(v)||0;
+const pctTxt=v=>(v>0?'+':'')+v.toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
+function phiboStatusLine(){
+  const s=phibo?.status;
+  if(!s?.conectado)return `<div class="ph-status warn">${ico('info')}<span>Phibo não conectado.${ME.admin?' Conecte em Configurações.':' Peça ao administrador para conectar.'}</span>${ME.admin?`<button class="btn sm" onclick="navigate('config')">Conectar</button>`:''}</div>`;
+  const err=s.ultimoErro;
+  return `<div class="ph-status ${err?'bad':''}">${ico(err?'info':'check-circle')}<span>${err?`Última tentativa falhou: ${esc(err)}.`:'Atualiza sozinho de hora em hora.'} Última atualização: <b>${dtHora(s.ultimoOk)}</b></span>${ME.admin?`<button class="btn sm" ${phiboBusy?'disabled':''} onclick="phiboSync()">${ico('refresh')} ${phiboBusy?'Sincronizando…':'Sincronizar agora'}</button>`:''}</div>`;
+}
+function vendasChart(dias,ant){
+  const W=620,H=210,L=44,R=12,T=10,B=26,n=Math.max(dias.length,ant.length,1);
+  const max=Math.max(1,...dias.map(d=>num(d.valor)),...ant.map(d=>num(d.valor)));
+  const bw=(W-L-R)/n,x=i=>L+i*bw,y=v=>T+(H-T-B)*(1-v/max);
+  let g='';for(let i=0;i<=4;i++){const v=max*i/4;g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="#eef1f5"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end" font-size="10" fill="#64748b">${v>=1000?(v/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mil':Math.round(v)}</text>`}
+  dias.forEach((d,i)=>{const v=num(d.valor);if(v>0)g+=`<rect x="${x(i)+bw*.15}" y="${y(v)}" width="${bw*.7}" height="${H-B-y(v)}" rx="2" fill="#16a34a"><title>Dia ${d.dia}: ${fmt(v)} · ${num(d.qtdeVendas)} venda(s)</title></rect>`});
+  if(ant.length)g+=`<polyline fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="4 3" points="${ant.map((d,i)=>(x(i)+bw/2)+','+y(num(d.valor))).join(' ')}"/>`;
+  for(let i=0;i<n;i+=5)g+=`<text x="${x(i)+bw/2}" y="${H-6}" text-anchor="middle" font-size="10" fill="#64748b">${i+1}</text>`;
+  g+=`<line x1="${L}" x2="${W-R}" y1="${H-B}" y2="${H-B}" stroke="#cbd5e1"/>`;
+  return `<svg class="axes" viewBox="0 0 ${W} ${H}" role="img" aria-label="Vendas por dia no mês">${g}</svg>`;
+}
+function vendasBlock(){
+  if(!phibo)return card('Vendas da loja',emptyBox('settings','Integração com o Phibo ainda não preparada','Rode o arquivo 20261117c_mr_phibo.sql no SQL Editor do Supabase e recarregue esta página.'));
+  const r=phibo.resumo,v=r?.vendasMes;
+  if(!v||!Array.isArray(v.diasMes))return phiboStatusLine()+card('Vendas da loja',emptyBox('chart','Ainda sem dados do Phibo','Os números aparecem aqui depois da primeira sincronização.'));
+  const hoje=String(v.hoje||'').slice(0,10),hd=+hoje.slice(8,10)||31,ym=r.mes||hoje.slice(0,7);
+  const dias=v.diasMes,ant=Array.isArray(v.diasMesAnterior)?v.diasMesAnterior:[];
+  const tot=dias.reduce((s,d)=>s+num(d.valor),0),qt=dias.reduce((s,d)=>s+num(d.qtdeVendas),0),ticket=qt?tot/qt:0;
+  const antAte=ant.filter(d=>num(d.dia)<=hd).reduce((s,d)=>s+num(d.valor),0),antTot=ant.reduce((s,d)=>s+num(d.valor),0);
+  const varPct=antAte?(tot-antAte)/antAte*100:null;
+  const abertos=num(v.diasAbertosAteHoje)||dias.filter(d=>d.lojaAberta===true||num(d.valor)>0).length,abertosMes=num(v.diasAbertosMes);
+  const media=abertos?tot/abertos:0,proj=abertosMes?media*abertosMes:null;
+  const metaV=typeof v.meta==='number'?v.meta:num(v.meta?.valor)||null,sug=num(v.sugestaoMeta?.valor)||null,alvo=metaV||sug,pct=alvo?tot/alvo*100:null;
+  const vend=(Array.isArray(v.vendedores)?v.vendedores:[]).map(s=>{const ds=Array.isArray(s.dias)?s.dias:[];const t=ds.reduce((a,d)=>a+num(d.valor),0),q=ds.reduce((a,d)=>a+num(d.qtdeVendas),0);const m=typeof s.valorMeta==='number'?s.valorMeta:num(s.valorMeta?.valor);return {nome:s.nome||'—',t,q,m}}).sort((a,b)=>b.t-a.t);
+  const t0=r.totais&&typeof r.totais==='object'?r.totais:null,tt=t0&&!('valorTotal' in t0)&&t0.totais&&typeof t0.totais==='object'?t0.totais:t0;
+  const TOT=[['valorTotal','Valor bruto vendido'],['totalDescto','Descontos'],['valorLiquido','Valor líquido'],['totalPago','Já recebido'],['valorTotalAReceber','A receber'],['totalAPagarAVencer','A receber (a vencer)'],['totalAPagarVencido','A receber (vencido)'],['juros','Juros']].filter(([k])=>tt&&tt[k]!=null&&isFinite(Number(tt[k])));
+  const comVenda=dias.filter(d=>num(d.valor)>0||num(d.qtdeVendas)>0).slice().reverse();
+  const daySheet=comVenda.length?`<div class="sheet-wrap"><table class="sheet"><thead><tr class="heads"><th class="rn">#</th><th>Dia</th><th class="num">Vendido</th><th class="num">Vendas</th><th class="num">Ticket médio</th><th class="num">Mesmo dia mês anterior</th></tr></thead><tbody>${comVenda.map((d,i)=>{const a=ant.find(x=>num(x.dia)===num(d.dia));return `<tr class="${num(d.dia)===hd?'cur':''}"><td class="rn">${i+1}</td><td>${String(d.dia).padStart(2,'0')}/${ym.slice(5,7)}${num(d.dia)===hd?' <span class="muted">(hoje)</span>':''}</td><td class="num positive">${fmt(d.valor)}</td><td class="num">${num(d.qtdeVendas)}</td><td class="num">${fmt(num(d.qtdeVendas)?num(d.valor)/num(d.qtdeVendas):0)}</td><td class="num muted">${a?fmt(a.valor):'—'}</td></tr>`}).join('')}</tbody><tfoot><tr><td class="rn"></td><td>Total</td><td class="num positive">${fmt(tot)}</td><td class="num">${qt}</td><td class="num">${fmt(ticket)}</td><td class="num muted">${fmt(antAte)}</td></tr></tfoot></table></div>`:emptyBox('chart','Nenhuma venda neste mês ainda','');
+  return phiboStatusLine()
+  +`<div class="metric-grid">`
+    +metric('arrow-down','mi-green',`Faturamento de ${ymLabel(ym)}`,'Faturamento',`<span class="positive">${fmt(tot)}</span>`,`${qt} venda(s) · ${abertos} dia(s) de loja aberta`)
+    +metric('card','mi-blue','Ticket médio','Ticket',fmt(ticket),`${fmt(media)} por dia aberto`)
+    +metric('chart','mi-gray','Comparado ao mês anterior','Vs. anterior',varPct==null?'—':`<span class="${varPct<0?'negative':'positive'}">${pctTxt(varPct)}</span>`,`Até o dia ${hd} do mês passado: ${fmt(antAte)}`)
+    +metric('shield-ok','mi-yellow',metaV?'Meta do mês':'Meta sugerida','Meta',alvo?fmt(alvo):'—',pct==null?'Sem meta cadastrada no Phibo':`${pct.toLocaleString('pt-BR',{maximumFractionDigits:0})}% atingido${metaV?'':' (sugestão do Phibo)'}`)
+    +metric('clock','mi-gray','Projeção do mês','Projeção',proj==null?'—':fmt(proj),proj==null?'':`Mantendo a média · mês passado fechou em ${fmt(antTot)}`)
+  +`</div>`
+  +`<div class="row-2">`
+    +card('Vendas por dia',`<div class="chart">${vendasChart(dias,ant)}</div>`,`<div class="legend"><span><i class="dot"></i>Este mês</span><span><i class="dot gray"></i>Mês anterior</span></div>`)
+    +card('Recebimentos do mês',TOT.length?TOT.map(([k,l])=>`<div class="sumline"><span>${l}</span><b class="${/\(vencido\)/.test(l)&&num(tt[k])>0?'negative':''}">${fmt(tt[k])}</b></div>`).join(''):'<div class="muted" style="font-size:13px">O Phibo não devolveu os totais de recebimento nesta sincronização.</div>')
+  +`</div>`
+  +`<div class="row-2">`
+    +card('Vendedoras',vend.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Nome</th><th>Vendido</th><th>Vendas</th><th>Ticket médio</th><th>% da loja</th>${vend.some(s=>s.m)?'<th>Meta</th>':''}</tr></thead><tbody>${vend.map(s=>`<tr><td><b>${esc(s.nome)}</b></td><td class="positive">${fmt(s.t)}</td><td>${s.q}</td><td>${fmt(s.q?s.t/s.q:0)}</td><td>${tot?(s.t/tot*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%':'—'}</td>${vend.some(x=>x.m)?`<td>${s.m?fmt(s.m)+` (${(s.t/s.m*100).toFixed(0)}%)`:'—'}</td>`:''}</tr>`).join('')}</tbody></table></div>`:emptyBox('users','Sem vendas por vendedora',''))
+    +card('Como entra no financeiro',`<div style="font-size:13px;line-height:1.55">Cada dia com venda vira uma <b>entrada automática</b> da RE FASHION na conta <b>Caixa</b> (descrição “Vendas do dia … (Phibo)”). Ela aparece em Lançamentos e no Geral com a etiqueta ${autoTag} e é corrigida sozinha se a venda mudar no Phibo.</div>`)
+  +`</div>`
+  +card('Dia a dia',daySheet,`<span class="muted" style="font-size:12px">Dados de ${dtHora(r.atualizadoEm)}</span>`);
+}
+function phiboConnect(tok){
+  tok=String(tok||'').trim();if(!tok)return;
+  if(!EMBED){toast('Disponível só dentro do Nerites.');return}
+  phiboBusy=true;render();toParent({type:'mr-phibo-conectar',requestId:'ph'+Date.now(),token:tok});
+}
+function phiboSync(){
+  if(!EMBED){toast('Disponível só dentro do Nerites.');return}
+  phiboBusy=true;render();toParent({type:'mr-phibo-sync',requestId:'ph'+Date.now()});
+}
+const PHIBO_SNIPPET="copy((()=>{for(const [k,v] of [...Object.entries(localStorage),...Object.entries(sessionStorage)]){if(/refresh/i.test(k))return v;try{const o=JSON.parse(v);const f=o&&(o.refreshToken||o.refresh_token);if(f)return f}catch(e){}}return 'NAO ACHEI'})())";
+function phiboConfigCard(){
+  if(!ME.admin)return '';
+  const head='Integração Phibo (RE FASHION)';
+  if(!phibo)return card(head,'<div class="muted" style="font-size:13px">Rode o arquivo 20261117c_mr_phibo.sql no SQL Editor do Supabase e recarregue esta página.</div>');
+  const s=phibo.status||{};
+  return card(head,`<div class="sumline"><span>Situação</span><b class="${s.conectado?(s.ultimoErro?'negative':'positive'):'warn'}">${s.conectado?(s.ultimoErro?'Conectado, com erro':'Conectado'):'Não conectado'}</b></div>`
+    +`<div class="sumline"><span>Última atualização com sucesso</span><b>${dtHora(s.ultimoOk)}</b></div>`
+    +(s.ultimoErro?`<div class="sumline"><span>Último erro</span><span class="negative" style="text-align:right">${esc(s.ultimoErro)}</span></div>`:'')
+    +`<ol class="ph-steps"><li>Entre no Phibo (app.phibo.com.br) neste computador.</li><li>Aperte <b>F12</b>, abra a aba <b>Console</b>, cole o comando abaixo e aperte <b>Enter</b> — ele copia a chave da sessão.</li><li>Cole a chave no campo e clique em <b>Conectar</b>.</li></ol>`
+    +`<code class="ph-code">${esc(PHIBO_SNIPPET)}</code><button type="button" class="btn sm" onclick="navigator.clipboard?.writeText(PHIBO_SNIPPET).then(()=>toast('Comando copiado'),()=>toast('Selecione e copie o comando'))">Copiar comando</button>`
+    +`<form class="inline-form" onsubmit="event.preventDefault();phiboConnect(this.tok.value)"><input name="tok" type="password" autocomplete="off" placeholder="Cole aqui a chave do Phibo" required aria-label="Chave do Phibo"><button class="btn primary" ${phiboBusy?'disabled':''}>${phiboBusy?'Conectando…':'Conectar'}</button></form>`
+    +(s.conectado?`<button class="btn" style="margin-top:10px" ${phiboBusy?'disabled':''} onclick="phiboSync()">${ico('refresh')} ${phiboBusy?'Sincronizando…':'Sincronizar agora'}</button>`:'')
+    +`<p class="muted" style="font-size:12px;margin:12px 0 0">A chave fica guardada só no servidor (ninguém consegue ler pela tela). O sistema puxa as vendas de hora em hora e lança uma entrada por dia na RE FASHION. Se o Phibo ficar mais de um dia sem ser consultado, a chave vence — aí é só conectar de novo.</p>`);
+}
+
+// ====== Contratos (empresas licitadas: GLOBO, MCC, MR) ======
+const MESES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const addMonth=(ym,n)=>{const [y,m]=String(ym).split('-').map(Number);const d=new Date(y,m-1+n,1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')};
+const ymLabel=ym=>{const [y,m]=String(ym).split('-');return `${MESES[(+m||1)-1]}/${y}`};
+const thisYm=()=>new Date().toLocaleDateString('en-CA').slice(0,7);
+const contractById=id=>contracts.find(k=>k.id===id);
+const contractName=id=>contractById(id)?.name||'';
+const licitCompanies=()=>companies.filter(c=>c.licitado);
+const canEditContract=k=>ME.admin||!k.createdById||k.createdById===ME.id;
+function contractStats(k){const a=entries.filter(e=>e.contract===k.id),s=sums(a);return {a,in:s.in,out:s.out,saldo:s.in-s.out,falta:Math.max(0,k.total-s.in),pct:k.total>0?Math.min(100,s.in/k.total*100):0}}
+function contractMonths(k){
+  const n=Math.max(1,k.months|0),base=Math.floor(k.total/n*100)/100,rows=[];
+  for(let i=0;i<n;i++)rows.push({ym:addMonth(k.start,i),prev:i===n-1?Math.round((k.total-base*(n-1))*100)/100:base});
+  const a=entries.filter(e=>e.contract===k.id);
+  a.forEach(e=>{const ym=e.date.slice(0,7);if(!rows.some(r=>r.ym===ym))rows.push({ym,prev:0})});
+  rows.sort((x,y)=>x.ym.localeCompare(y.ym));
+  rows.forEach(r=>{const z=sums(a.filter(e=>e.date.slice(0,7)===r.ym));r.in=z.in;r.out=z.out});
+  return rows;
+}
+function contractCard(k,showCo){
+  const st=contractStats(k),end=addMonth(k.start,Math.max(1,k.months)-1);
+  return `<div class="co-card k-card" role="button" tabindex="0" onclick="openContract('${k.id}')"><div class="k-title"><div><b>${esc(k.name)}</b><br><small>${showCo?esc(companyName(k.company))+' · ':''}${k.cc?'Centro de custo: '+esc(k.cc):'Sem centro de custo'}</small></div>${ico('chevron-right',2)}</div><div><div class="sumline"><span>Valor do contrato</span><b>${fmt(k.total)}</b></div><div class="sumline"><span>Recebido</span><b class="positive">${fmt(st.in)}</b></div><div class="sumline"><span>Saídas</span><b class="negative">${fmt(st.out)}</b></div><div class="sumline"><span>Falta receber</span><b class="${st.falta>0?'warn':''}">${fmt(st.falta)}</b></div></div><div class="k-bar"><i style="width:${st.pct.toFixed(1)}%"></i></div><div class="k-foot"><span>${ymLabel(k.start)} a ${ymLabel(end)} · ${k.months} ${k.months===1?'mês':'meses'}</span><span>${st.pct.toFixed(0)}% recebido</span></div></div>`;
+}
+function contractsBlock(coId){
+  const list=contracts.filter(k=>k.company===coId).sort((x,y)=>y.start.localeCompare(x.start)||x.name.localeCompare(y.name));
+  return `<div class="k-head"><b>Contratos de ${esc(companyName(coId))}</b><button class="btn primary" onclick="showContractForm(null,'${coId}')">${ico('plus')} Novo contrato</button></div>`
+  +(list.length?`<div class="co-cards">${list.map(k=>contractCard(k,false)).join('')}</div>`:card('Contratos',emptyBox('file','Nenhum contrato cadastrado','Cadastre o primeiro contrato desta empresa para lançar entradas e saídas dentro dele.')));
+}
+function renderContractsPage(){
+  if(!companies.length){noCompanies();return}
+  const lic=licitCompanies(),sel=lic.some(c=>c.id===company)?company:'';
+  const list=contracts.filter(k=>(!sel||k.company===sel)&&lic.some(c=>c.id===k.company)).sort((x,y)=>x.company.localeCompare(y.company)||y.start.localeCompare(x.start));
+  view().innerHTML=title('Contratos','Contratos das empresas licitadas: valor total, centro de custo, previsão mês a mês, entradas e saídas.',lic.length?`<button class="btn primary" onclick="showContractForm(null,'${sel}')">${ico('plus')} Novo contrato</button>`:'')
+  +`<div class="filters"><select id="kCo" aria-label="Empresa"><option value="">Todas as empresas licitadas</option>${lic.map(c=>opt(c.id,c.nome,sel)).join('')}</select></div>`
+  +(list.length?`<div class="co-cards">${list.map(k=>contractCard(k,true)).join('')}</div>`:card('Contratos',emptyBox('file','Nenhum contrato cadastrado',lic.length?'Clique em Novo contrato para cadastrar.':'Nenhuma empresa licitada liberada para o seu usuário.')));
+  const f=document.getElementById('kCo');if(f)f.onchange=e=>{company=e.target.value;render()};
+}
+function openContract(id){const k=contractById(id);if(!k)return;contractId=id;company=k.company;navigate('contrato')}
+function renderContract(){
+  const k=contractById(contractId);if(!k){page='contratos';renderContractsPage();return}
+  const st=contractStats(k),rows=contractMonths(k),cur=thisYm(),end=addMonth(k.start,Math.max(1,k.months)-1);
+  const tot=rows.reduce((t,r)=>({prev:t.prev+r.prev,in:t.in+r.in,out:t.out+r.out}),{prev:0,in:0,out:0});
+  const tools=`<button class="btn" onclick="navigate('contratos')">${ico('chevron-left',2)} Contratos</button>`
+    +(canEditContract(k)?`<button class="btn" onclick="showContractForm('${k.id}')">Editar</button><button class="btn" style="color:var(--red)" onclick="removeContract('${k.id}')">Excluir</button>`:'')
+    +`<button class="btn primary" onclick="showForm(null,'entrada','${k.id}')">${ico('plus')} Nova entrada</button><button class="btn primary" style="background:var(--red);border-color:var(--red)" onclick="showForm(null,'saida','${k.id}')">${ico('plus')} Nova saída</button>`;
+  const mm=`<div class="sheet-hint">Deslize a tabela para o lado para ver todas as colunas</div><div class="sheet-wrap"><table class="sheet"><thead><tr class="heads"><th class="rn">#</th><th>Mês</th><th class="num">Previsto</th><th class="num">Recebido</th><th class="num">Saídas</th><th class="num">Saldo do mês</th><th class="num">Recebido − previsto</th></tr></thead><tbody>${rows.map((r,i)=>{const d=r.in-r.prev;return `<tr class="${r.ym===cur?'cur':''}"><td class="rn">${i+1}</td><td>${ymLabel(r.ym)}${r.ym===cur?' <span class="muted">(mês atual)</span>':''}</td><td class="num">${fmt(r.prev)}</td><td class="num positive">${fmt(r.in)}</td><td class="num negative">${fmt(r.out)}</td><td class="num ${r.in-r.out<0?'negative':''}">${fmt(r.in-r.out)}</td><td class="num ${d<0?'negative':d>0?'positive':''}">${fmt(d)}</td></tr>`}).join('')}</tbody><tfoot><tr><td class="rn"></td><td>Total</td><td class="num">${fmt(tot.prev)}</td><td class="num positive">${fmt(tot.in)}</td><td class="num negative">${fmt(tot.out)}</td><td class="num ${tot.in-tot.out<0?'negative':''}">${fmt(tot.in-tot.out)}</td><td class="num ${tot.in-tot.prev<0?'negative':''}">${fmt(tot.in-tot.prev)}</td></tr></tfoot></table></div>`;
+  view().innerHTML=title(esc(k.name),`${esc(companyName(k.company))} · ${k.cc?'Centro de custo: '+esc(k.cc):'Sem centro de custo'} · ${ymLabel(k.start)} a ${ymLabel(end)}`,tools)
+  +`<div class="metric-grid">`
+    +metric('file','mi-blue','Valor do contrato','Contrato',fmt(k.total),`${k.months} ${k.months===1?'mês':'meses'} · ${fmt(k.total/Math.max(1,k.months))}/mês`)
+    +metric('arrow-down','mi-green','Recebido','Recebido',`<span class="positive">${fmt(st.in)}</span>`,`${st.pct.toFixed(0)}% do contrato`)
+    +metric('arrow-up','mi-red','Saídas','Saídas',`<span class="negative">${fmt(st.out)}</span>`,`${st.a.filter(e=>e.type==='saida').length} lançamento(s)`)
+    +metric('building','mi-gray','Saldo do contrato','Saldo',fmt(st.saldo),'Recebido menos saídas')
+    +metric('clock','mi-yellow','Falta receber','Falta',`<span class="${st.falta>0?'warn':''}">${fmt(st.falta)}</span>`,'Valor do contrato menos recebido')
+  +`</div>`
+  +card('Mês a mês',mm)+'<div style="height:14px"></div>'
+  +card('Entradas e saídas do contrato',sheet(st.a,{edit:true}))
+  +(k.notes?'<div style="height:14px"></div>'+card('Observações',`<div style="white-space:pre-wrap;font-size:13px">${esc(k.notes)}</div>`):'');
+}
+function showContractForm(id,presetCo=''){
+  if(!structOk){toast('Contratos ainda não disponíveis: rode o SQL 20261117a_mr_contratos.sql no Supabase.');return}
+  const k=id?contractById(id):null;contractEditing=k?k.id:null;page='contratoForm';markNav('contratos');hideMenus();
+  const lic=licitCompanies(),co=k?.company||(lic.some(c=>c.id===presetCo)?presetCo:(lic.some(c=>c.id===company)?company:''));
+  document.getElementById('topPage').textContent=k?'Editar contrato':'Novo contrato';
+  view().innerHTML=`<div class="page-heading"><div><h1>${k?'Editar contrato':'Novo contrato'}</h1><p class="sub">O valor total é dividido igualmente pelos meses do contrato para montar a previsão mês a mês.</p></div></div>`
+  +`<form id="contractForm" class="form-layout k-form"><div class="form-main">${fsec('file','Dados do contrato',`<div class="form-grid">
+    <label class="field">${req('Empresa')}<select name="company" required>${co?'':'<option value="">Selecione a empresa</option>'}${lic.map(c=>opt(c.id,`${c.nome} - ${c.tipo}`,co)).join('')}</select></label>
+    <label class="field">${req('Nome do contrato')}<input name="name" required maxlength="120" placeholder="Ex.: Contrato A" value="${esc(k?.name||'')}"></label>
+    <label class="field">${req('Valor total do contrato (R$)')}<input name="total" id="kTotal" required type="number" min="0" step="0.01" placeholder="0,00" value="${k?.total??''}"></label>
+    <div class="field">Centro de custo<span class="cc-row"><select name="cc" id="kCc" aria-label="Centro de custo"></select><button type="button" class="btn outline" id="ccNewBtn" onclick="toggleCcNew(true)">${ico('plus')} Novo centro</button></span><span class="cc-row hidden" id="ccNew"><input id="ccNewName" maxlength="80" placeholder="Nome do novo centro de custo" aria-label="Nome do novo centro de custo"><button type="button" class="btn primary" onclick="saveCcNew()">Adicionar</button><button type="button" class="btn" onclick="toggleCcNew(false)">Cancelar</button></span></div>
+    <label class="field">${req('Mês de início')}<input name="start" id="kStart" required type="month" value="${esc(k?.start||thisYm())}"></label>
+    <label class="field">${req('Quantidade de meses')}<input name="months" id="kMonths" required type="number" min="1" max="240" step="1" value="${k?.months??12}"></label>
+    <div class="full k-calc" id="kCalc"></div>
+    <label class="field full">Observações<textarea name="notes" maxlength="1000" placeholder="Informações adicionais sobre o contrato...">${esc(k?.notes||'')}</textarea></label>
+  </div>`)}
+  <div class="form-actions"><button type="submit" class="btn primary">${ico('save')} Salvar contrato</button><button type="button" class="btn" onclick="${k?`openContract('${k.id}')`:`navigate('contratos')`}">Cancelar</button></div></div></form>`;
+  fillCentros(k?.cc||'');
+  document.getElementById('ccNewName').onkeydown=ev=>{if(ev.key==='Enter'){ev.preventDefault();saveCcNew()}else if(ev.key==='Escape'){ev.preventDefault();toggleCcNew(false)}};
+  const calc=()=>{const t=Number(document.getElementById('kTotal').value)||0,m=Math.max(1,parseInt(document.getElementById('kMonths').value)||1),s=document.getElementById('kStart').value||thisYm();document.getElementById('kCalc').innerHTML=`Parcela mensal prevista: <b>${fmt(t/m)}</b> · de ${ymLabel(s)} a ${ymLabel(addMonth(s,m-1))}`};
+  ['kTotal','kMonths','kStart'].forEach(i=>document.getElementById(i).oninput=calc);calc();
+  document.getElementById('contractForm').onsubmit=submitContract;
+  window.scrollTo(0,0);
+}
+function fillCentros(sel){const el=document.getElementById('kCc');if(!el)return;el.innerHTML='<option value="">Sem centro de custo</option>'+[...new Set([...centros,...(sel?[sel]:[])])].sort((a,b)=>a.localeCompare(b,'pt-BR')).map(n=>opt(n,n,sel)).join('')}
+// No formulário de contrato o centro novo vai junto quando salvar o contrato
+// (salvar agora re-renderizaria a tela e apagaria o que já foi digitado).
+function toggleCcNew(on){document.getElementById('ccNew').classList.toggle('hidden',!on);document.getElementById('ccNewBtn').classList.toggle('hidden',on);const i=document.getElementById('ccNewName');i.value='';if(on)i.focus()}
+function saveCcNew(){const i=document.getElementById('ccNewName'),n=i.value.trim();if(!n){i.focus();return}addCentro(n);toggleCcNew(false)}
+function addCentro(name){const n=String(name??'').trim().slice(0,80);if(!n)return;if(!centros.includes(n))centros.push(n);if(page==='contratoForm'){fillCentros(n);return}scheduleCloudSave();render()}
+function submitContract(ev){
+  ev.preventDefault();
+  const x=Object.fromEntries(new FormData(ev.target).entries()),old=contractById(contractEditing);
+  const k={id:old?.id||crypto.randomUUID(),company:x.company,name:String(x.name||'').trim(),total:Number(x.total)||0,cc:x.cc||'',start:x.start||thisYm(),months:Math.min(240,Math.max(1,parseInt(x.months)||1)),notes:x.notes||'',createdById:old?.createdById||ME.id||''};
+  if(old)contracts=contracts.map(c=>c.id===old.id?k:c);else contracts.unshift(k);
+  audit.unshift({id:crypto.randomUUID(),date:stamp(),user:ME.nome,action:old?'Edição de contrato':'Criação de contrato',desc:`${k.name} · ${fmt(k.total)}`,company:k.company});
+  contractEditing=null;scheduleCloudSave();openContract(k.id);
+}
+function removeContract(id){
+  const k=contractById(id);if(!k)return;const n=entries.filter(e=>e.contract===id).length;
+  if(!confirm(`Excluir o contrato "${k.name}"?${n?`\n\n${n} lançamento(s) dele continuam salvos, mas ficam como "Sem contrato".`:''}`))return;
+  contracts=contracts.filter(c=>c.id!==id);entries=entries.map(e=>e.contract===id?{...e,contract:null}:e);
+  audit.unshift({id:crypto.randomUUID(),date:stamp(),user:ME.nome,action:'Exclusão de contrato',desc:k.name,company:k.company});
+  contractId=null;scheduleCloudSave();navigate('contratos');
+}
 
 const METHODS=['PIX','Transferência bancária','Dinheiro','Boleto','Outro'];
 const opt=(v,l,cur)=>`<option value="${esc(v)}" ${cur===v?'selected':''}>${esc(l)}</option>`;
@@ -580,26 +841,29 @@ function updateLanc(){
   const a=filtered(),s=sums(a),nIn=a.filter(e=>e.type==='entrada').length;
   const pages=Math.max(1,Math.ceil(a.length/PAGE));lf.page=Math.min(lf.page,pages);const start=(lf.page-1)*PAGE,rows=a.slice(start,start+PAGE);
   document.getElementById('lancStats').innerHTML=`<div class="metric-grid">${metric('file','mi-blue','Total de lançamentos','Lançamentos',a.length,'no período selecionado')}${lancType?(lancType==='entrada'?metric('arrow-down','mi-green','Total de entradas','Entradas',`<span class="positive">${fmt(s.in)}</span>`,`${nIn} lançamentos`):metric('arrow-up','mi-red','Total de saídas','Saídas',`<span class="negative">${fmt(s.out)}</span>`,`${a.length-nIn} lançamentos`)):metric('arrow-down','mi-green','Total de entradas','Entradas',`<span class="positive">${fmt(s.in)}</span>`,`${nIn} lançamentos`)+metric('arrow-up','mi-red','Total de saídas','Saídas',`<span class="negative">${fmt(s.out)}</span>`,`${a.length-nIn} lançamentos`)}</div>`;
-  document.getElementById('lancTable').innerHTML=a.length?`<div class="table-wrap"><table class="tbl lanc"><thead><tr><th>Data</th><th>Empresa</th>${lancType?'':'<th>Tipo</th>'}<th>Descrição</th><th>Conta de origem/destino</th><th>Forma de pagamento</th><th>Valor</th><th>Comprovante</th><th>Ações</th></tr></thead><tbody>${rows.map(e=>`<tr><td data-label="Data">${short(e.date)}</td><td class="wrap" data-label="Empresa">${esc(companyName(e.company))}</td>${lancType?'':`<td data-label="Tipo" class="${e.type==='entrada'?'type-in':'type-out'}">${e.type==='entrada'?'Entrada':'Saída'}</td>`}<td class="wrap desc c-desc">${esc(e.desc)}</td><td class="wrap" data-label="Conta">${esc(e.account)}</td><td class="wrap" data-label="Pagamento">${esc(e.method)}</td><td data-label="Valor" class="c-valor ${e.type==='entrada'?'positive':'negative'}">${fmt(e.value)}</td><td data-label="Comprovante">${e.files.length?e.files.map((f,i)=>`<button class="link file-link" onclick="openFile('${e.id}',${i})">${esc(f.name)}</button>`).join('<br>'):'<span class="muted">Sem anexo</span>'}</td><td class="c-acoes"><button class="icon-btn row-act" aria-label="Ações" onclick="rowMenu(event,'${e.id}')">${ico('dots')}</button></td></tr>`).join('')}</tbody></table></div><div class="pager"><span class="muted">Mostrando ${start+1} a ${start+rows.length} de ${a.length} lançamentos</span><div class="pager-btns"><button class="btn sm" ${lf.page===1?'disabled':''} onclick="goPage(${lf.page-1})">${ico('chevron-left',2)} Anterior</button>${Array.from({length:pages},(_,i)=>`<button class="btn sm ${i+1===lf.page?'current':''}" onclick="goPage(${i+1})">${i+1}</button>`).join('')}<button class="btn sm" ${lf.page===pages?'disabled':''} onclick="goPage(${lf.page+1})">Próxima ${ico('chevron-right',2)}</button></div></div>`:emptyBox('file','Nenhum lançamento encontrado','Ajuste os filtros ou o período.');
+  document.getElementById('lancTable').innerHTML=a.length?`<div class="table-wrap"><table class="tbl lanc"><thead><tr><th>Data</th><th>Empresa</th>${lancType?'':'<th>Tipo</th>'}<th>Descrição</th><th>Contrato</th><th>Conta de origem/destino</th><th>Forma de pagamento</th><th>Valor</th><th>Comprovante</th><th>Ações</th></tr></thead><tbody>${rows.map(e=>`<tr><td data-label="Data">${short(e.date)}</td><td class="wrap" data-label="Empresa">${esc(companyName(e.company))}</td>${lancType?'':`<td data-label="Tipo" class="${e.type==='entrada'?'type-in':'type-out'}">${e.type==='entrada'?'Entrada':'Saída'}</td>`}<td class="wrap desc c-desc">${esc(e.desc)}${isAuto(e)?' '+autoTag:''}</td><td class="wrap" data-label="Contrato">${e.contract&&contractById(e.contract)?`<button class="link" onclick="openContract('${e.contract}')">${esc(contractName(e.contract))}</button>`:'<span class="muted">—</span>'}</td><td class="wrap" data-label="Conta">${esc(e.account)}</td><td class="wrap" data-label="Pagamento">${esc(e.method)}</td><td data-label="Valor" class="c-valor ${e.type==='entrada'?'positive':'negative'}">${fmt(e.value)}</td><td data-label="Comprovante">${e.files.length?e.files.map((f,i)=>`<button class="link file-link" onclick="openFile('${e.id}',${i})">${esc(f.name)}</button>`).join('<br>'):'<span class="muted">Sem anexo</span>'}</td><td class="c-acoes"><button class="icon-btn row-act" aria-label="Ações" onclick="rowMenu(event,'${e.id}')">${ico('dots')}</button></td></tr>`).join('')}</tbody></table></div><div class="pager"><span class="muted">Mostrando ${start+1} a ${start+rows.length} de ${a.length} lançamentos</span><div class="pager-btns"><button class="btn sm" ${lf.page===1?'disabled':''} onclick="goPage(${lf.page-1})">${ico('chevron-left',2)} Anterior</button>${Array.from({length:pages},(_,i)=>`<button class="btn sm ${i+1===lf.page?'current':''}" onclick="goPage(${i+1})">${i+1}</button>`).join('')}<button class="btn sm" ${lf.page===pages?'disabled':''} onclick="goPage(${lf.page+1})">Próxima ${ico('chevron-right',2)}</button></div></div>`:emptyBox('file','Nenhum lançamento encontrado','Ajuste os filtros ou o período.');
 }
 function goPage(p){lf.page=p;updateLanc()}
 function clearFilters(){lf={q:'',type:'',account:'',method:'',page:1};company='';filterFrom=DEFAULT_FROM;filterTo=DEFAULT_TO;render()}
 function hideMenus(){document.getElementById('userMenu').classList.add('hidden');document.getElementById('rowMenu').classList.add('hidden')}
 function rowMenu(ev,id){
   ev.stopPropagation();const m=document.getElementById('rowMenu'),e=entries.find(x=>x.id===id),r=ev.currentTarget.getBoundingClientRect();
-  m.innerHTML=`<button onclick="showForm('${id}')">Editar</button><button class="danger" onclick="removeEntry('${id}')">Excluir</button>`;
+  m.innerHTML=isAuto(e)?'<button disabled>Lançado automaticamente pelo Phibo</button>':`<button onclick="showForm('${id}')">Editar</button><button class="danger" onclick="removeEntry('${id}')">Excluir</button>`;
   m.classList.remove('hidden');m.style.top=(r.bottom+window.scrollY+4)+'px';m.style.left=Math.max(8,r.right+window.scrollX-m.offsetWidth)+'px';
 }
-function removeEntry(id){const e=entries.find(x=>x.id===id);hideMenus();if(!confirm(`Excluir o lançamento "${e.desc}"?`))return;entries=entries.filter(x=>x.id!==id);audit.unshift({id:crypto.randomUUID(),date:stamp(),user:ME.nome,action:'Exclusão',desc:e.desc,company:e.company});render();scheduleCloudSave()}
+function removeEntry(id){const e=entries.find(x=>x.id===id);hideMenus();if(!e||isAuto(e))return;if(!confirm(`Excluir o lançamento "${e.desc}"?`))return;entries=entries.filter(x=>x.id!==id);audit.unshift({id:crypto.randomUUID(),date:stamp(),user:ME.nome,action:'Exclusão',desc:e.desc,company:e.company});render();scheduleCloudSave()}
 
 const fsec=(icon,head,body)=>`<section class="card fsec"><div class="card-head"><span class="with-ico">${ico(icon)} ${head}</span></div><div class="card-body">${body}</div></section>`;
 const req=t=>`<span>${t} <b class="req">*</b></span>`;
 function fillAccounts(co,sel){document.getElementById('fAccount').innerHTML='<option value="">Selecione a conta bancária</option>'+(accounts[co]||[]).map(n=>opt(n,n,sel)).join('')}
+function fillContracts(co,sel){const wrap=document.getElementById('fContractWrap'),el=document.getElementById('fContract');if(!wrap||!el)return;const list=contracts.filter(k=>k.company===co);wrap.classList.toggle('hidden',!companyById(co)?.licitado&&!list.length);el.innerHTML=opt('','Sem contrato',sel||'')+list.map(k=>opt(k.id,k.name,sel||'')).join('')}
 let formBack='lancamentos';
-function showForm(id,presetType=''){
-  formBack=page==='form'?formBack:page;if(!['lancamentos','entradas','saidas'].includes(formBack))formBack='lancamentos';
-  editing=id??null;draftFiles=[];page='form';markNav(formBack);hideMenus();
-  const e=entries.find(x=>x.id===id),co=e?.company||company;keptFiles=[...(e?.files||[])];
+function showForm(id,presetType='',presetContract=''){
+  if(id&&isAuto(entries.find(x=>x.id===id))){toast('Lançamento automático do Phibo: é atualizado sozinho e não pode ser editado aqui.');return}
+  formBack=page==='form'?formBack:page;if(!['lancamentos','entradas','saidas','contrato'].includes(formBack))formBack='lancamentos';
+  editing=id??null;draftFiles=[];page='form';markNav(formBack==='contrato'?'contratos':formBack);hideMenus();
+  const e=entries.find(x=>x.id===id),pk=contractById(presetContract),co=e?.company||pk?.company||company;keptFiles=[...(e?.files||[])];
+  const kSel=e?(e.contract||''):(pk?.id||'');
   document.getElementById('topPage').textContent=id?'Editar lançamento':'Novo lançamento';
   view().innerHTML=`<div class="page-heading"><div><h1>${id?'Editar lançamento':'Novo lançamento'}</h1><p class="sub">${id?'Altere os dados do lançamento. A alteração fica registrada na auditoria.':'Registre uma nova entrada ou saída no sistema.'}</p></div><div class="actions head-actions"><div class="current-co"><span class="mini-label">Empresa atual</span>${companySelect('curCo',co,false)}</div></div></div>`
   +(tipClosed?'':`<div class="info-banner">${ico('info')}<span>Selecione a empresa para carregar automaticamente as contas bancárias vinculadas.</span><button class="icon-btn" type="button" aria-label="Fechar aviso" onclick="tipClosed=true;this.parentElement.remove()">${ico('x',2)}</button></div>`)
@@ -607,7 +871,7 @@ function showForm(id,presetType=''){
     ${fsec('list','Dados do lançamento',`<div class="form-grid">
       <label class="field">${req('Empresa')}<select name="company" id="fCompany" required>${co?'':'<option value="">Selecione a empresa</option>'}${companies.map(c=>opt(c.id,`${c.nome} - ${c.tipo}`,co)).join('')}</select></label>
       <label class="field">${req('Tipo do lançamento')}<select name="type" required>${opt('entrada','Entrada',e?.type||presetType||'entrada')}${opt('saida','Saída',e?.type||presetType)}</select></label>
-      <label class="field">${req('Data da movimentação')}<input type="date" name="date" required value="${e?.date||new Date().toLocaleDateString('en-CA')}"></label><div></div>
+      <label class="field">${req('Data da movimentação')}<input type="date" name="date" required value="${e?.date||new Date().toLocaleDateString('en-CA')}"></label><label class="field" id="fContractWrap">Contrato<select name="contract" id="fContract"></select></label>
       <label class="field full">${req('Descrição')}<input maxlength="200" name="desc" required placeholder="Ex.: Pagamento de serviço, recebimento de cliente..." value="${esc(e?.desc||'')}"></label>
     </div>`)}
     ${fsec('card','Conta e pagamento',`<div class="form-grid">
@@ -623,9 +887,9 @@ function showForm(id,presetType=''){
     <div class="rule r-green">${ico('shield-ok')}<span>As ações ficam registradas na auditoria do sistema.</span></div>
   </div></section></aside></form>`;
   const fc=document.getElementById('fCompany'),cur=document.getElementById('curCo');
-  fillAccounts(co,e?.account);
-  fc.onchange=()=>{cur.value=fc.value;fillAccounts(fc.value)};
-  cur.onchange=()=>{if(fc.querySelector('option[value=""]')&&cur.value)fc.querySelector('option[value=""]').remove();fc.value=cur.value;fillAccounts(cur.value)};
+  fillAccounts(co,e?.account);fillContracts(co,kSel);
+  fc.onchange=()=>{cur.value=fc.value;fillAccounts(fc.value);fillContracts(fc.value)};
+  cur.onchange=()=>{if(fc.querySelector('option[value=""]')&&cur.value)fc.querySelector('option[value=""]').remove();fc.value=cur.value;fillAccounts(cur.value);fillContracts(cur.value)};
   const drop=document.getElementById('drop');
   document.getElementById('files').onchange=ev=>{addFiles(ev.target.files);ev.target.value=''};
   drop.ondragover=ev=>{ev.preventDefault();drop.classList.add('over')};
@@ -651,7 +915,8 @@ function submitForm(ev){
   ev.preventDefault();
   const x=Object.fromEntries(new FormData(ev.target).entries()),files=[...keptFiles,...draftFiles];
   const now=stamp(),old=entries.find(e=>e.id===editing);
-  const record={id:old?.id||crypto.randomUUID(),company:x.company,type:x.type,date:x.date,desc:x.desc,value:Number(x.value),account:x.account,method:x.method,notes:x.notes,created:old?.created||ME.nome,files};
+  const kOk=contracts.some(k=>k.id===x.contract&&k.company===x.company);
+  const record={id:old?.id||crypto.randomUUID(),company:x.company,type:x.type,date:x.date,desc:x.desc,value:Number(x.value),account:x.account,method:x.method,notes:x.notes,contract:kOk?x.contract:null,created:old?.created||ME.nome,files};
   if(old)entries=entries.map(e=>e.id===old.id?record:e);else entries.unshift(record);
   audit.unshift({id:crypto.randomUUID(),date:now,user:ME.nome,action:old?'Edição':'Criação',desc:x.desc,company:x.company});
   if(draftFiles.length)audit.unshift({id:crypto.randomUUID(),date:now,user:ME.nome,action:'Anexo',desc:`${draftFiles.length} comprovante(s) em ${x.desc}`,company:x.company});
@@ -666,7 +931,31 @@ function exportCsv(list=period()){const header=['Empresa','Data','Tipo','Descri�
 function renderCompanies(){view().innerHTML=title('Empresas','Escolha uma empresa para abrir o painel dela.',rangeBox())+`<div class="co-cards">${companies.map(c=>{const z=sums(entries.filter(e=>inPeriod(e)&&e.company===c.id));return `<button class="co-card" onclick="company='${c.id}';navigate('dashboard')"><div class="co-card-head">${coIcon(c)}<div><b>${esc(c.nome)}</b><div class="co-meta" style="flex-direction:row;align-items:center;gap:8px;margin-top:4px"><small>${esc(c.tipo)}</small>${tagLicitado(c)}</div></div></div><div><div class="sumline"><span>Entradas</span><b class="positive">${fmt(z.in)}</b></div><div class="sumline"><span>Saídas</span><b class="negative">${fmt(z.out)}</b></div><div class="sumline"><span>Diferença</span><b>${fmt(z.in-z.out)}</b></div></div></button>`}).join('')}</div>`;wireDates()}
 function renderAccounts(){view().innerHTML=title('Contas bancárias','Contas de cada empresa. No cadastro só aparecem as contas da empresa escolhida.')+`<div class="co-cards">${companies.map(c=>`<section class="co-card"><div class="co-card-head">${coIcon(c)}<b>${esc(c.nome)}</b></div><div>${accounts[c.id].map(n=>`<div class="sumline"><span>${esc(n)}</span><span class="muted">${entries.filter(e=>e.company===c.id&&e.account===n).length} lanç.</span></div>`).join('')}</div><form class="inline-form" onsubmit="addAccount(event,'${c.id}')"><input name="nome" placeholder="Nova conta" required maxlength="60"><button class="btn">${ico('plus')}</button></form></section>`).join('')}</div>`}
 function addAccount(ev,id){ev.preventDefault();const n=ev.target.nome.value.trim();if(n&&!accounts[id].includes(n)){accounts[id].push(n);scheduleCloudSave()}renderAccounts()}
-function renderUsers(){view().innerHTML=title('Usuários','Quem acessa o sistema e quais empresas cada um vê.')+card('Usuários',`<div class="table-wrap"><table class="tbl"><thead><tr><th>Nome</th><th>Perfil</th><th>Empresas</th></tr></thead><tbody><tr><td>${esc(ME.nome)}</td><td>${ME.admin?'Administrador':'Usuário'}</td><td>${ME.admin?'Todas as empresas':'—'}</td></tr></tbody></table></div><p class="muted" style="font-size:12px;margin:14px 0 0">Na versão com banco de dados, cada funcionário verá apenas a empresa dele; o administrador vê todas.</p>`)}
+let userQ='';
+function renderUsers(){
+  if(!ME.admin){view().innerHTML=title('Usuários','Empresas liberadas para o seu usuário.')+card('Meu acesso',`<div class="table-wrap"><table class="tbl"><thead><tr><th>Nome</th><th>Empresas liberadas</th></tr></thead><tbody><tr><td>${esc(ME.nome)}</td><td>${companies.length?companies.map(c=>esc(c.nome)).join(', '):'Nenhuma'}</td></tr></tbody></table></div>`);return}
+  if(!structOk){view().innerHTML=title('Usuários','Escolha o que cada usuário pode ver e editar.')+card('Falta preparar o banco',emptyBox('settings','Banco ainda não preparado','Rode o arquivo 20261117a_mr_contratos.sql no SQL Editor do Supabase e recarregue esta página.'));return}
+  const q=userQ.trim().toLowerCase(),list=users.filter(u=>!q||u.nome.toLowerCase().includes(q));
+  const rows=list.map(u=>`<tr><td>${esc(u.nome)}${u.podeAbrir===false?'<br><small class="warn">Sem acesso ao Empresas — libere em Admin do Nerites</small>':''}</td><td>${u.nivel==='admin'?'<b>Administrador</b>':'Editor'}</td>${u.nivel==='admin'?`<td colspan="${ALL_COMPANIES.length}" class="perm-all">Vê e edita todas as empresas</td>`:ALL_COMPANIES.map(c=>`<td><input type="checkbox" aria-label="${esc(u.nome)} — ${esc(c.nome)}" ${(perms[u.id]||[]).includes(c.id)?'checked':''} onchange="togglePerm('${u.id}','${c.id}',this.checked)"></td>`).join('')}</tr>`).join('');
+  view().innerHTML=title('Usuários',`Usuários cadastrados no Admin do Nerites (${users.length}). Marque as empresas que cada um pode ver e editar; quem não tiver nenhuma marcada não vê nada.`)
+  +`<label class="search">${ico('search')}<input id="userSearch" placeholder="Buscar usuário..." value="${esc(userQ)}" aria-label="Buscar usuário"></label>`
+  +card('Permissões por empresa',list.length?`<div class="table-wrap"><table class="tbl perm-tbl"><thead><tr><th>Nome</th><th>Perfil</th>${ALL_COMPANIES.map(c=>`<th>${esc(c.nome)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`:emptyBox('users','Nenhum usuário encontrado',users.length?'Ajuste a busca.':'Nenhum usuário com acesso ao Empresas.'))
+  +`<p class="muted" style="font-size:12px;margin:14px 2px 0">Administradores (do Nerites ou com acesso "admin" ao Empresas) veem todas as empresas. A alteração é salva na hora e fica registrada na auditoria.</p>`;
+  const s=document.getElementById('userSearch');s.oninput=e=>{userQ=e.target.value;const pos=e.target.selectionStart;renderUsers();const n=document.getElementById('userSearch');n.focus();n.setSelectionRange(pos,pos)};
+}
+function togglePerm(uid,coId,on){
+  if(!ME.admin)return;
+  const cur=new Set(perms[uid]||[]);if(on)cur.add(coId);else cur.delete(coId);perms[uid]=[...cur];
+  const u=users.find(x=>x.id===uid);
+  audit.unshift({id:crypto.randomUUID(),date:stamp(),user:ME.nome,action:on?'Acesso liberado':'Acesso removido',desc:`${u?.nome||'Usuário'} · ${companyName(coId)}`,company:''});
+  scheduleCloudSave();
+}
+function renderConfig(){
+  const list=centros.slice().sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  view().innerHTML=title('Configurações','Cadastros usados nos contratos e lançamentos.')
+  +card('Centros de custo',(list.length?list.map(n=>`<div class="sumline"><span>${esc(n)}</span><span class="muted">${contracts.filter(k=>k.cc===n).length} contrato(s)</span></div>`).join(''):'<div class="muted" style="font-size:13px">Nenhum centro de custo cadastrado ainda.</div>')+`<form class="inline-form" onsubmit="event.preventDefault();addCentro(this.nome.value);"><input name="nome" placeholder="Novo centro de custo" required maxlength="80"><button class="btn">${ico('plus')} Adicionar</button></form>`)
+  +(ME.admin?'<div style="height:14px"></div>'+phiboConfigCard():'');
+}
 
 // ====== Ponte com o React (Supabase): hidratação e salvamento na nuvem ======
 async function blobToB64(blob){const buf=await blob.arrayBuffer();const bytes=new Uint8Array(buf);let s='';for(let i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);return btoa(s)}
@@ -682,12 +971,15 @@ async function collectPendingFiles(){
 }
 function toServerSnapshot(){
   return {
-    lancamentos:entries.map(e=>({id:e.id,empresa:e.company,data:e.date,tipo:e.type,descricao:e.desc,valor:e.value,conta:e.account,formaPagamento:e.method,observacoes:e.notes,anexos:e.files.map(f=>({id:f.id,name:f.name,type:f.type,size:f.size,path:f.path}))})),
+    lancamentos:entries.map(e=>({id:e.id,empresa:e.company,data:e.date,tipo:e.type,descricao:e.desc,valor:e.value,conta:e.account,formaPagamento:e.method,observacoes:e.notes,contratoId:e.contract||null,origem:e.origem||'',anexos:e.files.map(f=>({id:f.id,name:f.name,type:f.type,size:f.size,path:f.path}))})),
     contas:accounts,
     audit:audit.map(a=>({id:a.id,at:a.date,actor:a.user,action:a.action,detail:a.desc,empresa:a.company})),
+    contratos:contracts.map(k=>({id:k.id,empresa:k.company,nome:k.name,valorTotal:k.total,centroCusto:k.cc,inicio:k.start,meses:k.months,observacoes:k.notes,criadoPorId:k.createdById})),
+    centrosCusto:centros.slice(),
+    ...(ME.admin?{permissoes:perms}:{}),
   };
 }
-function scheduleCloudSave(){if(!EMBED)return;clearTimeout(cloudTimer);cloudTimer=setTimeout(()=>void cloudSave(),600)}
+function scheduleCloudSave(){if(!EMBED)return;clearTimeout(cloudTimer);cloudTimer=setTimeout(()=>{cloudTimer=null;void cloudSave()},600)}
 async function cloudSave(){
   if(!EMBED)return;
   const requestId='p'+(++cloudReq);
@@ -701,14 +993,26 @@ function applyCloudDb(payload){
   entries=Array.isArray(payload.lancamentos)?payload.lancamentos.map(l=>({
     id:l.id,company:l.empresa,date:l.data,type:l.tipo,desc:l.descricao||'',value:Number(l.valor)||0,
     account:l.conta||'',method:l.formaPagamento||'',notes:l.observacoes||'',
-    created:l.criadoPor||'—',
+    contract:l.contratoId||null,origem:l.origem||'',
+    created:l.origem==='phibo'?'Phibo (automático)':(l.criadoPor||'—'),
     files:(l.anexos||[]).map(a=>({id:a.id,name:a.name,type:a.type,size:a.size,path:a.path,url:a.signedUrl})),
   })):[];
   if(payload.contas&&typeof payload.contas==='object'){
-    companies.forEach(c=>{const v=payload.contas[c.id];if(Array.isArray(v)&&v.length)accounts[c.id]=v.slice()});
+    ALL_COMPANIES.forEach(c=>{const v=payload.contas[c.id];if(Array.isArray(v)&&v.length)accounts[c.id]=v.slice()});
   }
   audit=Array.isArray(payload.audit)?payload.audit.map(a=>({id:a.id,date:a.at,user:a.actor,action:a.action,desc:a.detail||'',company:a.empresa||''})):[];
-  render();
+  contracts=Array.isArray(payload.contratos)?payload.contratos.map(k=>({id:k.id,company:k.empresa,name:k.nome||'',total:Number(k.valorTotal)||0,cc:k.centroCusto||'',start:k.inicio||thisYm(),months:Math.max(1,Number(k.meses)||1),notes:k.observacoes||'',createdById:k.criadoPorId||''})):[];
+  if(Array.isArray(payload.centrosCusto))centros=payload.centrosCusto.slice();
+  if(payload.permissoes&&typeof payload.permissoes==='object')perms=JSON.parse(JSON.stringify(payload.permissoes));
+  if(Array.isArray(payload.usuarios))users=payload.usuarios.slice();
+  structOk=payload.estruturaOk!==false;
+  phibo=payload.phibo||null;
+  const mine=payload.minhasEmpresas;
+  companies=Array.isArray(mine)?ALL_COMPANIES.filter(c=>mine.includes(c.id)):ALL_COMPANIES.slice();
+  if(company&&!companies.some(c=>c.id===company))company='';
+  if(page==='contrato'&&!contractById(contractId))page='contratos';
+  // Não redesenha formulário aberto (apagaria o que está sendo digitado).
+  if(page!=='form'&&page!=='contratoForm')render();
 }
 let toastTimer=null;
 function toast(msg){
@@ -718,15 +1022,68 @@ function toast(msg){
   clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.style.opacity='0'},3000);
 }
 
-const navItems=[['dashboard','Painel','home'],['lancamentos','Lançamentos','list'],['entradas','Entradas','arrow-down'],['saidas','Saídas','arrow-up'],'|',['comprovantes','Comprovantes','file'],'|',['auditoria','Auditoria','shield'],['relatorios','Relatórios','chart'],'|',['empresas','Empresas','building'],['contas','Contas bancárias','card'],'|',['usuarios','Usuários','users'],['config','Configurações','settings']];
-const titles={dashboard:'Painel',lancamentos:'Lançamentos',entradas:'Entradas',saidas:'Saídas',comprovantes:'Comprovantes',auditoria:'Auditoria',relatorios:'Relatórios',empresas:'Empresas',contas:'Contas bancárias',usuarios:'Usuários',config:'Configurações'};
+// ====== Calendário em português ======
+// O seletor nativo de data segue o idioma do navegador (às vezes inglês).
+// Cada input date/month vira hidden (mantém name/id/valor ISO e os onchange) +
+// um campo de texto dd/mm/aaaa que abre este calendário.
+const MESES_LONGOS=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const pad2=n=>String(n).padStart(2,'0');
+const dpFmt=(v,mode)=>!v?'':mode==='month'?`${v.slice(5,7)}/${v.slice(0,4)}`:v.slice(0,10).split('-').reverse().join('/');
+let dpBox=null,dpInput=null,dpY=0,dpM=0,dpMode='date';
+function ptDates(root){
+  root.querySelectorAll('input[type=date],input[type=month]').forEach(el=>{
+    const mode=el.type;el.type='hidden';el.dataset.dp=mode;
+    const vis=document.createElement('input');vis.type='text';vis.readOnly=true;vis.className='dp-input';
+    vis.placeholder=mode==='month'?'mm/aaaa':'dd/mm/aaaa';vis.value=dpFmt(el.value,mode);
+    vis.setAttribute('aria-label',el.getAttribute('aria-label')||(mode==='month'?'Escolher mês':'Escolher data'));
+    vis.onclick=()=>dpOpen(el);
+    vis.onkeydown=e=>{if(['Enter',' ','ArrowDown'].includes(e.key)){e.preventDefault();dpOpen(el)}else if(e.key==='Escape')dpClose()};
+    el.after(vis);el._vis=vis;
+  });
+}
+function dpOpen(input){
+  dpInput=input;dpMode=input.dataset.dp==='month'?'month':'date';
+  const v=input.value||new Date().toLocaleDateString('en-CA');
+  dpY=+v.slice(0,4)||new Date().getFullYear();dpM=Math.min(11,Math.max(0,(+v.slice(5,7)||1)-1));
+  if(!dpBox){dpBox=document.createElement('div');dpBox.className='dp hidden';dpBox.setAttribute('role','dialog');dpBox.setAttribute('aria-label','Calendário');dpBox.addEventListener('mousedown',e=>e.preventDefault());document.body.appendChild(dpBox)}
+  dpDraw();dpBox.classList.remove('hidden');
+  const r=(input._vis||input).getBoundingClientRect(),h=dpBox.offsetHeight,w=dpBox.offsetWidth;
+  const top=r.bottom+4+h>window.innerHeight&&r.top-h-4>0?r.top-h-4:r.bottom+4;
+  dpBox.style.top=Math.max(4,top)+'px';dpBox.style.left=Math.max(4,Math.min(r.left,window.innerWidth-w-8))+'px';
+}
+function dpClose(){if(dpBox)dpBox.classList.add('hidden');dpInput=null}
+function dpShift(n){if(dpMode==='month')dpY+=n;else{dpM+=n;if(dpM<0){dpM=11;dpY--}if(dpM>11){dpM=0;dpY++}}dpDraw()}
+function dpPick(v){
+  const el=dpInput;if(!el)return;el.value=v;if(el._vis)el._vis.value=dpFmt(v,dpMode);dpClose();
+  el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));
+}
+function dpDraw(){
+  const today=new Date().toLocaleDateString('en-CA'),cur=dpInput?.value||'';let body='',label='';
+  if(dpMode==='month'){
+    label=String(dpY);
+    body=`<div class="dp-grid m">${MESES.map((m,i)=>{const v=`${dpY}-${pad2(i+1)}`;return `<button type="button" class="dp-day ${v===cur?'sel':''} ${v===today.slice(0,7)?'today':''}" onclick="dpPick('${v}')">${m}</button>`}).join('')}</div>`;
+  }else{
+    label=`${MESES_LONGOS[dpM][0].toUpperCase()+MESES_LONGOS[dpM].slice(1)} de ${dpY}`;
+    const start=new Date(dpY,dpM,1-new Date(dpY,dpM,1).getDay());let cells='';
+    for(let i=0;i<42;i++){const d=new Date(start.getFullYear(),start.getMonth(),start.getDate()+i),v=`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;cells+=`<button type="button" class="dp-day ${d.getMonth()!==dpM?'out':''} ${v===cur?'sel':''} ${v===today?'today':''}" onclick="dpPick('${v}')" aria-label="${dpFmt(v,'date')}">${d.getDate()}</button>`}
+    body=`<div class="dp-grid">${['D','S','T','Q','Q','S','S'].map(w=>`<span class="dp-wd">${w}</span>`).join('')}${cells}</div>`;
+  }
+  dpBox.innerHTML=`<div class="dp-head"><button type="button" class="dp-nav" onclick="dpShift(-1)" aria-label="Anterior">‹</button><b>${label}</b><button type="button" class="dp-nav" onclick="dpShift(1)" aria-label="Próximo">›</button></div>${body}<div class="dp-foot"><button type="button" class="link" onclick="dpPick('${dpMode==='month'?today.slice(0,7):today}')">${dpMode==='month'?'Este mês':'Hoje'}</button><button type="button" class="link" onclick="dpClose()">Fechar</button></div>`;
+}
+document.addEventListener('click',e=>{if(dpBox&&!dpBox.contains(e.target)&&!e.target.closest('.dp-input,.range-chev'))dpClose()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')dpClose()});
+window.addEventListener('resize',dpClose);
+
+const navItems=[['dashboard','Painel','home'],['contratos','Contratos','file'],['lancamentos','Lançamentos','list'],['entradas','Entradas','arrow-down'],['saidas','Saídas','arrow-up'],'|',['comprovantes','Comprovantes','file'],'|',['auditoria','Auditoria','shield'],['relatorios','Relatórios','chart'],'|',['empresas','Empresas','building'],['contas','Contas bancárias','card'],'|',['usuarios','Usuários','users'],['config','Configurações','settings']];
+const titles={dashboard:'Painel',contratos:'Contratos',contrato:'Contrato',contratoForm:'Contrato',lancamentos:'Lançamentos',entradas:'Entradas',saidas:'Saídas',comprovantes:'Comprovantes',auditoria:'Auditoria',relatorios:'Relatórios',empresas:'Empresas',contas:'Contas bancárias',usuarios:'Usuários',config:'Configurações'};
 const bottomItems=[['dashboard','Painel','home'],['lancamentos','Lançamentos','list'],['comprovantes','Comprovantes','file'],['relatorios','Relatórios','chart'],['mais','Mais','dots']];
 function markNav(p){document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===p||(b.dataset.page==='mais'&&!bottomItems.some(i=>i[0]===p))))}
 function closeDrawer(){document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('show')}
 function navigate(p){if(p!==page)lf.page=1;page=p;closeDrawer();render();window.scrollTo(0,0)}
 function render(){
-  markNav(page);document.getElementById('topPage').textContent=titles[page]||'Painel';
-  ({dashboard:renderDashboard,lancamentos:()=>renderLancamentos(),entradas:()=>renderLancamentos('entrada'),saidas:()=>renderLancamentos('saida'),comprovantes:renderFiles,auditoria:renderAudit,relatorios:renderReports,empresas:renderCompanies,contas:renderAccounts,usuarios:renderUsers}[page]||(()=>{view().innerHTML=title('Configurações','Definições do ambiente financeiro das empresas.')+card('Ambiente de demonstração','<div class="muted">Esta versão é um protótipo local e não está conectada ao banco de dados. Para uso real será necessário salvar lançamentos, comprovantes e auditoria no servidor.</div>')}))();
+  if(page==='contratoForm')page='contratos';
+  markNav(page==='contrato'?'contratos':page);document.getElementById('topPage').textContent=titles[page]||'Painel';
+  ({dashboard:renderDashboard,contratos:renderContractsPage,contrato:renderContract,lancamentos:()=>renderLancamentos(),entradas:()=>renderLancamentos('entrada'),saidas:()=>renderLancamentos('saida'),comprovantes:renderFiles,auditoria:renderAudit,relatorios:renderReports,empresas:renderCompanies,contas:renderAccounts,usuarios:renderUsers}[page]||renderConfig)();
 }
 // srcdoc: este documento tem origin opaco ("null"), então postMessage usa '*'
 // (conteúdo é gerado pelo próprio React host, não vem de terceiros).
@@ -745,12 +1102,14 @@ document.addEventListener('click',hideMenus);
 const toggleCollapse=()=>document.getElementById('app').classList.toggle('collapsed');
 document.getElementById('collapse').onclick=toggleCollapse;document.getElementById('toggle').onclick=toggleCollapse;
 document.getElementById('overlay').onclick=closeDrawer;
+new MutationObserver(()=>{ptDates(view());if(dpInput&&!dpInput.isConnected)dpClose()}).observe(view(),{childList:true,subtree:true});
 render();
 window.addEventListener('message',e=>{
   if(e.source!==window.parent)return;
   const d=e.data||{};
   if(d.type==='mr-hydrate'&&d.payload){applyCloudDb(d.payload);return}
-  if(d.type==='mr-persist-ok'){delete cloudPending[d.requestId];persistBusyRetries=0;if(d.payload)applyCloudDb(d.payload);toast('Salvo na nuvem');return}
+  if(d.type==='mr-persist-ok'){delete cloudPending[d.requestId];persistBusyRetries=0;if(d.payload&&!cloudTimer&&!Object.keys(cloudPending).length)applyCloudDb(d.payload);toast('Salvo na nuvem');return}
+  if(d.type==='mr-phibo-ok'||d.type==='mr-phibo-erro'){phiboBusy=false;toast(d.msg||(d.type==='mr-phibo-ok'?'Phibo sincronizado':'Falha no Phibo'));if(page!=='form'&&page!=='contratoForm')render();return}
   if(d.type==='mr-persist-erro'){delete cloudPending[d.requestId];const msg=d.erro||'Falha ao salvar na nuvem';if(/em andamento/i.test(msg)&&persistBusyRetries<20){persistBusyRetries++;scheduleCloudSave()}else{persistBusyRetries=0;toast(msg)}return}
 });
 toParent('mr-pronto');

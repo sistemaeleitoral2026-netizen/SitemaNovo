@@ -25,6 +25,42 @@ export type MrLancamento = {
   anexos?: MrAnexoMeta[]
   criadoPor?: string
   criadoPorId?: string
+  contratoId?: string | null
+  /** 'phibo' = importado automaticamente (só leitura no painel). */
+  origem?: string
+}
+
+export type MrPhibo = {
+  status: {
+    conectado: boolean
+    tokenAtualizadoEm?: string | null
+    ultimaTentativa?: string | null
+    ultimoOk?: string | null
+    ultimoErro?: string | null
+  } | null
+  /** Resumo do mês mais recente (resposta crua do Phibo). */
+  resumo: { mes: string; vendasMes: unknown; totais: unknown; atualizadoEm: string } | null
+}
+
+export type MrContrato = {
+  id: string
+  empresa: string
+  nome: string
+  valorTotal: number
+  centroCusto?: string
+  /** YYYY-MM do primeiro mês previsto. */
+  inicio: string
+  meses: number
+  observacoes?: string
+  criadoPorId?: string
+}
+
+export type MrUsuario = {
+  id: string
+  nome: string
+  nivel: 'admin' | 'editor'
+  /** false = login "externo" sem acesso ao Empresas liberado no Admin. */
+  podeAbrir: boolean
 }
 
 export type MrAudit = {
@@ -41,7 +77,43 @@ export type MrDbPayload = {
   /** empresa (slug) -> nomes das contas bancárias, só inclusão (sem editar/excluir). */
   contas: Record<string, string[]>
   audit: MrAudit[]
+  contratos: MrContrato[]
+  centrosCusto: string[]
+  /** userId -> empresas liberadas. Admin recebe de todos; editor só o dele. */
+  permissoes?: Record<string, string[]>
+  /** Só vem pro admin (tela Usuários). */
+  usuarios?: MrUsuario[]
+  /** Empresas que o usuário atual vê; null = todas (admin). */
+  minhasEmpresas?: string[] | null
+  /** false = 20261117a_mr_contratos.sql ainda não rodou no banco. */
+  estruturaOk?: boolean
+  /** Integração Phibo (RE FASHION); null = 20261117c_mr_phibo.sql ainda não rodou. */
+  phibo?: MrPhibo | null
   _files?: Record<string, { name: string; type: string; size: number; dataBase64: string }>
+}
+
+export type MrSessao = { userId: string; admin: boolean }
+
+/** Tabela/função de 20261117a_mr_contratos.sql ainda não criada no banco. */
+function semEstruturaNova(err: unknown) {
+  const o = (err || {}) as { code?: string; message?: string }
+  return o.code === 'PGRST205' || o.code === 'PGRST202' || o.code === '42P01' || o.code === '42883' ||
+    /could not find|does not exist/i.test(o.message || '')
+}
+
+async function opcional<T>(q: PromiseLike<{ data: T | null; error: unknown }>, vazio: T) {
+  const r = await q
+  if (r.error && semEstruturaNova(r.error)) return { data: vazio, error: null, faltando: true }
+  return { data: r.data, error: r.error, faltando: false }
+}
+
+async function empresasDoUsuario(sessao: MrSessao): Promise<string[] | null> {
+  if (sessao.admin) return null
+  const r = await opcional(supabase.from('mr_permissoes').select('empresa').eq('user_id', sessao.userId), [])
+  if (r.error) throw r.error
+  // Sem a tabela de permissões ainda, vale a regra antiga (vê todas).
+  if (r.faltando) return null
+  return (r.data || []).map((x) => (x as { empresa: string }).empresa)
 }
 
 function isUuid(v: string) {
@@ -117,24 +189,46 @@ function anexosFor(
     }))
 }
 
-export async function carregarEstadoMrTerceriza(): Promise<MrDbPayload> {
-  const [lancamentos, contasRows, auditoria, anexos] = await Promise.all([
-    supabase.from('mr_lancamentos').select('*').order('data', { ascending: false }),
-    supabase.from('mr_contas').select('empresa,nome,ordem').eq('ativo', true).order('ordem'),
-    supabase.from('mr_auditoria').select('*').order('at', { ascending: false }).limit(500),
-    listAnexos(),
-  ])
+export async function carregarEstadoMrTerceriza(sessao: MrSessao): Promise<MrDbPayload> {
+  const [lancamentos, contasRows, auditoria, anexos, contratosRows, centrosRows, permRows, usuariosRes] =
+    await Promise.all([
+      supabase.from('mr_lancamentos').select('*').order('data', { ascending: false }),
+      supabase.from('mr_contas').select('empresa,nome,ordem').eq('ativo', true).order('ordem'),
+      supabase.from('mr_auditoria').select('*').order('at', { ascending: false }).limit(500),
+      listAnexos(),
+      opcional(supabase.from('mr_contratos').select('*').order('inicio', { ascending: false }), []),
+      opcional(supabase.from('mr_centros_custo').select('nome').eq('ativo', true).order('nome'), []),
+      opcional(supabase.from('mr_permissoes').select('user_id,empresa'), []),
+      sessao.admin
+        ? opcional(supabase.rpc('list_mr_usuarios'), [])
+        : Promise.resolve({ data: null, error: null, faltando: false }),
+    ])
 
-  for (const r of [lancamentos, contasRows, auditoria]) {
+  for (const r of [lancamentos, contasRows, auditoria, contratosRows, centrosRows, permRows, usuariosRes]) {
     if (r.error) throw r.error
   }
 
-  const signed = await signPaths((anexos || []).map((a) => a.storage_path))
-  const anexoRows = (anexos || []).map((a) => ({ ...a, entidade_id: String(a.entidade_id) }))
+  const permissoes: Record<string, string[]> = {}
+  for (const p of permRows.data || []) {
+    const uid = p.user_id as string
+    if (!sessao.admin && uid !== sessao.userId) continue
+    if (!permissoes[uid]) permissoes[uid] = []
+    permissoes[uid].push(p.empresa as string)
+  }
+  // Sem a tabela de permissões ainda, vale a regra antiga (vê todas).
+  const minhasEmpresas = sessao.admin || permRows.faltando ? null : permissoes[sessao.userId] || []
+  const pode = (empresa: string) => minhasEmpresas === null || minhasEmpresas.includes(empresa)
+
+  const lancVisiveis = (lancamentos.data || []).filter((r) => pode(r.empresa as string))
+  const idsVisiveis = new Set(lancVisiveis.map((r) => r.id as string))
+  const anexosVisiveis = (anexos || []).filter((a) => idsVisiveis.has(String(a.entidade_id)))
+
+  const signed = await signPaths(anexosVisiveis.map((a) => a.storage_path))
+  const anexoRows = anexosVisiveis.map((a) => ({ ...a, entidade_id: String(a.entidade_id) }))
 
   const creatorIds = [
     ...new Set(
-      (lancamentos.data || [])
+      lancVisiveis
         .map((r) => r.created_by as string | null | undefined)
         .filter((id): id is string => Boolean(id)),
     ),
@@ -147,7 +241,7 @@ export async function carregarEstadoMrTerceriza(): Promise<MrDbPayload> {
     }
   }
 
-  const lancs: MrLancamento[] = (lancamentos.data || []).map((r) => {
+  const lancs: MrLancamento[] = lancVisiveis.map((r) => {
     const criadoPorId = (r.created_by as string) || ''
     return {
       id: r.id as string,
@@ -162,17 +256,49 @@ export async function carregarEstadoMrTerceriza(): Promise<MrDbPayload> {
       anexos: anexosFor(anexoRows, r.id as string, signed),
       criadoPorId,
       criadoPor: criadoPorId ? nomePorId.get(criadoPorId) || '' : '',
+      contratoId: (r.contrato_id as string) || null,
+      origem: (r.origem as string) || '',
     }
   })
 
   const contas: Record<string, string[]> = {}
   for (const row of contasRows.data || []) {
     const empresa = row.empresa as string
+    if (!pode(empresa)) continue
     if (!contas[empresa]) contas[empresa] = []
     contas[empresa].push(row.nome as string)
   }
 
-  const audit: MrAudit[] = (auditoria.data || []).map((r) => ({
+  const contratos: MrContrato[] = (contratosRows.data || [])
+    .filter((r) => pode(r.empresa as string))
+    .map((r) => ({
+      id: r.id as string,
+      empresa: r.empresa as string,
+      nome: (r.nome as string) || '',
+      valorTotal: money(r.valor_total),
+      centroCusto: (r.centro_custo as string) || '',
+      inicio: String(r.inicio || '').slice(0, 7),
+      meses: Number(r.meses) || 1,
+      observacoes: (r.observacoes as string) || '',
+      criadoPorId: (r.created_by as string) || '',
+    }))
+
+  const centrosCusto = (centrosRows.data || []).map((r) => r.nome as string)
+
+  const usuarios: MrUsuario[] | undefined = sessao.admin
+    ? ((usuariosRes.data as { id: string; nome: string; nivel: string; pode_abrir?: boolean }[] | null) || []).map(
+        (u) => ({
+          id: u.id,
+          nome: u.nome || '',
+          nivel: u.nivel === 'admin' ? 'admin' : 'editor',
+          podeAbrir: u.pode_abrir !== false,
+        }),
+      )
+    : undefined
+
+  const audit: MrAudit[] = (auditoria.data || [])
+    .filter((r) => (r.empresa ? pode(r.empresa as string) : sessao.admin))
+    .map((r) => ({
     id: r.id as string,
     at: r.at as string,
     actor: (r.actor_nome as string) || '',
@@ -181,7 +307,76 @@ export async function carregarEstadoMrTerceriza(): Promise<MrDbPayload> {
     empresa: (r.empresa as string) || '',
   }))
 
-  return { lancamentos: lancs, contas, audit }
+  return {
+    lancamentos: lancs,
+    contas,
+    audit,
+    contratos,
+    centrosCusto,
+    permissoes,
+    usuarios,
+    minhasEmpresas,
+    estruturaOk: !contratosRows.faltando && !permRows.faltando,
+    phibo: pode('re-fashion') ? await carregarPhibo() : null,
+  }
+}
+
+async function carregarPhibo(): Promise<MrPhibo | null> {
+  const [st, rs] = await Promise.all([
+    opcional(supabase.rpc('mr_phibo_status'), []),
+    opcional(
+      supabase.from('mr_phibo_resumo').select('*').eq('empresa', 're-fashion').order('mes', { ascending: false }).limit(1),
+      [],
+    ),
+  ])
+  if (st.faltando || rs.faltando) return null
+  const s = ((st.data as Record<string, unknown>[] | null) || [])[0]
+  const r = ((rs.data as Record<string, unknown>[] | null) || [])[0]
+  return {
+    status: s
+      ? {
+          conectado: Boolean(s.conectado),
+          tokenAtualizadoEm: (s.token_atualizado_em as string) || null,
+          ultimaTentativa: (s.ultima_tentativa as string) || null,
+          ultimoOk: (s.ultimo_ok as string) || null,
+          ultimoErro: (s.ultimo_erro as string) || null,
+        }
+      : { conectado: false },
+    resumo: r
+      ? {
+          mes: r.mes as string,
+          vendasMes: r.vendas_mes,
+          totais: r.totais,
+          atualizadoEm: r.atualizado_em as string,
+        }
+      : null,
+  }
+}
+
+/** Admin cola o refreshToken do Phibo (fica só no servidor). */
+export async function conectarPhibo(refreshToken: string) {
+  const { error } = await supabase.rpc('mr_phibo_conectar', { p_refresh: refreshToken })
+  if (error) {
+    if (semEstruturaNova(error)) throw new Error('Rode supabase/migrations/20261117c_mr_phibo.sql no Supabase do Nerites.')
+    throw asError(error, 'Falha ao conectar o Phibo.')
+  }
+}
+
+/** Roda a importação agora (rota /api/phibo-cron, mesma do agendamento). */
+export async function sincronizarPhibo(): Promise<{ ok: boolean; erro?: string; dias?: number; totalMes?: number }> {
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  if (!token) throw new Error('Sessão expirada. Entre de novo.')
+  let res: Response
+  try {
+    res = await fetch('/api/phibo-cron', { headers: { Authorization: `Bearer ${token}` } })
+  } catch {
+    throw new Error('Não consegui chamar /api/phibo-cron.')
+  }
+  const body = await res.json().catch(() => null)
+  if (res.status === 404 || !body) throw new Error('Rota /api/phibo-cron não encontrada (publique o sistema primeiro).')
+  if (!res.ok) throw new Error(body.error || body.erro || `Erro ${res.status}`)
+  return body
 }
 
 async function uploadBytes(userId: string, fileId: string, meta: { name: string; type: string; dataBase64: string }) {
@@ -207,8 +402,15 @@ async function uploadBytes(userId: string, fileId: string, meta: { name: string;
 
 export async function salvarEstadoMrTerceriza(
   payload: MrDbPayload,
-  opts: { userId: string; userName: string },
+  opts: { userId: string; userName: string; admin: boolean; vistoEm?: string },
 ): Promise<MrDbPayload> {
+  const sessao: MrSessao = { userId: opts.userId, admin: opts.admin }
+  // Escopo vem do banco, não do iframe: editor só grava/apaga nas empresas liberadas.
+  const minhas = await empresasDoUsuario(sessao).catch((e) => {
+    throw asError(e)
+  })
+  const pode = (empresa: string | null | undefined) =>
+    minhas === null || (!!empresa && minhas.includes(empresa))
   const filesIn = payload._files || {}
   const files: Record<string, { name: string; type: string; size: number; dataBase64: string }> = { ...filesIn }
   const ensureUuid = makeIdCache()
@@ -221,17 +423,72 @@ export async function salvarEstadoMrTerceriza(
     })
   }
 
-  const lancamentos = payload.lancamentos.map((r) => ({
-    ...r,
-    id: ensureUuid(r.id),
-    anexos: remapAnexos(r.anexos),
-  }))
-  const audit = payload.audit.slice(0, 500).map((a) => ({ ...a, id: ensureUuid(String(a.id)) }))
+  const contratos = (payload.contratos || [])
+    .filter((c) => pode(c.empresa))
+    .map((c) => ({ ...c, id: ensureUuid(c.id) }))
+  const contratoIds = new Set(contratos.map((c) => c.id))
+  const lancamentos = payload.lancamentos
+    .filter((r) => pode(r.empresa))
+    .map((r) => {
+      const contratoId = r.contratoId ? ensureUuid(r.contratoId) : null
+      return {
+        ...r,
+        id: ensureUuid(r.id),
+        contratoId: contratoId && contratoIds.has(contratoId) ? contratoId : null,
+        anexos: remapAnexos(r.anexos),
+      }
+    })
+  const audit = payload.audit
+    .slice(0, 500)
+    .filter((a) => (a.empresa ? pode(a.empresa) : opts.admin))
+    .map((a) => ({ ...a, id: ensureUuid(String(a.id)) }))
 
   try {
+    // ---- contratos (antes dos lançamentos, por causa da FK contrato_id) ----
+    const contrList = await opcional(supabase.from('mr_contratos').select('id,empresa,created_by'), [])
+    if (contrList.error) throw asError(contrList.error)
+    const temEstruturaNova = !contrList.faltando
+    const remoteContr = (contrList.data || []) as { id: string; empresa: string; created_by: string | null }[]
+
+    // ---- centros de custo: só inclusão ----
+    const centrosWanted = [...new Set((payload.centrosCusto || []).map((n) => n.trim()).filter(Boolean))]
+    if (temEstruturaNova && centrosWanted.length) {
+      const { data: jaTem, error } = await supabase.from('mr_centros_custo').select('nome')
+      if (error) throw asError(error)
+      const vistos = new Set((jaTem || []).map((r) => r.nome as string))
+      const novos = centrosWanted.filter((n) => !vistos.has(n)).map((nome) => ({ nome, created_by: opts.userId }))
+      if (novos.length) {
+        const { error: insErr } = await supabase.from('mr_centros_custo').insert(novos)
+        if (insErr) throw asError(insErr, 'Falha ao gravar centro de custo.')
+      }
+    }
+
+    const contrCreatedBy = new Map<string, string>()
+    for (const r of remoteContr) {
+      if (r.id && r.created_by) contrCreatedBy.set(r.id, r.created_by)
+    }
+    if (temEstruturaNova && contratos.length) {
+      const rows = contratos.map((c) => ({
+        id: c.id,
+        empresa: c.empresa,
+        nome: c.nome || 'Contrato',
+        valor_total: money(c.valorTotal),
+        centro_custo: c.centroCusto || null,
+        inicio: `${/^\d{4}-\d{2}$/.test(c.inicio) ? c.inicio : new Date().toISOString().slice(0, 7)}-01`,
+        meses: Math.min(240, Math.max(1, Math.round(Number(c.meses) || 1))),
+        observacoes: c.observacoes || null,
+        updated_at: new Date().toISOString(),
+        updated_by: opts.userId,
+        created_by: contrCreatedBy.get(c.id) || opts.userId,
+      }))
+      const { error } = await supabase.from('mr_contratos').upsert(rows, { onConflict: 'id' })
+      if (error) throw asError(error, 'Falha ao gravar contratos.')
+    }
+
     // ---- contas bancárias: só inclusão (o painel não edita/exclui conta) ----
     const contasExistentes = new Map<string, Set<string>>()
     for (const [empresa, nomes] of Object.entries(payload.contas || {})) {
+      if (!pode(empresa)) continue
       for (const nome of nomes) {
         if (!contasExistentes.has(empresa)) contasExistentes.set(empresa, new Set())
         contasExistentes.get(empresa)!.add(nome)
@@ -258,21 +515,31 @@ export async function salvarEstadoMrTerceriza(
     }
 
     // ---- lançamentos ----
-    const { data: remoteLanc, error: lancListErr } = await supabase.from('mr_lancamentos').select('id,created_by')
+    // select('*'): a coluna origem só existe depois de 20261117c_mr_phibo.sql.
+    const { data: remoteLanc, error: lancListErr } = await supabase.from('mr_lancamentos').select('*')
     if (lancListErr) throw asError(lancListErr)
     const lancCreatedBy = new Map<string, string>()
+    const automaticos = new Set<string>()
     for (const r of remoteLanc || []) {
       if (r.id && r.created_by) lancCreatedBy.set(r.id as string, r.created_by as string)
+      if (r.origem) automaticos.add(r.id as string)
     }
+    const vistoEm = opts.vistoEm ? Date.parse(opts.vistoEm) : NaN
     const localLanc = new Set(lancamentos.map((l) => l.id))
-    const delLanc = (remoteLanc || []).map((r) => r.id as string).filter((id) => !localLanc.has(id))
+    const delLanc = (remoteLanc || [])
+      .filter((r) => pode(r.empresa as string) && !automaticos.has(r.id as string))
+      // Linha criada depois que esta tela carregou (outro usuário) não é exclusão daqui.
+      .filter((r) => !Number.isFinite(vistoEm) || Date.parse(String(r.created_at || '')) <= vistoEm)
+      .map((r) => r.id as string)
+      .filter((id) => !localLanc.has(id))
     if (delLanc.length) {
       await supabase.from('mr_anexos').delete().eq('entidade', 'lancamento').in('entidade_id', delLanc)
       const { error } = await supabase.from('mr_lancamentos').delete().in('id', delLanc)
       if (error) throw asError(error)
     }
-    if (lancamentos.length) {
-      const rows = lancamentos.map((r) => ({
+    const manuais = lancamentos.filter((r) => !automaticos.has(r.id) && !r.origem)
+    if (manuais.length) {
+      const rows = manuais.map((r) => ({
         id: r.id,
         empresa: r.empresa,
         data: r.data,
@@ -282,6 +549,7 @@ export async function salvarEstadoMrTerceriza(
         conta: r.conta || null,
         forma_pagamento: r.formaPagamento || null,
         observacoes: r.observacoes || null,
+        ...(temEstruturaNova ? { contrato_id: r.contratoId } : {}),
         updated_at: new Date().toISOString(),
         updated_by: opts.userId,
         // Preserva o autor original; só grava o usuário atual em registro novo.
@@ -291,17 +559,56 @@ export async function salvarEstadoMrTerceriza(
       if (error) throw asError(error, 'Falha ao gravar lançamentos.')
     }
 
+    const delContr = (remoteContr || [])
+      .filter((r) => pode(r.empresa as string))
+      .map((r) => r.id as string)
+      .filter((id) => !contratoIds.has(id))
+    if (delContr.length) {
+      const { error } = await supabase.from('mr_contratos').delete().in('id', delContr)
+      if (error) throw asError(error, 'Falha ao excluir contrato.')
+    }
+
+    // ---- permissões por empresa (só admin) ----
+    if (temEstruturaNova && opts.admin && payload.permissoes) {
+      const { data: permAtuais, error: permErr } = await supabase.from('mr_permissoes').select('user_id,empresa')
+      if (permErr) throw asError(permErr)
+      for (const [uid, empresasIn] of Object.entries(payload.permissoes)) {
+        if (!isUuid(uid)) continue
+        const wanted = new Set(empresasIn)
+        const atuais = new Set((permAtuais || []).filter((p) => p.user_id === uid).map((p) => p.empresa as string))
+        const remover = [...atuais].filter((e) => !wanted.has(e))
+        const incluir = [...wanted].filter((e) => !atuais.has(e))
+        if (remover.length) {
+          const { error } = await supabase.from('mr_permissoes').delete().eq('user_id', uid).in('empresa', remover)
+          if (error) throw asError(error, 'Falha ao atualizar permissões.')
+        }
+        if (incluir.length) {
+          const { error } = await supabase
+            .from('mr_permissoes')
+            .insert(incluir.map((empresa) => ({ user_id: uid, empresa, created_by: opts.userId })))
+          if (error) throw asError(error, 'Falha ao atualizar permissões.')
+        }
+      }
+    }
+
     // ---- auditoria (substitui pelas 500 mais recentes do painel) ----
-    const { data: remoteAudit, error: auditListErr } = await supabase.from('mr_auditoria').select('id')
+    const { data: remoteAudit, error: auditListErr } = await supabase.from('mr_auditoria').select('id,empresa')
     if (auditListErr) throw asError(auditListErr)
     const localAudit = new Set(audit.map((a) => a.id))
-    const delAudit = (remoteAudit || []).map((r) => r.id as string).filter((id) => !localAudit.has(id))
+    const delAudit = (remoteAudit || [])
+      .filter((r) => (r.empresa ? pode(r.empresa as string) : opts.admin))
+      .map((r) => r.id as string)
+      .filter((id) => !localAudit.has(id))
     if (delAudit.length) {
       const { error } = await supabase.from('mr_auditoria').delete().in('id', delAudit)
       if (error) throw asError(error)
     }
-    if (audit.length) {
-      const rows = audit.map((a) => ({
+    // Registro de auditoria não muda depois de criado: só insere os novos
+    // (assim não sobrescreve o actor_id de quem fez a ação original).
+    const auditJaTem = new Set((remoteAudit || []).map((r) => r.id as string))
+    const auditNovos = audit.filter((a) => !auditJaTem.has(a.id))
+    if (auditNovos.length) {
+      const rows = auditNovos.map((a) => ({
         id: a.id,
         at: a.at || new Date().toISOString(),
         actor_id: opts.userId,
@@ -359,9 +666,9 @@ export async function salvarEstadoMrTerceriza(
       }
     }
 
-    for (const r of lancamentos) await syncAnexos(r.id, r.anexos)
+    for (const r of manuais) await syncAnexos(r.id, r.anexos)
 
-    return carregarEstadoMrTerceriza()
+    return carregarEstadoMrTerceriza(sessao)
   } catch (e) {
     throw asError(e)
   }
