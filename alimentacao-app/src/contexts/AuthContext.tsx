@@ -65,8 +65,14 @@ async function fetchProfile(userId: string): Promise<Profile | null> {
   return data as Profile
 }
 
-/** Se o cargo não estiver na lista liberada, encerra a sessão. */
+/** Se o cargo não estiver na lista liberada, ou a conta estiver inativa, encerra a sessão. */
 async function enforceLoginGate(profile: Profile | null): Promise<Profile | null> {
+  // "Inativa" (toggle da Equipe) tem que bloquear o acesso de verdade, em qualquer
+  // sistema — não só nas rotas que já conferiam profile.ativo por conta própria.
+  if (profile && profile.ativo === false) {
+    await supabase.auth.signOut()
+    return null
+  }
   if (!LOGIN_ALLOWED_ROLES) return profile
   if (canLogin(profile)) return profile
   await supabase.auth.signOut()
@@ -153,6 +159,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const userId = data.user?.id
     if (!userId) return { error: 'Não foi possível identificar o usuário.' }
     const p = await fetchProfile(userId)
+    if (!p) {
+      await supabase.auth.signOut()
+      setSession(null)
+      setProfile(null)
+      return { error: 'Perfil não encontrado. Fale com o administrador.' }
+    }
+    if (p.ativo === false) {
+      await supabase.auth.signOut()
+      setSession(null)
+      setProfile(null)
+      return { error: 'Seu acesso foi desativado. Fale com o administrador.' }
+    }
     if (!canLogin(p)) {
       await supabase.auth.signOut()
       setSession(null)
