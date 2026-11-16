@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { hasRole } from '../../lib/roles'
-import { canAccessAssessoriaMb, isSiteId, siteById, writeSite } from '../../lib/sites'
+import { canAccessAssessoriaMb, isAdminNoSiteExterno, isSiteId, siteById, writeSite } from '../../lib/sites'
 import { Spinner } from '../../components/ui/Spinner'
 import {
   baixarAnexoAssessoria,
@@ -25,8 +25,10 @@ export function AssessoriaMbPage() {
   const frameRef = useRef<HTMLIFrameElement>(null)
   const [pronto, setPronto] = useState(false)
   const [erroSync, setErroSync] = useState('')
-  const admin = hasRole(profile, 'admin')
+  const neritesAdmin = hasRole(profile, 'admin')
   const podeEditar = canAccessAssessoriaMb(profile)
+  // Admin dentro deste painel: admin do Nerites (como já era) ou acesso "admin" cadastrado em /admin.
+  const admin = neritesAdmin || isAdminNoSiteExterno(profile, 'assessoria-mb')
   const nome = profile?.nome || 'Usuário'
   const userId = profile?.id || ''
   const persistindo = useRef(false)
@@ -69,7 +71,7 @@ export function AssessoriaMbPage() {
         void signOut()
         return
       }
-      if (dados.type === 'mb-nav' && admin && isSiteId(dados.site) && dados.site !== 'assessoria-mb') {
+      if (dados.type === 'mb-nav' && neritesAdmin && isSiteId(dados.site) && dados.site !== 'assessoria-mb') {
         writeSite(dados.site)
         navigate(siteById(dados.site)?.home ?? '/')
         return
@@ -130,7 +132,7 @@ export function AssessoriaMbPage() {
     enviarUsuario()
     return () => window.removeEventListener('message', aoMensagem)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [admin, nome, navigate, signOut, podeEditar, userId])
+  }, [admin, neritesAdmin, nome, navigate, signOut, podeEditar, userId])
 
   return (
     <div className="mr-demo">

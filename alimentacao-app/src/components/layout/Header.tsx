@@ -69,6 +69,9 @@ export function Header({ onMenuClick, title, online = [] }: HeaderProps) {
             <Link to="/painel-do-mandato" className="site-switch" onClick={() => writeSite('painel-do-mandato')}>
               Painel do Mandato
             </Link>
+            <Link to="/admin" className="site-switch">
+              Administração
+            </Link>
           </>
         ) : null}
         {assessoriaOk ? (
