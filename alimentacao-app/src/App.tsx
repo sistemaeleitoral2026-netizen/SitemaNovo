@@ -15,7 +15,7 @@ import { VotacaoProgressoPage } from './pages/nerites/VotacaoProgressoPage'
 import { VotacaoHistoricoPage } from './pages/nerites/VotacaoHistoricoPage'
 import { canSeeFormigasWhatsapp } from './lib/formigasWhatsapp'
 import { hasRole } from './lib/roles'
-import { readSite, siteById, type SiteId } from './lib/sites'
+import { canAccessAssessoriaMb, readSite, siteById, writeSite, type SiteId } from './lib/sites'
 import type { Profile } from './types'
 
 // Telas de gestão (mapa/Leaflet, gráficos/Recharts, PDF/Excel) em chunks
@@ -49,8 +49,14 @@ const FormigasWhatsappPage = lazy(() => import('./pages/nerites/FormigasWhatsapp
 
 function homeForProfile(profile: Profile | null | undefined) {
   if (!profile) return '/login'
-  const siteHome = siteById(readSite())?.home
-  if (siteHome && siteHome !== '/') return siteHome
+  const site = readSite()
+  // Assessoria MB só para admin/diretoria; demais cargos voltam ao fluxo normal do Nerites.
+  if (site === 'assessoria-mb' && !canAccessAssessoriaMb(profile)) {
+    writeSite('nerites')
+  } else {
+    const siteHome = siteById(site)?.home
+    if (siteHome && siteHome !== '/') return siteHome
+  }
   if (hasRole(profile, 'admin') || hasRole(profile, 'diretoria')) return '/'
   if (hasRole(profile, 'coordenador')) return '/equipe?tab=auxiliares'
   if (hasRole(profile, 'auxiliar')) return '/votacao/lancar'
@@ -58,6 +64,16 @@ function homeForProfile(profile: Profile | null | undefined) {
   if (hasRole(profile, 'mobilizador')) return '/ativacao/lancar'
   if (hasRole(profile, 'administrativo')) return '/demandas/lancar'
   return '/'
+}
+
+function AssessoriaMbRoute({ children }: { children: React.ReactNode }) {
+  const { session, profile, loading } = useAuth()
+  if (loading) return <Spinner />
+  if (!session || !profile || !profile.ativo) return <Navigate to="/login" replace />
+  if (!canAccessAssessoriaMb(profile)) {
+    return <Navigate to={homeForProfile(profile)} replace />
+  }
+  return children
 }
 
 function StaffRoute({ children }: { children: React.ReactNode }) {
@@ -214,7 +230,7 @@ function AppRoutes() {
       <Route path="/esqueci-senha" element={<PublicOnly><ForgotPasswordPage /></PublicOnly>} />
       <Route path="/tv" element={<TvDashboardPage />} />
       <Route path="/mr-terceiriza" element={<DemoSiteRoute site="mr-terceiriza"><MrTerceirizaPage /></DemoSiteRoute>} />
-      <Route path="/assessoria-mb" element={<DemoSiteRoute site="assessoria-mb"><AssessoriaMbPage /></DemoSiteRoute>} />
+      <Route path="/assessoria-mb" element={<AssessoriaMbRoute><AssessoriaMbPage /></AssessoriaMbRoute>} />
       <Route path="/painel-do-mandato" element={<DemoSiteRoute site="painel-do-mandato"><PainelMandatoPage /></DemoSiteRoute>} />
 
       <Route element={<AppShell />}>

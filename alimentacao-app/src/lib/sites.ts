@@ -1,3 +1,6 @@
+import { hasRole } from './roles'
+import type { Profile } from '../types'
+
 export type SiteId = 'nerites' | 'mr-terceiriza' | 'assessoria-mb' | 'painel-do-mandato'
 
 export type SiteDef = {
@@ -12,6 +15,13 @@ export const SITES: SiteDef[] = [
   { id: 'assessoria-mb', nome: 'Assessoria MB', home: '/assessoria-mb' },
   { id: 'painel-do-mandato', nome: 'Painel do Mandato', home: '/painel-do-mandato' },
 ]
+
+/** Assessoria MB: só admin e diretoria. Nerites e demais sistemas ficam como estão. */
+export function canAccessAssessoriaMb(
+  profile: Pick<Profile, 'role' | 'extra_roles'> | null | undefined,
+): boolean {
+  return hasRole(profile, ['admin', 'diretoria'])
+}
 
 const STORAGE_KEY = 'alimentacao_site'
 
