@@ -11,6 +11,7 @@ Mapa dos sistemas (Nerites, Mandato, Assessoria MB, Empresas): `docs/SISTEMAS.md
 - App fica em `alimentacao-app/`
 - Páginas por sistema em `alimentacao-app/src/pages/{auth,nerites,mandato,assessoria,empresas}/`
 - Embeds empacotados em `alimentacao-app/public/sistemas/`
+- **Antes de editar embeds** (Assessoria MB / Mandato / Empresas): leia `.cursor/rules/embeds-empacotados.mdc` e `docs/EMBEDS.md`. Depois de qualquer mudança: `npm run validate-embeds` (ou `npm run build`) em `alimentacao-app`
 - CI roda `npm ci` e `npm run build` dentro de `alimentacao-app`
 - Não commitar `.env`, senhas, service role, nem `supabase/diagnosticos/` novos sem pedido
 - Scripts soltos / protótipos: `_legacy_proto/` (não entram no app)
