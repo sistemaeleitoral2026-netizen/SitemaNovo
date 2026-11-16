@@ -12,6 +12,14 @@ export type MbAnexoMeta = {
   createdAt?: string
 }
 
+export type MbRecebimento = {
+  id: string
+  data: string
+  valor: number
+  actor?: string
+  at?: string
+}
+
 export type MbFinance = {
   id: string
   parceiro: string
@@ -26,10 +34,41 @@ export type MbFinance = {
   saida: number
   anexos?: MbAnexoMeta[]
   origem?: string
+  /** Baixas/recebimentos parciais até concluir o lançamento. */
+  recebimentos?: MbRecebimento[]
   /** Quem criou (nome) — editora só exclui o que ela mesma lançou. */
   criadoPor?: string
   /** Quem criou (id do profile). */
   criadoPorId?: string
+}
+
+function parseRecebimentos(raw: unknown, observacao?: unknown): MbRecebimento[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((x) => x as Record<string, unknown>)
+      .filter((x) => x && x.data != null)
+      .map((x) => ({
+        id: String(x.id || crypto.randomUUID()),
+        data: String(x.data || '').slice(0, 10),
+        valor: money(x.valor),
+        actor: x.actor ? String(x.actor) : '',
+        at: x.at ? String(x.at) : '',
+      }))
+  }
+  if (typeof observacao === 'string' && observacao.trim().startsWith('{')) {
+    try {
+      const o = JSON.parse(observacao) as { __mb_rx__?: unknown }
+      return parseRecebimentos(o.__mb_rx__)
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+function encodeRecebimentos(list: MbRecebimento[] | undefined): string | null {
+  if (!list?.length) return null
+  return JSON.stringify({ __mb_rx__: list })
 }
 
 export type MbTask = {
@@ -321,6 +360,10 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
 
   const finance: MbFinance[] = (lancamentos.data || []).map((r) => {
     const criadoPorId = (r.created_by as string) || ''
+    const recebimentos = parseRecebimentos(r.recebimentos, r.observacao)
+    const recebidoCalc = recebimentos.length
+      ? recebimentos.reduce((s, x) => s + money(x.valor), 0)
+      : money(r.recebido)
     return {
       id: r.id as string,
       parceiro: (r.parceiro as string) || '',
@@ -331,9 +374,10 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
       demanda: (r.demanda as string) || '',
       sub: (r.empresa as string) || '',
       previsto: money(r.previsto),
-      recebido: money(r.recebido),
+      recebido: recebidoCalc,
       saida: money(r.saida),
       origem: (r.origem as string) || 'Cadastro manual',
+      recebimentos,
       anexos: anexosFor(anexoRows, 'lancamento', r.id as string, signed),
       criadoPorId,
       criadoPor: criadoPorId ? nomePorId.get(criadoPorId) || '' : '',
@@ -580,24 +624,31 @@ export async function salvarEstadoAssessoria(
     if (error) throw asError(error)
   }
   if (finance.length) {
-    const rows = finance.map((r) => ({
-      id: r.id,
-      parceiro: r.parceiro || '',
-      centro: r.centro || null,
-      data: emptyDate(r.data) || new Date().toISOString().slice(0, 10),
-      data_recebida: emptyDate(r.dataRecebida),
-      empresa_depositante: r.empresaDepositante || null,
-      demanda: r.demanda || null,
-      empresa: r.sub || null,
-      previsto: money(r.previsto),
-      recebido: money(r.recebido),
-      saida: money(r.saida),
-      origem: r.origem || 'Cadastro manual',
-      updated_at: new Date().toISOString(),
-      updated_by: opts.userId,
-      // Preserva o autor original; só grava o usuário atual em registro novo.
-      created_by: finCreatedBy.get(r.id) || (isUuid(String(r.criadoPorId || '')) ? r.criadoPorId : opts.userId),
-    }))
+    const rows = finance.map((r) => {
+      const recebimentos = Array.isArray(r.recebimentos) ? r.recebimentos : []
+      const recebido = recebimentos.length
+        ? recebimentos.reduce((s, x) => s + money(x.valor), 0)
+        : money(r.recebido)
+      return {
+        id: r.id,
+        parceiro: r.parceiro || '',
+        centro: r.centro || null,
+        data: emptyDate(r.data) || new Date().toISOString().slice(0, 10),
+        data_recebida: emptyDate(r.dataRecebida),
+        empresa_depositante: r.empresaDepositante || null,
+        demanda: r.demanda || null,
+        empresa: r.sub || null,
+        previsto: money(r.previsto),
+        recebido,
+        saida: money(r.saida),
+        origem: r.origem || 'Cadastro manual',
+        observacao: encodeRecebimentos(recebimentos),
+        updated_at: new Date().toISOString(),
+        updated_by: opts.userId,
+        // Preserva o autor original; só grava o usuário atual em registro novo.
+        created_by: finCreatedBy.get(r.id) || (isUuid(String(r.criadoPorId || '')) ? r.criadoPorId : opts.userId),
+      }
+    })
     const { error } = await supabase.from('mb_lancamentos').upsert(rows, { onConflict: 'id' })
     if (error) throw asError(error, 'Falha ao gravar lançamentos.')
   }
