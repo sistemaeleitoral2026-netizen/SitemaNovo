@@ -181,7 +181,10 @@ function mesAtualISO(): string {
 /** Lista quem tem acesso ao painel (RPC security definer — não expõe e-mail nem outros dados). */
 async function listarEquipeSistema(): Promise<MbEquipeSistema[]> {
   const { data, error } = await supabase.rpc('list_assessoria_mb_equipe')
-  if (error) return []
+  if (error) {
+    console.error('[assessoria-mb] list_assessoria_mb_equipe', error)
+    return []
+  }
   return ((data ?? []) as { id: string; nome: string; nivel: string | null }[])
     .filter((r) => r.nivel === 'admin' || r.nivel === 'editor')
     .map((r) => ({ id: r.id, nome: r.nome, nivel: r.nivel as 'admin' | 'editor' }))
