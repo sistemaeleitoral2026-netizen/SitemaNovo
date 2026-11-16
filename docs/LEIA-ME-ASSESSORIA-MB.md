@@ -7,9 +7,12 @@ SQL: `alimentacao-app/supabase/assessoria/schema.sql`
 (também em `alimentacao-app/supabase/migrations/20261116_assessoria_mb.sql`)
 
 Depois, rode também (nessa ordem) `20261116b_acessos_externos.sql`,
-`20261116c_assessoria_mb_acesso_externo.sql` e
-`20261116d_assessoria_mb_equipe_recorrente.sql` — liberam o acesso de quem
-é cadastrado em `/admin` e adicionam tarefa recorrente.
+`20261116c_assessoria_mb_acesso_externo.sql`,
+`20261116d_assessoria_mb_equipe_recorrente.sql` e
+`20261116e_assessoria_mb_auditoria_rls.sql` — liberam o acesso de quem é
+cadastrado em `/admin`, adicionam tarefa recorrente e corrigem a policy de
+UPDATE/DELETE que faltava em `mb_auditoria` (causava erro de RLS ao salvar
+qualquer coisa a partir do 2º salvamento, pra qualquer usuário).
 
 ## Como aplicar
 
