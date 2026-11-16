@@ -462,9 +462,13 @@ const seed=[
   {id:11,company:'globo',date:'2026-10-01',type:'entrada',desc:'Adiantamento de evento (exemplo)',account:'Conta operacional',value:2500,method:'PIX'}
 ];
 const seedStatus={3:'revisao',8:'revisao',6:'sem-comprovante',9:'sem-comprovante'};
-let entries=seed.map(e=>({...e,files:e.id===8?[{name:'Comprovante.pdf',type:'application/pdf',size:182000}]:[],notes:'',created:'Jurandy Santana',status:seedStatus[e.id]||'aprovado'}));
+// Dentro do iframe do Nerites (EMBED), os dados vêm do banco via postMessage —
+// não usa os dados de exemplo abaixo (eles só servem pra preview solta do arquivo).
+const EMBED=window.parent!==window;
+let entries=EMBED?[]:seed.map(e=>({...e,files:e.id===8?[{name:'Comprovante.pdf',type:'application/pdf',size:182000}]:[],notes:'',created:'Jurandy Santana',status:seedStatus[e.id]||'aprovado'}));
 let audit=[];
 let page='dashboard',company='',filterFrom='2026-10-01',filterTo='2026-10-31',draftFiles=[],editing=null,showAll=false;
+let fileMem={},cloudTimer=null,cloudReq=0,cloudPending={},persistBusyRetries=0;
 
 const fmt=v=>(Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const short=d=>d?d.slice(0,10).split('-').reverse().join('/'):'';
@@ -531,16 +535,16 @@ function renderDashboard(){
     +card('Resumo do período',`<div class="sumline"><span>Total de entradas</span><b>${fmt(s.in)}</b></div><div class="sumline"><span>Total de saídas</span><b class="negative">${fmt(s.out)}</b></div><div class="sumline"><span>Diferença</span><b>${fmt(s.in-s.out)}</b></div><div class="sumline"><span>Total de lançamentos</span><b>${a.length}</b></div>`)
   +`</div>`
   +`<div class="row-3">`
-    +card('Últimos lançamentos',`<div class="table-wrap"><table class="tbl"><thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Empresa</th><th>Conta de origem</th><th>Ações</th></tr></thead>${last.length?`<tbody>${last.map(e=>`<tr><td>${short(e.date)}</td><td>${esc(e.desc)}</td><td class="${e.type==='entrada'?'type-in':'type-out'}">${e.type==='entrada'?'Entrada':'Saída'}</td><td>${fmt(e.value)}</td><td>${esc(companyName(e.company))}</td><td>${esc(e.account)}</td><td><button class="link" onclick="showForm(${e.id})">Editar</button></td></tr>`).join('')}</tbody>`:''}</table></div>${last.length?'':emptyBox('file','Nenhum lançamento encontrado',c?'Esta empresa não tem lançamentos no período.':'Selecione uma empresa para visualizar os lançamentos.')}`,`<button class="link" onclick="navigate('lancamentos')">Ver todos</button>`)
+    +card('Últimos lançamentos',`<div class="table-wrap"><table class="tbl"><thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Empresa</th><th>Conta de origem</th><th>Ações</th></tr></thead>${last.length?`<tbody>${last.map(e=>`<tr><td>${short(e.date)}</td><td>${esc(e.desc)}</td><td class="${e.type==='entrada'?'type-in':'type-out'}">${e.type==='entrada'?'Entrada':'Saída'}</td><td>${fmt(e.value)}</td><td>${esc(companyName(e.company))}</td><td>${esc(e.account)}</td><td><button class="link" onclick="showForm('${e.id}')">Editar</button></td></tr>`).join('')}</tbody>`:''}</table></div>${last.length?'':emptyBox('file','Nenhum lançamento encontrado',c?'Esta empresa não tem lançamentos no período.':'Selecione uma empresa para visualizar os lançamentos.')}`,`<button class="link" onclick="navigate('lancamentos')">Ver todos</button>`)
     +card('Últimas auditorias',`<div class="table-wrap"><table class="tbl"><thead><tr><th>Data</th><th>Usuário</th><th>Ação</th><th>Descrição</th></tr></thead>${aud.length?`<tbody>${aud.map(x=>`<tr><td>${short(x.date)}</td><td>${esc(x.user)}</td><td>${esc(x.action)}</td><td>${esc(x.desc)}</td></tr>`).join('')}</tbody>`:''}</table></div>${aud.length?'':emptyBox('clock','Nenhum registro de auditoria',c?'Ainda não há alterações registradas nesta empresa.':'Selecione uma empresa para visualizar o histórico.')}`,`<button class="link" onclick="navigate('auditoria')">Ver todas</button>`)
   +`</div>`;
   wireDates();
 }
 
-function thumbs(e){return e.files.length?`<div class="thumbs">${e.files.map((f,i)=>f.url&&f.type!=='application/pdf'?`<img class="thumb" src="${f.url}" alt="${esc(f.name)}" title="${esc(f.name)}" onclick="openFile(${e.id},${i})">`:`<button class="thumb" title="${esc(f.name)}" onclick="openFile(${e.id},${i})">${f.type==='application/pdf'?'PDF':'ARQ'}</button>`).join('')}</div>`:'<span class="muted">Sem anexo</span>'}
+function thumbs(e){return e.files.length?`<div class="thumbs">${e.files.map((f,i)=>f.url&&f.type!=='application/pdf'?`<img class="thumb" src="${f.url}" alt="${esc(f.name)}" title="${esc(f.name)}" onclick="openFile('${e.id}',${i})">`:`<button class="thumb" title="${esc(f.name)}" onclick="openFile('${e.id}',${i})">${f.type==='application/pdf'?'PDF':'ARQ'}</button>`).join('')}</div>`:'<span class="muted">Sem anexo</span>'}
 function openFile(id,i){const f=entries.find(e=>e.id===id)?.files[i];if(!f?.url)return;if(f.type==='application/pdf')window.open(f.url,'_blank');else{document.getElementById('lightboxImg').src=f.url;document.getElementById('lightbox').classList.remove('hidden')}}
 // Tabela no estilo planilha: letras de coluna, números de linha, grade e total no rodapé.
-function sheet(a,o={}){if(!a.length)return emptyBox('file','Nenhum lançamento encontrado','Ajuste a empresa ou o período.');a=a.slice().sort((x,y)=>y.date.localeCompare(x.date));const cols=[['Data',e=>short(e.date)],...(company?[]:[['Empresa',e=>esc(companyName(e.company))]]),...(o.type?[]:[['Tipo',e=>e.type==='entrada'?'Entrada':'Saída']]),['Descrição',e=>esc(e.desc),'wrap'],['Conta',e=>esc(e.account)],['Forma de pagamento',e=>esc(e.method||'—')],['Valor',e=>`<span class="${e.type==='entrada'?'positive':'negative'}">${fmt(e.value)}</span>`,'num'],['Comprovantes',thumbs],...(o.edit?[['',e=>`<button class="link" onclick="showForm(${e.id})">Editar</button>`]]:[])];const s=sums(a),total=o.type?(o.type==='entrada'?s.in:s.out):s.in-s.out,vi=cols.findIndex(c=>c[0]==='Valor');return `<div class="sheet-hint">Deslize a tabela para o lado para ver todas as colunas</div><div class="sheet-wrap"><table class="sheet"><thead><tr class="cols"><th class="rn"></th>${cols.map((_,i)=>`<th>${String.fromCharCode(65+i)}</th>`).join('')}</tr><tr class="heads"><th class="rn">1</th>${cols.map(c=>`<th class="${c[2]||''}">${c[0]}</th>`).join('')}</tr></thead><tbody>${a.map((e,r)=>`<tr><td class="rn">${r+2}</td>${cols.map(c=>`<td class="${c[2]||''}">${c[1](e)}</td>`).join('')}</tr>`).join('')}</tbody><tfoot><tr><td class="rn">${a.length+2}</td>${cols.map((c,i)=>`<td class="${c[2]||''}">${i===0?(o.type?'Total':'Saldo'):i===vi?`<span class="${total<0||o.type==='saida'?'negative':'positive'}">${fmt(total)}</span>`:''}</td>`).join('')}</tr></tfoot></table></div>`}
+function sheet(a,o={}){if(!a.length)return emptyBox('file','Nenhum lançamento encontrado','Ajuste a empresa ou o período.');a=a.slice().sort((x,y)=>y.date.localeCompare(x.date));const cols=[['Data',e=>short(e.date)],...(company?[]:[['Empresa',e=>esc(companyName(e.company))]]),...(o.type?[]:[['Tipo',e=>e.type==='entrada'?'Entrada':'Saída']]),['Descrição',e=>esc(e.desc),'wrap'],['Conta',e=>esc(e.account)],['Forma de pagamento',e=>esc(e.method||'—')],['Valor',e=>`<span class="${e.type==='entrada'?'positive':'negative'}">${fmt(e.value)}</span>`,'num'],['Comprovantes',thumbs],...(o.edit?[['',e=>`<button class="link" onclick="showForm('${e.id}')">Editar</button>`]]:[])];const s=sums(a),total=o.type?(o.type==='entrada'?s.in:s.out):s.in-s.out,vi=cols.findIndex(c=>c[0]==='Valor');return `<div class="sheet-hint">Deslize a tabela para o lado para ver todas as colunas</div><div class="sheet-wrap"><table class="sheet"><thead><tr class="cols"><th class="rn"></th>${cols.map((_,i)=>`<th>${String.fromCharCode(65+i)}</th>`).join('')}</tr><tr class="heads"><th class="rn">1</th>${cols.map(c=>`<th class="${c[2]||''}">${c[0]}</th>`).join('')}</tr></thead><tbody>${a.map((e,r)=>`<tr><td class="rn">${r+2}</td>${cols.map(c=>`<td class="${c[2]||''}">${c[1](e)}</td>`).join('')}</tr>`).join('')}</tbody><tfoot><tr><td class="rn">${a.length+2}</td>${cols.map((c,i)=>`<td class="${c[2]||''}">${i===0?(o.type?'Total':'Saldo'):i===vi?`<span class="${total<0||o.type==='saida'?'negative':'positive'}">${fmt(total)}</span>`:''}</td>`).join('')}</tr></tfoot></table></div>`}
 
 const METHODS=['PIX','Transferência bancária','Dinheiro','Boleto','Outro'];
 const STATUS={aprovado:['Aprovado','st-ok'],revisao:['Em revisão','st-warn'],'sem-comprovante':['Sem comprovante','st-bad']};
@@ -553,7 +557,7 @@ const LANC_TEXT={'':['Lançamentos','Gerencie todas as entradas e saídas da sua
 const companySelect=(id,val,withAll)=>`<label class="sel-ico">${ico('building')}<select id="${id}" aria-label="Empresa atual">${withAll?'<option value="">Todas as empresas</option>':(val?'':'<option value="">Selecione a empresa</option>')}${companies.map(c=>opt(c.id,`${c.nome} - ${c.tipo}`,val)).join('')}</select></label>`;
 const allAccounts=()=>[...new Set(company?accounts[company]:Object.values(accounts).flat())];
 
-function filtered(){const q=lf.q.trim().toLowerCase();const t=lancType||lf.type;return period().filter(e=>(!t||e.type===t)&&(!lf.account||e.account===lf.account)&&(!lf.method||e.method===lf.method)&&(!lf.status||e.status===lf.status)&&(!q||[e.desc,e.account,companyName(e.company),e.method].join(' ').toLowerCase().includes(q))).sort((x,y)=>y.date.localeCompare(x.date)||y.id-x.id)}
+function filtered(){const q=lf.q.trim().toLowerCase();const t=lancType||lf.type;return period().filter(e=>(!t||e.type===t)&&(!lf.account||e.account===lf.account)&&(!lf.method||e.method===lf.method)&&(!lf.status||e.status===lf.status)&&(!q||[e.desc,e.account,companyName(e.company),e.method].join(' ').toLowerCase().includes(q))).sort((x,y)=>y.date.localeCompare(x.date)||String(y.id).localeCompare(String(x.id)))}
 function renderLancamentos(type=''){
   lancType=type;const [h,sub]=LANC_TEXT[type];
   view().innerHTML=`<div class="page-heading"><div><h1>${h}</h1><p class="sub">${sub}</p></div><div class="actions head-actions"><div class="current-co"><span class="mini-label">Empresa atual</span>${companySelect('curCo',company,true)}</div><button class="btn primary" onclick="showForm(null,'${type}')">${ico('plus')} ${type==='entrada'?'Nova entrada':type==='saida'?'Nova saída':'Novo lançamento'}</button></div></div>`
@@ -581,18 +585,18 @@ function updateLanc(){
   const pages=Math.max(1,Math.ceil(a.length/PAGE));lf.page=Math.min(lf.page,pages);const start=(lf.page-1)*PAGE,rows=a.slice(start,start+PAGE);
   const semComp=a.filter(e=>!e.files.length).length;
   document.getElementById('lancStats').innerHTML=`<div class="metric-grid four">${metric('file','mi-blue','Total de lançamentos','Lançamentos',a.length,'no período selecionado')}${lancType?(lancType==='entrada'?metric('arrow-down','mi-green','Total de entradas','Entradas',`<span class="positive">${fmt(s.in)}</span>`,`${nIn} lançamentos`):metric('arrow-up','mi-red','Total de saídas','Saídas',`<span class="negative">${fmt(s.out)}</span>`,`${a.length-nIn} lançamentos`))+metric('paperclip','mi-red','Sem comprovante','Sem comprovante',`<span class="negative">${semComp}</span>`,'lançamentos sem anexo'):metric('arrow-down','mi-green','Total de entradas','Entradas',`<span class="positive">${fmt(s.in)}</span>`,`${nIn} lançamentos`)+metric('arrow-up','mi-red','Total de saídas','Saídas',`<span class="negative">${fmt(s.out)}</span>`,`${a.length-nIn} lançamentos`)}${metric('clock','mi-yellow','Pendentes de revisão','Pendentes',`<span class="warn">${pend}</span>`,'lançamentos')}</div>`;
-  document.getElementById('lancTable').innerHTML=a.length?`<div class="table-wrap"><table class="tbl lanc"><thead><tr><th>Data</th><th>Empresa</th>${lancType?'':'<th>Tipo</th>'}<th>Descrição</th><th>Conta de origem/destino</th><th>Forma de pagamento</th><th>Valor</th><th>Comprovante</th><th>Ações</th></tr></thead><tbody>${rows.map(e=>`<tr><td data-label="Data">${short(e.date)}</td><td class="wrap" data-label="Empresa">${esc(companyName(e.company))}</td>${lancType?'':`<td data-label="Tipo" class="${e.type==='entrada'?'type-in':'type-out'}">${e.type==='entrada'?'Entrada':'Saída'}</td>`}<td class="wrap desc c-desc">${esc(e.desc)}</td><td class="wrap" data-label="Conta">${esc(e.account)}</td><td class="wrap" data-label="Pagamento">${esc(e.method)}</td><td data-label="Valor" class="c-valor ${e.type==='entrada'?'positive':'negative'}">${fmt(e.value)}</td><td data-label="Comprovante">${e.files.length?e.files.map((f,i)=>`<button class="link file-link" onclick="openFile(${e.id},${i})">${esc(f.name)}</button>`).join('<br>'):'<span class="muted">Sem anexo</span>'}</td><td class="c-acoes"><button class="icon-btn row-act" aria-label="Ações" onclick="rowMenu(event,${e.id})">${ico('dots')}</button></td></tr>`).join('')}</tbody></table></div><div class="pager"><span class="muted">Mostrando ${start+1} a ${start+rows.length} de ${a.length} lançamentos</span><div class="pager-btns"><button class="btn sm" ${lf.page===1?'disabled':''} onclick="goPage(${lf.page-1})">${ico('chevron-left',2)} Anterior</button>${Array.from({length:pages},(_,i)=>`<button class="btn sm ${i+1===lf.page?'current':''}" onclick="goPage(${i+1})">${i+1}</button>`).join('')}<button class="btn sm" ${lf.page===pages?'disabled':''} onclick="goPage(${lf.page+1})">Próxima ${ico('chevron-right',2)}</button></div></div>`:emptyBox('file','Nenhum lançamento encontrado','Ajuste os filtros ou o período.');
+  document.getElementById('lancTable').innerHTML=a.length?`<div class="table-wrap"><table class="tbl lanc"><thead><tr><th>Data</th><th>Empresa</th>${lancType?'':'<th>Tipo</th>'}<th>Descrição</th><th>Conta de origem/destino</th><th>Forma de pagamento</th><th>Valor</th><th>Comprovante</th><th>Ações</th></tr></thead><tbody>${rows.map(e=>`<tr><td data-label="Data">${short(e.date)}</td><td class="wrap" data-label="Empresa">${esc(companyName(e.company))}</td>${lancType?'':`<td data-label="Tipo" class="${e.type==='entrada'?'type-in':'type-out'}">${e.type==='entrada'?'Entrada':'Saída'}</td>`}<td class="wrap desc c-desc">${esc(e.desc)}</td><td class="wrap" data-label="Conta">${esc(e.account)}</td><td class="wrap" data-label="Pagamento">${esc(e.method)}</td><td data-label="Valor" class="c-valor ${e.type==='entrada'?'positive':'negative'}">${fmt(e.value)}</td><td data-label="Comprovante">${e.files.length?e.files.map((f,i)=>`<button class="link file-link" onclick="openFile('${e.id}',${i})">${esc(f.name)}</button>`).join('<br>'):'<span class="muted">Sem anexo</span>'}</td><td class="c-acoes"><button class="icon-btn row-act" aria-label="Ações" onclick="rowMenu(event,'${e.id}')">${ico('dots')}</button></td></tr>`).join('')}</tbody></table></div><div class="pager"><span class="muted">Mostrando ${start+1} a ${start+rows.length} de ${a.length} lançamentos</span><div class="pager-btns"><button class="btn sm" ${lf.page===1?'disabled':''} onclick="goPage(${lf.page-1})">${ico('chevron-left',2)} Anterior</button>${Array.from({length:pages},(_,i)=>`<button class="btn sm ${i+1===lf.page?'current':''}" onclick="goPage(${i+1})">${i+1}</button>`).join('')}<button class="btn sm" ${lf.page===pages?'disabled':''} onclick="goPage(${lf.page+1})">Próxima ${ico('chevron-right',2)}</button></div></div>`:emptyBox('file','Nenhum lançamento encontrado','Ajuste os filtros ou o período.');
 }
 function goPage(p){lf.page=p;updateLanc()}
 function clearFilters(){lf={q:'',type:'',account:'',method:'',status:'',page:1};company='';filterFrom=DEFAULT_FROM;filterTo=DEFAULT_TO;render()}
 function hideMenus(){document.getElementById('userMenu').classList.add('hidden');document.getElementById('rowMenu').classList.add('hidden')}
 function rowMenu(ev,id){
   ev.stopPropagation();const m=document.getElementById('rowMenu'),e=entries.find(x=>x.id===id),r=ev.currentTarget.getBoundingClientRect();
-  m.innerHTML=`<button onclick="showForm(${id})">Editar</button>${e.status!=='aprovado'?`<button onclick="setStatus(${id},'aprovado')">Aprovar</button>`:''}${e.status!=='revisao'?`<button onclick="setStatus(${id},'revisao')">Enviar para revisão</button>`:''}<button class="danger" onclick="removeEntry(${id})">Excluir</button>`;
+  m.innerHTML=`<button onclick="showForm('${id}')">Editar</button>${e.status!=='aprovado'?`<button onclick="setStatus('${id}','aprovado')">Aprovar</button>`:''}${e.status!=='revisao'?`<button onclick="setStatus('${id}','revisao')">Enviar para revisão</button>`:''}<button class="danger" onclick="removeEntry('${id}')">Excluir</button>`;
   m.classList.remove('hidden');m.style.top=(r.bottom+window.scrollY+4)+'px';m.style.left=Math.max(8,r.right+window.scrollX-m.offsetWidth)+'px';
 }
-function setStatus(id,st){entries=entries.map(e=>e.id===id?{...e,status:st}:e);const e=entries.find(x=>x.id===id);audit.unshift({date:stamp(),user:ME.nome,action:st==='aprovado'?'Aprovação':'Revisão',desc:e.desc,company:e.company});hideMenus();render()}
-function removeEntry(id){const e=entries.find(x=>x.id===id);hideMenus();if(!confirm(`Excluir o lançamento "${e.desc}"?`))return;entries=entries.filter(x=>x.id!==id);audit.unshift({date:stamp(),user:ME.nome,action:'Exclusão',desc:e.desc,company:e.company});render()}
+function setStatus(id,st){entries=entries.map(e=>e.id===id?{...e,status:st}:e);const e=entries.find(x=>x.id===id);audit.unshift({id:crypto.randomUUID(),date:stamp(),user:ME.nome,action:st==='aprovado'?'Aprovação':'Revisão',desc:e.desc,company:e.company});hideMenus();render();scheduleCloudSave()}
+function removeEntry(id){const e=entries.find(x=>x.id===id);hideMenus();if(!confirm(`Excluir o lançamento "${e.desc}"?`))return;entries=entries.filter(x=>x.id!==id);audit.unshift({id:crypto.randomUUID(),date:stamp(),user:ME.nome,action:'Exclusão',desc:e.desc,company:e.company});render();scheduleCloudSave()}
 
 const fsec=(icon,head,body)=>`<section class="card fsec"><div class="card-head"><span class="with-ico">${ico(icon)} ${head}</span></div><div class="card-body">${body}</div></section>`;
 const req=t=>`<span>${t} <b class="req">*</b></span>`;
@@ -641,7 +645,7 @@ function showForm(id,presetType=''){
 function addFiles(list){
   const ok=[],bad=[];
   Array.from(list).forEach(f=>(f.size<=10*1024*1024&&['image/jpeg','image/png','application/pdf'].includes(f.type)?ok:bad).push(f));
-  draftFiles.push(...ok.map(f=>({name:f.name,size:f.size,type:f.type,url:URL.createObjectURL(f)})));
+  draftFiles.push(...ok.map(f=>{const id=crypto.randomUUID();fileMem[id]=f;return {id,name:f.name,size:f.size,type:f.type,url:URL.createObjectURL(f)}}));
   const err=document.getElementById('fileErr');err.textContent=bad.length?`Não anexado: ${bad.map(f=>f.name).join(', ')}. Use JPG, PNG ou PDF de até 10 MB.`:'';err.classList.toggle('hidden',!bad.length);
   renderFileList();
 }
@@ -656,12 +660,13 @@ function submitForm(ev){
   if(x.type==='saida'&&!files.length&&!review&&!confirm('Saída sem comprovante. Salvar mesmo assim? O lançamento ficará marcado como "Sem comprovante".'))return;
   const now=stamp(),old=entries.find(e=>e.id===editing);
   const status=review?'revisao':(files.length||x.type==='entrada')?'aprovado':'sem-comprovante';
-  const record={id:old?.id||Date.now(),company:x.company,type:x.type,date:x.date,desc:x.desc,value:Number(x.value),account:x.account,method:x.method,notes:x.notes,created:old?.created||ME.nome,files,status};
+  const record={id:old?.id||crypto.randomUUID(),company:x.company,type:x.type,date:x.date,desc:x.desc,value:Number(x.value),account:x.account,method:x.method,notes:x.notes,created:old?.created||ME.nome,files,status};
   if(old)entries=entries.map(e=>e.id===old.id?record:e);else entries.unshift(record);
-  audit.unshift({date:now,user:ME.nome,action:old?'Edição':'Criação',desc:x.desc,company:x.company});
-  if(draftFiles.length)audit.unshift({date:now,user:ME.nome,action:'Anexo',desc:`${draftFiles.length} comprovante(s) em ${x.desc}`,company:x.company});
-  if(review)audit.unshift({date:now,user:ME.nome,action:'Revisão',desc:`Enviado para revisão: ${x.desc}`,company:x.company});
+  audit.unshift({id:crypto.randomUUID(),date:now,user:ME.nome,action:old?'Edição':'Criação',desc:x.desc,company:x.company});
+  if(draftFiles.length)audit.unshift({id:crypto.randomUUID(),date:now,user:ME.nome,action:'Anexo',desc:`${draftFiles.length} comprovante(s) em ${x.desc}`,company:x.company});
+  if(review)audit.unshift({id:crypto.randomUUID(),date:now,user:ME.nome,action:'Revisão',desc:`Enviado para revisão: ${x.desc}`,company:x.company});
   company=x.company;navigate(formBack);
+  scheduleCloudSave();
 }
 
 function renderAudit(){const a=audit.filter(inCompany);view().innerHTML=title('Auditoria',`${companyLabel()} · histórico de registros e alterações.`)+`<div class="filters">${coFilter()}</div>`+card('Histórico de atividades',a.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Data</th><th>Usuário</th><th>Ação</th><th>Empresa</th><th>Descrição</th></tr></thead><tbody>${a.map(x=>`<tr><td>${short(x.date)} ${x.date.slice(11)}</td><td>${esc(x.user)}</td><td>${esc(x.action)}</td><td>${esc(companyName(x.company))}</td><td>${esc(x.desc)}</td></tr>`).join('')}</tbody></table></div>`:emptyBox('clock','Nenhum registro de auditoria',company?'Ainda não há alterações nesta empresa.':'Ainda não há alterações registradas.'));wireDates()}
@@ -670,8 +675,58 @@ function renderReports(){const p=period(),s=sums(p);view().innerHTML=title('Rela
 function exportCsv(list=period()){const header=['Empresa','Data','Tipo','Descrição','Conta','Valor','Forma de pagamento'];const lines=list.map(e=>[companyName(e.company),e.date,e.type,e.desc,e.account,e.value.toFixed(2).replace('.',','),e.method||'']);const csv='﻿'+[header,...lines].map(r=>r.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(';')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='lancamentos-empresas.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 function renderCompanies(){view().innerHTML=title('Empresas','Escolha uma empresa para abrir o painel dela.',rangeBox())+`<div class="co-cards">${companies.map(c=>{const z=sums(entries.filter(e=>inPeriod(e)&&e.company===c.id));return `<button class="co-card" onclick="company='${c.id}';navigate('dashboard')"><div class="co-card-head">${coIcon(c)}<div><b>${esc(c.nome)}</b><div class="co-meta" style="flex-direction:row;align-items:center;gap:8px;margin-top:4px"><small>${esc(c.tipo)}</small>${tagLicitado(c)}</div></div></div><div><div class="sumline"><span>Entradas</span><b class="positive">${fmt(z.in)}</b></div><div class="sumline"><span>Saídas</span><b class="negative">${fmt(z.out)}</b></div><div class="sumline"><span>Diferença</span><b>${fmt(z.in-z.out)}</b></div></div></button>`}).join('')}</div>`;wireDates()}
 function renderAccounts(){view().innerHTML=title('Contas bancárias','Contas de cada empresa. No cadastro só aparecem as contas da empresa escolhida.')+`<div class="co-cards">${companies.map(c=>`<section class="co-card"><div class="co-card-head">${coIcon(c)}<b>${esc(c.nome)}</b></div><div>${accounts[c.id].map(n=>`<div class="sumline"><span>${esc(n)}</span><span class="muted">${entries.filter(e=>e.company===c.id&&e.account===n).length} lanç.</span></div>`).join('')}</div><form class="inline-form" onsubmit="addAccount(event,'${c.id}')"><input name="nome" placeholder="Nova conta" required maxlength="60"><button class="btn">${ico('plus')}</button></form></section>`).join('')}</div>`}
-function addAccount(ev,id){ev.preventDefault();const n=ev.target.nome.value.trim();if(n&&!accounts[id].includes(n))accounts[id].push(n);renderAccounts()}
+function addAccount(ev,id){ev.preventDefault();const n=ev.target.nome.value.trim();if(n&&!accounts[id].includes(n)){accounts[id].push(n);scheduleCloudSave()}renderAccounts()}
 function renderUsers(){view().innerHTML=title('Usuários','Quem acessa o sistema e quais empresas cada um vê.')+card('Usuários',`<div class="table-wrap"><table class="tbl"><thead><tr><th>Nome</th><th>Perfil</th><th>Empresas</th></tr></thead><tbody><tr><td>${esc(ME.nome)}</td><td>${ME.admin?'Administrador':'Usuário'}</td><td>${ME.admin?'Todas as empresas':'—'}</td></tr></tbody></table></div><p class="muted" style="font-size:12px;margin:14px 0 0">Na versão com banco de dados, cada funcionário verá apenas a empresa dele; o administrador vê todas.</p>`)}
+
+// ====== Ponte com o React (Supabase): hidratação e salvamento na nuvem ======
+async function blobToB64(blob){const buf=await blob.arrayBuffer();const bytes=new Uint8Array(buf);let s='';for(let i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);return btoa(s)}
+async function collectPendingFiles(){
+  const files={};
+  for(const e of entries)for(const f of e.files){
+    if(!f||!f.id||f.path)continue;
+    const blob=fileMem[f.id];
+    if(!blob)continue;
+    files[f.id]={name:f.name||'arquivo',type:f.type||blob.type||'application/octet-stream',size:f.size||blob.size||0,dataBase64:await blobToB64(blob)};
+  }
+  return files;
+}
+function toServerSnapshot(){
+  return {
+    lancamentos:entries.map(e=>({id:e.id,empresa:e.company,data:e.date,tipo:e.type,descricao:e.desc,valor:e.value,conta:e.account,formaPagamento:e.method,observacoes:e.notes,status:e.status,anexos:e.files.map(f=>({id:f.id,name:f.name,type:f.type,size:f.size,path:f.path}))})),
+    contas:accounts,
+    audit:audit.map(a=>({id:a.id,at:a.date,actor:a.user,action:a.action,detail:a.desc,empresa:a.company})),
+  };
+}
+function scheduleCloudSave(){if(!EMBED)return;clearTimeout(cloudTimer);cloudTimer=setTimeout(()=>void cloudSave(),600)}
+async function cloudSave(){
+  if(!EMBED)return;
+  const requestId='p'+(++cloudReq);
+  const snapshot=toServerSnapshot();
+  try{snapshot._files=await collectPendingFiles()}catch(err){toast('Falha ao ler comprovantes para nuvem');return}
+  cloudPending[requestId]=true;
+  try{toParent({type:'mr-persist',requestId,payload:snapshot})}catch(err){delete cloudPending[requestId];toast('Arquivo grande demais para enviar. Use PDF/imagem menor.')}
+}
+function applyCloudDb(payload){
+  if(!payload||typeof payload!=='object')return;
+  entries=Array.isArray(payload.lancamentos)?payload.lancamentos.map(l=>({
+    id:l.id,company:l.empresa,date:l.data,type:l.tipo,desc:l.descricao||'',value:Number(l.valor)||0,
+    account:l.conta||'',method:l.formaPagamento||'',notes:l.observacoes||'',status:l.status||'aprovado',
+    created:l.criadoPor||'—',
+    files:(l.anexos||[]).map(a=>({id:a.id,name:a.name,type:a.type,size:a.size,path:a.path,url:a.signedUrl})),
+  })):[];
+  if(payload.contas&&typeof payload.contas==='object'){
+    companies.forEach(c=>{const v=payload.contas[c.id];if(Array.isArray(v)&&v.length)accounts[c.id]=v.slice()});
+  }
+  audit=Array.isArray(payload.audit)?payload.audit.map(a=>({id:a.id,date:a.at,user:a.actor,action:a.action,desc:a.detail||'',company:a.empresa||''})):[];
+  render();
+}
+let toastTimer=null;
+function toast(msg){
+  let el=document.getElementById('toastBox');
+  if(!el){el=document.createElement('div');el.id='toastBox';el.style.cssText='position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#1e293b;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.25);max-width:90vw;text-align:center;transition:opacity .25s';document.body.appendChild(el)}
+  el.textContent=msg;el.style.opacity='1';
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.style.opacity='0'},3000);
+}
 
 const navItems=[['dashboard','Painel','home'],['lancamentos','Lançamentos','list'],['entradas','Entradas','arrow-down'],['saidas','Saídas','arrow-up'],'|',['comprovantes','Comprovantes','file'],'|',['auditoria','Auditoria','shield'],['relatorios','Relatórios','chart'],'|',['empresas','Empresas','building'],['contas','Contas bancárias','card'],'|',['usuarios','Usuários','users'],['config','Configurações','settings']];
 const titles={dashboard:'Painel',lancamentos:'Lançamentos',entradas:'Entradas',saidas:'Saídas',comprovantes:'Comprovantes',auditoria:'Auditoria',relatorios:'Relatórios',empresas:'Empresas',contas:'Contas bancárias',usuarios:'Usuários',config:'Configurações'};
@@ -683,7 +738,9 @@ function render(){
   markNav(page);document.getElementById('topPage').textContent=titles[page]||'Painel';
   ({dashboard:renderDashboard,lancamentos:()=>renderLancamentos(),entradas:()=>renderLancamentos('entrada'),saidas:()=>renderLancamentos('saida'),comprovantes:renderFiles,auditoria:renderAudit,relatorios:renderReports,empresas:renderCompanies,contas:renderAccounts,usuarios:renderUsers}[page]||(()=>{view().innerHTML=title('Configurações','Definições do ambiente financeiro das empresas.')+card('Ambiente de demonstração','<div class="muted">Esta versão é um protótipo local e não está conectada ao banco de dados. Para uso real será necessário salvar lançamentos, comprovantes e auditoria no servidor.</div>')}))();
 }
-function toParent(type){try{window.parent.postMessage({type},'*')}catch{}}
+// srcdoc: este documento tem origin opaco ("null"), então postMessage usa '*'
+// (conteúdo é gerado pelo próprio React host, não vem de terceiros).
+function toParent(msg){if(!EMBED)return;try{window.parent.postMessage(typeof msg==='string'?{type:msg}:msg,'*')}catch{}}
 
 document.querySelectorAll('[data-icon]').forEach(e=>e.insertAdjacentHTML('afterbegin',ico(e.dataset.icon)));
 document.getElementById('nav').innerHTML=navItems.map(i=>i==='|'?'<div class="nav-sep"></div>':`<button class="nav-btn" data-page="${i[0]}" title="${i[1]}">${ico(i[2])}<span class="nav-label">${i[1]}</span></button>`).join('');
@@ -699,5 +756,13 @@ const toggleCollapse=()=>document.getElementById('app').classList.toggle('collap
 document.getElementById('collapse').onclick=toggleCollapse;document.getElementById('toggle').onclick=toggleCollapse;
 document.getElementById('overlay').onclick=closeDrawer;
 render();
+window.addEventListener('message',e=>{
+  if(e.source!==window.parent)return;
+  const d=e.data||{};
+  if(d.type==='mr-hydrate'&&d.payload){applyCloudDb(d.payload);return}
+  if(d.type==='mr-persist-ok'){delete cloudPending[d.requestId];persistBusyRetries=0;if(d.payload)applyCloudDb(d.payload);toast('Salvo na nuvem');return}
+  if(d.type==='mr-persist-erro'){delete cloudPending[d.requestId];const msg=d.erro||'Falha ao salvar na nuvem';if(/em andamento/i.test(msg)&&persistBusyRetries<20){persistBusyRetries++;scheduleCloudSave()}else{persistBusyRetries=0;toast(msg)}return}
+});
+toParent('mr-pronto');
 </script>
 </body></html>

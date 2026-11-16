@@ -7,7 +7,7 @@ Tudo sobe no mesmo deploy (`sitema-novo.vercel.app`). O login escolhe qual siste
 | **Nerites** | `alimentacao-app/src/pages/nerites/` | `/` | Cadastros, equipe, ativação, votação, mapa, relatórios |
 | **Painel do Mandato** | `alimentacao-app/src/pages/mandato/` + `public/sistemas/mandato-embed/` | `/painel-do-mandato` | Gabinete do vereador (demandas, financeiro da Câmara, proposições) |
 | **Assessoria MB** | `alimentacao-app/src/pages/assessoria/` + `public/sistemas/assessoria-mb/` | `/assessoria-mb` | Financeiro corporativo (despesas, comprovantes) |
-| **Empresas** | `alimentacao-app/src/pages/empresas/` | `/mr-terceiriza` | MR Terceiriza |
+| **Empresas** | `alimentacao-app/src/pages/empresas/` | `/mr-terceiriza` | MR Terceiriza — caixa de 7 empresas (entradas/saídas, contas, comprovantes, auditoria) |
 | **Administração** | `alimentacao-app/src/pages/admin/` | `/admin` | Só admin. Lista os usuários do Nerites e libera/edita o acesso deles (ou cadastra login novo) à Assessoria MB, ao Painel do Mandato e à Empresas. Não aparece no seletor de login e não mexe no Nerites em si. |
 
 ## Onde colocar o quê
@@ -43,6 +43,7 @@ alimentacao-sistema/
 | Painel do Mandato (fichas/lideranças) | Lê Nerites |
 | Painel do Mandato (financeiro) | Supabase **Gabinete** (`GABINETE_*` só no servidor) |
 | Assessoria MB | **Nerites** — tabelas `mb_*` + Storage `mb-comprovantes` (bridge React ↔ iframe) |
+| Empresas (MR Terceriza) | **Nerites** — tabelas `mr_*` + Storage `mr-comprovantes` (mesmo padrão de bridge React ↔ iframe da Assessoria MB) |
 
 ## Administração (/admin)
 
@@ -63,3 +64,4 @@ alimentacao-sistema/
 - `FinanceiroPage` em **nerites** = financeiro de coordenação/liderança do sistema eleitoral.
 - Financeiro do **Painel do Mandato** = folha/VIEP/equipe do vereador (Gabinete).
 - Financeiro da **Assessoria MB** = tabelas `mb_*` no Nerites (não misturar com `financeiro_*` nem com `fin_*` do Gabinete). Ver `docs/LEIA-ME-ASSESSORIA-MB.md`.
+- Lançamentos de **Empresas** = tabelas `mr_*` no Nerites (migration `20261116f_mr_terceriza.sql`). As 7 empresas (MR, RE FASHION, IRON, GLOBO, MCC, LIMPOCAR SEMINOVOS, TIPS GRÁF) continuam fixas no código do painel (`mr-terceiriza-demo.html`) — só lançamentos, contas, anexos e auditoria viram banco de verdade.
