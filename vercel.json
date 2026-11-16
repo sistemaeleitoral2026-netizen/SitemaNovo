@@ -7,6 +7,9 @@
     "api/folha-cron.js": {
       "maxDuration": 60
     },
+    "api/phibo-cron.js": {
+      "maxDuration": 60
+    },
     "api/gabinete.js": {
       "maxDuration": 60
     }
