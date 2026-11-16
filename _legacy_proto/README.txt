@@ -1,18 +1,7 @@
-ALIMENTAÇÃO — PROTÓTIPO FRONT-END
+PROTÓTIPOS E SCRIPTS ANTIGOS — não fazem parte do app em produção.
 
-Abra index.html no navegador ou publique a pasta em Vercel/Netlify/GitHub Pages.
+- Raiz desta pasta: protótipo HTML antigo (index.html / app.js).
+- scripts/: utilitários one-off usados no passado (_organize, extract, analyze…).
 
-Login de demonstração: qualquer usuário/senha. Escolha o perfil Administrador ou Operador.
-
-Incluído:
-- Login por perfil
-- Dashboard administrativo
-- Dashboard do operador
-- Lista de cadastros
-- Novo cadastro
-- Importação de planilha (interface)
-- Mapa interativo demonstrativo
-- Operadores
-- Layout responsivo
-
-IMPORTANTE: este pacote é um protótipo front-end. Persistência real, autenticação, banco, validação de CPF, geocodificação e importação XLSX/CSV precisam de backend/API para produção.
+App real: alimentacao-app/
+Mapa dos sistemas: docs/SISTEMAS.md

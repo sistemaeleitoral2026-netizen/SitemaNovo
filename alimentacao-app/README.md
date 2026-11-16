@@ -1,6 +1,14 @@
 # AlimentaAção
 
-Sistema web de cadastro, organização, geolocalização e análise.
+App Vite/React com **vários sistemas** no mesmo deploy. Mapa completo: [`docs/SISTEMAS.md`](../docs/SISTEMAS.md).
+
+| Pasta | Sistema |
+|-------|---------|
+| `src/pages/nerites/` | Nerites (eleitoral) |
+| `src/pages/mandato/` + `public/sistemas/mandato-embed/` | Painel do Mandato |
+| `src/pages/assessoria/` + `public/sistemas/assessoria-mb/` | Assessoria MB |
+| `src/pages/empresas/` | MR Terceiriza |
+| `src/pages/auth/` | Login |
 
 ## Como rodar
 
