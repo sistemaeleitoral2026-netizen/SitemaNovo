@@ -271,7 +271,6 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
     lancamentos,
     tarefas,
     auditoria,
-    prestacao,
     anexos,
     equipeSistema,
   ] = await Promise.all([
@@ -283,12 +282,11 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
     supabase.from('mb_lancamentos').select('*').order('data', { ascending: false }),
     supabase.from('mb_tarefas').select('*').order('created_at', { ascending: false }),
     supabase.from('mb_auditoria').select('*').order('at', { ascending: false }).limit(500),
-    supabase.from('mb_prestacao_contas').select('*').order('data', { ascending: false }),
     listAnexos(),
     listarEquipeSistema(),
   ])
 
-  for (const r of [empresas, bancos, centros, templates, equipe, lancamentos, tarefas, auditoria, prestacao]) {
+  for (const r of [empresas, bancos, centros, templates, equipe, lancamentos, tarefas, auditoria]) {
     if (r.error) throw r.error
   }
 
@@ -351,30 +349,8 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
     detail: (r.detail as string) || '',
   }))
 
-  const prestacaoRows: MbHistoryRow[] = (prestacao.data || []).map((r) => {
-    const codigo = (r.codigo_origem as string) || (r.id as string)
-    return {
-      id: codigo,
-      mes: (r.mes as string) || '',
-      aba: (r.aba as string) || '',
-      linha: (r.linha as number) || undefined,
-      nome: (r.nome as string) || '',
-      descricao: (r.descricao as string) || '',
-      data: r.data ? String(r.data).slice(0, 10) : '',
-      valor: money(r.valor),
-      banco: (r.banco as string) || '',
-      extrato: (r.extrato as string) || '',
-      situacao: (r.situacao as string) || '',
-      observacao: (r.observacao as string) || '',
-      anexos: anexosFor(anexoRows, 'prestacao', r.id as string, signed),
-      _uuid: r.id as string,
-    } as MbHistoryRow & { _uuid?: string }
-  })
-
+  // Prestação de contas: planilha antiga removida da UI. Não reidrata registros legados.
   const historyEdits: Record<string, Partial<MbHistoryRow>> = {}
-  for (const row of prestacaoRows) {
-    if (row.anexos?.length) historyEdits[row.id] = { anexos: row.anexos }
-  }
 
   return {
     finance,
@@ -386,7 +362,7 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
     centers: Object.fromEntries((centros.data || []).map((c) => [c.codigo as string, (c.nome as string) || ''])),
     companies: (empresas.data || []).map((e) => (e.codigo as string) || (e.nome as string)).filter(Boolean),
     historyEdits,
-    prestacao: prestacaoRows,
+    prestacao: [],
     equipeSistema,
   }
 }
