@@ -24,7 +24,7 @@ import {
   type LiderPainel,
   type ResumoFichas,
 } from '../../lib/mandatoResumo'
-import { writeSite } from '../../lib/sites'
+import { canAccessAssessoriaMb, writeSite } from '../../lib/sites'
 
 const fmt = new Intl.NumberFormat('pt-BR')
 const CHAVE_ATENDIDOS = 'alimentacao_mandato_atendidos'
@@ -166,6 +166,7 @@ function montarFeed(resumo: ResumoFichas, proposicoes: ProposicaoMandato[], lide
 export function PainelMandatoPage() {
   const { profile, signOut } = useAuth()
   const admin = hasRole(profile, 'admin')
+  const assessoriaOk = canAccessAssessoriaMb(profile)
   const frame = useRef<HTMLIFrameElement>(null)
   const feed = useRef<Feed | null>(null)
   const limpouDemo = useRef(false)
@@ -380,8 +381,10 @@ export function PainelMandatoPage() {
             <>
               <Link to="/" onClick={() => writeSite('nerites')}>Sistema Nerites</Link>
               <Link to="/mr-terceiriza" onClick={() => writeSite('mr-terceiriza')}>Empresas</Link>
-              <Link to="/assessoria-mb" onClick={() => writeSite('assessoria-mb')}>Assessoria MB</Link>
             </>
+          ) : null}
+          {assessoriaOk ? (
+            <Link to="/assessoria-mb" onClick={() => writeSite('assessoria-mb')}>Assessoria MB</Link>
           ) : null}
           <button type="button" onClick={() => void signOut()}>Sair</button>
         </div>
