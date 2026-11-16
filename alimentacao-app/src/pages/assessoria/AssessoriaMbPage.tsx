@@ -89,7 +89,13 @@ export function AssessoriaMbPage() {
           setErroSync('')
           postar({ type: 'mb-persist-ok', requestId: dados.requestId, payload: estado })
         } catch (e) {
-          const msg = e instanceof Error ? e.message : 'Falha ao salvar na nuvem.'
+          const o = e as { message?: string; error?: string } | null
+          const msg =
+            (e instanceof Error && e.message) ||
+            o?.message ||
+            o?.error ||
+            'Falha ao salvar na nuvem.'
+          console.error('[assessoria-mb] persist', e)
           setErroSync(msg)
           postar({ type: 'mb-persist-erro', requestId: dados.requestId, erro: msg })
         } finally {
