@@ -5,14 +5,14 @@ import { AppShell } from './components/layout/AppShell'
 import { Spinner } from './components/ui/Spinner'
 // Caminho crítico (login + votação do auxiliar): carregamento imediato, sem
 // baixar as bibliotecas pesadas das telas de gestão.
-import { LoginPage } from './pages/LoginPage'
-import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
-import { MrTerceirizaPage } from './pages/MrTerceirizaPage'
-import { AssessoriaMbPage } from './pages/AssessoriaMbPage'
-import { PainelMandatoPage } from './pages/PainelMandatoPage'
-import { VotacaoLancarPage } from './pages/VotacaoLancarPage'
-import { VotacaoProgressoPage } from './pages/VotacaoProgressoPage'
-import { VotacaoHistoricoPage } from './pages/VotacaoHistoricoPage'
+import { LoginPage } from './pages/auth/LoginPage'
+import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage'
+import { MrTerceirizaPage } from './pages/empresas/MrTerceirizaPage'
+import { AssessoriaMbPage } from './pages/assessoria/AssessoriaMbPage'
+import { PainelMandatoPage } from './pages/mandato/PainelMandatoPage'
+import { VotacaoLancarPage } from './pages/nerites/VotacaoLancarPage'
+import { VotacaoProgressoPage } from './pages/nerites/VotacaoProgressoPage'
+import { VotacaoHistoricoPage } from './pages/nerites/VotacaoHistoricoPage'
 import { canSeeFormigasWhatsapp } from './lib/formigasWhatsapp'
 import { hasRole } from './lib/roles'
 import { readSite, siteById, type SiteId } from './lib/sites'
@@ -20,32 +20,32 @@ import type { Profile } from './types'
 
 // Telas de gestão (mapa/Leaflet, gráficos/Recharts, PDF/Excel) em chunks
 // separados — cada perfil só baixa o que abrir. Alivia muito o celular.
-const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })))
-const OperadoresPage = lazy(() => import('./pages/OperadoresPage').then((m) => ({ default: m.OperadoresPage })))
-const OperadorDetailPage = lazy(() => import('./pages/OperadorDetailPage').then((m) => ({ default: m.OperadorDetailPage })))
-const CadastrosPage = lazy(() => import('./pages/CadastrosPage').then((m) => ({ default: m.CadastrosPage })))
-const CadastroFormPage = lazy(() => import('./pages/CadastroFormPage').then((m) => ({ default: m.CadastroFormPage })))
-const MapaPage = lazy(() => import('./pages/MapaPage').then((m) => ({ default: m.MapaPage })))
-const ImportarPage = lazy(() => import('./pages/ImportarPage').then((m) => ({ default: m.ImportarPage })))
-const RelatoriosPage = lazy(() => import('./pages/RelatoriosPage').then((m) => ({ default: m.RelatoriosPage })))
-const RelatorioFichasTxtPage = lazy(() => import('./pages/RelatorioFichasTxtPage').then((m) => ({ default: m.RelatorioFichasTxtPage })))
-const RelatorioBackupPage = lazy(() => import('./pages/RelatorioBackupPage').then((m) => ({ default: m.RelatorioBackupPage })))
-const ChamadaPage = lazy(() => import('./pages/ChamadaPage').then((m) => ({ default: m.ChamadaPage })))
-const FerramentasTituloPage = lazy(() => import('./pages/FerramentasTituloPage').then((m) => ({ default: m.FerramentasTituloPage })))
-const ConfiguracoesPage = lazy(() => import('./pages/ConfiguracoesPage').then((m) => ({ default: m.ConfiguracoesPage })))
-const EquipePage = lazy(() => import('./pages/EquipePage').then((m) => ({ default: m.EquipePage })))
-const AtivacaoLancarPage = lazy(() => import('./pages/AtivacaoLancarPage').then((m) => ({ default: m.AtivacaoLancarPage })))
-const AtivacaoPainelPage = lazy(() => import('./pages/AtivacaoPainelPage').then((m) => ({ default: m.AtivacaoPainelPage })))
-const AtivacaoHistoricoPage = lazy(() => import('./pages/AtivacaoHistoricoPage').then((m) => ({ default: m.AtivacaoHistoricoPage })))
-const DemandasLancarPage = lazy(() => import('./pages/DemandasLancarPage').then((m) => ({ default: m.DemandasLancarPage })))
-const DemandasPainelPage = lazy(() => import('./pages/DemandasPainelPage').then((m) => ({ default: m.DemandasPainelPage })))
-const LiderancaPage = lazy(() => import('./pages/LiderancaPage').then((m) => ({ default: m.LiderancaPage })))
-const GaragemLancarPage = lazy(() => import('./pages/GaragemLancarPage').then((m) => ({ default: m.GaragemLancarPage })))
-const GaragemHistoricoPage = lazy(() => import('./pages/GaragemHistoricoPage').then((m) => ({ default: m.GaragemHistoricoPage })))
-const FinanceiroPage = lazy(() => import('./pages/FinanceiroPage').then((m) => ({ default: m.FinanceiroPage })))
-const TvDashboardPage = lazy(() => import('./pages/TvDashboardPage').then((m) => ({ default: m.TvDashboardPage })))
-const AuditoriaPage = lazy(() => import('./pages/AuditoriaPage').then((m) => ({ default: m.AuditoriaPage })))
-const FormigasWhatsappPage = lazy(() => import('./pages/FormigasWhatsappPage').then((m) => ({ default: m.FormigasWhatsappPage })))
+const DashboardPage = lazy(() => import('./pages/nerites/DashboardPage').then((m) => ({ default: m.DashboardPage })))
+const OperadoresPage = lazy(() => import('./pages/nerites/OperadoresPage').then((m) => ({ default: m.OperadoresPage })))
+const OperadorDetailPage = lazy(() => import('./pages/nerites/OperadorDetailPage').then((m) => ({ default: m.OperadorDetailPage })))
+const CadastrosPage = lazy(() => import('./pages/nerites/CadastrosPage').then((m) => ({ default: m.CadastrosPage })))
+const CadastroFormPage = lazy(() => import('./pages/nerites/CadastroFormPage').then((m) => ({ default: m.CadastroFormPage })))
+const MapaPage = lazy(() => import('./pages/nerites/MapaPage').then((m) => ({ default: m.MapaPage })))
+const ImportarPage = lazy(() => import('./pages/nerites/ImportarPage').then((m) => ({ default: m.ImportarPage })))
+const RelatoriosPage = lazy(() => import('./pages/nerites/RelatoriosPage').then((m) => ({ default: m.RelatoriosPage })))
+const RelatorioFichasTxtPage = lazy(() => import('./pages/nerites/RelatorioFichasTxtPage').then((m) => ({ default: m.RelatorioFichasTxtPage })))
+const RelatorioBackupPage = lazy(() => import('./pages/nerites/RelatorioBackupPage').then((m) => ({ default: m.RelatorioBackupPage })))
+const ChamadaPage = lazy(() => import('./pages/nerites/ChamadaPage').then((m) => ({ default: m.ChamadaPage })))
+const FerramentasTituloPage = lazy(() => import('./pages/nerites/FerramentasTituloPage').then((m) => ({ default: m.FerramentasTituloPage })))
+const ConfiguracoesPage = lazy(() => import('./pages/nerites/ConfiguracoesPage').then((m) => ({ default: m.ConfiguracoesPage })))
+const EquipePage = lazy(() => import('./pages/nerites/EquipePage').then((m) => ({ default: m.EquipePage })))
+const AtivacaoLancarPage = lazy(() => import('./pages/nerites/AtivacaoLancarPage').then((m) => ({ default: m.AtivacaoLancarPage })))
+const AtivacaoPainelPage = lazy(() => import('./pages/nerites/AtivacaoPainelPage').then((m) => ({ default: m.AtivacaoPainelPage })))
+const AtivacaoHistoricoPage = lazy(() => import('./pages/nerites/AtivacaoHistoricoPage').then((m) => ({ default: m.AtivacaoHistoricoPage })))
+const DemandasLancarPage = lazy(() => import('./pages/nerites/DemandasLancarPage').then((m) => ({ default: m.DemandasLancarPage })))
+const DemandasPainelPage = lazy(() => import('./pages/nerites/DemandasPainelPage').then((m) => ({ default: m.DemandasPainelPage })))
+const LiderancaPage = lazy(() => import('./pages/nerites/LiderancaPage').then((m) => ({ default: m.LiderancaPage })))
+const GaragemLancarPage = lazy(() => import('./pages/nerites/GaragemLancarPage').then((m) => ({ default: m.GaragemLancarPage })))
+const GaragemHistoricoPage = lazy(() => import('./pages/nerites/GaragemHistoricoPage').then((m) => ({ default: m.GaragemHistoricoPage })))
+const FinanceiroPage = lazy(() => import('./pages/nerites/FinanceiroPage').then((m) => ({ default: m.FinanceiroPage })))
+const TvDashboardPage = lazy(() => import('./pages/nerites/TvDashboardPage').then((m) => ({ default: m.TvDashboardPage })))
+const AuditoriaPage = lazy(() => import('./pages/nerites/AuditoriaPage').then((m) => ({ default: m.AuditoriaPage })))
+const FormigasWhatsappPage = lazy(() => import('./pages/nerites/FormigasWhatsappPage').then((m) => ({ default: m.FormigasWhatsappPage })))
 
 function homeForProfile(profile: Profile | null | undefined) {
   if (!profile) return '/login'

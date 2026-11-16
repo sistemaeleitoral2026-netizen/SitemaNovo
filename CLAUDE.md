@@ -1,5 +1,7 @@
 # alimentacao-sistema
 
+Mapa dos sistemas (Nerites, Mandato, Assessoria MB, Empresas): `docs/SISTEMAS.md`.
+
 ## GitHub
 
 - Repo: `https://github.com/sistemaeleitoral2026-netizen/SitemaNovo.git`
@@ -7,8 +9,11 @@
 - Autor dos commits: `Jurandy1 <jujuba100054@gmail.com>`
 - Não use `noreply` no autor
 - App fica em `alimentacao-app/`
+- Páginas por sistema em `alimentacao-app/src/pages/{auth,nerites,mandato,assessoria,empresas}/`
+- Embeds empacotados em `alimentacao-app/public/sistemas/`
 - CI roda `npm ci` e `npm run build` dentro de `alimentacao-app`
 - Não commitar `.env`, senhas, service role, nem `supabase/diagnosticos/` novos sem pedido
+- Scripts soltos / protótipos: `_legacy_proto/` (não entram no app)
 
 ## Push
 

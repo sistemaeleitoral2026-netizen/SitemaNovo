@@ -1,7 +1,7 @@
 {
   "rewrites": [
     {
-      "source": "/((?!api/|assets/|data/|assessoria-mb/|mandato-embed/).*)",
+      "source": "/((?!api/|assets/|data/|sistemas/).*)",
       "destination": "/index.html"
     }
   ]

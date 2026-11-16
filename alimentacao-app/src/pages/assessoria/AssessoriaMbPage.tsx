@@ -1,0 +1,153 @@
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../contexts/AuthContext'
+import { hasRole } from '../../lib/roles'
+import { isSiteId, siteById, writeSite } from '../../lib/sites'
+import { Spinner } from '../../components/ui/Spinner'
+import {
+  baixarAnexoAssessoria,
+  carregarEstadoAssessoria,
+  salvarEstadoAssessoria,
+  type MbDbPayload,
+} from '../../lib/assessoriaMb'
+
+type MbMensagem = {
+  type?: string
+  site?: string
+  requestId?: string
+  payload?: MbDbPayload
+  path?: string
+}
+
+export function AssessoriaMbPage() {
+  const { profile, signOut } = useAuth()
+  const navigate = useNavigate()
+  const frameRef = useRef<HTMLIFrameElement>(null)
+  const [pronto, setPronto] = useState(false)
+  const [erroSync, setErroSync] = useState('')
+  const admin = hasRole(profile, 'admin')
+  const podeEditar = hasRole(profile, ['admin', 'diretoria'])
+  const nome = profile?.nome || 'Usuário'
+  const userId = profile?.id || ''
+  const persistindo = useRef(false)
+
+  function postar(msg: Record<string, unknown>) {
+    frameRef.current?.contentWindow?.postMessage(msg, window.location.origin)
+  }
+
+  function enviarUsuario() {
+    postar({ type: 'mb-user', nome, admin })
+  }
+
+  async function hidratar() {
+    if (!podeEditar) {
+      setErroSync('Sem permissão para o financeiro corporativo (admin/diretoria).')
+      return
+    }
+    try {
+      const estado = await carregarEstadoAssessoria()
+      setErroSync('')
+      postar({ type: 'mb-hydrate', payload: estado })
+    } catch (e) {
+      setErroSync(e instanceof Error ? e.message : 'Falha ao carregar dados da Assessoria MB.')
+    }
+  }
+
+  useEffect(() => {
+    async function aoMensagem(ev: MessageEvent) {
+      if (ev.origin !== window.location.origin) return
+      if (ev.source !== frameRef.current?.contentWindow) return
+      const dados = (ev.data ?? {}) as MbMensagem
+
+      if (dados.type === 'mb-pronto') {
+        setPronto(true)
+        enviarUsuario()
+        void hidratar()
+        return
+      }
+      if (dados.type === 'mb-sair') {
+        void signOut()
+        return
+      }
+      if (dados.type === 'mb-nav' && admin && isSiteId(dados.site) && dados.site !== 'assessoria-mb') {
+        writeSite(dados.site)
+        navigate(siteById(dados.site)?.home ?? '/')
+        return
+      }
+      if (dados.type === 'mb-persist' && dados.payload) {
+        if (!podeEditar || !userId) {
+          postar({ type: 'mb-persist-erro', requestId: dados.requestId, erro: 'Sem permissão para salvar.' })
+          return
+        }
+        if (persistindo.current) {
+          postar({ type: 'mb-persist-erro', requestId: dados.requestId, erro: 'Já existe um salvamento em andamento.' })
+          return
+        }
+        persistindo.current = true
+        try {
+          const estado = await salvarEstadoAssessoria(dados.payload, { userId, userName: nome })
+          setErroSync('')
+          postar({ type: 'mb-persist-ok', requestId: dados.requestId, payload: estado })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : 'Falha ao salvar na nuvem.'
+          setErroSync(msg)
+          postar({ type: 'mb-persist-erro', requestId: dados.requestId, erro: msg })
+        } finally {
+          persistindo.current = false
+        }
+        return
+      }
+      if (dados.type === 'mb-file-get' && dados.path && dados.requestId) {
+        try {
+          const blob = await baixarAnexoAssessoria(dados.path)
+          const buf = await blob.arrayBuffer()
+          const bytes = new Uint8Array(buf)
+          let bin = ''
+          for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+          postar({
+            type: 'mb-file-data',
+            requestId: dados.requestId,
+            path: dados.path,
+            mime: blob.type || 'application/octet-stream',
+            dataBase64: btoa(bin),
+          })
+        } catch (e) {
+          postar({
+            type: 'mb-file-erro',
+            requestId: dados.requestId,
+            erro: e instanceof Error ? e.message : 'Falha ao baixar arquivo.',
+          })
+        }
+      }
+    }
+    window.addEventListener('message', aoMensagem)
+    enviarUsuario()
+    return () => window.removeEventListener('message', aoMensagem)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [admin, nome, navigate, signOut, podeEditar, userId])
+
+  return (
+    <div className="mr-demo">
+      <div className="mr-demo-stage">
+        {!pronto ? (
+          <div className="mr-demo-loading" aria-live="polite">
+            <Spinner size={36} />
+            Carregando financeiro…
+          </div>
+        ) : null}
+        {erroSync ? (
+          <div className="mr-demo-loading" role="alert" style={{ zIndex: 2 }}>
+            {erroSync}
+          </div>
+        ) : null}
+        <iframe
+          ref={frameRef}
+          className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
+          title="Financeiro Corporativo"
+          src="/sistemas/assessoria-mb/index.html"
+          onLoad={() => window.setTimeout(() => setPronto(true), 4000)}
+        />
+      </div>
+    </div>
+  )
+}
