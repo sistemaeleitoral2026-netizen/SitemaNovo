@@ -16,11 +16,39 @@ export const SITES: SiteDef[] = [
   { id: 'painel-do-mandato', nome: 'Painel do Mandato', home: '/painel-do-mandato' },
 ]
 
-/** Assessoria MB: só admin e diretoria. Nerites e demais sistemas ficam como estão. */
-export function canAccessAssessoriaMb(
-  profile: Pick<Profile, 'role' | 'extra_roles'> | null | undefined,
+export type AcessoExternoNivel = 'admin' | 'editor'
+export type SiteExterno = Exclude<SiteId, 'nerites'>
+
+/** Nível de acesso extra (cadastrado em /admin) a um sistema fora do Nerites, ou null se não tem. */
+export function acessoExternoNivel(
+  profile: Pick<Profile, 'acessos_externos'> | null | undefined,
+  site: SiteId,
+): AcessoExternoNivel | null {
+  const valor = profile?.acessos_externos?.[site]
+  return valor === 'admin' || valor === 'editor' ? valor : null
+}
+
+/** Tem acesso extra (admin ou editor) a esse sistema, além do que o cargo do Nerites já dá. */
+export function canAccessSiteExterno(
+  profile: Pick<Profile, 'acessos_externos'> | null | undefined,
+  site: SiteId,
 ): boolean {
-  return hasRole(profile, ['admin', 'diretoria'])
+  return acessoExternoNivel(profile, site) !== null
+}
+
+/** Nível "admin" (não só editor) nesse sistema via acesso extra. */
+export function isAdminNoSiteExterno(
+  profile: Pick<Profile, 'acessos_externos'> | null | undefined,
+  site: SiteId,
+): boolean {
+  return acessoExternoNivel(profile, site) === 'admin'
+}
+
+/** Assessoria MB: admin/diretoria do Nerites (como já era) OU acesso extra cadastrado em /admin. */
+export function canAccessAssessoriaMb(
+  profile: Pick<Profile, 'role' | 'extra_roles' | 'acessos_externos'> | null | undefined,
+): boolean {
+  return hasRole(profile, ['admin', 'diretoria']) || canAccessSiteExterno(profile, 'assessoria-mb')
 }
 
 const STORAGE_KEY = 'alimentacao_site'

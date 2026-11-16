@@ -15,7 +15,7 @@ import { VotacaoProgressoPage } from './pages/nerites/VotacaoProgressoPage'
 import { VotacaoHistoricoPage } from './pages/nerites/VotacaoHistoricoPage'
 import { canSeeFormigasWhatsapp } from './lib/formigasWhatsapp'
 import { hasRole } from './lib/roles'
-import { canAccessAssessoriaMb, readSite, siteById, writeSite, type SiteId } from './lib/sites'
+import { canAccessAssessoriaMb, canAccessSiteExterno, readSite, siteById, writeSite, type SiteId } from './lib/sites'
 import type { Profile } from './types'
 
 // Telas de gestão (mapa/Leaflet, gráficos/Recharts, PDF/Excel) em chunks
@@ -46,6 +46,7 @@ const FinanceiroPage = lazy(() => import('./pages/nerites/FinanceiroPage').then(
 const TvDashboardPage = lazy(() => import('./pages/nerites/TvDashboardPage').then((m) => ({ default: m.TvDashboardPage })))
 const AuditoriaPage = lazy(() => import('./pages/nerites/AuditoriaPage').then((m) => ({ default: m.AuditoriaPage })))
 const FormigasWhatsappPage = lazy(() => import('./pages/nerites/FormigasWhatsappPage').then((m) => ({ default: m.FormigasWhatsappPage })))
+const AdminUsuariosPage = lazy(() => import('./pages/admin/AdminUsuariosPage').then((m) => ({ default: m.AdminUsuariosPage })))
 
 function homeForProfile(profile: Profile | null | undefined) {
   if (!profile) return '/login'
@@ -63,6 +64,12 @@ function homeForProfile(profile: Profile | null | undefined) {
   if (hasRole(profile, 'operador')) return '/meus-cadastros'
   if (hasRole(profile, 'mobilizador')) return '/ativacao/lancar'
   if (hasRole(profile, 'administrativo')) return '/demandas/lancar'
+  // Sem cargo no Nerites (login cadastrado em /admin): manda pro primeiro sistema liberado.
+  if (hasRole(profile, 'externo')) {
+    const liberado = (['assessoria-mb', 'painel-do-mandato', 'mr-terceiriza'] as const)
+      .find((s) => canAccessSiteExterno(profile, s))
+    if (liberado) return siteById(liberado)?.home ?? '/login'
+  }
   return '/'
 }
 
@@ -144,6 +151,16 @@ function BlockFieldOnly({ children }: { children: React.ReactNode }) {
   return children
 }
 
+function AdminUsuariosRoute({ children }: { children: React.ReactNode }) {
+  const { session, profile, loading } = useAuth()
+  if (loading) return <Spinner />
+  if (!session || !profile) return <Navigate to="/login" replace />
+  if (!profile.ativo || !hasRole(profile, 'admin')) {
+    return <Navigate to={homeForProfile(profile)} replace />
+  }
+  return children
+}
+
 function AdminOnlyRoute({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
   if (loading) return <Spinner />
@@ -174,10 +191,12 @@ function DemoSiteRoute({ site, children }: { site: SiteId; children: React.React
   if (loading) return <Spinner />
   if (!session || !profile) return <Navigate to="/login" replace />
   if (!profile.ativo) return <Navigate to="/login" replace />
-  if (!hasRole(profile, 'admin') && readSite() !== site) {
-    return <Navigate to={homeForProfile(profile)} replace />
-  }
-  return children
+  if (hasRole(profile, 'admin')) return children
+  if (canAccessSiteExterno(profile, site)) return children
+  // Login cadastrado em /admin só entra no que foi liberado — sem o "qualquer um que escolheu no login" de baixo.
+  if (hasRole(profile, 'externo')) return <Navigate to={homeForProfile(profile)} replace />
+  if (readSite() === site) return children
+  return <Navigate to={homeForProfile(profile)} replace />
 }
 
 function NeriteRoute({ children }: { children: React.ReactNode }) {
@@ -232,6 +251,7 @@ function AppRoutes() {
       <Route path="/mr-terceiriza" element={<DemoSiteRoute site="mr-terceiriza"><MrTerceirizaPage /></DemoSiteRoute>} />
       <Route path="/assessoria-mb" element={<AssessoriaMbRoute><AssessoriaMbPage /></AssessoriaMbRoute>} />
       <Route path="/painel-do-mandato" element={<DemoSiteRoute site="painel-do-mandato"><PainelMandatoPage /></DemoSiteRoute>} />
+      <Route path="/admin" element={<AdminUsuariosRoute><AdminUsuariosPage /></AdminUsuariosRoute>} />
 
       <Route element={<AppShell />}>
         <Route index element={<HomeRedirect />} />
