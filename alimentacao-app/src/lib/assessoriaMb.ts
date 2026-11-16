@@ -26,6 +26,10 @@ export type MbFinance = {
   saida: number
   anexos?: MbAnexoMeta[]
   origem?: string
+  /** Quem criou (nome) — editora só exclui o que ela mesma lançou. */
+  criadoPor?: string
+  /** Quem criou (id do profile). */
+  criadoPorId?: string
 }
 
 export type MbTask = {
@@ -49,6 +53,8 @@ export type MbTask = {
   recorrente?: boolean
   /** Preenchido só nas cópias geradas a partir de um modelo recorrente. */
   recorrenteOrigemId?: string | null
+  criadoPor?: string
+  criadoPorId?: string
 }
 
 export type MbEquipeSistema = {
@@ -253,6 +259,7 @@ async function gerarTarefasRecorrentes(tasks: MbTask[], userId: string): Promise
       recorrente: false,
       recorrenteOrigemId: modelo.id,
       anexos: [],
+      criadoPorId: userId,
     })
   }
 
@@ -296,42 +303,68 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
     entidade_id: String(a.entidade_id),
   }))
 
-  const finance: MbFinance[] = (lancamentos.data || []).map((r) => ({
-    id: r.id as string,
-    parceiro: (r.parceiro as string) || '',
-    centro: (r.centro as string) || '',
-    data: String(r.data || '').slice(0, 10),
-    dataRecebida: r.data_recebida ? String(r.data_recebida).slice(0, 10) : '',
-    empresaDepositante: (r.empresa_depositante as string) || '',
-    demanda: (r.demanda as string) || '',
-    sub: (r.empresa as string) || '',
-    previsto: money(r.previsto),
-    recebido: money(r.recebido),
-    saida: money(r.saida),
-    origem: (r.origem as string) || 'Cadastro manual',
-    anexos: anexosFor(anexoRows, 'lancamento', r.id as string, signed),
-  }))
+  const creatorIds = [
+    ...new Set(
+      [...(lancamentos.data || []), ...(tarefas.data || [])]
+        .map((r) => r.created_by as string | null | undefined)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ]
+  const nomePorId = new Map<string, string>()
+  for (const p of equipeSistema) nomePorId.set(p.id, p.nome)
+  if (creatorIds.length) {
+    const { data: creators } = await supabase.from('profiles').select('id,nome').in('id', creatorIds)
+    for (const p of creators || []) {
+      if (p.id && p.nome) nomePorId.set(p.id as string, p.nome as string)
+    }
+  }
 
-  let tasks: MbTask[] = (tarefas.data || []).map((r) => ({
-    id: r.id as string,
-    titulo: (r.titulo as string) || '',
-    nome: (r.nome as string) || '',
-    dataExecucao: r.data_execucao ? String(r.data_execucao).slice(0, 10) : '',
-    valor: money(r.valor),
-    nomeExtrato: (r.nome_extrato as string) || '',
-    situacaoRegistro: (r.situacao_registro as string) || '',
-    observacao: (r.observacao as string) || '',
-    responsavel: (r.responsavel as string) || '',
-    demanda: (r.demanda as string) || '',
-    sub: (r.empresa as string) || '',
-    origemPagamento: (r.origem_pagamento as string) || '',
-    prazo: r.prazo ? String(r.prazo).slice(0, 10) : '',
-    status: (r.status as string) || 'Pendente',
-    descricao: (r.descricao as string) || '',
-    anexos: anexosFor(anexoRows, 'tarefa', r.id as string, signed),
-    recorrente: Boolean(r.recorrente),
-    recorrenteOrigemId: (r.recorrente_origem_id as string) || null,
-  }))
+  const finance: MbFinance[] = (lancamentos.data || []).map((r) => {
+    const criadoPorId = (r.created_by as string) || ''
+    return {
+      id: r.id as string,
+      parceiro: (r.parceiro as string) || '',
+      centro: (r.centro as string) || '',
+      data: String(r.data || '').slice(0, 10),
+      dataRecebida: r.data_recebida ? String(r.data_recebida).slice(0, 10) : '',
+      empresaDepositante: (r.empresa_depositante as string) || '',
+      demanda: (r.demanda as string) || '',
+      sub: (r.empresa as string) || '',
+      previsto: money(r.previsto),
+      recebido: money(r.recebido),
+      saida: money(r.saida),
+      origem: (r.origem as string) || 'Cadastro manual',
+      anexos: anexosFor(anexoRows, 'lancamento', r.id as string, signed),
+      criadoPorId,
+      criadoPor: criadoPorId ? nomePorId.get(criadoPorId) || '' : '',
+    }
+  })
+
+  let tasks: MbTask[] = (tarefas.data || []).map((r) => {
+    const criadoPorId = (r.created_by as string) || ''
+    return {
+      id: r.id as string,
+      titulo: (r.titulo as string) || '',
+      nome: (r.nome as string) || '',
+      dataExecucao: r.data_execucao ? String(r.data_execucao).slice(0, 10) : '',
+      valor: money(r.valor),
+      nomeExtrato: (r.nome_extrato as string) || '',
+      situacaoRegistro: (r.situacao_registro as string) || '',
+      observacao: (r.observacao as string) || '',
+      responsavel: (r.responsavel as string) || '',
+      demanda: (r.demanda as string) || '',
+      sub: (r.empresa as string) || '',
+      origemPagamento: (r.origem_pagamento as string) || '',
+      prazo: r.prazo ? String(r.prazo).slice(0, 10) : '',
+      status: (r.status as string) || 'Pendente',
+      descricao: (r.descricao as string) || '',
+      anexos: anexosFor(anexoRows, 'tarefa', r.id as string, signed),
+      recorrente: Boolean(r.recorrente),
+      recorrenteOrigemId: (r.recorrente_origem_id as string) || null,
+      criadoPorId,
+      criadoPor: criadoPorId ? nomePorId.get(criadoPorId) || '' : '',
+    }
+  })
 
   if (user?.id) {
     tasks = await gerarTarefasRecorrentes(tasks, user.id)
@@ -533,8 +566,12 @@ export async function salvarEstadoAssessoria(
   }
 
   // ---- lançamentos ----
-  const { data: remoteFin, error: finListErr } = await supabase.from('mb_lancamentos').select('id')
+  const { data: remoteFin, error: finListErr } = await supabase.from('mb_lancamentos').select('id,created_by')
   if (finListErr) throw asError(finListErr)
+  const finCreatedBy = new Map<string, string>()
+  for (const r of remoteFin || []) {
+    if (r.id && r.created_by) finCreatedBy.set(r.id as string, r.created_by as string)
+  }
   const localFin = new Set(finance.map((f) => f.id))
   const delFin = (remoteFin || []).map((r) => r.id as string).filter((id) => !localFin.has(id))
   if (delFin.length) {
@@ -558,15 +595,20 @@ export async function salvarEstadoAssessoria(
       origem: r.origem || 'Cadastro manual',
       updated_at: new Date().toISOString(),
       updated_by: opts.userId,
-      created_by: opts.userId,
+      // Preserva o autor original; só grava o usuário atual em registro novo.
+      created_by: finCreatedBy.get(r.id) || (isUuid(String(r.criadoPorId || '')) ? r.criadoPorId : opts.userId),
     }))
     const { error } = await supabase.from('mb_lancamentos').upsert(rows, { onConflict: 'id' })
     if (error) throw asError(error, 'Falha ao gravar lançamentos.')
   }
 
   // ---- tarefas ----
-  const { data: remoteTasks, error: taskListErr } = await supabase.from('mb_tarefas').select('id')
+  const { data: remoteTasks, error: taskListErr } = await supabase.from('mb_tarefas').select('id,created_by')
   if (taskListErr) throw asError(taskListErr)
+  const taskCreatedBy = new Map<string, string>()
+  for (const r of remoteTasks || []) {
+    if (r.id && r.created_by) taskCreatedBy.set(r.id as string, r.created_by as string)
+  }
   const localTasks = new Set(tasks.map((t) => t.id))
   const delTasks = (remoteTasks || []).map((r) => r.id as string).filter((id) => !localTasks.has(id))
   if (delTasks.length) {
@@ -595,7 +637,7 @@ export async function salvarEstadoAssessoria(
       recorrente_origem_id: r.recorrenteOrigemId || null,
       updated_at: new Date().toISOString(),
       updated_by: opts.userId,
-      created_by: opts.userId,
+      created_by: taskCreatedBy.get(r.id) || (isUuid(String(r.criadoPorId || '')) ? r.criadoPorId : opts.userId),
     }))
     const { error } = await supabase.from('mb_tarefas').upsert(rows, { onConflict: 'id' })
     if (error) throw asError(error, 'Falha ao gravar tarefas.')
