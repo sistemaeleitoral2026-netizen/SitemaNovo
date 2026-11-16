@@ -44,6 +44,16 @@ export type MbTask = {
   status?: string
   descricao?: string
   anexos?: MbAnexoMeta[]
+  /** Marca o "modelo" que se repete todo mês (gera uma cópia automática no mês atual). */
+  recorrente?: boolean
+  /** Preenchido só nas cópias geradas a partir de um modelo recorrente. */
+  recorrenteOrigemId?: string | null
+}
+
+export type MbEquipeSistema = {
+  id: string
+  nome: string
+  nivel: 'admin' | 'editor'
 }
 
 export type MbAudit = {
@@ -82,6 +92,8 @@ export type MbDbPayload = {
   historyEdits: Record<string, Partial<MbHistoryRow>>
   prestacao: MbHistoryRow[]
   _files?: Record<string, { name: string; type: string; size: number; dataBase64: string }>
+  /** Quem tem acesso ao painel (admin/diretoria do Nerites + acesso extra cadastrado em /admin). */
+  equipeSistema?: MbEquipeSistema[]
 }
 
 function isUuid(v: string) {
@@ -162,7 +174,89 @@ function anexosFor(
     }))
 }
 
+function mesAtualISO(): string {
+  return new Date().toISOString().slice(0, 7)
+}
+
+/** Lista quem tem acesso ao painel (RPC security definer — não expõe e-mail nem outros dados). */
+async function listarEquipeSistema(): Promise<MbEquipeSistema[]> {
+  const { data, error } = await supabase.rpc('list_assessoria_mb_equipe')
+  if (error) return []
+  return ((data ?? []) as { id: string; nome: string; nivel: string | null }[])
+    .filter((r) => r.nivel === 'admin' || r.nivel === 'editor')
+    .map((r) => ({ id: r.id, nome: r.nome, nivel: r.nivel as 'admin' | 'editor' }))
+}
+
+/**
+ * Tarefa recorrente (recorrente=true) é um "modelo": se ainda não existe uma
+ * cópia dele com prazo no mês atual, gera uma (mesmo dia do mês, status
+ * "Pendente", sem valor/execução — isso é por instância). Roda a cada
+ * carregamento do painel; se falhar (rede/RLS), só não gera agora.
+ */
+async function gerarTarefasRecorrentes(tasks: MbTask[], userId: string): Promise<MbTask[]> {
+  const modelos = tasks.filter((t) => t.recorrente)
+  if (!modelos.length) return tasks
+
+  const mesAtual = mesAtualISO()
+  const geradas: MbTask[] = []
+
+  for (const modelo of modelos) {
+    const jaTem = tasks.some((t) => t.recorrenteOrigemId === modelo.id && (t.prazo || '').slice(0, 7) === mesAtual)
+    if (jaTem) continue
+
+    const hoje = new Date()
+    const diaBase = modelo.prazo ? Number(modelo.prazo.slice(8, 10)) || hoje.getDate() : hoje.getDate()
+    const ultimoDia = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate()
+    const dia = Math.min(Math.max(diaBase, 1), ultimoDia)
+    const prazo = `${mesAtual}-${String(dia).padStart(2, '0')}`
+    const novaId = crypto.randomUUID()
+
+    const { error } = await supabase.from('mb_tarefas').insert({
+      id: novaId,
+      titulo: modelo.titulo || '',
+      nome: modelo.nome || null,
+      responsavel: modelo.responsavel || null,
+      prazo,
+      status: 'Pendente',
+      descricao: modelo.descricao || null,
+      valor: 0,
+      origem_pagamento: modelo.origemPagamento || null,
+      demanda: modelo.demanda || null,
+      empresa: modelo.sub || null,
+      recorrente: false,
+      recorrente_origem_id: modelo.id,
+      created_by: userId,
+      updated_by: userId,
+    })
+    if (error) {
+      console.error('[assessoria-mb] gerar tarefa recorrente', error)
+      continue
+    }
+
+    geradas.push({
+      id: novaId,
+      titulo: modelo.titulo || '',
+      nome: modelo.nome || '',
+      responsavel: modelo.responsavel || '',
+      prazo,
+      status: 'Pendente',
+      descricao: modelo.descricao || '',
+      valor: 0,
+      origemPagamento: modelo.origemPagamento || '',
+      demanda: modelo.demanda || '',
+      sub: modelo.sub || '',
+      recorrente: false,
+      recorrenteOrigemId: modelo.id,
+      anexos: [],
+    })
+  }
+
+  return geradas.length ? [...tasks, ...geradas] : tasks
+}
+
 export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
+  const { data: { user } } = await supabase.auth.getUser()
+
   const [
     empresas,
     bancos,
@@ -174,6 +268,7 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
     auditoria,
     prestacao,
     anexos,
+    equipeSistema,
   ] = await Promise.all([
     supabase.from('mb_empresas').select('codigo,nome,ordem').eq('ativo', true).order('ordem'),
     supabase.from('mb_bancos').select('nome,ordem').eq('ativo', true).order('ordem'),
@@ -185,6 +280,7 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
     supabase.from('mb_auditoria').select('*').order('at', { ascending: false }).limit(500),
     supabase.from('mb_prestacao_contas').select('*').order('data', { ascending: false }),
     listAnexos(),
+    listarEquipeSistema(),
   ])
 
   for (const r of [empresas, bancos, centros, templates, equipe, lancamentos, tarefas, auditoria, prestacao]) {
@@ -213,7 +309,7 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
     anexos: anexosFor(anexoRows, 'lancamento', r.id as string, signed),
   }))
 
-  const tasks: MbTask[] = (tarefas.data || []).map((r) => ({
+  let tasks: MbTask[] = (tarefas.data || []).map((r) => ({
     id: r.id as string,
     titulo: (r.titulo as string) || '',
     nome: (r.nome as string) || '',
@@ -230,7 +326,17 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
     status: (r.status as string) || 'Pendente',
     descricao: (r.descricao as string) || '',
     anexos: anexosFor(anexoRows, 'tarefa', r.id as string, signed),
+    recorrente: Boolean(r.recorrente),
+    recorrenteOrigemId: (r.recorrente_origem_id as string) || null,
   }))
+
+  if (user?.id) {
+    tasks = await gerarTarefasRecorrentes(tasks, user.id)
+  }
+
+  const nomesEquipeSistema = equipeSistema.map((p) => p.nome).filter(Boolean)
+  const staffCatalogo = (equipe.data || []).map((e) => e.nome as string)
+  const staff = [...new Set([...nomesEquipeSistema, ...staffCatalogo])]
 
   const audit: MbAudit[] = (auditoria.data || []).map((r) => ({
     id: r.id as string,
@@ -271,11 +377,12 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
     audit,
     banks: (bancos.data || []).map((b) => b.nome as string),
     templates: (templates.data || []).map((t) => t.titulo as string),
-    staff: (equipe.data || []).map((e) => e.nome as string),
+    staff,
     centers: Object.fromEntries((centros.data || []).map((c) => [c.codigo as string, (c.nome as string) || ''])),
     companies: (empresas.data || []).map((e) => (e.codigo as string) || (e.nome as string)).filter(Boolean),
     historyEdits,
     prestacao: prestacaoRows,
+    equipeSistema,
   }
 }
 
@@ -503,6 +610,8 @@ export async function salvarEstadoAssessoria(
       observacao: r.observacao || null,
       demanda: r.demanda || null,
       empresa: r.sub || null,
+      recorrente: Boolean(r.recorrente),
+      recorrente_origem_id: r.recorrenteOrigemId || null,
       updated_at: new Date().toISOString(),
       updated_by: opts.userId,
       created_by: opts.userId,

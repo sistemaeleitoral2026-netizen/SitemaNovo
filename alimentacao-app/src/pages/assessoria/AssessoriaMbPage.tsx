@@ -25,10 +25,12 @@ export function AssessoriaMbPage() {
   const frameRef = useRef<HTMLIFrameElement>(null)
   const [pronto, setPronto] = useState(false)
   const [erroSync, setErroSync] = useState('')
+  // Navegação cruzada pros outros sistemas a partir daqui: só admin do Nerites, como já era.
   const neritesAdmin = hasRole(profile, 'admin')
   const podeEditar = canAccessAssessoriaMb(profile)
-  // Admin dentro deste painel: admin do Nerites (como já era) ou acesso "admin" cadastrado em /admin.
-  const admin = neritesAdmin || isAdminNoSiteExterno(profile, 'assessoria-mb')
+  // Admin dentro deste painel (Configurações etc.): admin/diretoria do Nerites (como já era,
+  // Configurações nunca teve essa trava antes) ou acesso "admin" cadastrado em /admin.
+  const admin = hasRole(profile, ['admin', 'diretoria']) || isAdminNoSiteExterno(profile, 'assessoria-mb')
   const nome = profile?.nome || 'Usuário'
   const userId = profile?.id || ''
   const persistindo = useRef(false)
