@@ -154,7 +154,7 @@ export function AssessoriaMbPage() {
           ref={frameRef}
           className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
           title="Financeiro Corporativo"
-          src="/sistemas/assessoria-mb/index.html"
+          src="/sistemas/assessoria-mb/index.html?v=prestacao-vazia-2"
           onLoad={() => window.setTimeout(() => setPronto(true), 4000)}
         />
       </div>
