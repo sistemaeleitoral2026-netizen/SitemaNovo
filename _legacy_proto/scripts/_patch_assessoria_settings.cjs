@@ -56,8 +56,7 @@ mustReplace(
 mustReplace(
   "const subdivisions=['ESP','MTAREIA','MTEX','MARI','IMP','SONIGNF','CAST','PREF GNF','PREF ZD'];",
   `let subdivisions=['ESP','MTAREIA','MTEX','MARI','IMP','SONIGNF','CAST','PREF GNF','PREF ZD'];
-function refreshCompanies(){if(Array.isArray(db.companies)&&db.companies.length){subdivisions=db.companies.slice()}else{db.companies=subdivisions.slice()}}
-refreshCompanies();`,
+function refreshCompanies(){if(typeof db==='undefined'||!db)return;if(Array.isArray(db.companies)&&db.companies.length){subdivisions=db.companies.slice()}else{db.companies=subdivisions.slice()}}`,
   'subdivisions mutable',
 )
 
