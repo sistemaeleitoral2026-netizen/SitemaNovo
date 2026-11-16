@@ -16,6 +16,13 @@ Mapa dos sistemas (Nerites, Mandato, Assessoria MB, Empresas): `docs/SISTEMAS.md
 - Não commitar `.env`, senhas, service role, nem `supabase/diagnosticos/` novos sem pedido
 - Scripts soltos / protótipos: `_legacy_proto/` (não entram no app)
 
+## Preview local
+
+- Preview local é **dentro do sistema real, logado**: `npm run dev` em `alimentacao-app` e abrir a rota do sistema (ex.: `http://127.0.0.1:5173/assessoria-mb`) com usuário logado
+- **Não** usar página HTML solta (ex.: `public/preview-*.html`) nem abrir o embed direto (`/sistemas/.../index.html`) como preview para o usuário
+- Se a sessão não estiver logada, pedir para o usuário fazer login no navegador; nunca pedir/salvar senha
+- Quando o usuário pedir "preview local primeiro", **não** fazer push até ele aprovar
+
 ## Push
 
 ```powershell
