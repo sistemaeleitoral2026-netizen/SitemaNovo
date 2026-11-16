@@ -22,7 +22,6 @@ export type MrLancamento = {
   conta?: string
   formaPagamento?: string
   observacoes?: string
-  status: 'aprovado' | 'revisao' | 'sem-comprovante'
   anexos?: MrAnexoMeta[]
   criadoPor?: string
   criadoPorId?: string
@@ -160,7 +159,6 @@ export async function carregarEstadoMrTerceriza(): Promise<MrDbPayload> {
       conta: (r.conta as string) || '',
       formaPagamento: (r.forma_pagamento as string) || '',
       observacoes: (r.observacoes as string) || '',
-      status: (r.status as MrLancamento['status']) || 'aprovado',
       anexos: anexosFor(anexoRows, r.id as string, signed),
       criadoPorId,
       criadoPor: criadoPorId ? nomePorId.get(criadoPorId) || '' : '',
@@ -284,7 +282,6 @@ export async function salvarEstadoMrTerceriza(
         conta: r.conta || null,
         forma_pagamento: r.formaPagamento || null,
         observacoes: r.observacoes || null,
-        status: r.status || 'aprovado',
         updated_at: new Date().toISOString(),
         updated_by: opts.userId,
         // Preserva o autor original; só grava o usuário atual em registro novo.

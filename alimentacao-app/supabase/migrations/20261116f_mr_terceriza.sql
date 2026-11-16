@@ -102,8 +102,6 @@ create table if not exists public.mr_lancamentos (
   conta text,                              -- nome de uma linha de mr_contas
   forma_pagamento text,                    -- PIX, Transferência bancária, Dinheiro, Boleto, Outro
   observacoes text,
-  status text not null default 'aprovado'
-    check (status in ('aprovado', 'revisao', 'sem-comprovante')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   created_by uuid references public.profiles (id) on delete set null,
@@ -115,9 +113,6 @@ create index if not exists mr_lancamentos_data_idx
 
 create index if not exists mr_lancamentos_empresa_idx
   on public.mr_lancamentos (empresa);
-
-create index if not exists mr_lancamentos_status_idx
-  on public.mr_lancamentos (status);
 
 -- ============ AUDITORIA DO PAINEL ============
 

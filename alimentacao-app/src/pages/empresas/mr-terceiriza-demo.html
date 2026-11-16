@@ -461,11 +461,10 @@ const seed=[
   {id:10,company:'mr',date:'2026-10-27',type:'entrada',desc:'Medição da obra (exemplo)',account:'Conta operacional',value:6200,method:'Transferência bancária'},
   {id:11,company:'globo',date:'2026-10-01',type:'entrada',desc:'Adiantamento de evento (exemplo)',account:'Conta operacional',value:2500,method:'PIX'}
 ];
-const seedStatus={3:'revisao',8:'revisao',6:'sem-comprovante',9:'sem-comprovante'};
 // Dentro do iframe do Nerites (EMBED), os dados vêm do banco via postMessage —
 // não usa os dados de exemplo abaixo (eles só servem pra preview solta do arquivo).
 const EMBED=window.parent!==window;
-let entries=EMBED?[]:seed.map(e=>({...e,files:e.id===8?[{name:'Comprovante.pdf',type:'application/pdf',size:182000}]:[],notes:'',created:'Jurandy Santana',status:seedStatus[e.id]||'aprovado'}));
+let entries=EMBED?[]:seed.map(e=>({...e,files:e.id===8?[{name:'Comprovante.pdf',type:'application/pdf',size:182000}]:[],notes:'',created:'Jurandy Santana'}));
 let audit=[];
 let page='dashboard',company='',filterFrom='2026-10-01',filterTo='2026-10-31',draftFiles=[],editing=null,showAll=false;
 let fileMem={},cloudTimer=null,cloudReq=0,cloudPending={},persistBusyRetries=0;
@@ -547,17 +546,15 @@ function openFile(id,i){const f=entries.find(e=>e.id===id)?.files[i];if(!f?.url)
 function sheet(a,o={}){if(!a.length)return emptyBox('file','Nenhum lançamento encontrado','Ajuste a empresa ou o período.');a=a.slice().sort((x,y)=>y.date.localeCompare(x.date));const cols=[['Data',e=>short(e.date)],...(company?[]:[['Empresa',e=>esc(companyName(e.company))]]),...(o.type?[]:[['Tipo',e=>e.type==='entrada'?'Entrada':'Saída']]),['Descrição',e=>esc(e.desc),'wrap'],['Conta',e=>esc(e.account)],['Forma de pagamento',e=>esc(e.method||'—')],['Valor',e=>`<span class="${e.type==='entrada'?'positive':'negative'}">${fmt(e.value)}</span>`,'num'],['Comprovantes',thumbs],...(o.edit?[['',e=>`<button class="link" onclick="showForm('${e.id}')">Editar</button>`]]:[])];const s=sums(a),total=o.type?(o.type==='entrada'?s.in:s.out):s.in-s.out,vi=cols.findIndex(c=>c[0]==='Valor');return `<div class="sheet-hint">Deslize a tabela para o lado para ver todas as colunas</div><div class="sheet-wrap"><table class="sheet"><thead><tr class="cols"><th class="rn"></th>${cols.map((_,i)=>`<th>${String.fromCharCode(65+i)}</th>`).join('')}</tr><tr class="heads"><th class="rn">1</th>${cols.map(c=>`<th class="${c[2]||''}">${c[0]}</th>`).join('')}</tr></thead><tbody>${a.map((e,r)=>`<tr><td class="rn">${r+2}</td>${cols.map(c=>`<td class="${c[2]||''}">${c[1](e)}</td>`).join('')}</tr>`).join('')}</tbody><tfoot><tr><td class="rn">${a.length+2}</td>${cols.map((c,i)=>`<td class="${c[2]||''}">${i===0?(o.type?'Total':'Saldo'):i===vi?`<span class="${total<0||o.type==='saida'?'negative':'positive'}">${fmt(total)}</span>`:''}</td>`).join('')}</tr></tfoot></table></div>`}
 
 const METHODS=['PIX','Transferência bancária','Dinheiro','Boleto','Outro'];
-const STATUS={aprovado:['Aprovado','st-ok'],revisao:['Em revisão','st-warn'],'sem-comprovante':['Sem comprovante','st-bad']};
-const badge=s=>{const [t,c]=STATUS[s]||STATUS.aprovado;return `<span class="badge ${c}">${t}</span>`};
 const opt=(v,l,cur)=>`<option value="${esc(v)}" ${cur===v?'selected':''}>${esc(l)}</option>`;
 const fileSize=b=>b>=1048576?(b/1048576).toLocaleString('pt-BR',{maximumFractionDigits:1})+' MB':Math.max(1,Math.round(b/1024))+' KB';
 const PAGE=10,DEFAULT_FROM='2026-10-01',DEFAULT_TO='2026-10-31';
-let lf={q:'',type:'',account:'',method:'',status:'',page:1},keptFiles=[],tipClosed=false,lancType='';
+let lf={q:'',type:'',account:'',method:'',page:1},keptFiles=[],tipClosed=false,lancType='';
 const LANC_TEXT={'':['Lançamentos','Gerencie todas as entradas e saídas da sua empresa de forma organizada e segura.'],entrada:['Entradas','Histórico de todas as entradas da empresa, com os comprovantes anexados.'],saida:['Saídas','Histórico de todas as saídas da empresa, com os comprovantes anexados.']};
 const companySelect=(id,val,withAll)=>`<label class="sel-ico">${ico('building')}<select id="${id}" aria-label="Empresa atual">${withAll?'<option value="">Todas as empresas</option>':(val?'':'<option value="">Selecione a empresa</option>')}${companies.map(c=>opt(c.id,`${c.nome} - ${c.tipo}`,val)).join('')}</select></label>`;
 const allAccounts=()=>[...new Set(company?accounts[company]:Object.values(accounts).flat())];
 
-function filtered(){const q=lf.q.trim().toLowerCase();const t=lancType||lf.type;return period().filter(e=>(!t||e.type===t)&&(!lf.account||e.account===lf.account)&&(!lf.method||e.method===lf.method)&&(!lf.status||e.status===lf.status)&&(!q||[e.desc,e.account,companyName(e.company),e.method].join(' ').toLowerCase().includes(q))).sort((x,y)=>y.date.localeCompare(x.date)||String(y.id).localeCompare(String(x.id)))}
+function filtered(){const q=lf.q.trim().toLowerCase();const t=lancType||lf.type;return period().filter(e=>(!t||e.type===t)&&(!lf.account||e.account===lf.account)&&(!lf.method||e.method===lf.method)&&(!q||[e.desc,e.account,companyName(e.company),e.method].join(' ').toLowerCase().includes(q))).sort((x,y)=>y.date.localeCompare(x.date)||String(y.id).localeCompare(String(x.id)))}
 function renderLancamentos(type=''){
   lancType=type;const [h,sub]=LANC_TEXT[type];
   view().innerHTML=`<div class="page-heading"><div><h1>${h}</h1><p class="sub">${sub}</p></div><div class="actions head-actions"><div class="current-co"><span class="mini-label">Empresa atual</span>${companySelect('curCo',company,true)}</div><button class="btn primary" onclick="showForm(null,'${type}')">${ico('plus')} ${type==='entrada'?'Nova entrada':type==='saida'?'Nova saída':'Novo lançamento'}</button></div></div>`
@@ -568,7 +565,6 @@ function renderLancamentos(type=''){
       <label class="field">Tipo<select id="fTipo" ${type?'disabled':''}>${type?opt(type,type==='entrada'?'Entrada':'Saída',type):opt('','Todos',lf.type)+opt('entrada','Entrada',lf.type)+opt('saida','Saída',lf.type)}</select></label>
       <label class="field">Conta bancária<select id="fConta">${opt('','Todas as contas',lf.account)}${allAccounts().map(a=>opt(a,a,lf.account)).join('')}</select></label>
       <label class="field">Forma de pagamento<select id="fForma">${opt('','Todas',lf.method)}${METHODS.map(m=>opt(m,m,lf.method)).join('')}</select></label>
-      <label class="field">Status<select id="fStatus">${opt('','Todos',lf.status)}${Object.entries(STATUS).map(([k,v])=>opt(k,v[0],lf.status)).join('')}</select></label>
     </div>
     <div class="filter-foot"><div class="field"><span>Período</span>${rangeBox()}</div><button class="btn" type="button" onclick="clearFilters()">${ico('refresh')} Limpar filtros</button></div>
   </div></section>
@@ -576,26 +572,24 @@ function renderLancamentos(type=''){
   <section class="card"><div class="card-head"><span>${h}</span><button class="btn sm" onclick="exportCsv(filtered())">${ico('download')} Exportar</button></div><div class="card-body" id="lancTable"></div></section>`;
   wireDates();
   const on=(id,fn)=>document.getElementById(id).onchange=e=>{fn(e.target.value);lf.page=1;render()};
-  on('curCo',v=>{company=v;lf.account=''});on('fEmp',v=>{company=v;lf.account=''});on('fTipo',v=>lf.type=v);on('fConta',v=>lf.account=v);on('fForma',v=>lf.method=v);on('fStatus',v=>lf.status=v);
+  on('curCo',v=>{company=v;lf.account=''});on('fEmp',v=>{company=v;lf.account=''});on('fTipo',v=>lf.type=v);on('fConta',v=>lf.account=v);on('fForma',v=>lf.method=v);
   document.getElementById('search').oninput=e=>{lf.q=e.target.value;lf.page=1;updateLanc()};
   updateLanc();
 }
 function updateLanc(){
-  const a=filtered(),s=sums(a),nIn=a.filter(e=>e.type==='entrada').length,pend=a.filter(e=>e.status==='revisao').length;
+  const a=filtered(),s=sums(a),nIn=a.filter(e=>e.type==='entrada').length;
   const pages=Math.max(1,Math.ceil(a.length/PAGE));lf.page=Math.min(lf.page,pages);const start=(lf.page-1)*PAGE,rows=a.slice(start,start+PAGE);
-  const semComp=a.filter(e=>!e.files.length).length;
-  document.getElementById('lancStats').innerHTML=`<div class="metric-grid four">${metric('file','mi-blue','Total de lançamentos','Lançamentos',a.length,'no período selecionado')}${lancType?(lancType==='entrada'?metric('arrow-down','mi-green','Total de entradas','Entradas',`<span class="positive">${fmt(s.in)}</span>`,`${nIn} lançamentos`):metric('arrow-up','mi-red','Total de saídas','Saídas',`<span class="negative">${fmt(s.out)}</span>`,`${a.length-nIn} lançamentos`))+metric('paperclip','mi-red','Sem comprovante','Sem comprovante',`<span class="negative">${semComp}</span>`,'lançamentos sem anexo'):metric('arrow-down','mi-green','Total de entradas','Entradas',`<span class="positive">${fmt(s.in)}</span>`,`${nIn} lançamentos`)+metric('arrow-up','mi-red','Total de saídas','Saídas',`<span class="negative">${fmt(s.out)}</span>`,`${a.length-nIn} lançamentos`)}${metric('clock','mi-yellow','Pendentes de revisão','Pendentes',`<span class="warn">${pend}</span>`,'lançamentos')}</div>`;
+  document.getElementById('lancStats').innerHTML=`<div class="metric-grid">${metric('file','mi-blue','Total de lançamentos','Lançamentos',a.length,'no período selecionado')}${lancType?(lancType==='entrada'?metric('arrow-down','mi-green','Total de entradas','Entradas',`<span class="positive">${fmt(s.in)}</span>`,`${nIn} lançamentos`):metric('arrow-up','mi-red','Total de saídas','Saídas',`<span class="negative">${fmt(s.out)}</span>`,`${a.length-nIn} lançamentos`)):metric('arrow-down','mi-green','Total de entradas','Entradas',`<span class="positive">${fmt(s.in)}</span>`,`${nIn} lançamentos`)+metric('arrow-up','mi-red','Total de saídas','Saídas',`<span class="negative">${fmt(s.out)}</span>`,`${a.length-nIn} lançamentos`)}</div>`;
   document.getElementById('lancTable').innerHTML=a.length?`<div class="table-wrap"><table class="tbl lanc"><thead><tr><th>Data</th><th>Empresa</th>${lancType?'':'<th>Tipo</th>'}<th>Descrição</th><th>Conta de origem/destino</th><th>Forma de pagamento</th><th>Valor</th><th>Comprovante</th><th>Ações</th></tr></thead><tbody>${rows.map(e=>`<tr><td data-label="Data">${short(e.date)}</td><td class="wrap" data-label="Empresa">${esc(companyName(e.company))}</td>${lancType?'':`<td data-label="Tipo" class="${e.type==='entrada'?'type-in':'type-out'}">${e.type==='entrada'?'Entrada':'Saída'}</td>`}<td class="wrap desc c-desc">${esc(e.desc)}</td><td class="wrap" data-label="Conta">${esc(e.account)}</td><td class="wrap" data-label="Pagamento">${esc(e.method)}</td><td data-label="Valor" class="c-valor ${e.type==='entrada'?'positive':'negative'}">${fmt(e.value)}</td><td data-label="Comprovante">${e.files.length?e.files.map((f,i)=>`<button class="link file-link" onclick="openFile('${e.id}',${i})">${esc(f.name)}</button>`).join('<br>'):'<span class="muted">Sem anexo</span>'}</td><td class="c-acoes"><button class="icon-btn row-act" aria-label="Ações" onclick="rowMenu(event,'${e.id}')">${ico('dots')}</button></td></tr>`).join('')}</tbody></table></div><div class="pager"><span class="muted">Mostrando ${start+1} a ${start+rows.length} de ${a.length} lançamentos</span><div class="pager-btns"><button class="btn sm" ${lf.page===1?'disabled':''} onclick="goPage(${lf.page-1})">${ico('chevron-left',2)} Anterior</button>${Array.from({length:pages},(_,i)=>`<button class="btn sm ${i+1===lf.page?'current':''}" onclick="goPage(${i+1})">${i+1}</button>`).join('')}<button class="btn sm" ${lf.page===pages?'disabled':''} onclick="goPage(${lf.page+1})">Próxima ${ico('chevron-right',2)}</button></div></div>`:emptyBox('file','Nenhum lançamento encontrado','Ajuste os filtros ou o período.');
 }
 function goPage(p){lf.page=p;updateLanc()}
-function clearFilters(){lf={q:'',type:'',account:'',method:'',status:'',page:1};company='';filterFrom=DEFAULT_FROM;filterTo=DEFAULT_TO;render()}
+function clearFilters(){lf={q:'',type:'',account:'',method:'',page:1};company='';filterFrom=DEFAULT_FROM;filterTo=DEFAULT_TO;render()}
 function hideMenus(){document.getElementById('userMenu').classList.add('hidden');document.getElementById('rowMenu').classList.add('hidden')}
 function rowMenu(ev,id){
   ev.stopPropagation();const m=document.getElementById('rowMenu'),e=entries.find(x=>x.id===id),r=ev.currentTarget.getBoundingClientRect();
-  m.innerHTML=`<button onclick="showForm('${id}')">Editar</button>${e.status!=='aprovado'?`<button onclick="setStatus('${id}','aprovado')">Aprovar</button>`:''}${e.status!=='revisao'?`<button onclick="setStatus('${id}','revisao')">Enviar para revisão</button>`:''}<button class="danger" onclick="removeEntry('${id}')">Excluir</button>`;
+  m.innerHTML=`<button onclick="showForm('${id}')">Editar</button><button class="danger" onclick="removeEntry('${id}')">Excluir</button>`;
   m.classList.remove('hidden');m.style.top=(r.bottom+window.scrollY+4)+'px';m.style.left=Math.max(8,r.right+window.scrollX-m.offsetWidth)+'px';
 }
-function setStatus(id,st){entries=entries.map(e=>e.id===id?{...e,status:st}:e);const e=entries.find(x=>x.id===id);audit.unshift({id:crypto.randomUUID(),date:stamp(),user:ME.nome,action:st==='aprovado'?'Aprovação':'Revisão',desc:e.desc,company:e.company});hideMenus();render();scheduleCloudSave()}
 function removeEntry(id){const e=entries.find(x=>x.id===id);hideMenus();if(!confirm(`Excluir o lançamento "${e.desc}"?`))return;entries=entries.filter(x=>x.id!==id);audit.unshift({id:crypto.randomUUID(),date:stamp(),user:ME.nome,action:'Exclusão',desc:e.desc,company:e.company});render();scheduleCloudSave()}
 
 const fsec=(icon,head,body)=>`<section class="card fsec"><div class="card-head"><span class="with-ico">${ico(icon)} ${head}</span></div><div class="card-body">${body}</div></section>`;
@@ -623,9 +617,8 @@ function showForm(id,presetType=''){
     </div>`)}
     ${fsec('list','Observações',`<textarea name="notes" class="notes" aria-label="Observações" placeholder="Informações adicionais sobre o lançamento...">${esc(e?.notes||'')}</textarea>`)}
     ${fsec('paperclip','Comprovantes (foto ou PDF)',`<label class="dropzone" id="drop">${ico('cloud')}<span>Clique para selecionar arquivos ou arraste aqui</span><small>JPG, PNG ou PDF • até 10 MB por arquivo</small><input id="files" type="file" accept="image/png,image/jpeg,application/pdf" multiple></label><div id="fileErr" class="field-err hidden"></div><div id="fileList"></div>`)}
-    <div class="form-actions"><button type="submit" class="btn primary" value="save">${ico('save')} Salvar lançamento</button><button type="submit" class="btn outline" value="review">${ico('send')} Salvar e enviar para revisão</button><button type="button" class="btn" onclick="navigate(formBack)">Cancelar</button></div>
+    <div class="form-actions"><button type="submit" class="btn primary" value="save">${ico('save')} Salvar lançamento</button><button type="button" class="btn" onclick="navigate(formBack)">Cancelar</button></div>
   </div><aside><section class="card rules"><div class="card-head"><span class="with-ico">${ico('bulb')} Regras e orientações</span></div><div class="card-body">
-    <div class="rule r-red">${ico('file-alert')}<span>Comprovante obrigatório para lançamentos de saída.</span></div>
     <div class="rule r-blue">${ico('info')}<span>As contas bancárias são filtradas de acordo com a empresa selecionada.</span></div>
     <div class="rule r-green">${ico('shield-ok')}<span>As ações ficam registradas na auditoria do sistema.</span></div>
   </div></section></aside></form>`;
@@ -656,15 +649,12 @@ function renderFileList(){
 }
 function submitForm(ev){
   ev.preventDefault();
-  const review=ev.submitter?.value==='review',x=Object.fromEntries(new FormData(ev.target).entries()),files=[...keptFiles,...draftFiles];
-  if(x.type==='saida'&&!files.length&&!review&&!confirm('Saída sem comprovante. Salvar mesmo assim? O lançamento ficará marcado como "Sem comprovante".'))return;
+  const x=Object.fromEntries(new FormData(ev.target).entries()),files=[...keptFiles,...draftFiles];
   const now=stamp(),old=entries.find(e=>e.id===editing);
-  const status=review?'revisao':(files.length||x.type==='entrada')?'aprovado':'sem-comprovante';
-  const record={id:old?.id||crypto.randomUUID(),company:x.company,type:x.type,date:x.date,desc:x.desc,value:Number(x.value),account:x.account,method:x.method,notes:x.notes,created:old?.created||ME.nome,files,status};
+  const record={id:old?.id||crypto.randomUUID(),company:x.company,type:x.type,date:x.date,desc:x.desc,value:Number(x.value),account:x.account,method:x.method,notes:x.notes,created:old?.created||ME.nome,files};
   if(old)entries=entries.map(e=>e.id===old.id?record:e);else entries.unshift(record);
   audit.unshift({id:crypto.randomUUID(),date:now,user:ME.nome,action:old?'Edição':'Criação',desc:x.desc,company:x.company});
   if(draftFiles.length)audit.unshift({id:crypto.randomUUID(),date:now,user:ME.nome,action:'Anexo',desc:`${draftFiles.length} comprovante(s) em ${x.desc}`,company:x.company});
-  if(review)audit.unshift({id:crypto.randomUUID(),date:now,user:ME.nome,action:'Revisão',desc:`Enviado para revisão: ${x.desc}`,company:x.company});
   company=x.company;navigate(formBack);
   scheduleCloudSave();
 }
@@ -692,7 +682,7 @@ async function collectPendingFiles(){
 }
 function toServerSnapshot(){
   return {
-    lancamentos:entries.map(e=>({id:e.id,empresa:e.company,data:e.date,tipo:e.type,descricao:e.desc,valor:e.value,conta:e.account,formaPagamento:e.method,observacoes:e.notes,status:e.status,anexos:e.files.map(f=>({id:f.id,name:f.name,type:f.type,size:f.size,path:f.path}))})),
+    lancamentos:entries.map(e=>({id:e.id,empresa:e.company,data:e.date,tipo:e.type,descricao:e.desc,valor:e.value,conta:e.account,formaPagamento:e.method,observacoes:e.notes,anexos:e.files.map(f=>({id:f.id,name:f.name,type:f.type,size:f.size,path:f.path}))})),
     contas:accounts,
     audit:audit.map(a=>({id:a.id,at:a.date,actor:a.user,action:a.action,detail:a.desc,empresa:a.company})),
   };
@@ -710,7 +700,7 @@ function applyCloudDb(payload){
   if(!payload||typeof payload!=='object')return;
   entries=Array.isArray(payload.lancamentos)?payload.lancamentos.map(l=>({
     id:l.id,company:l.empresa,date:l.data,type:l.tipo,desc:l.descricao||'',value:Number(l.valor)||0,
-    account:l.conta||'',method:l.formaPagamento||'',notes:l.observacoes||'',status:l.status||'aprovado',
+    account:l.conta||'',method:l.formaPagamento||'',notes:l.observacoes||'',
     created:l.criadoPor||'—',
     files:(l.anexos||[]).map(a=>({id:a.id,name:a.name,type:a.type,size:a.size,path:a.path,url:a.signedUrl})),
   })):[];
