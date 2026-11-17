@@ -42,6 +42,8 @@ export type MbFinance = {
   criadoPor?: string
   /** Quem criou (id do profile). */
   criadoPorId?: string
+  /** Horário de criação do lançamento (ISO). */
+  criadoEm?: string
 }
 
 type LegacyFinanceMeta = {
@@ -437,6 +439,7 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
       anexos: anexosFor(anexoRows, 'lancamento', r.id as string, signed),
       criadoPorId,
       criadoPor: criadoPorId ? nomePorId.get(criadoPorId) || '' : '',
+      criadoEm: r.created_at ? String(r.created_at) : '',
     }
   })
 
