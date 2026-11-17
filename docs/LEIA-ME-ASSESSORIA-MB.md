@@ -44,10 +44,12 @@ Arquivos: Storage bucket **`mb-comprovantes`** (privado).
 **admin**/**diretoria** do Nerites (como sempre foi) **ou** quem tem acesso extra cadastrado em
 `/admin` (`profiles.acessos_externos->>'assessoria-mb'`) — `can_access_assessoria_mb()`.
 
-Nível **"editor"** lê/cria/edita tarefas, lançamentos e anexos, mas não exclui, e não mexe em
-Configurações (bancos/centros/empresas/modelos/equipe) — isso é só nível **"admin"**
+Nível **"editor"** lê/cria/edita tarefas, lançamentos e anexos; pode **excluir o que ele
+mesmo lançou** (`created_by = auth.uid()`). Excluir registro de outro e mexer em
+Configurações (bancos/centros/empresas/modelos/equipe) é só nível **"admin"**
 (`can_delete_assessoria_mb()` no banco; no painel, clicar em "Editar"/"Adicionar" das
 Configurações com `MB.admin` falso só mostra um aviso, sem entrar no modo de edição).
+Migration: `20261118_assessoria_mb_owner_delete.sql`.
 
 Pra sugerir nomes no campo "Responsável" das tarefas, o painel busca (via RPC
 `list_assessoria_mb_equipe()`) quem tem acesso ao sistema e junta com o catálogo livre
