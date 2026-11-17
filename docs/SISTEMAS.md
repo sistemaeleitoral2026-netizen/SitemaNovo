@@ -21,7 +21,7 @@ alimentacao-sistema/
     public/
       sistemas/
         mandato-embed/      ← UI empacotada do Painel do Mandato
-        assessoria-mb/      ← UI empacotada da Assessoria MB
+        assessoria-mb/      ← UI modular da Assessoria MB (HTML, JS, CSS e fontes)
       data/                 ← JSON estático (proposições etc.)
     src/
       pages/

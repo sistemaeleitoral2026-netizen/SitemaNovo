@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "node build-checks/validate-embeds.cjs && tsc && vite build",
     "validate-embeds": "node build-checks/validate-embeds.cjs",
+    "format:assessoria": "prettier --write public/sistemas/assessoria-mb/index.html public/sistemas/assessoria-mb/app.js public/sistemas/assessoria-mb/styles/*.css",
     "preview": "vite preview"
   },
   "devDependencies": {
@@ -16,6 +17,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "prettier": "^3.6.2",
     "typescript": "~6.0.2",
     "vite": "^8.3.0"
   },

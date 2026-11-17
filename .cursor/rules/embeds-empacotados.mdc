@@ -1,22 +1,35 @@
 ---
-description: Regras obrigatórias ao editar Assessoria MB, Mandato e Empresas empacotados
-globs: alimentacao-app/public/sistemas/**/*.html,alimentacao-app/src/pages/empresas/mr-terceiriza-demo.html,_legacy_proto/scripts/**/*mb*,_legacy_proto/scripts/**/*prestacao*,_legacy_proto/scripts/**/*fin*
+description: Regras obrigatórias ao editar Assessoria MB, Mandato e Empresas
+globs: alimentacao-app/public/sistemas/**/*,alimentacao-app/src/pages/empresas/mr-terceiriza-demo.html,_legacy_proto/scripts/**/*mb*,_legacy_proto/scripts/**/*prestacao*,_legacy_proto/scripts/**/*fin*
 alwaysApply: true
 ---
 
-# Apps empacotados (Assessoria MB, Mandato, Empresas)
+# Assessoria MB modular; Mandato e Empresas legados
 
-Leia isto **antes** de editar:
+## Assessoria MB
 
-- `alimentacao-app/public/sistemas/assessoria-mb/index.html`
+A Assessoria MB não é mais empacotada em uma string JSON. Edite diretamente:
+
+- `alimentacao-app/public/sistemas/assessoria-mb/index.html` — marcação
+- `alimentacao-app/public/sistemas/assessoria-mb/app.js` — comportamento
+- `alimentacao-app/public/sistemas/assessoria-mb/styles/app.css` — aparência
+- `alimentacao-app/public/sistemas/assessoria-mb/styles/fonts.css` — fontes locais
+
+Não volte a gerar `__bundler/template`. Rode `npm run format:assessoria` depois de
+alterações extensas e sempre rode `npm run validate-embeds` e `npm run build`.
+
+## Mandato e Empresas
+
+Leia `docs/EMBEDS.md` antes de editar:
+
 - `alimentacao-app/public/sistemas/mandato-embed/index.html`
 - `alimentacao-app/src/pages/empresas/mr-terceiriza-demo.html`
 
-Esses arquivos já quebraram a Assessoria MB em produção por uma chave `{` sem fechar.
+Esses arquivos já quebraram em produção por uma chave `{` sem fechar.
 
-## Como são montados
+### Como são montados
 
-`assessoria-mb` e `mandato-embed` **não** são HTML normal:
+`mandato-embed` **não** é HTML normal:
 
 1. Bootstrap pequeno multi-linha (HTML/JS normal) que desempacota o resto.
 2. Tag `<script type="__bundler/template">...</script>` cujo conteúdo é uma **string JSON** (`JSON.stringify` do documento inteiro: HTML + CSS + o `<script>` do app).
@@ -30,15 +43,15 @@ Dentro da tag `__bundler/template`:
 
 `mr-terceiriza-demo.html` é HTML puro (sem bundler), mas ainda é **um único `<script>`** — a regra de sintaxe abaixo vale igual.
 
-## Por que UM erro de sintaxe quebra tudo
+### Por que UM erro de sintaxe quebra tudo
 
 Um único `<script>` carrega o app inteiro. Qualquer erro de sintaxe (chave/parêntese) → o browser **não executa nada** → tela branca/travada. O usuário só vê “travou”; o erro fica no Console (F12).
 
-## Bug que já aconteceu (exemplo)
+### Bug que já aconteceu (exemplo)
 
 Em `openModal()` (Assessoria MB), ao adicionar `if (locked) {...} else {...}` **dentro** do `else` de `kind === 'task'`, faltou fechar o `else` de fora. O parser só reclamou no **final** do arquivo (`expected expression, got ')'` na última linha) — o número de linha **não** aponta o bug.
 
-## Build/CI
+### Build/CI
 
 `tsc`/`vite` **não** compilam esses HTML. O check é:
 
@@ -50,10 +63,10 @@ npm run validate-embeds
 
 Roda **antes** de `tsc`/`vite` via `npm run build`.
 
-## Regras obrigatórias
+### Regras obrigatórias
 
-1. Depois de **QUALQUER** edição nesses 3 arquivos (direto ou via script em `_legacy_proto`), rode `validate-embeds`. Sem exceção.
+1. Depois de qualquer edição na Assessoria MB, no Mandato ou em Empresas, rode `validate-embeds`. Sem exceção.
 2. **Não** confie no número de linha do SyntaxError do browser — quase sempre aponta o fim do arquivo. Use AST/`validate-embeds`/contagem real de `{` `}`.
 3. Ao editar `if/else` aninhado, releia a função inteira contando `{` e `}`. Fácil esquecer fechar o bloco de fora ao meter um `if/else` novo **dentro** de um `else`.
 4. Edição bruta no `__bundler/template`: é string JSON (`\"`, `\/`, só `\n` escapado).
-5. Antes de dar a tarefa por terminada: `npm run build` em `alimentacao-app` se mexeu em qualquer um dos três.
+5. Antes de dar a tarefa por terminada: `npm run build` em `alimentacao-app`.
