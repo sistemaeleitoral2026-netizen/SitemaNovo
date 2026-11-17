@@ -134,17 +134,16 @@ export function carregarFinanceiro() {
   return ponte('/api/gabinete?recurso=financeiro') as Promise<Record<string, unknown>>
 }
 
-/** Puxa folha e despesas dos portais oficiais para o Gabinete (até 4 meses por chamada). */
+/** Puxa o salário do vereador na folha da Câmara (até 4 meses por chamada). */
 export function sincronizarFinanceiro(forcar = false) {
   return postFin('financeiro-sincronizar', { forcar: forcar ? 1 : 0 }) as Promise<{
     ok?: boolean
     folha?: { status?: string; meses?: string[]; faltam?: number; erro?: string }
-    despesas?: { status?: string; erro?: string; empenhos?: number; novosPagamentos?: number }
   }>
 }
 
 /**
- * Se ainda não houver meses no resumo, roda a carga inicial em loop
+ * Se ainda não houver meses no resumo, roda a carga inicial do salário em loop
  * (a API grava no máximo 4 meses por execução). Só admin/diretoria sincronizam.
  */
 export async function garantirCargaFinanceiro() {
@@ -156,7 +155,6 @@ export async function garantirCargaFinanceiro() {
   for (let i = 0; i < 12; i++) {
     const r = await sincronizarFinanceiro(false)
     if (r.folha?.erro) throw new Error(r.folha.erro)
-    if (r.despesas?.erro) throw new Error(r.despesas.erro)
     const faltam = Number(r.folha?.faltam)
     if (Number.isFinite(faltam) && faltam <= 0) break
     if (!r.folha?.meses?.length && !String(r.folha?.status || '').includes('gravada')) break
@@ -172,7 +170,8 @@ function postFin(recurso: string, dados: Record<string, unknown>) {
 export const salvarLancamento = (l: FinLancamentoEntrada) => postFin('financeiro-lancamento', l)
 export const excluirLancamento = (id: string) => postFin('financeiro-excluir', { id })
 export const mudarStatusLancamento = (id: string, status: string) => postFin('financeiro-status', { id, status })
-export const definirCompetencia = (p: { empenho: string; num_pagamento: string; data: string; competencia: string | null }) =>
-  postFin('financeiro-competencia', p)
-export const salvarInfoEquipe = (i: { matricula: string; funcao_real?: string; telefone?: string; indicado_por?: string; observacao?: string }) =>
-  postFin('financeiro-equipe', i)
+
+export type EquipeGabineteEntrada = { id?: string; nome: string; cargo?: string; admissao?: string; salario: number | string }
+export const salvarEquipeGabinete = (e: EquipeGabineteEntrada) => postFin('financeiro-equipe-salvar', e)
+export const excluirEquipeGabinete = (id: string) => postFin('financeiro-equipe-excluir', { id })
+export const salvarViepMes = (mes: string, valor: number | string) => postFin('financeiro-verbas-salvar', { mes, valor })

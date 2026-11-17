@@ -263,23 +263,15 @@ module.exports = async function handler(req, res) {
       if (req.method !== 'POST') return json(res, 405, { error: 'Use POST.' })
       if (!exigirEdicao()) return
 
-      // Carga/atualização dos portais oficiais (folha + despesas). Até 4 meses por chamada.
+      // Carga/atualização do salário do vereador na folha da Câmara. Até 4 meses por chamada.
       if (recurso === 'financeiro-sincronizar') {
         const forcar = body.forcar === true || body.forcar === 1 || body.forcar === '1'
-        const resultado = {}
-        let falhou = false
-        for (const [parte, fn] of [
-          ['folha', () => fin.sincronizarFolha(db, { forcar })],
-          ['despesas', () => fin.sincronizarDespesas(db)],
-        ]) {
-          try {
-            resultado[parte] = await fn()
-          } catch (err) {
-            falhou = true
-            resultado[parte] = { erro: err instanceof Error ? err.message : String(err) }
-          }
+        try {
+          const folha = await fin.sincronizarFolha(db, { forcar })
+          return json(res, 200, { ok: true, folha })
+        } catch (err) {
+          return json(res, 500, { ok: false, folha: { erro: err instanceof Error ? err.message : String(err) } })
         }
-        return json(res, falhou ? 500 : 200, { ok: !falhou, ...resultado })
       }
 
       if (recurso === 'financeiro-lancamento') {
@@ -310,32 +302,32 @@ module.exports = async function handler(req, res) {
         return json(res, 200, { ok: true })
       }
 
-      if (recurso === 'financeiro-competencia') {
-        // Conciliação: define a qual mês (competência) um pagamento da Câmara se refere
-        const empenho = String(body.empenho || '').slice(0, 20)
-        const numPag = String(body.num_pagamento || '').slice(0, 20)
-        const data = String(body.data || '').slice(0, 10)
-        const comp = body.competencia ? String(body.competencia).slice(0, 7) : null
-        if (!empenho || !numPag || !/^\d{4}-\d{2}-\d{2}$/.test(data)) return json(res, 400, { error: 'Pagamento inválido.' })
-        if (comp && !/^\d{4}-\d{2}$/.test(comp)) return json(res, 400, { error: 'Competência inválida (AAAA-MM).' })
-        await db.patch(
-          `fin_pagamento?empenho=eq.${encodeURIComponent(empenho)}&num_pagamento=eq.${encodeURIComponent(numPag)}&data=eq.${data}`,
-          { competencia: comp },
-        )
+      // Equipe do gabinete: cadastro manual (Nome, Cargo/Função, Admissão, Salário)
+      if (recurso === 'financeiro-equipe-salvar') {
+        let linha
+        try { linha = fin.validarEquipeManual(body) } catch (e) { return json(res, e.status || 400, { error: e.message }) }
+        const agora = new Date().toISOString()
+        if (body.id) {
+          const id = String(body.id).replace(/[^0-9a-f-]/gi, '')
+          await db.patch(`fin_gabinete_manual?id=eq.${id}`, { ...linha, atualizado_em: agora })
+        } else {
+          await db.upsert('fin_gabinete_manual', 'id', { ...linha, ativo: true, criado_em: agora, atualizado_em: agora })
+        }
         return json(res, 200, { ok: true })
       }
 
-      if (recurso === 'financeiro-equipe') {
-        const matricula = String(body.matricula || '').trim().slice(0, 40)
-        if (!matricula) return json(res, 400, { error: 'Informe a matrícula.' })
-        await db.upsert('fin_equipe_info', 'matricula', {
-          matricula,
-          funcao_real: body.funcao_real ? String(body.funcao_real).slice(0, 120) : null,
-          telefone: body.telefone ? String(body.telefone).slice(0, 30) : null,
-          indicado_por: body.indicado_por ? String(body.indicado_por).slice(0, 120) : null,
-          observacao: body.observacao ? String(body.observacao).slice(0, 500) : null,
-          atualizado_em: new Date().toISOString(),
-        })
+      if (recurso === 'financeiro-equipe-excluir') {
+        const id = String(body.id || '').replace(/[^0-9a-f-]/gi, '')
+        if (!id) return json(res, 400, { error: 'Informe a pessoa.' })
+        await db.del(`fin_gabinete_manual?id=eq.${id}`)
+        return json(res, 200, { ok: true })
+      }
+
+      // VIEP recebida da Câmara, lançada à mão todo mês
+      if (recurso === 'financeiro-verbas-salvar') {
+        let linha
+        try { linha = fin.validarViepManual(body) } catch (e) { return json(res, e.status || 400, { error: e.message }) }
+        await db.upsert('fin_mes_manual', 'mes', { ...linha, atualizado_em: new Date().toISOString() })
         return json(res, 200, { ok: true })
       }
 
