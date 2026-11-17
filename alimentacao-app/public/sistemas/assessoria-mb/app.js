@@ -1404,7 +1404,7 @@
 
   function accountAttachmentHTML(record, file, fileIndex, sequence) {
     const image = String(file.type || "").startsWith("image/");
-    return `<article class="account-proof-card"><div class="account-proof-meta"><span>Comprovante ${sequence}</span><strong>${esc(record.sub || "Empresa não identificada")}</strong><small>${dateBR(record.data)}  ${esc(record.parceiro || "Sem favorecido")}</small><small>${esc(file.name || "Arquivo")}</small></div><div class="account-proof-preview">${image ? `<img data-account-proof="${esc(record.id)}:${fileIndex}" alt="${esc(file.name || "Comprovante")}">` : `${icon("file")}<strong>Documento PDF</strong><span>${esc(file.name || "Comprovante")}</span>`}</div><button type="button" class="account-proof-open no-print" data-view-files="fin:${esc(record.id)}" data-file-index="${fileIndex}">Visualizar comprovante</button></article>`;
+    return `<article class="account-proof-card"><p class="account-proof-meta"><b>Comprovante ${sequence}</b> — ${esc(record.sub || "sem empresa")}, ${dateBR(record.data)}, ${esc(record.parceiro || "sem favorecido")}<br><span>${esc(file.name || "arquivo")}</span></p><div class="account-proof-preview">${image ? `<img data-account-proof="${esc(record.id)}:${fileIndex}" alt="${esc(file.name || "Comprovante")}">` : `<span>Arquivo PDF: ${esc(file.name || "comprovante")}</span>`}</div><button type="button" class="account-proof-open no-print" data-view-files="fin:${esc(record.id)}" data-file-index="${fileIndex}">abrir arquivo</button></article>`;
   }
 
   function accountReportHTML(rows, range, cash, companies, receivable) {
@@ -1421,9 +1421,9 @@
       const output = finKind(record) === "saida" && inAccountRange(record.data, range) ? money(record.saida) : 0;
       const launchExpected = finKind(record) === "receita" && inAccountRange(record.data, range) ? money(record.previsto) : 0;
       const files = (record.anexos || []).length;
-      return `<tr><td>${index + 1}</td><td class="nowrap">${dateBR(record.data)}</td><td><strong>${esc(record.sub || "Não identificada")}</strong></td><td>${esc(finTipo(record))}</td><td>${esc(record.parceiro || "Não informado")}</td><td>${esc(record.centro || "Não informado")}</td><td class="num">${fmt(launchExpected)}</td><td class="num">${fmt(received)}</td><td class="num">${fmt(output)}</td><td>${files ? `${files} arquivo${files === 1 ? "" : "s"}` : "Não anexado"}</td></tr>`;
+      return `<tr><td>${index + 1}</td><td class="nowrap">${dateBR(record.data)}</td><td>${esc(record.sub || "—")}</td><td>${esc(finTipo(record))}</td><td>${esc(record.parceiro || "—")}</td><td>${esc(record.centro || "—")}</td><td class="num">${fmt(launchExpected)}</td><td class="num">${fmt(received)}</td><td class="num">${fmt(output)}</td><td class="num">${files || "—"}</td></tr>`;
     }).join("");
-    const companyRows = companies.map((item) => `<tr><td><strong>${esc(item.company)}</strong></td><td class="num">${item.records}</td><td class="num">${fmt(item.expected)}</td><td class="num">${fmt(item.received)}</td><td class="num">${fmt(item.outputs)}</td><td class="num">${fmt(item.final)}</td><td class="num">${item.files}</td></tr>`).join("");
+    const companyRows = companies.map((item) => `<tr><td>${esc(item.company)}</td><td class="num">${item.records}</td><td class="num">${fmt(item.expected)}</td><td class="num">${fmt(item.received)}</td><td class="num">${fmt(item.outputs)}</td><td class="num">${fmt(item.final)}</td><td class="num">${item.files}</td></tr>`).join("");
     const totals = companies.reduce((total, item) => ({
       records: total.records + item.records,
       expected: total.expected + item.expected,
@@ -1436,12 +1436,14 @@
     const isMonthly = state.accountPeriod === "month" && /^\d{4}-\d{2}$/.test(state.accountMonth);
     const selectedMonthLabel = isMonthly ? financeMonthTitle(state.accountMonth) : "";
     const previousMonthLabel = isMonthly ? financeMonthTitle(previousMonth(state.accountMonth)) : "";
-    return `<div class="account-report-cover"><div class="account-brand"><strong>ASSESSORIA MB</strong><span>Prestação de contas</span></div><div class="account-document-meta"><div><span>Emissão</span><strong>${generatedAt}</strong></div><div><span>Empresa</span><strong>${esc(companyLabel)}</strong></div><div><span>Período</span><strong>${esc(range.label)}</strong></div><div><span>Lançamentos</span><strong>${rows.length.toLocaleString("pt-BR")}</strong></div></div></div>
-      <section class="account-report-section"><div class="account-section-title"><span>01</span><div><h3>Resumo financeiro</h3><p>Posição apurada para o período selecionado</p></div></div><div class="account-summary-grid account-summary-primary"><article><span>${isMonthly ? `Ficou em ${esc(previousMonthLabel)}` : "Saldo anterior"}</span><strong>${cash.prior == null ? "Não aplicável" : fmt(cash.prior)}</strong></article><article><span>${isMonthly ? `A Receber em ${esc(selectedMonthLabel)}` : "A Receber"}</span><strong>${fmt(receivable)}</strong></article><article><span>${isMonthly ? `Recebido em ${esc(selectedMonthLabel)}` : "Recebimentos"}</span><strong>${fmt(cash.received)}</strong></article><article><span>${isMonthly ? `Saídas em ${esc(selectedMonthLabel)}` : "Saídas"}</span><strong>${fmt(cash.outputs)}</strong></article><article class="account-summary-final"><span>${isMonthly ? `Total em ${esc(selectedMonthLabel)}` : "Saldo final"}</span><strong>${fmt(cash.final)}</strong></article></div><div class="account-summary-grid account-summary-secondary"><article><span>Valor previsto</span><strong>${fmt(expected)}</strong></article><article><span>Lançamentos</span><strong>${rows.length.toLocaleString("pt-BR")}</strong></article><article><span>Empresas</span><strong>${companies.length}</strong></article><article><span>Comprovantes</span><strong>${attachments.length}</strong></article></div></section>
-      <section class="account-report-section"><div class="account-section-title"><span>02</span><div><h3>Consolidação por empresa</h3><p>Composição financeira e documental</p></div></div><div class="account-sheet-table"><table><thead><tr><th>Empresa</th><th class="num">Registros</th><th class="num">Previsto</th><th class="num">Recebido</th><th class="num">Saídas</th><th class="num">Saldo final</th><th class="num">Anexos</th></tr></thead><tbody>${companyRows || `<tr><td colspan="7" class="account-empty">Nenhuma movimentação encontrada</td></tr>`}</tbody><tfoot><tr><th>Total consolidado</th><th class="num">${totals.records}</th><th class="num">${fmt(totals.expected)}</th><th class="num">${fmt(totals.received)}</th><th class="num">${fmt(totals.outputs)}</th><th class="num">${fmt(totals.final)}</th><th class="num">${totals.files}</th></tr></tfoot></table></div></section>
-      <section class="account-report-section account-detail-section"><div class="account-section-title"><span>03</span><div><h3>Relação analítica dos lançamentos</h3><p>Dados financeiros registrados no sistema</p></div></div><div class="account-sheet-table account-detail-table"><table><thead><tr><th>Nº</th><th>Data</th><th>Empresa</th><th>Tipo</th><th>Parceiro</th><th>Centro</th><th class="num">Previsto</th><th class="num">Recebido</th><th class="num">Saída</th><th>Comprovante</th></tr></thead><tbody>${detailRows || `<tr><td colspan="10" class="account-empty">Nenhum lançamento atende aos filtros selecionados</td></tr>`}</tbody></table></div></section>
-      ${attachments.length ? `<section class="account-report-section account-proof-section"><div class="account-section-title"><span>04</span><div><h3>Anexos comprobatórios</h3><p>Documentos vinculados aos lançamentos apresentados</p></div></div><div class="account-proof-grid">${attachments.map(({ record, file, fileIndex }) => accountAttachmentHTML(record, file, fileIndex, ++proofNumber)).join("")}</div></section>` : ""}
-      <footer class="account-report-footer"><span>Assessoria MB</span><span>Emitido em ${generatedAt}</span><span>Prestação de contas dos lançamentos</span></footer>`;
+    const priorLabel = isMonthly ? `Saldo que ficou em ${esc(previousMonthLabel)}` : "Saldo anterior";
+    const finalLabel = isMonthly ? `Saldo de ${esc(selectedMonthLabel)}` : "Saldo final";
+    return `<header class="account-report-cover"><h2>Prestação de Contas — Assessoria MB</h2><p><b>Empresa:</b> ${esc(companyLabel)} &nbsp;&nbsp; <b>Período:</b> ${esc(range.label)} &nbsp;&nbsp; <b>Emitido em:</b> ${generatedAt}</p></header>
+      <section class="account-report-section"><h3 class="account-section-title">1. Resumo</h3><table class="account-ledger"><tbody><tr><td>${priorLabel}</td><td class="num">${cash.prior == null ? "—" : fmt(cash.prior)}</td></tr><tr><td>(+) Recebido no período</td><td class="num">${fmt(cash.received)}</td></tr><tr><td>(−) Saídas no período</td><td class="num">${fmt(cash.outputs)}</td></tr><tr class="account-ledger-total"><td>(=) ${finalLabel}</td><td class="num">${fmt(cash.final)}</td></tr></tbody></table><p class="account-note">Valor previsto no período: ${fmt(expected)} · Ainda a receber: ${fmt(receivable)} · ${rows.length.toLocaleString("pt-BR")} lançamento(s), ${attachments.length} comprovante(s).</p></section>
+      <section class="account-report-section"><h3 class="account-section-title">2. Por empresa</h3><div class="account-sheet-table"><table><thead><tr><th>Empresa</th><th class="num">Lanç.</th><th class="num">Previsto</th><th class="num">Recebido</th><th class="num">Saídas</th><th class="num">Saldo</th><th class="num">Anexos</th></tr></thead><tbody>${companyRows || `<tr><td colspan="7" class="account-empty">Sem movimentação no período.</td></tr>`}</tbody><tfoot><tr><th>Total</th><th class="num">${totals.records}</th><th class="num">${fmt(totals.expected)}</th><th class="num">${fmt(totals.received)}</th><th class="num">${fmt(totals.outputs)}</th><th class="num">${fmt(totals.final)}</th><th class="num">${totals.files}</th></tr></tfoot></table></div></section>
+      <section class="account-report-section account-detail-section"><h3 class="account-section-title">3. Lançamentos</h3><div class="account-sheet-table account-detail-table"><table><thead><tr><th>Nº</th><th>Data</th><th>Empresa</th><th>Tipo</th><th>Parceiro</th><th>Centro</th><th class="num">Previsto</th><th class="num">Recebido</th><th class="num">Saída</th><th>Comprov.</th></tr></thead><tbody>${detailRows || `<tr><td colspan="10" class="account-empty">Nenhum lançamento no período.</td></tr>`}</tbody></table></div></section>
+      ${attachments.length ? `<section class="account-report-section account-proof-section"><h3 class="account-section-title">4. Comprovantes</h3><div class="account-proof-grid">${attachments.map(({ record, file, fileIndex }) => accountAttachmentHTML(record, file, fileIndex, ++proofNumber)).join("")}</div></section>` : ""}
+      <footer class="account-report-footer"><div><span></span>Responsável</div><div><span></span>Conferido por</div><p>Local e data: ______________________, ____ / ____ / ________</p></footer>`;
   }
 
   async function hydrateAccountProofs() {
@@ -1504,14 +1506,14 @@
     $("#account-print").onclick = async () => {
       const button = $("#account-print");
       button.disabled = true;
-      button.innerHTML = `${icon("clock")}Preparando relatório`;
+      button.innerHTML = `${icon("clock")}Preparando…`;
       await hydrateAccountProofs();
       document.body.classList.add("printing-accountability");
       window.print();
       setTimeout(() => {
         document.body.classList.remove("printing-accountability");
         button.disabled = false;
-        button.innerHTML = `${icon("file")}Gerar relatório A4`;
+        button.innerHTML = `${icon("file")}Imprimir`;
       }, 500);
     };
   }

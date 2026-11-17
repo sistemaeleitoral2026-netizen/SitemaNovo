@@ -656,25 +656,21 @@
             <div class="heading">
               <div>
                 <h1>Prestação de contas</h1>
-                <p>
-                  Relatório financeiro dos lançamentos com detalhamento por
-                  período, empresa e documentação comprobatória.
-                </p>
+                <p>Lançamentos do período, por empresa, com os comprovantes.</p>
               </div>
               <div class="actions accountability-actions">
                 <button class="btn" type="button" id="account-export-csv">
-                  <svg><use href="#i-dl"></use></svg>Exportar planilha
+                  <svg><use href="#i-dl"></use></svg>Baixar planilha
                 </button>
                 <button class="btn primary" type="button" id="account-print">
-                  <svg><use href="#i-file"></use></svg>Gerar relatório A4
+                  <svg><use href="#i-file"></use></svg>Imprimir
                 </button>
               </div>
             </div>
             <div class="panel accountability-filter-panel">
               <div class="section-head panel-pad">
                 <div>
-                  <h2>Definição do relatório</h2>
-                  <div class="sub">Escolha o período e a abrangência dos dados</div>
+                  <h2>Filtros</h2>
                 </div>
                 <button class="btn" type="button" id="account-clear">Limpar filtros</button>
               </div>
@@ -683,7 +679,6 @@
             <div id="account-report" class="account-report-sheet" aria-live="polite"></div>
             <div class="accountability-screen-footer">
               <span id="account-result-count"></span>
-              <span>Relatório gerado com os dados atuais do sistema</span>
             </div>
           </section>
           <section
