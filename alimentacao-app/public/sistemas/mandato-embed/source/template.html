@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html><head>
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="083b53ca-b337-4f36-b215-d188e5c9e0e5"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<title>Painel do Mandato · Matheus do Beiju</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>/*__MANDATO_FONTS_CSS__*/</style>
+<style>/*__MANDATO_VENDOR_ICONS_CSS__*/</style>
+<style>/*__MANDATO_APP_CSS__*/</style>
+</helmet>
+<div style="display:flex;min-height:100vh;background:#F2F5FA">
+
+<sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}">
+<aside style="width:264px;flex:0 0 264px;background:#0D2350;color:#fff;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;overflow-y:auto">
+  <div style="display:flex;gap:12px;align-items:center;padding:22px 20px 18px">
+    <img src="bb02ca6c-2a9f-41a2-b066-1dd3e14c9b21" alt="Brasão de São Luís" style="width:40px;height:52px;object-fit:contain;flex:0 0 40px">
+    <div style="display:flex;flex-direction:column;line-height:1.25">
+      <span style="font-weight:700;font-size:15px">Câmara Municipal</span>
+      <span style="font-size:12.5px;color:#9FB2D6">São Luís · Gabinete</span>
+    </div>
+  </div>
+  <div style="height:1px;background:rgba(255,255,255,.1);margin:0 20px"></div>
+  <nav style="display:flex;flex-direction:column;gap:2px;padding:16px 12px">
+    <span style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#7F93BC;padding:4px 12px 8px;font-weight:600">Sistema do Mandato</span>
+    <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="10">
+      <button sc-camel-on-click="{{ n.onClick }}" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:0;border-radius:9px;background:{{ n.bg }};color:{{ n.color }};font-size:14.5px;font-weight:{{ n.fw }};cursor:pointer;text-align:left;width:100%">
+        <i class="ti ti-{{ n.icon }}" style="font-size:19px"></i>
+        <span style="flex:1">{{ n.label }}</span>
+        <sc-if value="{{ n.hasBadge }}" hint-placeholder-val="{{ false }}"><span style="background:#F2B233;color:#3B2A00;font-size:11.5px;font-weight:700;border-radius:20px;padding:2px 8px">{{ n.badge }}</span></sc-if>
+      </button>
+    </sc-for>
+  </nav>
+  <div style="margin-top:auto;padding:16px 20px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:10px">
+    <div style="width:34px;height:34px;border-radius:50%;background:#2A4A8A;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700">GB</div>
+    <div style="flex:1;display:flex;flex-direction:column;line-height:1.3;min-width:0">
+      <span style="font-size:13.5px;font-weight:600">Gabinete</span>
+      <span style="font-size:12px;color:#9FB2D6">Equipe do mandato</span>
+    </div>
+    <button title="Sair" style="background:transparent;border:0;color:#9FB2D6;cursor:pointer;padding:6px"><i class="ti ti-logout" style="font-size:18px"></i></button>
+  </div>
+</aside>
+</sc-if>
+
+<main style="flex:1;min-width:0;padding:{{ pad }};padding-bottom:{{ padBottom }}">
+
+<header style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+  <sc-if value="{{ isMobile }}" hint-placeholder-val="{{ false }}">
+    <button sc-camel-on-click="{{ openDrawer }}" style="width:42px;height:42px;border-radius:10px;border:1px solid #DCE3EE;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#13213A"><i class="ti ti-menu-2" style="font-size:20px"></i></button>
+    <div style="display:flex;flex-direction:column;line-height:1.2;flex:1;min-width:0">
+      <span style="font-size:12px;color:#5B6B85">Sistema do Mandato</span>
+      <span style="font-weight:700;font-size:16px">{{ pageTitle }}</span>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex;align-items:center;gap:8px;height:42px;padding:0 14px;border:1px solid #DCE3EE;background:#fff;border-radius:10px;font-size:14px;font-weight:600;white-space:nowrap;flex-shrink:0"><i class="ti ti-map-pin" style="font-size:17px;color:#1B5BD0"></i>São Luís – MA</div>
+    <sc-if value="{{ showDate }}" hint-placeholder-val="{{ true }}"><div style="display:flex;align-items:center;gap:8px;height:42px;padding:0 14px;border:1px solid #DCE3EE;background:#fff;border-radius:10px;font-size:14px;font-weight:600;white-space:nowrap;flex-shrink:0"><i class="ti ti-calendar" style="font-size:17px;color:#1B5BD0"></i>01/05/2026 – 31/10/2026</div></sc-if>
+    <div style="flex:1"></div>
+    <label style="display:flex;align-items:center;gap:8px;height:42px;padding:0 14px;border:1px solid #DCE3EE;background:#fff;border-radius:10px;width:min(340px,100%);color:#7A889E">
+      <i class="ti ti-search" style="font-size:17px"></i>
+      <input value="{{ q }}" sc-camel-on-change="{{ onSearch }}" placeholder="Buscar cidadão, demanda ou bairro" style="border:0;outline:0;font-size:14px;flex:1;min-width:0;background:transparent;color:#13213A">
+    </label>
+  </sc-if>
+  <button sc-camel-on-click="{{ toggleNotif }}" style="position:relative;width:42px;height:42px;border-radius:10px;border:1px solid #DCE3EE;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#13213A"><i class="ti ti-bell" style="font-size:19px"></i><span style="position:absolute;top:7px;right:7px;width:8px;height:8px;border-radius:50%;background:#D93636;border:2px solid #fff"></span></button>
+  <div style="display:flex;align-items:center;gap:10px">
+    <img src="a81331de-aa32-4ce1-8f8d-aca3ce83b565" alt="" style="width:42px;height:42px;border-radius:50%;object-fit:cover;object-position:50% 12%;border:2px solid #1B5BD0">
+    <sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;line-height:1.25"><span style="font-weight:700;font-size:14px">Matheus do Beiju</span><span style="font-size:12.5px;color:#5B6B85;display:flex;align-items:center;gap:5px"><img src="c829a1d3-620f-4408-b0a6-6ccad4a3a517" alt="PL" style="width:14px;height:16px;object-fit:contain">Vereador · PL</span></div>
+    </sc-if>
+  </div>
+  <sc-if value="{{ isMobile }}" hint-placeholder-val="{{ false }}">
+    <label style="display:flex;align-items:center;gap:8px;height:44px;padding:0 14px;border:1px solid #DCE3EE;background:#fff;border-radius:10px;width:100%;color:#7A889E">
+      <i class="ti ti-search" style="font-size:17px"></i>
+      <input value="{{ q }}" sc-camel-on-change="{{ onSearch }}" placeholder="Buscar cidadão, demanda ou bairro" style="border:0;outline:0;font-size:15px;flex:1;min-width:0;background:transparent;color:#13213A">
+    </label>
+  </sc-if>
+</header>
+
+<sc-if value="{{ notifOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;padding:8px;margin:-8px 0 20px;display:flex;flex-direction:column">
+    <sc-for list="{{ notifs }}" as="nt" hint-placeholder-count="4">
+      <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border-radius:10px">
+        <i class="ti ti-{{ nt.icon }}" style="font-size:18px;color:{{ nt.color }};margin-top:1px"></i>
+        <div style="flex:1;font-size:14px;line-height:1.4">{{ nt.text }}</div>
+        <span style="font-size:12px;color:#7A889E;white-space:nowrap">{{ nt.when }}</span>
+      </div>
+    </sc-for>
+  </div>
+</sc-if>
+
+<!-- ============ PAINEL ============ -->
+<sc-if value="{{ isPainel }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:20px">
+  <div style="display:flex;flex-wrap:wrap;gap:20px">
+    <section style="flex:3 1 560px;min-width:0;position:relative;overflow:hidden;border-radius:16px;background:#0D2C66;color:#fff;min-height:230px;display:flex">
+      <img src="12489535-458e-4c35-815b-640dd41c6054" alt="Fachada da Câmara Municipal de São Luís" style="position:absolute;right:0;top:0;height:100%;width:62%;object-fit:cover;object-position:50% 40%">
+      <div style="position:absolute;inset:0;background:linear-gradient(90deg,#0D2C66 38%,rgba(13,44,102,.86) 60%,rgba(13,44,102,.35) 100%)"></div>
+      <div style="position:relative;display:flex;flex-wrap:wrap;gap:24px;align-items:center;padding:28px">
+        <img src="a81331de-aa32-4ce1-8f8d-aca3ce83b565" alt="Vereador Matheus do Beiju" style="width:132px;height:164px;object-fit:cover;object-position:50% 10%;border-radius:12px;border:3px solid #fff;flex:0 0 auto">
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:240px;flex:1">
+          <div style="display:flex;align-items:center;gap:10px"><img src="c829a1d3-620f-4408-b0a6-6ccad4a3a517" alt="Partido Liberal" style="width:34px;height:38px;object-fit:contain;border-radius:4px;flex:0 0 34px"><span style="font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:#A9C1EE;font-weight:600">Vereador · PL</span></div>
+          <h1 style="margin:0;font-size:34px;line-height:1.1;font-weight:800;letter-spacing:-.01em">Matheus do Beiju</h1>
+          <span style="font-size:15px;color:#D4E0F7">Câmara Municipal de São Luís do Maranhão</span>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+            <button sc-camel-on-click="{{ goDemandas }}" style="display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-size:13.5px;cursor:pointer;white-space:nowrap"><i class="ti ti-message-2" style="font-size:15px"></i><span>{{ openCount }} demandas aguardando retorno</span></button>
+            <button sc-camel-on-click="{{ goAgenda }}" style="display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-size:13.5px;cursor:pointer;white-space:nowrap"><i class="ti ti-calendar-event" style="font-size:15px"></i><span>{{ agendaHoje }} compromissos</span></button>
+            <button sc-camel-on-click="{{ goProp }}" style="display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-size:13.5px;cursor:pointer;white-space:nowrap"><i class="ti ti-gavel" style="font-size:15px"></i><span>{{ pautaCount }} proposições em pauta</span></button>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section style="flex:1 1 300px;min-width:0;background:#fff;border:1px solid #E3E8F0;border-radius:16px;padding:20px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+        <h2 style="margin:0;font-size:16px;font-weight:700">Próximos compromissos</h2>
+        <a href="#" sc-camel-on-click="{{ goAgendaLink }}" style="font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:4px">Ver agenda <i class="ti ti-arrow-right" style="font-size:14px"></i></a>
+      </div>
+      <span style="font-size:12.5px;color:#5B6B85">Terça-feira, 03/11</span>
+      <div style="display:flex;flex-direction:column;margin-top:6px">
+        <sc-for list="{{ agendaToday }}" as="ev" hint-placeholder-count="3">
+          <div style="display:flex;gap:14px;padding:11px 0;border-bottom:1px solid #EEF1F6">
+            <span style="font-weight:700;color:#1B5BD0;font-size:14px;width:44px;flex:0 0 44px">{{ ev.h }}</span>
+            <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">{{ ev.t }}</span><span style="font-size:12.5px;color:#5B6B85">{{ ev.l }}</span></div><button sc-camel-on-click="{{ ev.excluir }}" title="Excluir" style="margin-left:auto;height:28px;padding:0 8px;border-radius:8px;border:1px solid #F3C3C3;background:#fff;color:#B42318;cursor:pointer;font-size:12px;font-weight:700">Excluir</button>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">
+    <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="6">
+      <div style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;gap:10px;align-items:center">
+          <span style="width:36px;height:36px;border-radius:9px;background:#EAF1FE;color:#1B5BD0;display:flex;align-items:center;justify-content:center;flex:0 0 36px"><i class="ti ti-{{ k.icon }}" style="font-size:19px"></i></span>
+          <span style="font-size:13.5px;font-weight:600;color:#33425C;line-height:1.25">{{ k.label }}</span>
+        </div>
+        <span style="font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1">{{ k.value }}</span>
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:8px">
+          <span style="font-size:12.5px;color:#5B6B85"><b style="color:{{ k.tc }}">{{ k.trend }}</b> {{ k.note }}</span>
+          <svg width="72" height="26" sc-camel-view-box="0 0 72 26" style="flex:0 0 72px"><polyline points="{{ k.pts }}" fill="none" stroke="{{ k.tc }}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></polyline></svg>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+
+  
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:16px">
+    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <h2 style="margin:0;font-size:16px;font-weight:700">Demandas por período</h2>
+        <div style="display:flex;background:#F2F5FA;border-radius:9px;padding:3px;gap:2px">
+          <sc-for list="{{ ranges }}" as="r" hint-placeholder-count="3">
+            <button sc-camel-on-click="{{ r.onClick }}" style="border:0;border-radius:7px;padding:6px 11px;font-size:13px;font-weight:600;cursor:pointer;background:{{ r.bg }};color:{{ r.color }}">{{ r.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:flex;gap:16px;font-size:12.5px;color:#5B6B85">
+        <span style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:2px;background:#1B5BD0"></span>Recebidas</span>
+        <span style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:2px;background:#9DBDF5"></span>Resolvidas</span>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:6px;height:200px;border-bottom:1px solid #E3E8F0;padding-top:24px">
+        <sc-for list="{{ bars }}" as="b" hint-placeholder-count="6">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;position:relative">
+            <div style="display:flex;align-items:flex-end;gap:3px;height:100%;width:100%;justify-content:center">
+              <div title="{{ b.v1 }} recebidas" style="width:42%;max-width:22px;height:{{ b.h1 }}%;background:#1B5BD0;border-radius:4px 4px 0 0"></div>
+              <div title="{{ b.v2 }} resolvidas" style="width:42%;max-width:22px;height:{{ b.h2 }}%;background:#9DBDF5;border-radius:4px 4px 0 0"></div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:-6px">
+        <sc-for list="{{ bars }}" as="b" hint-placeholder-count="6"><span style="flex:1;text-align:center;font-size:12px;color:#5B6B85">{{ b.label }}</span></sc-for>
+      </div>
+    </section>
+
+    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <h2 style="margin:0;font-size:16px;font-weight:700">Bairros com mais demandas</h2>
+        <a href="#" sc-camel-on-click="{{ goBairrosLink }}" style="font-size:13.5px;font-weight:600">Ver bairros</a>
+      </div>
+      <sc-for list="{{ topBairros }}" as="b" hint-placeholder-count="7">
+        <div style="display:grid;grid-template-columns:120px 1fr 36px;align-items:center;gap:12px;font-size:14px">
+          <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.n }}</span>
+          <div style="height:8px;background:#EEF1F6;border-radius:4px;overflow:hidden"><div style="height:100%;width:{{ b.pct }}%;background:#1B5BD0;border-radius:4px"></div></div>
+          <span style="text-align:right;font-weight:700">{{ b.v }}</span>
+        </div>
+      </sc-for>
+    </section>
+
+    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px">
+      <h2 style="margin:0;font-size:16px;font-weight:700">Demandas por área</h2>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:24px">
+        <div style="width:150px;height:150px;border-radius:50%;background:#E6EBF3;display:flex;align-items:center;justify-content:center;flex:0 0 150px">
+          <div style="width:96px;height:96px;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font-size:22px;font-weight:800">{{ openCount }}</span><span style="font-size:11.5px;color:#5B6B85">demandas</span></div>
+        </div>
+        <div style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:9px">
+          <sc-for list="{{ areas }}" as="a" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="width:10px;height:10px;border-radius:50%;background:{{ a.c }}"></span><span style="flex:1">{{ a.n }}</span><b>{{ a.p }}%</b></div>
+          </sc-for>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:16px">
+    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:16px;padding:20px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+        <h2 style="margin:0;font-size:16px;font-weight:700">Demandas que pedem atenção</h2>
+        <a href="#" sc-camel-on-click="{{ goDemandasLink }}" style="font-size:13.5px;font-weight:600">Ver todas</a>
+      </div>
+      <sc-for list="{{ urgentes }}" as="d" hint-placeholder-count="4">
+        <button sc-camel-on-click="{{ d.open }}" style="display:flex;gap:12px;align-items:center;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid #EEF1F6;padding:12px 0;cursor:pointer;color:inherit">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+            <span style="font-size:14px;font-weight:600;line-height:1.35">{{ d.desc }}</span>
+            <span style="font-size:12.5px;color:#5B6B85">{{ d.ord }} · {{ d.bairro }} · prazo {{ d.prazo }}</span>
+          </div>
+          <span style="font-size:12px;font-weight:700;padding:4px 9px;border-radius:20px;background:{{ d.sbg }};color:{{ d.sc }};white-space:nowrap">{{ d.status }}</span>
+        </button>
+      </sc-for>
+    </section>
+    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:16px;padding:20px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+        <h2 style="margin:0;font-size:16px;font-weight:700">Proposições em tramitação</h2>
+        <a href="#" sc-camel-on-click="{{ goPropLink }}" style="font-size:13.5px;font-weight:600">Ver todas</a>
+      </div>
+      <sc-for list="{{ propTramitando }}" as="p" hint-placeholder-count="4">
+        <div style="display:flex;gap:12px;align-items:center;border-bottom:1px solid #EEF1F6;padding:12px 0">
+          <span style="font-size:12.5px;font-weight:700;color:#1B5BD0;width:78px;flex:0 0 78px">{{ p.num }}</span>
+          <span style="flex:1;min-width:0;font-size:14px;line-height:1.35">{{ p.resumo }}</span><sc-if value="{{ p.grande }}" hint-placeholder-val="{{ false }}"><button sc-camel-on-click="{{ p.ler }}" style="border:0;background:transparent;color:#1B5BD0;font-weight:700;font-size:13px;cursor:pointer;padding:0;white-space:nowrap">{{ p.lerMais }}</button></sc-if>
+          <span style="font-size:12px;font-weight:700;padding:4px 9px;border-radius:20px;background:{{ p.sbg }};color:{{ p.sc }};white-space:nowrap">{{ p.status }}</span>
+        </div>
+      </sc-for>
+    </section>
+  </div>
+</div>
+</sc-if>
+
+<!-- ============ DEMANDAS ============ -->
+<sc-if value="{{ isDemandas }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px">
+    <div><h1 style="margin:0;font-size:24px;font-weight:800">Demandas</h1><span style="font-size:14px;color:#5B6B85">Solicitações dos cidadãos registradas pelo gabinete</span></div>
+    <div style="display:flex;gap:8px">
+      <button sc-camel-on-click="{{ exportCsv }}" style="display:flex;align-items:center;gap:6px;height:42px;padding:0 14px;border:1px solid #DCE3EE;background:#fff;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#13213A"><i class="ti ti-download" style="font-size:17px"></i>Exportar</button>
+      <button sc-camel-on-click="{{ openNew }}" style="display:flex;align-items:center;gap:6px;height:42px;padding:0 16px;border:0;background:#1B5BD0;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#fff"><i class="ti ti-plus" style="font-size:17px"></i>Nova demanda</button>
+    </div>
+  </div>
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:2px">
+    <sc-for list="{{ statusTabs }}" as="t" hint-placeholder-count="6">
+      <button sc-camel-on-click="{{ t.onClick }}" style="display:flex;align-items:center;gap:6px;white-space:nowrap;height:38px;padding:0 13px;border-radius:9px;border:1px solid {{ t.bd }};background:{{ t.bg }};color:{{ t.color }};font-size:13.5px;font-weight:600;cursor:pointer">{{ t.label }}<span style="font-size:12px;opacity:.75">{{ t.count }}</span></button>
+    </sc-for>
+  </div>
+  <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:14px;border-bottom:1px solid #E3E8F0">
+      <span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#33425C;margin-right:4px"><i class="ti ti-filter" style="font-size:16px"></i>Filtros</span>
+      <sc-raw-select value="{{ fil.dBairro }}" sc-camel-on-change="{{ fDBairro }}" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 30px 0 12px;font-size:14px;background:#fff;color:#13213A;min-width:150px;flex:1 1 150px;max-width:240px;cursor:pointer"><sc-for list="{{ optBairros }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select><sc-raw-select value="{{ fil.dArea }}" sc-camel-on-change="{{ fDArea }}" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 30px 0 12px;font-size:14px;background:#fff;color:#13213A;min-width:150px;flex:1 1 150px;max-width:240px;cursor:pointer"><sc-for list="{{ optAreas }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select><sc-raw-select value="{{ fil.dResp }}" sc-camel-on-change="{{ fDResp }}" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 30px 0 12px;font-size:14px;background:#fff;color:#13213A;min-width:150px;flex:1 1 150px;max-width:240px;cursor:pointer"><sc-for list="{{ optResp }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select><sc-raw-select value="{{ fil.dSort }}" sc-camel-on-change="{{ fDSort }}" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 30px 0 12px;font-size:14px;background:#fff;color:#13213A;min-width:150px;flex:1 1 150px;max-width:240px;cursor:pointer"><sc-for list="{{ optSort }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select>
+      <button sc-camel-on-click="{{ clearDem }}" style="height:40px;padding:0 12px;border:0;background:transparent;color:#1B5BD0;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap">Limpar filtros</button>
+      <span style="margin-left:auto;font-size:13px;color:#5B6B85;white-space:nowrap">{{ demCount }}</span>
+    </div>
+    <div style="overflow-x:auto">
+      <sc-raw-table style="width:100%;min-width:1040px;border-collapse:collapse">
+        <sc-raw-thead><sc-raw-tr>
+          <sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap;width:56px;text-align:center">Nº</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Solicitação</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Bairro</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Área</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Órgão</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Responsável</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Prazo</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Status</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap"></sc-raw-th>
+        </sc-raw-tr></sc-raw-thead>
+        <sc-raw-tbody>
+          <sc-for list="{{ demList }}" as="d" hint-placeholder-count="8">
+            <sc-raw-tr sc-camel-on-click="{{ d.open }}" style="cursor:pointer" style-hover="background:#F7F9FC">
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;white-space:nowrap;text-align:center;font-weight:800;color:#1B5BD0">{{ d.ord }}</sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;max-width:340px"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-weight:600;line-height:1.35">{{ d.desc }}</span><span style="font-size:12.5px;color:#5B6B85">{{ d.cid }} · {{ d.data }}/2026</span></div></sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;white-space:nowrap">{{ d.bairro }}</sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;white-space:nowrap"><span style="font-size:12.5px;padding:3px 8px;border-radius:6px;background:#F2F5FA;color:#33425C;font-weight:600">{{ d.area }}</span></sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;font-size:13px;color:#33425C">{{ d.orgao }}</sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;white-space:nowrap;font-size:13.5px">{{ d.resp }}</sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;white-space:nowrap;font-weight:600;color:{{ d.prazoC }}">{{ d.prazo }}</sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle"><span style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;background:{{ d.sbg }};color:{{ d.sc }};white-space:nowrap">{{ d.status }}</span></sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;color:#7A889E"><i class="ti ti-chevron-right" style="font-size:18px"></i></sc-raw-td>
+            </sc-raw-tr>
+          </sc-for>
+        </sc-raw-tbody>
+      </sc-raw-table>
+      <sc-if value="{{ noDem }}" hint-placeholder-val="{{ false }}"><div style="padding:40px;text-align:center;color:#5B6B85;font-size:14px">Nenhuma demanda encontrada com esses filtros.</div></sc-if>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;font-size:13px;color:#5B6B85;flex-wrap:wrap;gap:8px">
+      <span>Exibindo registros mais recentes · total no período: {{ openCount }}</span>
+      <div style="display:flex;gap:6px"><button style="width:36px;height:36px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;cursor:pointer;color:#7A889E"><i class="ti ti-chevron-left"></i></button><button style="width:36px;height:36px;border:0;background:#0D2350;color:#fff;border-radius:8px;font-weight:700">1</button><button style="width:36px;height:36px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;cursor:pointer">2</button><button style="width:36px;height:36px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;cursor:pointer">3</button><button style="width:36px;height:36px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;cursor:pointer;color:#33425C"><i class="ti ti-chevron-right"></i></button></div>
+    </div>
+  </section>
+</div>
+</sc-if>
+
+<!-- ============ CIDADÃOS ============ -->
+<sc-if value="{{ isCidadaos }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px">
+    <div><h1 style="margin:0;font-size:24px;font-weight:800">Cidadãos atendidos</h1><span style="font-size:14px;color:#5B6B85">{{ cidResumo }}</span></div>
+    <div style="display:flex;gap:8px">
+      <button sc-camel-on-click="{{ exportCid }}" style="display:flex;align-items:center;gap:6px;height:42px;padding:0 14px;border:1px solid #DCE3EE;background:#fff;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#13213A"><i class="ti ti-download" style="font-size:17px"></i>Exportar</button>
+    </div>
+  </div>
+  <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:14px;border-bottom:1px solid #E3E8F0">
+      <span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#33425C;margin-right:4px"><i class="ti ti-filter" style="font-size:16px"></i>Filtros</span>
+      <sc-raw-select value="{{ fil.cBairro }}" sc-camel-on-change="{{ fCBairro }}" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 30px 0 12px;font-size:14px;background:#fff;color:#13213A;min-width:150px;flex:1 1 150px;max-width:240px;cursor:pointer"><sc-for list="{{ optBairros }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select><sc-raw-select value="{{ fil.cOrigem }}" sc-camel-on-change="{{ fCOrigem }}" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 30px 0 12px;font-size:14px;background:#fff;color:#13213A;min-width:150px;flex:1 1 150px;max-width:240px;cursor:pointer"><sc-for list="{{ optOrigem }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select><sc-raw-select value="{{ fil.cSit }}" sc-camel-on-change="{{ fCSit }}" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 30px 0 12px;font-size:14px;background:#fff;color:#13213A;min-width:150px;flex:1 1 150px;max-width:240px;cursor:pointer"><sc-for list="{{ optCSit }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select>
+      <button sc-camel-on-click="{{ clearCid }}" style="height:40px;padding:0 12px;border:0;background:transparent;color:#1B5BD0;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap">Limpar filtros</button>
+      <span style="margin-left:auto;font-size:13px;color:#5B6B85;white-space:nowrap">{{ cidCount }}</span>
+    </div>
+    <div style="overflow-x:auto">
+      <sc-raw-table style="width:100%;min-width:980px;border-collapse:collapse">
+        <sc-raw-thead><sc-raw-tr>
+          <sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Cidadão</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Telefone</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Bairro</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Origem</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Liderança vinculada</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap;text-align:right">Demandas</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Último contato</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap;text-align:right">Ações</sc-raw-th>
+        </sc-raw-tr></sc-raw-thead>
+        <sc-raw-tbody>
+          <sc-for list="{{ cidList }}" as="c" hint-placeholder-count="8">
+            <sc-raw-tr style-hover="background:#F7F9FC">
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle"><div style="display:flex;gap:10px;align-items:center"><div style="width:34px;height:34px;border-radius:50%;background:#EAF1FE;color:#1B5BD0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;flex:0 0 34px">{{ c.ini }}</div><span style="font-weight:600;white-space:nowrap">{{ c.n }}</span></div></sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;white-space:nowrap;font-variant-numeric:tabular-nums">{{ c.tel }}</sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;white-space:nowrap">{{ c.bairro }}</sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:5px;font-size:13px"><i class="ti ti-{{ c.oIcon }}" style="font-size:15px;color:#5B6B85"></i>{{ c.origem }}</span></sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;white-space:nowrap;font-size:13.5px;color:#33425C">{{ c.lid }}</sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;text-align:right;font-weight:700">{{ c.dem }}<span style="font-weight:500;color:#7A889E;font-size:12.5px"> · {{ c.abertas }} abertas</span></sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;white-space:nowrap">{{ c.ult }}</sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle"><div style="display:flex;gap:6px;justify-content:flex-end">
+                <button title="WhatsApp" style="width:34px;height:34px;border-radius:8px;border:1px solid #DCE3EE;background:#fff;color:#17994B;cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ti ti-brand-whatsapp" style="font-size:18px"></i></button>
+                <button title="Ligar" style="width:34px;height:34px;border-radius:8px;border:1px solid #DCE3EE;background:#fff;color:#1B5BD0;cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ti ti-phone" style="font-size:17px"></i></button><button title="Excluir" sc-camel-on-click="{{ c.excluir }}" style="height:34px;padding:0 10px;border-radius:8px;border:1px solid #F3C3C3;background:#fff;color:#B42318;cursor:pointer;font-size:12.5px;font-weight:700">Excluir</button>
+              </div></sc-raw-td>
+            </sc-raw-tr>
+          </sc-for>
+        </sc-raw-tbody>
+      </sc-raw-table>
+      <sc-if value="{{ noCid }}" hint-placeholder-val="{{ false }}"><div style="padding:40px;text-align:center;color:#5B6B85;font-size:14px">Nenhum cidadão encontrado com esses filtros.</div></sc-if>
+    </div>
+  </section>
+</div>
+</sc-if>
+
+<!-- ============ PROPOSIÇÕES ============ -->
+<sc-if value="{{ isProp }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px">
+    <div><h1 style="margin:0;font-size:24px;font-weight:800">Proposições</h1><span style="font-size:14px;color:#5B6B85">Produção legislativa do mandato · 146 apresentadas</span></div>
+    <button sc-camel-on-click="{{ toastProp }}" style="display:flex;align-items:center;gap:6px;height:42px;padding:0 16px;border:0;background:#1B5BD0;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#fff"><i class="ti ti-file-plus" style="font-size:17px"></i>Nova proposição</button>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+    <sc-for list="{{ propStats }}" as="s" hint-placeholder-count="4">
+      <div style="background:#fff;border:1px solid #E3E8F0;border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:2px"><span style="font-size:24px;font-weight:800">{{ s.v }}</span><span style="font-size:13px;color:#5B6B85">{{ s.l }}</span></div>
+    </sc-for>
+  </div>
+  <div style="display:flex;gap:4px;border-bottom:1px solid #DCE3EE;overflow-x:auto">
+    <sc-for list="{{ propTabs }}" as="t" hint-placeholder-count="3">
+      <button sc-camel-on-click="{{ t.onClick }}" style="white-space:nowrap;padding:10px 14px;border:0;background:transparent;font-size:14px;font-weight:600;cursor:pointer;color:{{ t.color }};border-bottom:2px solid {{ t.line }};margin-bottom:-1px">{{ t.label }}</button>
+    </sc-for>
+  </div>
+  <section style="background:#fff;border:1px solid #E3E8F0;border-radius:16px;overflow:hidden">
+    <sc-for list="{{ propList }}" as="p" hint-placeholder-count="5">
+      <div style="display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;padding:16px 18px;border-bottom:1px solid #EEF1F6">
+        <div style="flex:1 1 320px;min-width:0;display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:12.5px;font-weight:700;color:#1B5BD0">{{ p.num }}</span>
+          <span style="font-size:14.5px;font-weight:600;line-height:1.4">{{ p.resumo }}</span><sc-if value="{{ p.grande }}" hint-placeholder-val="{{ false }}"><button sc-camel-on-click="{{ p.ler }}" style="align-self:flex-start;border:0;background:transparent;color:#1B5BD0;font-weight:700;font-size:13px;cursor:pointer;padding:0">{{ p.lerMais }}</button></sc-if>
+          <span style="font-size:12.5px;color:#7A889E">{{ p.info }}</span>
+        </div>
+        <span style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;background:{{ p.sbg }};color:{{ p.sc }};white-space:nowrap">{{ p.status }}</span>
+      </div>
+    </sc-for>
+  </section>
+</div>
+</sc-if>
+
+<!-- ============ AGENDA ============ -->
+<sc-if value="{{ isAgenda }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px">
+    <div><h1 style="margin:0;font-size:24px;font-weight:800">Agenda</h1><span style="font-size:14px;color:#5B6B85">Semana de 03 a 06 de novembro · segunda (02/11) é feriado de Finados</span></div>
+    <button sc-camel-on-click="{{ toastAg }}" style="display:flex;align-items:center;gap:6px;height:42px;padding:0 16px;border:0;background:#1B5BD0;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#fff"><i class="ti ti-calendar-plus" style="font-size:17px"></i>Novo compromisso</button>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:14px">
+    <sc-for list="{{ agendaWeek }}" as="day" hint-placeholder-count="4">
+      <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:22px;font-weight:800">{{ day.d }}</span><span style="font-size:14px;color:#5B6B85;font-weight:600">{{ day.w }}</span></div>
+        <sc-for list="{{ day.ev }}" as="ev" hint-placeholder-count="2">
+          <div style="background:#F7F9FC;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:4px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="font-weight:700;color:#1B5BD0;font-size:13.5px">{{ ev.h }}</span><span style="font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:20px;background:{{ ev.bg }};color:{{ ev.c }}">{{ ev.tipo }}</span></div>
+            <span style="font-size:14px;font-weight:600">{{ ev.t }}</span>
+            <span style="font-size:12.5px;color:#5B6B85;display:flex;align-items:center;gap:4px"><i class="ti ti-map-pin" style="font-size:14px"></i>{{ ev.l }}</span><button sc-camel-on-click="{{ ev.excluir }}" title="Excluir" style="align-self:flex-start;height:28px;padding:0 8px;border-radius:8px;border:1px solid #F3C3C3;background:#fff;color:#B42318;cursor:pointer;font-size:12px;font-weight:700">Excluir</button>
+          </div>
+        </sc-for>
+      </section>
+    </sc-for>
+  </div>
+</div>
+</sc-if>
+
+<!-- ============ BAIRROS ============ -->
+<sc-if value="{{ isBairros }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+  <div><h1 style="margin:0;font-size:24px;font-weight:800">Mapa dos bairros</h1><span style="font-size:14px;color:#5B6B85">Presença do mandato por bairro de São Luís</span></div>
+  <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden">
+    <div style="overflow-x:auto">
+      <sc-raw-table style="width:100%;min-width:640px;border-collapse:collapse">
+        <sc-raw-thead><sc-raw-tr><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Bairro</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Região</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap;text-align:right">Cidadãos</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Resolução</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap;text-align:right">Lideranças</sc-raw-th></sc-raw-tr></sc-raw-thead>
+        <sc-raw-tbody>
+          <sc-for list="{{ bairros }}" as="b" hint-placeholder-count="10">
+            <sc-raw-tr style-hover="background:#F7F9FC">
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;font-weight:600;white-space:nowrap">{{ b.n }}</sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;color:#5B6B85;white-space:nowrap">{{ b.reg }}</sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;text-align:right;font-weight:700">{{ b.v }}</sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle"><div style="display:flex;align-items:center;gap:10px"><div style="height:6px;flex:1;min-width:60px;background:#EEF1F6;border-radius:3px;overflow:hidden"><div style="height:100%;width:{{ b.res }}%;background:#17994B"></div></div><span style="font-weight:600;width:40px;text-align:right">{{ b.res }}%</span></div></sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;text-align:right">{{ b.lid }}</sc-raw-td>
+            </sc-raw-tr>
+          </sc-for>
+        </sc-raw-tbody>
+      </sc-raw-table>
+    </div>
+  </section>
+</div>
+</sc-if>
+
+<!-- ============ LIDERANÇAS ============ -->
+<sc-if value="{{ isLid }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px">
+    <div><h1 style="margin:0;font-size:24px;font-weight:800">Lideranças</h1><span style="font-size:14px;color:#5B6B85">Rede comunitária do mandato · {{ lidCount }}</span></div>
+    <button sc-camel-on-click="{{ toastLid }}" style="display:flex;align-items:center;gap:6px;height:42px;padding:0 16px;border:0;background:#1B5BD0;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#fff"><i class="ti ti-user-plus" style="font-size:17px"></i>Nova liderança</button>
+  </div>
+  <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:14px;border-bottom:1px solid #E3E8F0">
+      <span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#33425C;margin-right:4px"><i class="ti ti-filter" style="font-size:16px"></i>Filtros</span>
+      <sc-raw-select value="{{ fil.lReg }}" sc-camel-on-change="{{ fLReg }}" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 30px 0 12px;font-size:14px;background:#fff;color:#13213A;min-width:150px;flex:1 1 150px;max-width:240px;cursor:pointer"><sc-for list="{{ optReg }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select><sc-raw-select value="{{ fil.lSit }}" sc-camel-on-change="{{ fLSit }}" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 30px 0 12px;font-size:14px;background:#fff;color:#13213A;min-width:150px;flex:1 1 150px;max-width:240px;cursor:pointer"><sc-for list="{{ optLSit }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select><sc-raw-select value="{{ fil.lSort }}" sc-camel-on-change="{{ fLSort }}" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 30px 0 12px;font-size:14px;background:#fff;color:#13213A;min-width:170px;flex:1 1 170px;max-width:240px;cursor:pointer"><sc-for list="{{ optLSort }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select>
+      <button sc-camel-on-click="{{ clearLid }}" style="height:40px;padding:0 12px;border:0;background:transparent;color:#1B5BD0;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap">Limpar filtros</button>
+      <span style="margin-left:auto;font-size:13px;color:#5B6B85;white-space:nowrap">{{ lidCount }}</span>
+    </div>
+    <div style="overflow-x:auto">
+      <sc-raw-table style="width:100%;min-width:980px;border-collapse:collapse">
+        <sc-raw-thead><sc-raw-tr>
+          <sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Liderança</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Bairro</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Região</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap;text-align:right">Fichas</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap;text-align:right">Demandas</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Última visita</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Assessor</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap">Situação</sc-raw-th><sc-raw-th style="padding:11px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.05em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;border-right:1px solid #D5DDE9;white-space:nowrap;text-align:right">Ações</sc-raw-th>
+        </sc-raw-tr></sc-raw-thead>
+        <sc-raw-tbody>
+          <sc-for list="{{ liderancas }}" as="l" hint-placeholder-count="8">
+            <sc-raw-tr style-hover="background:#F7F9FC">
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle"><div style="display:flex;gap:10px;align-items:center"><div style="width:36px;height:36px;border-radius:10px;background:#0D2350;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;flex:0 0 36px">{{ l.ini }}</div><div style="display:flex;flex-direction:column;gap:2px"><span style="font-weight:600;white-space:nowrap">{{ l.n }}</span><span style="font-size:12.5px;color:#5B6B85">{{ l.papel }}</span></div></div></sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;white-space:nowrap">{{ l.bairro }}</sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;white-space:nowrap;color:#5B6B85">{{ l.reg }}</sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;text-align:right;font-weight:700">{{ l.cid }}</sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;text-align:right;font-weight:700">{{ l.dem }}</sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;white-space:nowrap">{{ l.vis }}</sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle;white-space:nowrap;font-size:13.5px">{{ l.ass }}</sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle"><span style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;background:{{ l.sbg }};color:{{ l.sc }};white-space:nowrap">{{ l.sit }}</span></sc-raw-td>
+              <sc-raw-td style="padding:12px 14px;border-bottom:1px solid #E3E8F0;border-right:1px solid #E3E8F0;font-size:14px;vertical-align:middle"><div style="display:flex;gap:6px;justify-content:flex-end">
+                <button title="WhatsApp" style="width:34px;height:34px;border-radius:8px;border:1px solid #DCE3EE;background:#fff;color:#17994B;cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ti ti-brand-whatsapp" style="font-size:18px"></i></button>
+                <button title="Agendar visita" sc-camel-on-click="{{ l.agendar }}" style="width:34px;height:34px;border-radius:8px;border:1px solid #DCE3EE;background:#fff;color:#1B5BD0;cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ti ti-calendar-plus" style="font-size:17px"></i></button>
+              </div></sc-raw-td>
+            </sc-raw-tr>
+          </sc-for>
+        </sc-raw-tbody>
+      </sc-raw-table>
+      <sc-if value="{{ noLid }}" hint-placeholder-val="{{ false }}"><div style="padding:40px;text-align:center;color:#5B6B85;font-size:14px">Nenhuma liderança encontrada com esses filtros.</div></sc-if>
+    </div>
+  </section>
+</div>
+</sc-if>
+
+<!-- ============ COMUNICAÇÃO ============ -->
+<sc-if value="{{ isCom }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+  <div><h1 style="margin:0;font-size:24px;font-weight:800">Comunicação</h1><span style="font-size:14px;color:#5B6B85">Canais do mandato, publicações e imprensa</span></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">
+    <sc-for list="{{ canais }}" as="c" hint-placeholder-count="3">
+      <div style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;padding:16px;display:flex;gap:12px;align-items:center">
+        <span style="width:42px;height:42px;border-radius:10px;background:{{ c.bg }};color:{{ c.c }};display:flex;align-items:center;justify-content:center;flex:0 0 42px"><i class="ti ti-{{ c.icon }}" style="font-size:22px"></i></span>
+        <div style="display:flex;flex-direction:column"><span style="font-size:22px;font-weight:800">{{ c.v }}</span><span style="font-size:13px;color:#5B6B85">{{ c.l }}</span></div>
+      </div>
+    </sc-for>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:16px">
+    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:16px;padding:20px">
+      <h2 style="margin:0 0 6px;font-size:16px;font-weight:700">Publicações agendadas</h2>
+      <sc-for list="{{ posts }}" as="p" hint-placeholder-count="4">
+        <div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #EEF1F6">
+          <i class="ti ti-{{ p.icon }}" style="font-size:20px;color:#5B6B85;margin-top:1px"></i>
+          <div style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">{{ p.t }}</span><span style="font-size:12.5px;color:#5B6B85">{{ p.q }}</span></div>
+          <span style="font-size:12px;font-weight:700;padding:3px 9px;border-radius:20px;background:{{ p.sbg }};color:{{ p.sc }};white-space:nowrap">{{ p.s }}</span>
+        </div>
+      </sc-for>
+    </section>
+    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:16px;padding:20px">
+      <h2 style="margin:0 0 6px;font-size:16px;font-weight:700">Pedidos de imprensa</h2>
+      <sc-for list="{{ imprensa }}" as="p" hint-placeholder-count="3">
+        <div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #EEF1F6">
+          <i class="ti ti-microphone" style="font-size:20px;color:#5B6B85;margin-top:1px"></i>
+          <div style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">{{ p.t }}</span><span style="font-size:12.5px;color:#5B6B85">{{ p.q }}</span></div>
+          <span style="font-size:12.5px;font-weight:600;color:#33425C;white-space:nowrap">{{ p.d }}</span>
+        </div>
+      </sc-for>
+    </section>
+  </div>
+</div>
+</sc-if>
+
+<!-- ============ RELATÓRIOS ============ -->
+<sc-if value="{{ isRel }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+  <div><h1 style="margin:0;font-size:24px;font-weight:800">Relatórios</h1><span style="font-size:14px;color:#5B6B85">Documentos para prestação de contas e acompanhamento interno</span></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:14px">
+    <sc-for list="{{ relatorios }}" as="r" hint-placeholder-count="6">
+      <div style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:12px">
+        <span style="width:40px;height:40px;border-radius:10px;background:#EAF1FE;color:#1B5BD0;display:flex;align-items:center;justify-content:center"><i class="ti ti-{{ r.icon }}" style="font-size:21px"></i></span>
+        <div style="display:flex;flex-direction:column;gap:3px"><span style="font-weight:700;font-size:15px">{{ r.t }}</span><span style="font-size:13px;color:#5B6B85;line-height:1.4">{{ r.d }}</span></div>
+        <div style="display:flex;gap:8px;margin-top:auto">
+          <button sc-camel-on-click="{{ r.pdf }}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:38px;border:1px solid #DCE3EE;background:#fff;border-radius:9px;font-size:13.5px;font-weight:600;cursor:pointer;color:#13213A"><i class="ti ti-file-type-pdf" style="font-size:17px;color:#C62828"></i>PDF</button>
+          <button sc-camel-on-click="{{ r.xls }}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:38px;border:1px solid #DCE3EE;background:#fff;border-radius:9px;font-size:13.5px;font-weight:600;cursor:pointer;color:#13213A"><i class="ti ti-file-spreadsheet" style="font-size:17px;color:#17994B"></i>Planilha</button>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</sc-if>
+
+<!-- ============ CONFIGURAÇÕES ============ -->
+<sc-if value="{{ isConf }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px">
+    <div><h1 style="margin:0;font-size:24px;font-weight:800">Configurações</h1><span style="font-size:14px;color:#5B6B85">Equipe do gabinete e permissões de acesso</span></div>
+    <button sc-camel-on-click="{{ toastConv }}" style="display:flex;align-items:center;gap:6px;height:42px;padding:0 16px;border:0;background:#1B5BD0;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#fff"><i class="ti ti-mail" style="font-size:17px"></i>Convidar assessor</button>
+  </div>
+  <section style="background:#fff;border:1px solid #E3E8F0;border-radius:16px;overflow:hidden">
+    <sc-for list="{{ equipe }}" as="e" hint-placeholder-count="5">
+      <div style="display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center;padding:14px 18px;border-bottom:1px solid #EEF1F6">
+        <div style="display:flex;gap:12px;align-items:center;flex:1 1 240px;min-width:0">
+          <div style="width:38px;height:38px;border-radius:50%;background:#EAF1FE;color:#1B5BD0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:0 0 38px">{{ e.ini }}</div>
+          <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-weight:700;font-size:14.5px">{{ e.n }}</span><span style="font-size:13px;color:#5B6B85">{{ e.cargo }}</span></div>
+        </div>
+        <span style="font-size:12.5px;font-weight:700;padding:4px 10px;border-radius:20px;background:{{ e.bg }};color:{{ e.c }}">{{ e.perm }}</span>
+        <span style="font-size:13px;color:#7A889E;min-width:120px">{{ e.ult }}</span>
+      </div>
+    </sc-for>
+  </section>
+  <section style="background:#fff;border:1px solid #E3E8F0;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px">
+    <h2 style="margin:0;font-size:16px;font-weight:700">Segurança</h2>
+    <div style="display:flex;gap:12px;align-items:center;font-size:14px"><i class="ti ti-shield-check" style="font-size:20px;color:#17994B"></i><span style="flex:1">Verificação em duas etapas obrigatória para toda a equipe</span><b style="color:#17994B">Ativa</b></div>
+    <div style="display:flex;gap:12px;align-items:center;font-size:14px"><i class="ti ti-lock" style="font-size:20px;color:#5B6B85"></i><span style="flex:1">Dados de cidadãos tratados conforme a LGPD (Lei 13.709/2018)</span><b style="color:#17994B">Conforme</b></div>
+  </section>
+</div>
+</sc-if>
+
+
+<!-- ============ FINANCEIRO ============ -->
+<sc-if value="{{ isFin }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px">
+    <div><h1 style="margin:0;font-size:24px;font-weight:800">{{ finTitulo }}</h1><span style="font-size:14px;color:#5B6B85">{{ finSub }}</span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <sc-if value="{{ finMostraMes }}" hint-placeholder-val="{{ true }}">
+      <label style="display:flex;align-items:center;gap:8px;height:42px;padding:0 6px 0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:10px;font-size:13px;font-weight:600;color:#5B6B85"><i class="ti ti-calendar-month" style="font-size:17px;color:#1B5BD0"></i>Mês
+        <sc-raw-select value="{{ finMesSel }}" sc-camel-on-change="{{ finOnMes }}" style="height:38px;border:0;font-size:14px;font-weight:700;background:transparent;color:#13213A;cursor:pointer"><sc-for list="{{ finMesOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select>
+      </label>
+      </sc-if>
+      <sc-if value="{{ finMostraLancar }}" hint-placeholder-val="{{ true }}">
+        <button sc-camel-on-click="{{ finNovo }}" style="display:flex;align-items:center;gap:6px;height:42px;padding:0 16px;border:0;background:#1B5BD0;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#fff"><i class="ti ti-plus" style="font-size:17px"></i>Lançar despesa</button>
+      </sc-if>
+    </div>
+  </div>
+
+  <sc-if value="{{ finTemErro }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;gap:10px;align-items:flex-start;background:#FEF0EF;border:1px solid #F6D2CF;color:#8A1C12;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.4"><i class="ti ti-alert-triangle" style="font-size:19px"></i><span>{{ finErro }}</span></div>
+  </sc-if>
+
+  <div style="display:flex;gap:4px;border-bottom:1px solid #DCE3EE;overflow-x:auto">
+    <sc-for list="{{ finTabs }}" as="t" hint-placeholder-count="5">
+      <button sc-camel-on-click="{{ t.onClick }}" style="white-space:nowrap;padding:10px 14px;border:0;background:transparent;font-size:14px;font-weight:600;cursor:pointer;color:{{ t.color }};border-bottom:2px solid {{ t.line }};margin-bottom:-1px">{{ t.label }}</button>
+    </sc-for>
+  </div>
+
+  <!-- ---------- PAINEL ---------- -->
+  <sc-if value="{{ finIsPainel }}" hint-placeholder-val="{{ true }}">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:12px;font-variant-numeric:tabular-nums">
+      <sc-for list="{{ blocos }}" as="b" hint-placeholder-count="3">
+        <section style="background:#fff;border:1px solid #E3E8F0;border-radius:12px;padding:18px 20px;display:flex;flex-direction:column">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+            <span style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#5B6B85">{{ b.titulo }}</span>
+            <span style="font-size:12px;color:#7A889E;white-space:nowrap">{{ b.fonte }}</span>
+          </div>
+          <span style="font-size:13px;color:#5B6B85;margin-top:10px">{{ b.rotuloPrincipal }}</span>
+          <span style="font-size:28px;font-weight:700;letter-spacing:-.01em;color:{{ b.corPrincipal }};margin-top:2px">{{ b.principal }}</span>
+          <div style="height:1px;background:#E3E8F0;margin:14px 0 6px"></div>
+          <sc-for list="{{ b.linhas }}" as="l" hint-placeholder-count="4">
+            <div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-top:{{ l.borda }};font-size:13.5px">
+              <span style="color:{{ l.corRotulo }};font-weight:{{ l.peso }}">{{ l.rotulo }}</span>
+              <span style="color:{{ l.cor }};font-weight:{{ l.peso }};white-space:nowrap">{{ l.valor }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ b.temBarra }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:10px;display:flex;flex-direction:column;gap:5px">
+              <div style="height:6px;background:#EEF2F8;border-radius:3px;overflow:hidden"><div style="height:100%;width:{{ b.barra }}%;background:{{ b.corBarra }}"></div></div>
+              <span style="font-size:12px;color:#7A889E">{{ b.legendaBarra }}</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ b.temAviso }}" hint-placeholder-val="{{ false }}">
+            <span style="margin-top:10px;font-size:12.5px;line-height:1.4;color:{{ b.corAviso }}">{{ b.aviso }}</span>
+          </sc-if>
+        </section>
+      </sc-for>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:12px;font-variant-numeric:tabular-nums">
+      <section style="flex:1 1 340px;background:#fff;border:1px solid #E3E8F0;border-radius:12px;overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:14px 18px;border-bottom:1px solid #E3E8F0"><h2 style="margin:0;font-size:15px;font-weight:700">Notas por categoria</h2><span style="font-size:12.5px;color:#7A889E">{{ finMesRotulo }}</span></div>
+        <sc-raw-table style="width:100%;border-collapse:collapse">
+          <sc-raw-thead><sc-raw-tr>
+            <sc-raw-th style="padding:9px 18px;font-size:11.5px;font-weight:600;color:#5B6B85;text-align:left;border-bottom:1px solid #E3E8F0">Categoria</sc-raw-th>
+            <sc-raw-th style="padding:9px 12px;font-size:11.5px;font-weight:600;color:#5B6B85;text-align:right;border-bottom:1px solid #E3E8F0">Notas</sc-raw-th>
+            <sc-raw-th style="padding:9px 12px;font-size:11.5px;font-weight:600;color:#5B6B85;text-align:right;border-bottom:1px solid #E3E8F0">Valor</sc-raw-th>
+            <sc-raw-th style="padding:9px 18px;font-size:11.5px;font-weight:600;color:#5B6B85;text-align:right;border-bottom:1px solid #E3E8F0">%</sc-raw-th>
+          </sc-raw-tr></sc-raw-thead>
+          <sc-raw-tbody>
+            <sc-for list="{{ porCat }}" as="c" hint-placeholder-count="4">
+              <sc-raw-tr>
+                <sc-raw-td style="padding:9px 18px;font-size:13.5px;border-bottom:1px solid #EEF2F8">{{ c.n }}</sc-raw-td>
+                <sc-raw-td style="padding:9px 12px;font-size:13.5px;text-align:right;color:#5B6B85;border-bottom:1px solid #EEF2F8">{{ c.q }}</sc-raw-td>
+                <sc-raw-td style="padding:9px 12px;font-size:13.5px;text-align:right;border-bottom:1px solid #EEF2F8">{{ c.v }}</sc-raw-td>
+                <sc-raw-td style="padding:9px 18px;font-size:13.5px;text-align:right;color:#5B6B85;border-bottom:1px solid #EEF2F8">{{ c.p }}</sc-raw-td>
+              </sc-raw-tr>
+            </sc-for>
+          </sc-raw-tbody>
+        </sc-raw-table>
+        <sc-if value="{{ noCat }}" hint-placeholder-val="{{ false }}"><div style="padding:22px 18px;color:#5B6B85;font-size:13.5px">Nenhuma nota lançada em {{ finMesRotulo }}.</div></sc-if>
+        <sc-if value="{{ temCat }}" hint-placeholder-val="{{ true }}"><div style="display:flex;justify-content:space-between;padding:10px 18px;font-size:13.5px;font-weight:700;background:#F7F9FC"><span>Total</span><span>{{ catTotal }}</span></div></sc-if>
+      </section>
+
+      <section style="flex:1.6 1 520px;min-width:0;background:#fff;border:1px solid #E3E8F0;border-radius:12px;overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:14px 18px;border-bottom:1px solid #E3E8F0"><h2 style="margin:0;font-size:15px;font-weight:700">Histórico mensal</h2><span style="font-size:12.5px;color:#7A889E">Clique no mês para abrir</span></div>
+        <div style="overflow-x:auto">
+          <sc-raw-table style="width:100%;min-width:460px;border-collapse:collapse">
+            <sc-raw-thead><sc-raw-tr>
+              <sc-raw-th style="padding:9px 14px;white-space:nowrap;font-size:11.5px;font-weight:600;color:#5B6B85;text-align:left;border-bottom:1px solid #E3E8F0">Mês</sc-raw-th>
+              <sc-raw-th style="padding:9px 8px;white-space:nowrap;font-size:11.5px;font-weight:600;color:#5B6B85;text-align:right;border-bottom:1px solid #E3E8F0">Subsídio bruto</sc-raw-th>
+              <sc-raw-th style="padding:9px 8px;white-space:nowrap;font-size:11.5px;font-weight:600;color:#5B6B85;text-align:right;border-bottom:1px solid #E3E8F0">VIEP recebida</sc-raw-th>
+              <sc-raw-th style="padding:9px 8px;white-space:nowrap;font-size:11.5px;font-weight:600;color:#5B6B85;text-align:right;border-bottom:1px solid #E3E8F0">Notas VIEP</sc-raw-th>
+              <sc-raw-th style="padding:9px 14px;white-space:nowrap;font-size:11.5px;font-weight:600;color:#5B6B85;text-align:right;border-bottom:1px solid #E3E8F0">Saldo VIEP</sc-raw-th>
+            </sc-raw-tr></sc-raw-thead>
+            <sc-raw-tbody>
+              <sc-for list="{{ hist }}" as="h" hint-placeholder-count="5">
+                <sc-raw-tr sc-camel-on-click="{{ h.abrir }}" style="cursor:pointer;background:{{ h.bg }}">
+                  <sc-raw-td style="padding:9px 14px;white-space:nowrap;font-size:13.5px;font-weight:{{ h.peso }};border-bottom:1px solid #EEF2F8">{{ h.rotulo }}</sc-raw-td>
+                  <sc-raw-td style="padding:9px 8px;white-space:nowrap;font-size:13.5px;text-align:right;border-bottom:1px solid #EEF2F8">{{ h.bruto }}</sc-raw-td>
+                  <sc-raw-td style="padding:9px 8px;white-space:nowrap;font-size:13.5px;text-align:right;border-bottom:1px solid #EEF2F8">{{ h.recebido }}</sc-raw-td>
+                  <sc-raw-td style="padding:9px 8px;white-space:nowrap;font-size:13.5px;text-align:right;border-bottom:1px solid #EEF2F8">{{ h.notas }}</sc-raw-td>
+                  <sc-raw-td style="padding:9px 14px;white-space:nowrap;font-size:13.5px;text-align:right;color:{{ h.corSaldo }};border-bottom:1px solid #EEF2F8">{{ h.saldo }}</sc-raw-td>
+                </sc-raw-tr>
+              </sc-for>
+            </sc-raw-tbody>
+          </sc-raw-table>
+        </div>
+      </section>
+    </div>
+
+    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:12px;overflow:hidden;font-variant-numeric:tabular-nums">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;padding:14px 18px;border-bottom:1px solid #E3E8F0"><h2 style="margin:0;font-size:15px;font-weight:700">Notas lançadas · {{ finMesRotulo }}</h2><button sc-camel-on-click="{{ finVerDespesas }}" style="border:0;background:transparent;color:#1B5BD0;font-size:13px;font-weight:600;cursor:pointer;padding:0">Ver todas</button></div>
+      <sc-for list="{{ ultimas }}" as="l" hint-placeholder-count="4">
+        <div style="display:flex;align-items:center;gap:16px;padding:11px 18px;border-bottom:1px solid #EEF2F8;font-size:13.5px;flex-wrap:wrap">
+          <span style="color:#5B6B85;width:84px">{{ l.dataBr }}</span>
+          <span style="flex:1 1 220px;min-width:0">{{ l.descricao }}<span style="color:#7A889E"> · {{ l.categoria }}</span></span>
+          <span style="color:#5B6B85;width:120px">{{ l.origemCurta }}</span>
+          <span style="color:{{ l.sc }};width:120px;font-size:12.5px;font-weight:600">{{ l.statusTxt }}</span>
+          <span style="font-weight:600;width:110px;text-align:right">{{ l.valorBr }}</span>
+        </div>
+      </sc-for>
+      <sc-if value="{{ noUltimas }}" hint-placeholder-val="{{ false }}"><div style="padding:22px 18px;color:#5B6B85;font-size:13.5px">Nenhuma nota lançada em {{ finMesRotulo }}.</div></sc-if>
+    </section>
+  </sc-if>
+
+  <!-- ---------- DESPESAS ---------- -->
+  <sc-if value="{{ finIsDesp }}" hint-placeholder-val="{{ false }}">
+    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden">
+      <div style="padding:14px 16px;border-bottom:1px solid #E3E8F0"><h2 style="margin:0;font-size:16px;font-weight:800">Despesas do mandato</h2><span style="font-size:13px;color:#5B6B85">Notas e recibos lançados pelo gabinete</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:14px;border-bottom:1px solid #E3E8F0">
+        <span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#33425C;margin-right:4px"><i class="ti ti-filter" style="font-size:16px"></i>Filtros</span>
+        <sc-raw-select value="{{ finFilOrigem }}" sc-camel-on-change="{{ finOnFilOrigem }}" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 30px 0 12px;font-size:14px;background:#fff;color:#13213A;min-width:150px;cursor:pointer"><sc-for list="{{ finOrigemFiltro }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select>
+        <sc-raw-select value="{{ finFilTodos }}" sc-camel-on-change="{{ finOnFilTodos }}" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 30px 0 12px;font-size:14px;background:#fff;color:#13213A;min-width:150px;cursor:pointer"><option value="mes">Só o mês escolhido</option><option value="todos">Todos os meses</option></sc-raw-select>
+        <span style="margin-left:auto;font-size:13px;color:#5B6B85;white-space:nowrap">{{ despResumo }}</span>
+      </div>
+      <div style="overflow-x:auto"><sc-raw-table style="width:100%;min-width:980px;border-collapse:collapse"><sc-raw-thead><sc-raw-tr><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Data</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Descrição</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Categoria</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Origem</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Competência</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Status</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Valor</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Ações</sc-raw-th></sc-raw-tr></sc-raw-thead><sc-raw-tbody><sc-for list="{{ despList }}" as="l" hint-placeholder-count="6"><sc-raw-tr><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap;color:#5B6B85">{{ l.dataBr }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;"><div style="display:flex;flex-direction:column;gap:2px;min-width:180px"><span style="font-weight:600">{{ l.descricao }}</span><span style="font-size:12px;color:#5B6B85">{{ l.fornecedorTxt }} · Nota {{ l.documentoTxt }}</span></div></sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap">{{ l.categoria }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap">{{ l.origemTxt }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap">{{ l.compRotulo }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;"><span style="font-size:12px;font-weight:700;padding:3px 9px;border-radius:20px;background:{{ l.sbg }};color:{{ l.sc }};white-space:nowrap">{{ l.statusTxt }}</span></sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;text-align:right;font-weight:700;white-space:nowrap">{{ l.valorBr }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;text-align:right"><div style="display:flex;gap:6px;justify-content:flex-end;align-items:center"><sc-if value="{{ finPodeEditar }}" hint-placeholder-val="{{ true }}"><sc-raw-select value="{{ l.status }}" sc-camel-on-change="{{ l.onStatus }}" style="height:34px;border:1px solid {{ l.sc }};border-radius:8px;padding:0 8px;font-size:12px;font-weight:700;background:{{ l.sbg }};color:{{ l.sc }};cursor:pointer"><sc-for list="{{ l.statusOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select><button title="Editar" sc-camel-on-click="{{ l.editar }}" style="width:34px;height:34px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;cursor:pointer;color:#1B5BD0"><i class="ti ti-pencil" style="font-size:16px"></i></button><button title="Excluir" sc-camel-on-click="{{ l.excluir }}" style="width:34px;height:34px;border:1px solid #F6D2CF;background:#fff;border-radius:8px;cursor:pointer;color:#B42318"><i class="ti ti-trash" style="font-size:16px"></i></button></sc-if></div></sc-raw-td></sc-raw-tr></sc-for></sc-raw-tbody></sc-raw-table></div><sc-if value="{{ noDesp }}" hint-placeholder-val="{{ false }}"><div style="padding:36px;text-align:center;color:#5B6B85;font-size:14px">Nenhuma despesa encontrada. Use “Lançar despesa” para registrar notas e recibos do mandato.</div></sc-if><sc-if value="{{ despTemPag }}" hint-placeholder-val="{{ false }}"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;background:#F7F9FC;border-top:1px solid #E3E8F0"><span style="font-size:13px;color:#5B6B85">{{ despRotulo }}</span><div style="display:flex;gap:8px;align-items:center"><button sc-camel-on-click="{{ despAnt }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Anterior</button><span style="font-size:13px;font-weight:700;color:#13213A">{{ despPagina }} / {{ despPaginas }}</span><button sc-camel-on-click="{{ despProx }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Próxima</button></div></div></sc-if></section>
+  </sc-if>
+
+  <!-- ---------- VERBAS DA CÂMARA ---------- -->
+  <sc-if value="{{ finIsVerbas }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;gap:10px;align-items:flex-start;background:#EEF4FE;border:1px solid #D3E1FB;color:#1C3F7A;border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.45"><i class="ti ti-info-circle" style="font-size:19px"></i><span>Dados oficiais, atualizados sozinhos todo dia: salário pela folha da Câmara e VIEP pelo portal de despesas da Prefeitura. A VIEP entra no mês da competência definida na Conciliação; sem isso, entra no mês em que o dinheiro caiu. {{ finAtualizado }}</span></div>
+    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden">
+      <div style="padding:14px 16px;border-bottom:1px solid #E3E8F0"><h2 style="margin:0;font-size:16px;font-weight:800">Pagamentos da Câmara, mês a mês</h2></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:14px;border-bottom:1px solid #E3E8F0">
+        <span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#33425C;margin-right:4px"><i class="ti ti-filter" style="font-size:16px"></i>Filtros</span>
+        <sc-raw-select value="{{ verbasFilTipo }}" sc-camel-on-change="{{ verbasOnFilTipo }}" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 30px 0 12px;font-size:14px;background:#fff;color:#13213A;min-width:170px;cursor:pointer"><option value="todos">Todos os meses</option><option value="comSalario">Só com salário</option><option value="comViep">Só com VIEP</option></sc-raw-select>
+        <span style="margin-left:auto;font-size:13px;color:#5B6B85;white-space:nowrap">{{ verbasResumo }}</span>
+      </div>
+      <div style="overflow-x:auto">
+        <sc-raw-table style="width:100%;min-width:760px;border-collapse:collapse">
+          <sc-raw-thead><sc-raw-tr>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Mês</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Salário bruto</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Descontos</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Salário líquido</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">VIEP recebida (reembolso)</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Diárias/outros</sc-raw-th>
+          </sc-raw-tr></sc-raw-thead>
+          <sc-raw-tbody>
+            <sc-for list="{{ verbasRows }}" as="v" hint-placeholder-count="5">
+              <sc-raw-tr>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;font-weight:700">{{ v.rotulo }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right">{{ v.bruto }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right;color:#B42318">{{ v.desconto }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right">{{ v.liquido }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right;color:#157A3E">{{ v.viep }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right">{{ v.outros }}</sc-raw-td>
+              </sc-raw-tr>
+            </sc-for>
+          </sc-raw-tbody>
+        </sc-raw-table>
+      </div>
+      <sc-if value="{{ noVerbas }}" hint-placeholder-val="{{ false }}"><div style="padding:28px;text-align:center;color:#5B6B85;font-size:14px">Ainda sem dados oficiais. Rode a rotina /api/folha-cron uma vez para a carga inicial.</div></sc-if>
+      <sc-if value="{{ verbasTemPag }}" hint-placeholder-val="{{ false }}"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;background:#F7F9FC;border-top:1px solid #E3E8F0"><span style="font-size:13px;color:#5B6B85">{{ verbasRotulo }}</span><div style="display:flex;gap:8px;align-items:center"><button sc-camel-on-click="{{ verbasAnt }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Anterior</button><span style="font-size:13px;font-weight:700;color:#13213A">{{ verbasPagina }} / {{ verbasPaginas }}</span><button sc-camel-on-click="{{ verbasProx }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Próxima</button></div></div></sc-if>
+    </section>
+    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden">
+      <div style="padding:14px 16px;border-bottom:1px solid #E3E8F0"><h2 style="margin:0;font-size:16px;font-weight:800">Empenhos em nome do vereador</h2><span style="font-size:13px;color:#5B6B85">Valor reservado pela Câmara e quanto já foi pago</span></div>
+      <div style="overflow-x:auto"><sc-raw-table style="width:100%;min-width:780px;border-collapse:collapse"><sc-raw-thead><sc-raw-tr><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Empenho</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Categoria</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Data</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Objeto</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Reservado</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Pago</sc-raw-th></sc-raw-tr></sc-raw-thead><sc-raw-tbody><sc-for list="{{ empRows }}" as="e" hint-placeholder-count="2"><sc-raw-tr><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;font-weight:700;white-space:nowrap">{{ e.empenho }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap">{{ e.categoria }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap;color:#5B6B85">{{ e.dataBr }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;">{{ e.objeto }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;text-align:right;white-space:nowrap">{{ e.empenhado }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;text-align:right;font-weight:700;color:#157A3E;white-space:nowrap">{{ e.pago }}</sc-raw-td></sc-raw-tr></sc-for></sc-raw-tbody></sc-raw-table></div><sc-if value="{{ noEmp }}" hint-placeholder-val="{{ false }}"><div style="padding:24px;text-align:center;color:#5B6B85;font-size:14px">Nenhum empenho encontrado.</div></sc-if><sc-if value="{{ empTemPag }}" hint-placeholder-val="{{ false }}"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;background:#F7F9FC;border-top:1px solid #E3E8F0"><span style="font-size:13px;color:#5B6B85">{{ empRotulo }}</span><div style="display:flex;gap:8px;align-items:center"><button sc-camel-on-click="{{ empAnt }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Anterior</button><span style="font-size:13px;font-weight:700;color:#13213A">{{ empPagina }} / {{ empPaginas }}</span><button sc-camel-on-click="{{ empProx }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Próxima</button></div></div></sc-if></section>
+  </sc-if>
+
+  <!-- ---------- CONCILIAÇÃO ---------- -->
+  <sc-if value="{{ finIsConc }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;gap:10px;align-items:flex-start;background:#FFF6E8;border:1px solid #F6DFB8;color:#6B4300;border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.45"><i class="ti ti-arrows-exchange" style="font-size:19px"></i><span>A Câmara paga a VIEP com atraso e às vezes junta meses. Para cada pagamento, diga a qual mês ele se refere (competência). Assim cada mês fecha certo: gasto lançado × reembolsado × a receber.</span></div>
+    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden">
+      <div style="padding:14px 16px;border-bottom:1px solid #E3E8F0"><h2 style="margin:0;font-size:16px;font-weight:800">Pagamentos da Câmara</h2></div>
+      <div style="overflow-x:auto"><sc-raw-table style="width:100%;min-width:860px;border-collapse:collapse"><sc-raw-thead><sc-raw-tr><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Data</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Categoria</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Empenho / pagamento</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Valor</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Competência</sc-raw-th></sc-raw-tr></sc-raw-thead><sc-raw-tbody><sc-for list="{{ pagRows }}" as="p" hint-placeholder-count="3"><sc-raw-tr><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap;font-weight:600">{{ p.dataBr }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap">{{ p.categoria }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;color:#5B6B85">Empenho {{ p.empenho }} · nº {{ p.num_pagamento }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;text-align:right;font-weight:800;color:#157A3E;white-space:nowrap">{{ p.valorBr }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;"><sc-raw-select value="{{ p.competencia }}" sc-camel-on-change="{{ p.onComp }}" style="height:36px;border:1px solid {{ p.bd }};border-radius:9px;padding:0 10px;font-size:13px;font-weight:700;background:#fff;color:#13213A;cursor:pointer"><sc-for list="{{ finCompOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select></sc-raw-td></sc-raw-tr></sc-for></sc-raw-tbody></sc-raw-table></div><sc-if value="{{ noPag }}" hint-placeholder-val="{{ false }}"><div style="padding:24px;text-align:center;color:#5B6B85;font-size:14px">Nenhum pagamento da Câmara encontrado ainda.</div></sc-if><sc-if value="{{ pagTemPag }}" hint-placeholder-val="{{ false }}"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;background:#F7F9FC;border-top:1px solid #E3E8F0"><span style="font-size:13px;color:#5B6B85">{{ pagRotulo }}</span><div style="display:flex;gap:8px;align-items:center"><button sc-camel-on-click="{{ pagAnt }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Anterior</button><span style="font-size:13px;font-weight:700;color:#13213A">{{ pagPagina }} / {{ pagPaginas }}</span><button sc-camel-on-click="{{ pagProx }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Próxima</button></div></div></sc-if></section>
+    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden">
+      <div style="padding:14px 16px;border-bottom:1px solid #E3E8F0"><h2 style="margin:0;font-size:16px;font-weight:800">Fechamento da VIEP por mês</h2></div>
+      <div style="overflow-x:auto">
+        <sc-raw-table style="width:100%;min-width:640px;border-collapse:collapse">
+          <sc-raw-thead><sc-raw-tr>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Mês</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Gasto lançado</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Reembolsado</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">A receber</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Sobra do teto</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Situação</sc-raw-th>
+          </sc-raw-tr></sc-raw-thead>
+          <sc-raw-tbody>
+            <sc-for list="{{ concRows }}" as="c" hint-placeholder-count="4">
+              <sc-raw-tr>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;font-weight:700">{{ c.rotulo }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right">{{ c.gasto }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right;color:#157A3E">{{ c.reembolsado }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right;color:#9A5800">{{ c.aReceber }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right">{{ c.saldo }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px"><span style="font-size:12px;font-weight:700;padding:3px 9px;border-radius:20px;background:{{ c.sbg }};color:{{ c.sc }};white-space:nowrap">{{ c.sit }}</span></sc-raw-td>
+              </sc-raw-tr>
+            </sc-for>
+          </sc-raw-tbody>
+        </sc-raw-table>
+      </div>
+    </section>
+  </sc-if>
+
+  <!-- ---------- EQUIPE ---------- -->
+  <sc-if value="{{ finIsEquipe }}" hint-placeholder-val="{{ false }}">
+    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden"><div style="padding:14px 16px;border-bottom:1px solid #E3E8F0"><h2 style="margin:0;font-size:16px;font-weight:800">Equipe do gabinete</h2></div><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:14px;border-bottom:1px solid #E3E8F0"><span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#33425C;margin-right:4px"><i class="ti ti-filter" style="font-size:16px"></i>Filtros</span><sc-raw-select value="{{ eqFilSit }}" sc-camel-on-change="{{ eqOnFilSit }}" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 30px 0 12px;font-size:14px;background:#fff;color:#13213A;min-width:150px;cursor:pointer"><option value="">Todas as situações</option><option value="No gabinete">No gabinete</option><option value="Saiu">Saíram</option></sc-raw-select><sc-raw-select value="{{ eqFilOrigem }}" sc-camel-on-change="{{ eqOnFilOrigem }}" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 30px 0 12px;font-size:14px;background:#fff;color:#13213A;min-width:180px;cursor:pointer"><sc-for list="{{ eqOrigemFiltro }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select><input type="search" value="{{ eqFilQ }}" sc-camel-on-change="{{ eqOnFilQ }}" placeholder="Buscar nome, cargo ou função" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:14px;background:#fff;color:#13213A;min-width:220px;flex:1 1 200px"><span style="margin-left:auto;font-size:13px;color:#5B6B85;white-space:nowrap">{{ eqResumo }}</span></div><div style="overflow-x:auto"><sc-raw-table style="width:100%;min-width:920px;border-collapse:collapse"><sc-raw-thead><sc-raw-tr><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Servidor</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Cargo / função</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Origem</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Período</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Situação</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Bruto</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Ações</sc-raw-th></sc-raw-tr></sc-raw-thead><sc-raw-tbody><sc-for list="{{ eqRows }}" as="e" hint-placeholder-count="6"><sc-raw-tr><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;"><div style="display:flex;gap:10px;align-items:center"><div style="width:34px;height:34px;border-radius:50%;background:#EAF1FE;color:#1B5BD0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex:0 0 34px">{{ e.ini }}</div><span style="font-weight:700">{{ e.servidor }}</span></div></sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;"><div style="display:flex;flex-direction:column;gap:2px"><span>{{ e.cargo }}</span><span style="font-size:12px;color:#5B6B85">{{ e.funcaoTxt }}</span></div></sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap">{{ e.origem }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap;color:#5B6B85">{{ e.periodo }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;"><span style="font-size:12px;font-weight:700;padding:3px 9px;border-radius:20px;background:{{ e.sbg }};color:{{ e.sc }};white-space:nowrap">{{ e.situacao }}</span></sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;text-align:right;font-weight:700;white-space:nowrap">{{ e.brutoBr }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;text-align:right"><sc-if value="{{ finPodeEditar }}" hint-placeholder-val="{{ true }}"><button title="Completar dados" sc-camel-on-click="{{ e.editar }}" style="width:34px;height:34px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;cursor:pointer;color:#1B5BD0"><i class="ti ti-id" style="font-size:16px"></i></button></sc-if></sc-raw-td></sc-raw-tr></sc-for></sc-raw-tbody></sc-raw-table></div><sc-if value="{{ noEq }}" hint-placeholder-val="{{ false }}"><div style="padding:28px;text-align:center;color:#5B6B85;font-size:14px">Nenhuma pessoa encontrada no gabinete configurado.</div></sc-if><sc-if value="{{ eqTemPag }}" hint-placeholder-val="{{ false }}"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;background:#F7F9FC;border-top:1px solid #E3E8F0"><span style="font-size:13px;color:#5B6B85">{{ eqRotulo }}</span><div style="display:flex;gap:8px;align-items:center"><button sc-camel-on-click="{{ eqAnt }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Anterior</button><span style="font-size:13px;font-weight:700;color:#13213A">{{ eqPagina }} / {{ eqPaginas }}</span><button sc-camel-on-click="{{ eqProx }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Próxima</button></div></div></sc-if></section>
+  </sc-if>
+</div>
+</sc-if>
+
+</main>
+</div>
+
+<!-- mobile bottom nav -->
+<sc-if value="{{ isMobile }}" hint-placeholder-val="{{ false }}">
+<nav style="position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #DCE3EE;display:flex;padding:6px 4px calc(6px + env(safe-area-inset-bottom));z-index:20">
+  <sc-for list="{{ bottomNav }}" as="n" hint-placeholder-count="5">
+    <button sc-camel-on-click="{{ n.onClick }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;border:0;background:transparent;min-height:48px;justify-content:center;color:{{ n.color }};font-size:11.5px;font-weight:600;cursor:pointer"><i class="ti ti-{{ n.icon }}" style="font-size:22px"></i>{{ n.label }}</button>
+  </sc-for>
+</nav>
+</sc-if>
+
+<!-- mobile drawer -->
+<sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:fixed;inset:0;z-index:40;display:flex">
+  <div style="width:min(300px,84vw);background:#0D2350;color:#fff;height:100%;overflow-y:auto;display:flex;flex-direction:column">
+    <div style="display:flex;gap:12px;align-items:center;padding:18px">
+      <img src="bb02ca6c-2a9f-41a2-b066-1dd3e14c9b21" alt="Brasão de São Luís" style="width:36px;height:48px;object-fit:contain;flex:0 0 36px">
+      <div style="flex:1;display:flex;flex-direction:column;line-height:1.25"><span style="font-weight:700;font-size:15px">Câmara Municipal</span><span style="font-size:12.5px;color:#9FB2D6">São Luís · Gabinete</span></div>
+      <button sc-camel-on-click="{{ closeDrawer }}" style="background:transparent;border:0;color:#fff;width:44px;height:44px;cursor:pointer"><i class="ti ti-x" style="font-size:22px"></i></button>
+    </div>
+    <nav style="display:flex;flex-direction:column;gap:2px;padding:8px 12px">
+      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="10">
+        <button sc-camel-on-click="{{ n.onClick }}" style="display:flex;align-items:center;gap:12px;padding:12px;border:0;border-radius:9px;background:{{ n.bg }};color:{{ n.color }};font-size:15px;font-weight:{{ n.fw }};cursor:pointer;text-align:left;min-height:46px">
+          <i class="ti ti-{{ n.icon }}" style="font-size:20px"></i><span style="flex:1">{{ n.label }}</span>
+          <sc-if value="{{ n.hasBadge }}" hint-placeholder-val="{{ false }}"><span style="background:#F2B233;color:#3B2A00;font-size:11.5px;font-weight:700;border-radius:20px;padding:2px 8px">{{ n.badge }}</span></sc-if>
+        </button>
+      </sc-for>
+    </nav>
+    <div style="margin-top:auto;padding:16px 18px;border-top:1px solid rgba(255,255,255,.1);font-size:13px;color:#9FB2D6">Gabinete · Equipe do mandato</div>
+  </div>
+  <div sc-camel-on-click="{{ closeDrawer }}" style="flex:1;background:rgba(8,18,40,.5)"></div>
+</div>
+</sc-if>
+
+<!-- demand detail -->
+<sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}">
+<div style="position:fixed;inset:0;z-index:50;display:flex;justify-content:flex-end">
+  <div sc-camel-on-click="{{ closeSel }}" style="position:absolute;inset:0;background:rgba(8,18,40,.45)"></div>
+  <aside style="position:relative;width:min(460px,100%);height:100%;background:#fff;overflow-y:auto;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid #EEF1F6;position:sticky;top:0;background:#fff">
+      <span style="font-weight:700;font-size:15px;flex:1">Demanda {{ sel.ord }}</span>
+      <span style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;background:{{ sel.sbg }};color:{{ sel.sc }}">{{ sel.status }}</span>
+      <button sc-camel-on-click="{{ closeSel }}" style="width:40px;height:40px;border:0;background:transparent;cursor:pointer;color:#13213A"><i class="ti ti-x" style="font-size:20px"></i></button>
+    </div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:18px">
+      <h2 style="margin:0;font-size:19px;font-weight:700;line-height:1.35">{{ sel.desc }}</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:14px">
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;color:#7A889E">Cidadão</span><b>{{ sel.cid }}</b></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;color:#7A889E">WhatsApp</span><b>{{ sel.tel }}</b></div>
+        <div style="display:flex;flex-direction:column;gap:2px;grid-column:1 / -1"><span style="font-size:12px;color:#7A889E">Endereço</span><b>{{ sel.endereco }}</b></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;color:#7A889E">Bairro</span><b>{{ sel.bairro }}</b></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;color:#7A889E">Área</span><b>{{ sel.area }}</b></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;color:#7A889E">Órgão responsável</span><b>{{ sel.orgao }}</b></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;color:#7A889E">Assessor · prazo</span><b>{{ sel.resp }} · {{ sel.prazo }}</b></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0">
+        <span style="font-size:13px;font-weight:700;margin-bottom:10px">Histórico</span>
+        <sc-for list="{{ sel.hist }}" as="h" hint-placeholder-count="3">
+          <div style="display:flex;gap:12px">
+            <div style="display:flex;flex-direction:column;align-items:center"><span style="width:10px;height:10px;border-radius:50%;background:#1B5BD0;margin-top:5px"></span><span style="flex:1;width:2px;background:#E3E8F0"></span></div>
+            <div style="padding-bottom:14px;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">{{ h.t }}</span><span style="font-size:12.5px;color:#7A889E">{{ h.w }}</span></div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button sc-camel-on-click="{{ resolveSel }}" style="flex:1 1 160px;display:flex;align-items:center;justify-content:center;gap:6px;height:46px;border:0;background:#17994B;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#fff"><i class="ti ti-circle-check" style="font-size:18px"></i>Marcar como resolvida</button>
+        <button sc-camel-on-click="{{ retornoSel }}" style="flex:1 1 160px;display:flex;align-items:center;justify-content:center;gap:6px;height:46px;border:1px solid #DCE3EE;background:#fff;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#13213A"><i class="ti ti-brand-whatsapp" style="font-size:18px;color:#17994B"></i>Dar retorno</button>
+      </div>
+    </div>
+  </aside>
+</div>
+</sc-if>
+
+<sc-if value="{{ pickOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:12px">
+  <div sc-camel-on-click="{{ fechaPick }}" style="position:absolute;inset:0;background:rgba(8,18,40,.45)"></div>
+  <section style="position:relative;background:#fff;border-radius:14px;width:min(520px,100%);max-height:80vh;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:10px">
+    <h2 style="margin:0;font-size:18px;font-weight:800">{{ pickTitulo }}</h2>
+    <p style="margin:0;font-size:13px;color:#5B6B85">A busca é feita nas fichas do Nerites. Só entra aqui quem você escolher.</p>
+    <input value="{{ pickQ }}" sc-camel-on-change="{{ onPick }}" placeholder="Nome na ficha" style="height:42px;border:1px solid #DCE3EE;border-radius:10px;padding:0 12px;font-size:14px">
+    <p style="margin:0;font-size:12px;color:#5B6B85">{{ pickAviso }}</p>
+    <sc-for list="{{ pickLista }}" as="p" hint-placeholder-count="0">
+      <button sc-camel-on-click="{{ p.escolhe }}" style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;text-align:left;border:1px solid #E3E8F0;background:#fff;border-radius:10px;padding:10px 12px;cursor:pointer">
+        <strong style="font-size:14px">{{ p.n }}</strong>
+        <span style="font-size:12px;color:#5B6B85">{{ p.sub }}</span>
+      </button>
+    </sc-for>
+    <button sc-camel-on-click="{{ fechaPick }}" style="height:40px;border:1px solid #DCE3EE;background:#fff;border-radius:10px;font-weight:600;cursor:pointer">Fechar</button>
+  </section>
+</div>
+</sc-if>
+
+<!-- new demand modal -->
+<sc-if value="{{ newOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:12px">
+  <div sc-camel-on-click="{{ closeNew }}" style="position:absolute;inset:0;background:rgba(8,18,40,.45)"></div>
+  <form sc-camel-on-submit="{{ submitNew }}" style="position:relative;width:min(780px,100%);max-height:100%;overflow-y:auto;background:#fff;border-radius:16px;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:10px;padding:18px 22px;border-bottom:1px solid #E3E8F0;position:sticky;top:0;background:#fff;z-index:1">
+      <div style="flex:1;display:flex;flex-direction:column;gap:2px"><h2 style="margin:0;font-size:18px;font-weight:700">Nova demanda</h2><span style="font-size:13px;color:#5B6B85">Será registrada como a {{ nextOrd }} demanda</span></div>
+      <button type="button" sc-camel-on-click="{{ closeNew }}" style="width:40px;height:40px;border:0;background:transparent;cursor:pointer;color:#13213A"><i class="ti ti-x" style="font-size:20px"></i></button>
+    </div>
+    <div style="padding:20px 22px;display:flex;flex-direction:column;gap:22px">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid #E3E8F0"><i class="ti ti-user" style="font-size:18px;color:#1B5BD0"></i><span style="font-size:14px;font-weight:700">Dados do cidadão</span></div>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Nome completo *<input id="demanda-nome-ancora" type="text" required="" value="{{ form.cid }}" sc-camel-on-change="{{ f_cid }}" placeholder="Buscar eleitor, liderança ou coordenação" autocomplete="off" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px"><label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">CPF<input type="text" inputmode="numeric" value="{{ form.cpf }}" sc-camel-on-change="{{ f_cpf }}" placeholder="CPF puxa a ficha" autocomplete="off" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label><label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Data de nascimento<input type="date" value="{{ form.nasc }}" sc-camel-on-change="{{ f_nasc }}" placeholder="" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label><label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Gênero<sc-raw-select value="{{ form.genero }}" sc-camel-on-change="{{ f_genero }}" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%;padding:0 10px"><sc-for list="{{ optGenero }}" as="o" hint-placeholder-count="3"><option value="{{ o }}">{{ o }}</option></sc-for></sc-raw-select></label></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px"><label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">WhatsApp *<input type="text" required="" inputmode="tel" value="{{ form.whats }}" sc-camel-on-change="{{ f_whats }}" placeholder="(98) 90000-0000" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label><label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Telefone alternativo<input type="text" inputmode="tel" value="{{ form.tel }}" sc-camel-on-change="{{ f_tel }}" placeholder="(98) 0000-0000" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label><label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">E-mail<input type="email" value="{{ form.email }}" sc-camel-on-change="{{ f_email }}" placeholder="nome@email.com" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid #E3E8F0"><i class="ti ti-map-pin" style="font-size:18px;color:#1B5BD0"></i><span style="font-size:14px;font-weight:700">Endereço</span></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px"><label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">CEP<input type="text" inputmode="numeric" value="{{ form.cep }}" sc-camel-on-change="{{ f_cep }}" placeholder="65000-000" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label><div style="grid-column:span 2;min-width:0"><label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Rua / avenida *<input type="text" required="" value="{{ form.rua }}" sc-camel-on-change="{{ f_rua }}" placeholder="Ex.: Rua 12" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label></div></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px"><label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Número<input type="text" value="{{ form.num }}" sc-camel-on-change="{{ f_num }}" placeholder="Nº" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label><label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Complemento<input type="text" value="{{ form.comp }}" sc-camel-on-change="{{ f_comp }}" placeholder="Casa, apto, unidade" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label><label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Bairro *<sc-raw-select value="{{ form.bairro }}" sc-camel-on-change="{{ f_bairro }}" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%;padding:0 10px"><sc-for list="{{ bairroNames }}" as="o" hint-placeholder-count="3"><option value="{{ o }}">{{ o }}</option></sc-for></sc-raw-select></label></div>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Ponto de referência<input type="text" value="{{ form.ref }}" sc-camel-on-change="{{ f_ref }}" placeholder="Ex.: próximo à feira da Cidade Operária" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid #E3E8F0"><i class="ti ti-message-2" style="font-size:18px;color:#1B5BD0"></i><span style="font-size:14px;font-weight:700">Demanda</span></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px"><label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Área *<sc-raw-select value="{{ form.area }}" sc-camel-on-change="{{ f_area }}" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%;padding:0 10px"><sc-for list="{{ areaNames }}" as="o" hint-placeholder-count="3"><option value="{{ o }}">{{ o }}</option></sc-for></sc-raw-select></label><label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Prioridade<sc-raw-select value="{{ form.prio }}" sc-camel-on-change="{{ f_prio }}" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%;padding:0 10px"><sc-for list="{{ optPrio }}" as="o" hint-placeholder-count="3"><option value="{{ o }}">{{ o }}</option></sc-for></sc-raw-select></label><label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Origem do contato<sc-raw-select value="{{ form.origem }}" sc-camel-on-change="{{ f_origem }}" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%;padding:0 10px"><sc-for list="{{ optOrigemF }}" as="o" hint-placeholder-count="3"><option value="{{ o }}">{{ o }}</option></sc-for></sc-raw-select></label></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px"><label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Assessor responsável<sc-raw-select value="{{ form.resp }}" sc-camel-on-change="{{ f_resp }}" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%;padding:0 10px"><sc-for list="{{ optRespF }}" as="o" hint-placeholder-count="3"><option value="{{ o }}">{{ o }}</option></sc-for></sc-raw-select></label><label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Órgão a acionar<sc-raw-select value="{{ form.orgao }}" sc-camel-on-change="{{ f_orgao }}" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%;padding:0 10px"><sc-for list="{{ optOrgao }}" as="o" hint-placeholder-count="3"><option value="{{ o }}">{{ o }}</option></sc-for></sc-raw-select></label></div>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Descrição da solicitação *<textarea required="" value="{{ form.desc }}" sc-camel-on-change="{{ f_desc }}" rows="4" placeholder="Descreva o problema, local exato e há quanto tempo acontece" style="border:1px solid #DCE3EE;border-radius:9px;padding:10px 12px;font-size:15px;resize:vertical;color:#13213A"></textarea></label>
+        <label style="display:flex;gap:10px;align-items:flex-start;font-size:13.5px;color:#33425C;line-height:1.4;cursor:pointer"><input type="checkbox" required="" checked="{{ form.lgpd }}" sc-camel-on-change="{{ f_lgpd }}" style="width:18px;height:18px;margin-top:1px;accent-color:#1B5BD0;flex:0 0 18px">O cidadão autoriza o uso dos dados para acompanhamento da demanda e contato pelo gabinete (LGPD).</label>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;padding:14px 22px;border-top:1px solid #E3E8F0;position:sticky;bottom:0;background:#fff;flex-wrap:wrap">
+      <button type="button" sc-camel-on-click="{{ closeNew }}" style="height:46px;padding:0 18px;border:1px solid #DCE3EE;background:#fff;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;color:#13213A">Cancelar</button>
+      <button type="submit" style="height:46px;padding:0 20px;border:0;background:#1B5BD0;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;color:#fff;display:flex;align-items:center;gap:6px"><i class="ti ti-check" style="font-size:18px"></i>Registrar demanda</button>
+    </div>
+  </form>
+</div>
+</sc-if>
+
+
+<!-- ============ FINANCEIRO · LANÇAR / EDITAR DESPESA ============ -->
+<sc-if value="{{ finFormOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:12px">
+  <div sc-camel-on-click="{{ finFechar }}" style="position:absolute;inset:0;background:rgba(8,18,40,.45)"></div>
+  <form sc-camel-on-submit="{{ finSalvar }}" style="position:relative;width:min(680px,100%);max-height:100%;overflow-y:auto;background:#fff;border-radius:16px;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:10px;padding:18px 22px;border-bottom:1px solid #E3E8F0;position:sticky;top:0;background:#fff;z-index:1">
+      <div style="flex:1;display:flex;flex-direction:column;gap:2px"><h2 style="margin:0;font-size:18px;font-weight:700">{{ finFormTitulo }}</h2><span style="font-size:13px;color:#5B6B85">Guarde a nota fiscal: ela é a prova para o reembolso da VIEP</span></div>
+      <button type="button" sc-camel-on-click="{{ finFechar }}" style="width:40px;height:40px;border:0;background:transparent;cursor:pointer;color:#13213A"><i class="ti ti-x" style="font-size:20px"></i></button>
+    </div>
+    <div style="padding:20px 22px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">De onde sai o dinheiro *<sc-raw-select value="{{ finForm.origem }}" sc-camel-on-change="{{ ff_origem }}" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 10px;font-size:15px;background:#fff;color:#13213A;width:100%"><sc-for list="{{ finOrigemOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select></label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Categoria *<sc-raw-select value="{{ finForm.categoria }}" sc-camel-on-change="{{ ff_categoria }}" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 10px;font-size:15px;background:#fff;color:#13213A;width:100%"><sc-for list="{{ finCatOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o }}">{{ o }}</option></sc-for></sc-raw-select></label>
+      </div>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Descrição *<input type="text" required="" value="{{ finForm.descricao }}" sc-camel-on-change="{{ ff_descricao }}" placeholder="Ex.: Abastecimento do carro do gabinete" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Valor (R$) *<input type="text" required="" inputmode="decimal" value="{{ finForm.valor }}" sc-camel-on-change="{{ ff_valor }}" placeholder="0,00" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Data da nota *<input type="date" required="" value="{{ finForm.data }}" sc-camel-on-change="{{ ff_data }}" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Mês da despesa *<input type="month" required="" value="{{ finForm.competencia }}" sc-camel-on-change="{{ ff_competencia }}" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Fornecedor<input type="text" value="{{ finForm.fornecedor }}" sc-camel-on-change="{{ ff_fornecedor }}" placeholder="Posto, gráfica, locadora…" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Nº da nota / recibo<input type="text" value="{{ finForm.documento }}" sc-camel-on-change="{{ ff_documento }}" placeholder="Ex.: NF 12345" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+      </div>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Situação<sc-raw-select value="{{ finForm.status }}" sc-camel-on-change="{{ ff_status }}" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 10px;font-size:15px;background:#fff;color:#13213A;width:100%"><sc-for list="{{ finStatusOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select></label>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Observação<textarea value="{{ finForm.observacao }}" sc-camel-on-change="{{ ff_observacao }}" rows="3" placeholder="Opcional" style="border:1px solid #DCE3EE;border-radius:9px;padding:10px 12px;font-size:15px;resize:vertical;color:#13213A"></textarea></label>
+      <span style="font-size:12.5px;color:#7A889E;line-height:1.4">{{ finOrigemAjuda }}</span>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;padding:14px 22px;border-top:1px solid #E3E8F0;position:sticky;bottom:0;background:#fff;flex-wrap:wrap">
+      <button type="button" sc-camel-on-click="{{ finFechar }}" style="height:46px;padding:0 18px;border:1px solid #DCE3EE;background:#fff;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;color:#13213A">Cancelar</button>
+      <button type="submit" style="height:46px;padding:0 20px;border:0;background:#1B5BD0;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;color:#fff;display:flex;align-items:center;gap:6px"><i class="ti ti-check" style="font-size:18px"></i>Salvar</button>
+    </div>
+  </form>
+</div>
+</sc-if>
+
+<!-- ============ FINANCEIRO · DADOS DA PESSOA DA EQUIPE ============ -->
+<sc-if value="{{ eqFormOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:12px">
+  <div sc-camel-on-click="{{ eqFechar }}" style="position:absolute;inset:0;background:rgba(8,18,40,.45)"></div>
+  <form sc-camel-on-submit="{{ eqSalvar }}" style="position:relative;width:min(560px,100%);max-height:100%;overflow-y:auto;background:#fff;border-radius:16px;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:10px;padding:18px 22px;border-bottom:1px solid #E3E8F0">
+      <div style="flex:1;display:flex;flex-direction:column;gap:2px"><h2 style="margin:0;font-size:18px;font-weight:700">{{ eqForm.servidor }}</h2><span style="font-size:13px;color:#5B6B85">Na folha: {{ eqForm.cargo }} · matrícula {{ eqForm.matricula }}</span></div>
+      <button type="button" sc-camel-on-click="{{ eqFechar }}" style="width:40px;height:40px;border:0;background:transparent;cursor:pointer;color:#13213A"><i class="ti ti-x" style="font-size:20px"></i></button>
+    </div>
+    <div style="padding:20px 22px;display:flex;flex-direction:column;gap:14px">
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">O que faz de verdade no gabinete<input type="text" value="{{ eqForm.funcao_real }}" sc-camel-on-change="{{ ef_funcao_real }}" placeholder="Ex.: motorista do vereador, atendimento no bairro" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Telefone<input type="text" inputmode="tel" value="{{ eqForm.telefone }}" sc-camel-on-change="{{ ef_telefone }}" placeholder="(98) 90000-0000" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Indicado por<input type="text" value="{{ eqForm.indicado_por }}" sc-camel-on-change="{{ ef_indicado_por }}" placeholder="Quem indicou" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+      </div>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Observação<textarea value="{{ eqForm.observacao }}" sc-camel-on-change="{{ ef_observacao }}" rows="3" style="border:1px solid #DCE3EE;border-radius:9px;padding:10px 12px;font-size:15px;resize:vertical;color:#13213A"></textarea></label>
+      <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:13px;font-weight:700;color:#33425C">Histórico na folha</span>
+        <sc-for list="{{ eqForm.hist }}" as="h" hint-placeholder-count="3"><span style="font-size:13px;color:#5B6B85">{{ h.rotulo }} · {{ h.cargo }} · {{ h.vinculo }} · {{ h.brutoBr }}</span></sc-for>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;padding:14px 22px;border-top:1px solid #E3E8F0;flex-wrap:wrap">
+      <button type="button" sc-camel-on-click="{{ eqFechar }}" style="height:46px;padding:0 18px;border:1px solid #DCE3EE;background:#fff;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;color:#13213A">Cancelar</button>
+      <button type="submit" style="height:46px;padding:0 20px;border:0;background:#1B5BD0;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;color:#fff;display:flex;align-items:center;gap:6px"><i class="ti ti-check" style="font-size:18px"></i>Salvar</button>
+    </div>
+  </form>
+</div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;left:50%;transform:translateX(-50%);bottom:{{ toastBottom }};z-index:60;background:#13213A;color:#fff;padding:12px 18px;border-radius:10px;font-size:14px;display:flex;gap:8px;align-items:center;max-width:90vw"><i class="ti ti-circle-check" style="font-size:18px;color:#6FD39A"></i>{{ toast }}</div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script="">/*__MANDATO_APP_JS__*/</script>
+
+
+</body></html>
