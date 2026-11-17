@@ -22,6 +22,7 @@ export type MbRecebimento = {
 
 export type MbFinance = {
   id: string
+  tipoLancamento?: 'receita' | 'entrada_por_fora' | 'saida'
   parceiro: string
   centro: string
   data: string
@@ -34,6 +35,7 @@ export type MbFinance = {
   saida: number
   anexos?: MbAnexoMeta[]
   origem?: string
+  observacao?: string
   /** Baixas/recebimentos parciais até concluir o lançamento. */
   recebimentos?: MbRecebimento[]
   /** Quem criou (nome) — editora só exclui o que ela mesma lançou. */
@@ -42,11 +44,29 @@ export type MbFinance = {
   criadoPorId?: string
 }
 
+type LegacyFinanceMeta = {
+  __mb_rx__?: unknown
+  __mb_tipo__?: unknown
+  __mb_obs__?: unknown
+}
+
+function parseLegacyFinanceMeta(observacao?: unknown): LegacyFinanceMeta {
+  if (typeof observacao !== 'string' || !observacao.trim().startsWith('{')) return {}
+  try {
+    const value = JSON.parse(observacao) as LegacyFinanceMeta
+    return value && typeof value === 'object' ? value : {}
+  } catch {
+    return {}
+  }
+}
+
 function parseRecebimentos(raw: unknown, observacao?: unknown): MbRecebimento[] {
-  if (Array.isArray(raw)) {
-    return raw
+  const legacy = parseLegacyFinanceMeta(observacao)
+  const source = Array.isArray(raw) && raw.length ? raw : legacy.__mb_rx__
+  if (Array.isArray(source)) {
+    return source
       .map((x) => x as Record<string, unknown>)
-      .filter((x) => x && x.data != null)
+      .filter((x) => x && (x.data != null || x.valor != null))
       .map((x) => ({
         id: String(x.id || crypto.randomUUID()),
         data: String(x.data || '').slice(0, 10),
@@ -55,20 +75,26 @@ function parseRecebimentos(raw: unknown, observacao?: unknown): MbRecebimento[] 
         at: x.at ? String(x.at) : '',
       }))
   }
-  if (typeof observacao === 'string' && observacao.trim().startsWith('{')) {
-    try {
-      const o = JSON.parse(observacao) as { __mb_rx__?: unknown }
-      return parseRecebimentos(o.__mb_rx__)
-    } catch {
-      return []
-    }
-  }
   return []
 }
 
-function encodeRecebimentos(list: MbRecebimento[] | undefined): string | null {
-  if (!list?.length) return null
-  return JSON.stringify({ __mb_rx__: list })
+function normalizeFinanceType(
+  value: unknown,
+  previsto: unknown,
+  recebido: unknown,
+  saida: unknown,
+): 'receita' | 'entrada_por_fora' | 'saida' {
+  if (value === 'receita' || value === 'entrada_por_fora' || value === 'saida') return value
+  return money(saida) > 0 && !money(previsto) && !money(recebido) ? 'saida' : 'receita'
+}
+
+function encodeLegacyFinanceMeta(row: MbFinance, recebimentos: MbRecebimento[]): string | null {
+  if (!recebimentos.length && !row.observacao && !row.tipoLancamento) return null
+  return JSON.stringify({
+    __mb_rx__: recebimentos,
+    __mb_tipo__: normalizeFinanceType(row.tipoLancamento, row.previsto, row.recebido, row.saida),
+    __mb_obs__: row.observacao || '',
+  })
 }
 
 export type MbTask = {
@@ -138,8 +164,20 @@ export type MbDbPayload = {
   historyEdits: Record<string, Partial<MbHistoryRow>>
   prestacao: MbHistoryRow[]
   _files?: Record<string, { name: string; type: string; size: number; dataBase64: string }>
+  /** Operações pontuais pendentes. Evita substituir a base inteira com uma aba desatualizada. */
+  _mutations?: MbMutations
   /** Quem tem acesso ao painel (admin/diretoria do Nerites + acesso extra cadastrado em /admin). */
   equipeSistema?: MbEquipeSistema[]
+}
+
+export type MbMutations = {
+  financeUpserts?: string[]
+  financeDeletes?: string[]
+  taskUpserts?: string[]
+  taskDeletes?: string[]
+  auditUpserts?: string[]
+  historyUpserts?: string[]
+  settings?: Array<'banks' | 'templates' | 'staff' | 'centers' | 'companies'>
 }
 
 function isUuid(v: string) {
@@ -363,12 +401,26 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
 
   const finance: MbFinance[] = (lancamentos.data || []).map((r) => {
     const criadoPorId = (r.created_by as string) || ''
+    const legacyMeta = parseLegacyFinanceMeta(r.observacao)
     const recebimentos = parseRecebimentos(r.recebimentos, r.observacao)
     const recebidoCalc = recebimentos.length
       ? recebimentos.reduce((s, x) => s + money(x.valor), 0)
       : money(r.recebido)
+    const tipoLancamento = normalizeFinanceType(
+      r.tipo_lancamento || legacyMeta.__mb_tipo__,
+      r.previsto,
+      recebidoCalc,
+      r.saida,
+    )
+    const observacao =
+      typeof legacyMeta.__mb_obs__ === 'string'
+        ? legacyMeta.__mb_obs__
+        : legacyMeta.__mb_rx__
+          ? ''
+          : (r.observacao as string) || ''
     return {
       id: r.id as string,
+      tipoLancamento,
       parceiro: (r.parceiro as string) || '',
       centro: (r.centro as string) || '',
       data: String(r.data || '').slice(0, 10),
@@ -380,6 +432,7 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
       recebido: recebidoCalc,
       saida: money(r.saida),
       origem: (r.origem as string) || 'Cadastro manual',
+      observacao,
       recebimentos,
       anexos: anexosFor(anexoRows, 'lancamento', r.id as string, signed),
       criadoPorId,
@@ -586,10 +639,23 @@ async function syncEmpresas(companies: string[]) {
 export async function salvarEstadoAssessoria(
   payload: MbDbPayload,
   opts: { userId: string; userName: string },
-): Promise<MbDbPayload> {
+): Promise<void> {
   const filesIn = payload._files || {}
   const files: Record<string, { name: string; type: string; size: number; dataBase64: string }> = { ...filesIn }
   const ensureUuid = makeIdCache()
+  const mutations = payload._mutations
+  if (!mutations) {
+    throw new Error('Versão antiga da tela detectada. Atualize a página antes de salvar novamente.')
+  }
+
+  const remapIds = (ids: string[] | undefined) => [...new Set((ids || []).map((id) => ensureUuid(id)))]
+  const financeUpsertIds = remapIds(mutations.financeUpserts)
+  const financeDeleteIds = remapIds(mutations.financeDeletes)
+  const taskUpsertIds = remapIds(mutations.taskUpserts)
+  const taskDeleteIds = remapIds(mutations.taskDeletes)
+  const auditUpsertIds = remapIds(mutations.auditUpserts)
+  const historyUpsertIds = new Set(mutations.historyUpserts || [])
+  const settings = new Set(mutations.settings || [])
 
   function remapAnexos(list: MbAnexoMeta[] | undefined) {
     return (list || []).map((a) => {
@@ -615,14 +681,24 @@ export async function salvarEstadoAssessoria(
   try {
   // ---- lançamentos ----
   async function syncLancamentos() {
-    const { data: remoteFin, error: finListErr } = await supabase.from('mb_lancamentos').select('id,created_by')
+    const financeById = new Map(finance.map((row) => [row.id, row]))
+    const rowsToUpsert = financeUpsertIds.flatMap((id) => {
+      const row = financeById.get(id)
+      return row ? [row] : []
+    })
+    const { data: remoteFin, error: finListErr } = rowsToUpsert.length
+      ? await supabase.from('mb_lancamentos').select('id,created_by').in('id', rowsToUpsert.map((row) => row.id))
+      : { data: [], error: null }
     if (finListErr) throw asError(finListErr)
     const finCreatedBy = new Map<string, string>()
     for (const r of remoteFin || []) {
       if (r.id && r.created_by) finCreatedBy.set(r.id as string, r.created_by as string)
     }
-    const localFin = new Set(finance.map((f) => f.id))
-    const delFin = (remoteFin || []).map((r) => r.id as string).filter((id) => !localFin.has(id))
+    const delFin = financeDeleteIds
+    const { data: existingFinDeletes, error: finDeleteListErr } = delFin.length
+      ? await supabase.from('mb_lancamentos').select('id').in('id', delFin)
+      : { data: [], error: null }
+    if (finDeleteListErr) throw asError(finDeleteListErr)
     // Exclusão, upsert dos mantidos e sync de anexos mexem em ids disjuntos
     // (entidade_id sem FK — ver 20261116_assessoria_mb.sql) e podem correr
     // juntos, em vez de um esperar o outro à toa.
@@ -643,18 +719,18 @@ export async function salvarEstadoAssessoria(
               .in('id', delFin)
               .select('id')
             if (error) throw asError(error)
-            if ((deletedFin?.length || 0) < delFin.length) {
+            if ((deletedFin?.length || 0) < (existingFinDeletes?.length || 0)) {
               throw asError(
                 new Error(
-                  'Não foi possível excluir um ou mais lançamentos (sem permissão no banco). Só o autor ou um admin pode excluir.',
+                  'O banco recusou a exclusão. Confirme que você é o autor ou admin e que a migration 20261118_assessoria_mb_owner_delete.sql foi aplicada.',
                 ),
               )
             }
           })()
         : Promise.resolve(),
-      finance.length
+      rowsToUpsert.length
         ? (async () => {
-            const rows = finance.map((r) => {
+            const rows = rowsToUpsert.map((r) => {
               const recebimentos = Array.isArray(r.recebimentos) ? r.recebimentos : []
               const recebido = recebimentos.length
                 ? recebimentos.reduce((s, x) => s + money(x.valor), 0)
@@ -671,32 +747,56 @@ export async function salvarEstadoAssessoria(
                 previsto: money(r.previsto),
                 recebido,
                 saida: money(r.saida),
+                tipo_lancamento: normalizeFinanceType(r.tipoLancamento, r.previsto, recebido, r.saida),
+                recebimentos,
                 origem: r.origem || 'Cadastro manual',
-                observacao: encodeRecebimentos(recebimentos),
+                observacao: r.observacao || null,
                 updated_at: new Date().toISOString(),
                 updated_by: opts.userId,
                 // Preserva o autor original; só grava o usuário atual em registro novo.
                 created_by: finCreatedBy.get(r.id) || (isUuid(String(r.criadoPorId || '')) ? r.criadoPorId : opts.userId),
               }
             })
-            const { error } = await supabase.from('mb_lancamentos').upsert(rows, { onConflict: 'id' })
+            let { error } = await supabase.from('mb_lancamentos').upsert(rows, { onConflict: 'id' })
+            if (error && /tipo_lancamento|recebimentos|schema cache|column/i.test(String(error.message || error))) {
+              const originalById = new Map(rowsToUpsert.map((r) => [r.id, r]))
+              const legacyRows = rows.map((row) => {
+                const { tipo_lancamento: _tipo, recebimentos: rx, ...legacy } = row
+                const original = originalById.get(row.id)
+                return {
+                  ...legacy,
+                  observacao: original ? encodeLegacyFinanceMeta(original, rx) : null,
+                }
+              })
+              ;({ error } = await supabase.from('mb_lancamentos').upsert(legacyRows, { onConflict: 'id' }))
+            }
             if (error) throw asError(error, 'Falha ao gravar lançamentos.')
           })()
         : Promise.resolve(),
-      syncAnexosLote('lancamento', finance),
+      syncAnexosLote('lancamento', rowsToUpsert),
     ])
   }
 
   // ---- tarefas ----
   async function syncTarefas() {
-    const { data: remoteTasks, error: taskListErr } = await supabase.from('mb_tarefas').select('id,created_by')
+    const tasksById = new Map(tasks.map((row) => [row.id, row]))
+    const rowsToUpsert = taskUpsertIds.flatMap((id) => {
+      const row = tasksById.get(id)
+      return row ? [row] : []
+    })
+    const { data: remoteTasks, error: taskListErr } = rowsToUpsert.length
+      ? await supabase.from('mb_tarefas').select('id,created_by').in('id', rowsToUpsert.map((row) => row.id))
+      : { data: [], error: null }
     if (taskListErr) throw asError(taskListErr)
     const taskCreatedBy = new Map<string, string>()
     for (const r of remoteTasks || []) {
       if (r.id && r.created_by) taskCreatedBy.set(r.id as string, r.created_by as string)
     }
-    const localTasks = new Set(tasks.map((t) => t.id))
-    const delTasks = (remoteTasks || []).map((r) => r.id as string).filter((id) => !localTasks.has(id))
+    const delTasks = taskDeleteIds
+    const { data: existingTaskDeletes, error: taskDeleteListErr } = delTasks.length
+      ? await supabase.from('mb_tarefas').select('id').in('id', delTasks)
+      : { data: [], error: null }
+    if (taskDeleteListErr) throw asError(taskDeleteListErr)
     await Promise.all([
       delTasks.length
         ? (async () => {
@@ -712,18 +812,18 @@ export async function salvarEstadoAssessoria(
               .in('id', delTasks)
               .select('id')
             if (error) throw asError(error)
-            if ((deletedTasks?.length || 0) < delTasks.length) {
+            if ((deletedTasks?.length || 0) < (existingTaskDeletes?.length || 0)) {
               throw asError(
                 new Error(
-                  'Não foi possível excluir uma ou mais demandas (sem permissão no banco). Só o autor ou um admin pode excluir.',
+                  'O banco recusou a exclusão. Confirme que você é o autor ou admin e que a migration 20261118_assessoria_mb_owner_delete.sql foi aplicada.',
                 ),
               )
             }
           })()
         : Promise.resolve(),
-      tasks.length
+      rowsToUpsert.length
         ? (async () => {
-            const rows = tasks.map((r) => ({
+            const rows = rowsToUpsert.map((r) => ({
               id: r.id,
               titulo: r.titulo || '',
               nome: r.nome || null,
@@ -749,22 +849,16 @@ export async function salvarEstadoAssessoria(
             if (error) throw asError(error, 'Falha ao gravar tarefas.')
           })()
         : Promise.resolve(),
-      syncAnexosLote('tarefa', tasks),
+      syncAnexosLote('tarefa', rowsToUpsert),
     ])
   }
 
-  // ---- auditoria (substitui pelas 500 mais recentes do painel) ----
+  // ---- auditoria: somente os eventos novos desta operação ----
   async function syncAuditoria() {
-    const { data: remoteAudit, error: auditListErr } = await supabase.from('mb_auditoria').select('id')
-    if (auditListErr) throw asError(auditListErr)
-    const localAudit = new Set(audit.map((a) => a.id))
-    const delAudit = (remoteAudit || []).map((r) => r.id as string).filter((id) => !localAudit.has(id))
-    if (delAudit.length) {
-      const { error } = await supabase.from('mb_auditoria').delete().in('id', delAudit)
-      if (error) throw asError(error)
-    }
-    if (audit.length) {
-      const rows = audit.map((a) => ({
+    const wanted = new Set(auditUpsertIds)
+    const rows = audit
+      .filter((a) => wanted.has(a.id))
+      .map((a) => ({
         id: a.id,
         at: a.at || new Date().toISOString(),
         actor_id: opts.userId,
@@ -772,6 +866,7 @@ export async function salvarEstadoAssessoria(
         action: a.action || '',
         detail: a.detail || null,
       }))
+    if (rows.length) {
       const { error } = await supabase.from('mb_auditoria').upsert(rows, { onConflict: 'id' })
       if (error) throw asError(error, 'Falha ao gravar auditoria.')
     }
@@ -780,6 +875,7 @@ export async function salvarEstadoAssessoria(
   // ---- prestação: só edições do usuário (não reenvia a planilha embutida inteira) ----
   const prestacaoMap = new Map<string, MbHistoryRow>()
   for (const [codigo, edit] of Object.entries(payload.historyEdits || {})) {
+    if (!historyUpsertIds.has(codigo)) continue
     prestacaoMap.set(codigo, {
       id: codigo,
       mes: String(edit.mes || edit.data || '').slice(0, 7) || new Date().toISOString().slice(0, 7),
@@ -909,18 +1005,18 @@ export async function salvarEstadoAssessoria(
   // conferia e regravava sua lista inteira em série, mesmo quando a mudança
   // real era só 1 lançamento.
   await Promise.all([
-    replaceAuxList('mb_bancos', 'nome', payload.banks || []),
-    replaceAuxList('mb_templates_tarefa', 'titulo', payload.templates || []),
-    replaceAuxList('mb_equipe', 'nome', payload.staff || []),
-    payload.centers && Object.keys(payload.centers).length ? syncCentros(payload.centers) : Promise.resolve(),
-    Array.isArray(payload.companies) && payload.companies.length ? syncEmpresas(payload.companies) : Promise.resolve(),
+    settings.has('banks') ? replaceAuxList('mb_bancos', 'nome', payload.banks || []) : Promise.resolve(),
+    settings.has('templates') ? replaceAuxList('mb_templates_tarefa', 'titulo', payload.templates || []) : Promise.resolve(),
+    settings.has('staff') ? replaceAuxList('mb_equipe', 'nome', payload.staff || []) : Promise.resolve(),
+    settings.has('centers') && payload.centers ? syncCentros(payload.centers) : Promise.resolve(),
+    settings.has('companies') && Array.isArray(payload.companies) ? syncEmpresas(payload.companies) : Promise.resolve(),
     syncLancamentos(),
     syncTarefas(),
     syncAuditoria(),
     syncPrestacao(),
   ])
 
-  return carregarEstadoAssessoria()
+  return
   } catch (e) {
     throw asError(e)
   }

@@ -83,6 +83,9 @@ create table if not exists public.mb_lancamentos (
   previsto numeric(14, 2) not null default 0 check (previsto >= 0),
   recebido numeric(14, 2) not null default 0 check (recebido >= 0),
   saida numeric(14, 2) not null default 0 check (saida >= 0),
+  tipo_lancamento text not null default 'receita'
+    check (tipo_lancamento in ('receita', 'entrada_por_fora', 'saida')),
+  recebimentos jsonb not null default '[]'::jsonb,
   origem text not null default 'Cadastro manual',
   observacao text,
   created_at timestamptz not null default now(),
