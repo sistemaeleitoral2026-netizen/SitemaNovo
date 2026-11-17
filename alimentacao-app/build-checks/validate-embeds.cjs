@@ -17,6 +17,8 @@ const targets = [
   path.join(root, 'src/pages/empresas/mr-terceiriza-demo.html'),
 ]
 
+const standaloneScripts = [path.join(root, 'public/sistemas/assessoria-mb/app.js')]
+
 let ok = true
 
 function checkScript(label, body) {
@@ -89,9 +91,14 @@ for (const target of targets) {
   if (!wasBundled) validatePlainHtml(rel, text)
 }
 
+for (const target of standaloneScripts) {
+  if (!fs.existsSync(target)) continue
+  checkScript(path.relative(root, target), fs.readFileSync(target, 'utf8'))
+}
+
 if (!ok) {
   console.error('\n[validate-embeds] Build cancelado: corrija o(s) erro(s) acima antes de continuar.\n')
   process.exit(1)
 }
 
-console.log('[validate-embeds] OK — todos os apps empacotados têm JS válido.')
+console.log('[validate-embeds] OK — todos os apps e scripts externos têm JS válido.')
