@@ -6,13 +6,7 @@ import { isAdminNoSiteExterno, writeSite } from '../../lib/sites'
 import { Spinner } from '../../components/ui/Spinner'
 import {
   carregarEstadoMrTerceriza,
-  conectarPhibo,
-  gravarVendasPhibo,
-  lerRefreshPhibo,
-  phiboNesteComputador,
-  puxarPhiboDaqui,
   salvarEstadoMrTerceriza,
-  sincronizarPhibo,
   type MrDbPayload,
 } from '../../lib/mrTerceriza'
 import demoHtml from './mr-terceiriza-demo.html?raw'
@@ -21,7 +15,6 @@ type MrMensagem = {
   type?: string
   requestId?: string
   payload?: MrDbPayload
-  token?: string
 }
 
 function mensagemDe(e: unknown, padrao: string) {
@@ -117,32 +110,6 @@ export function MrTerceirizaPage() {
           persistindo.current = false
         }
         return
-      }
-      if ((dados.type === 'mr-phibo-conectar' || dados.type === 'mr-phibo-sync') && admin) {
-        try {
-          if (phiboNesteComputador()) {
-            const chave = dados.type === 'mr-phibo-conectar' ? String(dados.token || '') : await lerRefreshPhibo()
-            const pacote = await puxarPhiboDaqui(chave)
-            await conectarPhibo(pacote.refresh)
-            const dias = await gravarVendasPhibo(pacote, userId)
-            await hidratar()
-            postar({ type: 'mr-phibo-ok', requestId: dados.requestId, msg: `Phibo sincronizado neste computador: ${dias} dia(s) de vendas.` })
-          } else {
-            if (dados.type === 'mr-phibo-conectar') await conectarPhibo(String(dados.token || ''))
-            const r = await sincronizarPhibo().catch((e) => ({ ok: false, erro: mensagemDe(e, 'Falha ao sincronizar.') }))
-            await hidratar()
-            postar({
-              type: r.ok ? 'mr-phibo-ok' : 'mr-phibo-erro',
-              requestId: dados.requestId,
-              msg: r.ok
-                ? `Phibo sincronizado: ${'dias' in r ? r.dias : 0} dia(s) de vendas.`
-                : `${dados.type === 'mr-phibo-conectar' ? 'Chave salva, mas a ' : 'A '}sincronização falhou: ${r.erro}`,
-            })
-          }
-        } catch (e) {
-          await hidratar().catch(() => {})
-          postar({ type: 'mr-phibo-erro', requestId: dados.requestId, msg: mensagemDe(e, 'Falha no Phibo.') })
-        }
       }
     }
     window.addEventListener('message', aoMensagem)

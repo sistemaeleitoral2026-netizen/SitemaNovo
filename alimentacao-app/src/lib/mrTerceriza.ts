@@ -26,20 +26,6 @@ export type MrLancamento = {
   criadoPor?: string
   criadoPorId?: string
   contratoId?: string | null
-  /** 'phibo' = importado automaticamente (só leitura no painel). */
-  origem?: string
-}
-
-export type MrPhibo = {
-  status: {
-    conectado: boolean
-    tokenAtualizadoEm?: string | null
-    ultimaTentativa?: string | null
-    ultimoOk?: string | null
-    ultimoErro?: string | null
-  } | null
-  /** Resumo do mês mais recente (resposta crua do Phibo). */
-  resumo: { mes: string; vendasMes: unknown; totais: unknown; atualizadoEm: string } | null
 }
 
 export type MrContrato = {
@@ -87,8 +73,6 @@ export type MrDbPayload = {
   minhasEmpresas?: string[] | null
   /** false = 20261117a_mr_contratos.sql ainda não rodou no banco. */
   estruturaOk?: boolean
-  /** Integração Phibo (RE FASHION); null = 20261117c_mr_phibo.sql ainda não rodou. */
-  phibo?: MrPhibo | null
   _files?: Record<string, { name: string; type: string; size: number; dataBase64: string }>
 }
 
@@ -257,7 +241,6 @@ export async function carregarEstadoMrTerceriza(sessao: MrSessao): Promise<MrDbP
       criadoPorId,
       criadoPor: criadoPorId ? nomePorId.get(criadoPorId) || '' : '',
       contratoId: (r.contrato_id as string) || null,
-      origem: (r.origem as string) || '',
     }
   })
 
@@ -317,159 +300,7 @@ export async function carregarEstadoMrTerceriza(sessao: MrSessao): Promise<MrDbP
     usuarios,
     minhasEmpresas,
     estruturaOk: !contratosRows.faltando && !permRows.faltando,
-    phibo: pode('re-fashion') ? await carregarPhibo() : null,
   }
-}
-
-async function carregarPhibo(): Promise<MrPhibo | null> {
-  const [st, rs] = await Promise.all([
-    opcional(supabase.rpc('mr_phibo_status'), []),
-    opcional(
-      supabase.from('mr_phibo_resumo').select('*').eq('empresa', 're-fashion').order('mes', { ascending: false }).limit(1),
-      [],
-    ),
-  ])
-  if (st.faltando || rs.faltando) return null
-  const s = ((st.data as Record<string, unknown>[] | null) || [])[0]
-  const r = ((rs.data as Record<string, unknown>[] | null) || [])[0]
-  return {
-    status: s
-      ? {
-          conectado: Boolean(s.conectado),
-          tokenAtualizadoEm: (s.token_atualizado_em as string) || null,
-          ultimaTentativa: (s.ultima_tentativa as string) || null,
-          ultimoOk: (s.ultimo_ok as string) || null,
-          ultimoErro: (s.ultimo_erro as string) || null,
-        }
-      : { conectado: false },
-    resumo: r
-      ? {
-          mes: r.mes as string,
-          vendasMes: r.vendas_mes,
-          totais: r.totais,
-          atualizadoEm: r.atualizado_em as string,
-        }
-      : null,
-  }
-}
-
-/** Admin cola o refreshToken do Phibo (fica só no servidor). */
-export async function conectarPhibo(refreshToken: string) {
-  const { error } = await supabase.rpc('mr_phibo_conectar', { p_refresh: refreshToken })
-  if (error) {
-    if (semEstruturaNova(error)) throw new Error('Rode supabase/migrations/20261117c_mr_phibo.sql no Supabase do Nerites.')
-    throw asError(error, 'Falha ao conectar o Phibo.')
-  }
-}
-
-/** Roda a importação agora (rota /api/phibo-cron, mesma do agendamento). */
-export async function sincronizarPhibo(): Promise<{ ok: boolean; erro?: string; dias?: number; totalMes?: number }> {
-  const { data } = await supabase.auth.getSession()
-  const token = data.session?.access_token
-  if (!token) throw new Error('Sessão expirada. Entre de novo.')
-  let res: Response
-  try {
-    res = await fetch('/api/phibo-cron', { headers: { Authorization: `Bearer ${token}` } })
-  } catch {
-    throw new Error('Não consegui chamar /api/phibo-cron.')
-  }
-  const body = await res.json().catch(() => null)
-  if (res.status === 404 || !body) throw new Error('Rota /api/phibo-cron não encontrada (publique o sistema primeiro).')
-  if (!res.ok) throw new Error(body.error || body.erro || `Erro ${res.status}`)
-  return body
-}
-
-export function phiboNesteComputador() {
-  return location.hostname === '127.0.0.1' || location.hostname === 'localhost'
-}
-
-type PhiboPacote = {
-  refresh: string
-  vendasMes: { hoje?: string; diasMes?: { dia: number; valor: number; qtdeVendas: number; frete?: number }[]; diasMesAnterior?: { dia: number; valor: number; qtdeVendas: number; frete?: number }[] }
-  totais: unknown
-}
-
-async function uuidDe(texto: string) {
-  const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(texto))
-  const h = [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('')
-  const variante = ((parseInt(h.slice(16, 18), 16) & 0x3f) | 0x80).toString(16)
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${variante}${h.slice(18, 20)}-${h.slice(20, 32)}`
-}
-
-function mesAnterior(ym: string) {
-  const [y, m] = ym.split('-').map(Number)
-  const d = new Date(Date.UTC(y, m - 2, 1))
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
-}
-
-/** Puxa as vendas a partir deste computador (o IP da Vercel leva 403 do Phibo). */
-export async function puxarPhiboDaqui(refreshToken: string): Promise<PhiboPacote> {
-  let res: Response
-  try {
-    res = await fetch('/api/phibo-local', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    })
-  } catch {
-    throw new Error('O preview local não está pronto para falar com o Phibo. Recarregue a página.')
-  }
-  const body = await res.json().catch(() => null)
-  if (!body || body.ok === false) throw new Error(body?.erro || 'Falha ao puxar o Phibo neste computador.')
-  if (!body.refresh || !body.vendasMes) throw new Error('Resposta incompleta do Phibo.')
-  return { refresh: body.refresh, vendasMes: body.vendasMes, totais: body.totais ?? null }
-}
-
-export async function lerRefreshPhibo() {
-  const { data, error } = await supabase.rpc('mr_phibo_ler_refresh')
-  if (error || !data) {
-    throw new Error('Cole a chave no campo Conectar. O servidor da nuvem está bloqueado pelo Phibo, então a busca roda neste computador.')
-  }
-  return String(data)
-}
-
-/** Grava as vendas puxadas neste computador. Devolve quantos dias entrou. */
-export async function gravarVendasPhibo(pacote: PhiboPacote, userId: string) {
-  const agora = new Date().toISOString()
-  const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
-  const ym = String(pacote.vendasMes.hoje || hoje).slice(0, 7)
-  const montar = async (mes: string, dias: PhiboPacote['vendasMes']['diasMes']) => {
-    const linhas = []
-    for (const d of dias || []) {
-      if (!(Number(d.dia) >= 1 && (Number(d.valor) > 0 || Number(d.qtdeVendas) > 0))) continue
-      const dia = `${mes}-${String(d.dia).padStart(2, '0')}`
-      linhas.push({
-        id: await uuidDe(`phibo:re-fashion:${dia}`),
-        empresa: 're-fashion',
-        data: dia,
-        tipo: 'entrada',
-        descricao: `Vendas do dia ${String(d.dia).padStart(2, '0')}/${mes.slice(5, 7)} (Phibo)`,
-        valor: Math.round((Number(d.valor) || 0) * 100) / 100,
-        conta: 'Caixa',
-        forma_pagamento: 'Outro',
-        observacoes: `Importado automaticamente do Phibo · ${Number(d.qtdeVendas) || 0} venda(s)`,
-        origem: 'phibo',
-        updated_at: agora,
-        updated_by: userId,
-        created_by: userId,
-      })
-    }
-    return linhas
-  }
-  const linhas = [...(await montar(ym, pacote.vendasMes.diasMes)), ...(await montar(mesAnterior(ym), pacote.vendasMes.diasMesAnterior))]
-  if (linhas.length) {
-    const { error } = await supabase.from('mr_lancamentos').upsert(linhas, { onConflict: 'id' })
-    if (error) throw asError(error, 'Falha ao gravar as vendas.')
-  }
-  const { error: resumoErr } = await supabase.from('mr_phibo_resumo').upsert(
-    { empresa: 're-fashion', mes: ym, vendas_mes: pacote.vendasMes, totais: pacote.totais, atualizado_em: agora },
-    { onConflict: 'empresa,mes' },
-  )
-  if (resumoErr) {
-    throw new Error(`Vendas gravadas (${linhas.length} dia(s)), mas a aba Vendas da loja precisa do SQL 20261117d_mr_phibo_preview.sql.`)
-  }
-  await supabase.rpc('mr_phibo_marcar_ok')
-  return linhas.length
 }
 
 async function uploadBytes(userId: string, fileId: string, meta: { name: string; type: string; dataBase64: string }) {
@@ -608,19 +439,16 @@ export async function salvarEstadoMrTerceriza(
     }
 
     // ---- lançamentos ----
-    // select('*'): a coluna origem só existe depois de 20261117c_mr_phibo.sql.
-    const { data: remoteLanc, error: lancListErr } = await supabase.from('mr_lancamentos').select('*')
+    const { data: remoteLanc, error: lancListErr } = await supabase.from('mr_lancamentos').select('id,created_by,empresa,created_at')
     if (lancListErr) throw asError(lancListErr)
     const lancCreatedBy = new Map<string, string>()
-    const automaticos = new Set<string>()
     for (const r of remoteLanc || []) {
       if (r.id && r.created_by) lancCreatedBy.set(r.id as string, r.created_by as string)
-      if (r.origem) automaticos.add(r.id as string)
     }
     const vistoEm = opts.vistoEm ? Date.parse(opts.vistoEm) : NaN
     const localLanc = new Set(lancamentos.map((l) => l.id))
     const delLanc = (remoteLanc || [])
-      .filter((r) => pode(r.empresa as string) && !automaticos.has(r.id as string))
+      .filter((r) => pode(r.empresa as string))
       // Linha criada depois que esta tela carregou (outro usuário) não é exclusão daqui.
       .filter((r) => !Number.isFinite(vistoEm) || Date.parse(String(r.created_at || '')) <= vistoEm)
       .map((r) => r.id as string)
@@ -630,9 +458,8 @@ export async function salvarEstadoMrTerceriza(
       const { error } = await supabase.from('mr_lancamentos').delete().in('id', delLanc)
       if (error) throw asError(error)
     }
-    const manuais = lancamentos.filter((r) => !automaticos.has(r.id) && !r.origem)
-    if (manuais.length) {
-      const rows = manuais.map((r) => ({
+    if (lancamentos.length) {
+      const rows = lancamentos.map((r) => ({
         id: r.id,
         empresa: r.empresa,
         data: r.data,
@@ -759,7 +586,7 @@ export async function salvarEstadoMrTerceriza(
       }
     }
 
-    for (const r of manuais) await syncAnexos(r.id, r.anexos)
+    for (const r of lancamentos) await syncAnexos(r.id, r.anexos)
 
     return carregarEstadoMrTerceriza(sessao)
   } catch (e) {
