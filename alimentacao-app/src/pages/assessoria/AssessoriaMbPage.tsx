@@ -66,7 +66,6 @@ export function AssessoriaMbPage() {
       if (dados.type === 'mb-pronto') {
         setPronto(true)
         enviarUsuario()
-        void hidratar()
         return
       }
       if (dados.type === 'mb-sair') {
@@ -140,6 +139,31 @@ export function AssessoriaMbPage() {
     return () => window.removeEventListener('message', aoMensagem)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [admin, neritesAdmin, nome, navigate, signOut, podeEditar, userId])
+
+  useEffect(() => {
+    if (!pronto || !podeEditar || !userId) return
+
+    const sincronizar = () => {
+      enviarUsuario()
+      void hidratar()
+    }
+    const aoVoltarParaAba = () => {
+      if (document.visibilityState === 'visible') sincronizar()
+    }
+
+    // O iframe pode ficar pronto antes de o perfil. Sincronizar a partir deste
+    // efeito garante a hidratação assim que os dois estiverem disponíveis.
+    sincronizar()
+    window.addEventListener('focus', sincronizar)
+    document.addEventListener('visibilitychange', aoVoltarParaAba)
+    return () => {
+      window.removeEventListener('focus', sincronizar)
+      document.removeEventListener('visibilitychange', aoVoltarParaAba)
+    }
+    // As funções usam os mesmos valores listados abaixo; incluí-las faria o
+    // efeito reiniciar a cada renderização.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pronto, podeEditar, userId, nome, admin])
 
   return (
     <div className="mr-demo">
