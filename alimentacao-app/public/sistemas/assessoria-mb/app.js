@@ -143,6 +143,8 @@
     finStatus: "",
     finCost: "",
     finReconcileIds: null,
+    finSelectionLabel: "",
+    finSelectionKey: "",
     finSort: "desc",
     finPage: 1,
     finPageSize: 5,
@@ -489,12 +491,13 @@
   const pick = (arr, key, v) => !v || arr[key] === v;
   const month = (d) => String(d || "").slice(0, 7);
   function financeFiltered() {
+    const auditIds = state.finReconcileIds;
     return db.finance.filter(
       (r) =>
-        (!state.mes || month(r.data) === state.mes) &&
+        (auditIds || !state.mes || month(r.data) === state.mes) &&
         (!state.empresa || r.sub === state.empresa) &&
         (page !== "financeiro" ||
-          ((!state.finReconcileIds || state.finReconcileIds.has(r.id)) &&
+          ((!auditIds || auditIds.has(r.id)) &&
             (!state.finType || finTipo(r) === state.finType) &&
             (!state.finStatus || finStatus(r)[0] === state.finStatus) &&
             (!state.finCost || r.centro === state.finCost) &&
@@ -504,6 +507,57 @@
                 .toLocaleLowerCase("pt-BR")
                 .includes(state.pesquisa.toLocaleLowerCase("pt-BR"))))),
     );
+  }
+  function financeAuditScope(source) {
+    if (source === "dashboard")
+      return db.finance.filter((record) =>
+        state.empresa
+          ? record.sub === state.empresa
+          : subdivisions.includes(record.sub),
+      );
+    return db.finance.filter(
+      (record) =>
+        (!state.empresa || record.sub === state.empresa) &&
+        (!state.finType || finTipo(record) === state.finType) &&
+        (!state.finStatus || finStatus(record)[0] === state.finStatus) &&
+        (!state.finCost || record.centro === state.finCost) &&
+        (!state.pesquisa ||
+          [record.parceiro, record.centro, record.empresaDepositante, record.demanda, record.sub]
+            .join(" ")
+            .toLocaleLowerCase("pt-BR")
+            .includes(state.pesquisa.toLocaleLowerCase("pt-BR"))),
+    );
+  }
+  function financeAuditOrigin(record) {
+    if (!state.mes || !isFinancialDate(record.data)) return "";
+    return month(record.data) === state.mes ? "Do mês" : "Mês anterior";
+  }
+  function openFinanceFromKpi(button) {
+    const key = button.dataset.finKpi || "";
+    const label = button.dataset.finKpiLabel || key;
+    const source = button.dataset.finKpiSource || "finance";
+    const records = financeKpiRecords(
+      financeAuditScope(source),
+      state.mes,
+      key,
+    );
+    state.finReconcileIds = new Set(records.map((record) => record.id));
+    state.finSelectionLabel = label;
+    state.finSelectionKey = key;
+    state.finPage = 1;
+    if (source === "dashboard") {
+      state.finType = "";
+      state.finStatus = "";
+      state.finCost = "";
+      state.pesquisa = "";
+    }
+    goto("financeiro");
+  }
+  function clearFinanceAuditFilter() {
+    state.finReconcileIds = null;
+    state.finSelectionLabel = "";
+    state.finSelectionKey = "";
+    state.finPage = 1;
   }
   function taskFiltered() {
     return db.tasks.filter(
@@ -533,19 +587,7 @@
       { prev: 0, rec: 0, recReceita: 0, recExtra: 0, sai: 0 },
     );
   function financeMetricScope() {
-    return db.finance.filter(
-      (record) =>
-        (!state.empresa || record.sub === state.empresa) &&
-        (!state.finReconcileIds || state.finReconcileIds.has(record.id)) &&
-        (!state.finType || finTipo(record) === state.finType) &&
-        (!state.finStatus || finStatus(record)[0] === state.finStatus) &&
-        (!state.finCost || record.centro === state.finCost) &&
-        (!state.pesquisa ||
-          [record.parceiro, record.centro, record.empresaDepositante, record.demanda, record.sub]
-            .join(" ")
-            .toLocaleLowerCase("pt-BR")
-            .includes(state.pesquisa.toLocaleLowerCase("pt-BR"))),
-    );
+    return financeAuditScope("finance");
   }
   function financeMonthTitle(reference) {
     return compLabel(reference).split(" / ")[0];
@@ -569,6 +611,7 @@
         priorLabel,
         fmt(cash.prior),
         `Saldo transportado para ${periodLabel}`,
+        "carry",
       ]);
     items.push(
       [
@@ -579,6 +622,7 @@
         selectedMonth
           ? `${fmt(stats.pendingMonth)} referente aos lançamentos de ${periodLabel}`
           : "Valores previstos ainda não recebidos",
+        "pending",
       ],
       [
         "ok",
@@ -586,6 +630,7 @@
         selectedMonth ? `Recebido em ${periodLabel}` : "Recebido",
         fmt(cash.entries),
         "Dinheiro efetivamente recebido no período",
+        "received",
       ],
       [
         "out",
@@ -593,6 +638,7 @@
         selectedMonth ? `Saídas em ${periodLabel}` : "Saídas",
         fmt(cash.exits),
         "Pagamentos e despesas do período",
+        "out",
       ],
       [
         "bal",
@@ -602,15 +648,17 @@
         selectedMonth
           ? "Saldo anterior mais recebimentos menos saídas"
           : "Recebimentos menos saídas",
+        "total",
       ],
     );
     const root = $(container);
     root.classList.toggle("is-month", selectedMonth);
     root.innerHTML = items
-      .map(
-        (x) =>
-          `<article class="kpi ${x[0]}"><span class="kpi-ico">${icon(x[1])}</span><div class="kpi-body"><div class="label">${x[2]}</div><strong class="${x[0] === "bal" && cash.final < 0 ? "neg" : ""}" title="${x[3]}">${x[3]}</strong><small>${x[4]}</small></div></article>`,
-      )
+      .map((x) => {
+        const active =
+          state.finReconcileIds && state.finSelectionKey === x[5] ? " is-active" : "";
+        return `<button type="button" class="kpi ${x[0]}${active}" data-fin-kpi="${x[5]}" data-fin-kpi-source="finance" data-fin-kpi-label="${esc(x[2])}" title="Ver lançamentos deste indicador"><span class="kpi-ico">${icon(x[1])}</span><span class="kpi-body"><span class="label">${x[2]}</span><strong class="${x[0] === "bal" && cash.final < 0 ? "neg" : ""}" title="${x[3]}">${x[3]}</strong><small>${x[4]}</small></span></button>`;
+      })
       .join("");
   }
   function selectField(label, id, opts, value = "", first = "Todos") {
@@ -696,9 +744,22 @@
       state.finPage * pageSize,
     );
     $("#finance-count").textContent = `Exibindo ${rows.length} registro(s)`;
-    $("#fin-reconcile-banner").innerHTML = state.finReconcileIds
-      ? `<div class="fin-reconcile-banner">${icon("info")}<span>${state.finReconcileIds.size} ${state.finReconcileIds.size === 1 ? "registro selecionado" : "registros selecionados"} sem data financeira.</span><button type="button" id="fin-reconcile-clear">Limpar filtro</button></div>`
-      : "";
+    $("#fin-reconcile-banner").innerHTML = (() => {
+      if (!state.finReconcileIds) return "";
+      const count = state.finReconcileIds.size;
+      if (state.finSelectionLabel) {
+        let detail = "";
+        if (state.mes && (state.finSelectionKey === "pending" || state.finSelectionKey === "received")) {
+          const ofMonth = rows.filter((record) => financeAuditOrigin(record) === "Do mês").length;
+          const prior = rows.filter((record) => financeAuditOrigin(record) === "Mês anterior").length;
+          detail = ` · ${ofMonth} do mês · ${prior} de meses anteriores`;
+        }
+        const companyBit = state.empresa ? ` · Empresa ${esc(state.empresa)}` : " · Consolidado";
+        const monthBit = state.mes ? ` · ${esc(compLabel(state.mes))}` : "";
+        return `<div class="fin-reconcile-banner">${icon("info")}<span>${count} lançamento${count === 1 ? "" : "s"} de “${esc(state.finSelectionLabel)}”${detail}${companyBit}${monthBit}.</span><button type="button" id="fin-reconcile-clear">Limpar filtro</button></div>`;
+      }
+      return `<div class="fin-reconcile-banner">${icon("info")}<span>${count} ${count === 1 ? "registro selecionado" : "registros selecionados"} sem data financeira.</span><button type="button" id="fin-reconcile-clear">Limpar filtro</button></div>`;
+    })();
     const costs = [
       ...new Set(db.finance.map((r) => r.centro).filter(Boolean)),
     ].sort();
@@ -711,17 +772,25 @@
         .join(
           "",
         )}</select></div><div class="field"><label>Empresa</label><select class="control" id="fin-company"><option value="">Todas</option>${subdivisions.map((s) => `<option value="${esc(s)}" ${s === state.empresa ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div><div class="field"><label>Tipo</label><select class="control" id="fin-type"><option value="">Todos</option>${["Receita", "Entrada por fora", "Saída"].map((s) => `<option value="${s}" ${state.finType === s ? "selected" : ""}>${s}</option>`).join("")}</select></div><div class="field"><label>Situação</label><select class="control" id="fin-status"><option value="">Todas</option>${["Concluído", "Em aberto", "Pendente", "Recebido", "Pago", "Valor excedente — revisar"].map((s) => `<option ${s === state.finStatus ? "selected" : ""}>${s}</option>`).join("")}</select></div><div class="field"><label>Centro de custo</label><select class="control" id="fin-cost"><option value="">Todos</option>${costs.map((s) => `<option value="${esc(s)}" ${s === state.finCost ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div><div class="field fin-partner-field"><label>Parceiro / referência</label><div class="search-control"><svg><use href="#i-search"></use></svg><input id="fin-search" value="${esc(state.pesquisa)}" placeholder="Buscar parceiro ou referência..."></div></div><button type="button" class="btn primary fin-filter-btn" id="fin-apply"><svg><use href="#i-search"></use></svg>Filtrar</button><button type="button" class="btn fin-clear-btn" id="fin-clear"><svg><use href="#i-history"></use></svg>Limpar</button></div>`;
+    const rowValue = (r) => {
+      const tp = finTipo(r);
+      return tp === "Saída"
+        ? money(r.saida)
+        : money(r.recebido) || money(r.previsto);
+    };
+    const periodTotal = rows.reduce((sum, r) => sum + rowValue(r), 0);
     const tableRows = shown
       .map((r) => {
         const tp = finTipo(r),
           st = finStatus(r),
-          v =
-            tp === "Saída"
-              ? money(r.saida)
-              : money(r.recebido) || money(r.previsto);
-        return `<tr><td class="nowrap">${dateBR(r.data)}${r.dataRecebida ? `<small class="received-date">Recebida: ${dateBR(r.dataRecebida)}</small>` : ""}</td><td><b>${esc(r.sub || "—")}</b></td><td>${esc(r.parceiro || "—")}${r.observacao ? `<div class="muted">${esc(r.observacao)}</div>` : ""}</td><td>${esc(r.centro || "—")}</td><td class="description-cell">${esc(r.empresaDepositante || "—")}</td><td><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${icon(tp === "Saída" ? "arrow" : "down")}${tp}</span></td><td class="amount nowrap"><b>${n2(v)}</b></td><td>${finStatusHTML(r)}</td><td>${fileCell(r.anexos, "fin:" + r.id)}</td><td class="action-cell"><div class="row-actions">${(r.anexos || []).length ? `<button type="button" class="row-icon" data-view-files="fin:${esc(r.id)}" title="Visualizar">${icon("eye")}</button>` : ""}<button type="button" class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")} Editar</button>${canDeleteRec(r) ? `<button type="button" class="edit-action danger" data-delete-fin="${esc(r.id)}">${icon("trash")} Excluir</button>` : ""}</div></td></tr>`;
+          v = rowValue(r);
+        const origin = state.finSelectionLabel ? financeAuditOrigin(r) : "";
+        return `<tr><td class="nowrap">${dateBR(r.data)}${origin ? `<small class="fin-origin-tag ${origin === "Do mês" ? "is-month" : "is-prior"}">${esc(origin)}</small>` : ""}${r.dataRecebida ? `<small class="received-date">Recebida: ${dateBR(r.dataRecebida)}</small>` : ""}</td><td><b>${esc(r.sub || "—")}</b></td><td>${esc(r.parceiro || "—")}${r.observacao ? `<div class="muted">${esc(r.observacao)}</div>` : ""}</td><td>${esc(r.centro || "—")}</td><td class="description-cell">${esc(r.empresaDepositante || "—")}</td><td><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${icon(tp === "Saída" ? "arrow" : "down")}${tp}</span></td><td class="amount nowrap"><b>${n2(v)}</b></td><td>${finStatusHTML(r)}</td><td>${fileCell(r.anexos, "fin:" + r.id)}</td><td class="action-cell"><div class="row-actions">${(r.anexos || []).length ? `<button type="button" class="row-icon" data-view-files="fin:${esc(r.id)}" title="Visualizar">${icon("eye")}</button>` : ""}<button type="button" class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")} Editar</button>${canDeleteRec(r) ? `<button type="button" class="edit-action danger" data-delete-fin="${esc(r.id)}">${icon("trash")} Excluir</button>` : ""}</div></td></tr>`;
       })
       .join("");
+    const financeFoot = rows.length
+      ? `<tfoot><tr><td colspan="6">Valor total (${rows.length} lançamento${rows.length === 1 ? "" : "s"})</td><td class="amount nowrap"><b>${n2(periodTotal)}</b></td><td colspan="3"></td></tr></tfoot>`
+      : "";
     $("#finance-table").innerHTML =
       state.finView === "detail"
         ? `<div class="fin-detail-list">${
@@ -729,30 +798,29 @@
               .map((r) => {
                 const tp = finTipo(r),
                   st = finStatus(r),
-                  v =
-                    tp === "Saída"
-                      ? money(r.saida)
-                      : money(r.recebido) || money(r.previsto);
-                return `<article><div><span>${dateBR(r.data)} · ${esc(r.sub || "—")}</span><h3>${esc(r.parceiro || "Lançamento financeiro")}</h3><p>${esc(r.centro || "Sem centro de custo")}${r.dataRecebida ? " · Recebida em " + dateBR(r.dataRecebida) : ""}${r.empresaDepositante ? " · Depositante: " + esc(r.empresaDepositante) : ""}${r.observacao ? " · " + esc(r.observacao) : ""}</p></div><div><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${tp}</span><strong>${fmt(v)}</strong>${finStatusHTML(r)}<button class="inline-btn" data-edit-fin="${esc(r.id)}">Editar</button>${canDeleteRec(r) ? `<button class="inline-btn danger" data-delete-fin="${esc(r.id)}">Excluir</button>` : ""}</div></article>`;
+                  v = rowValue(r);
+                const origin = state.finSelectionLabel ? financeAuditOrigin(r) : "";
+                return `<article><div><span>${dateBR(r.data)} · ${esc(r.sub || "—")}${origin ? ` · ${esc(origin)}` : ""}</span><h3>${esc(r.parceiro || "Lançamento financeiro")}</h3><p>${esc(r.centro || "Sem centro de custo")}${r.dataRecebida ? " · Recebida em " + dateBR(r.dataRecebida) : ""}${r.empresaDepositante ? " · Depositante: " + esc(r.empresaDepositante) : ""}${r.observacao ? " · " + esc(r.observacao) : ""}</p></div><div><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${tp}</span><strong>${fmt(v)}</strong>${finStatusHTML(r)}<button class="inline-btn" data-edit-fin="${esc(r.id)}">Editar</button>${canDeleteRec(r) ? `<button class="inline-btn danger" data-delete-fin="${esc(r.id)}">Excluir</button>` : ""}</div></article>`;
               })
               .join("") ||
             `<div class="fin-empty">Nenhum lançamento encontrado para os filtros selecionados.</div>`
-          }</div>`
-        : `<table class="fin-table"><thead><tr><th>Data</th><th>Empresa</th><th>Parceiro</th><th>Centro de Custo</th><th>Empresa depositante</th><th>Tipo</th><th class="num">Valor (R$)</th><th>Situação</th><th>Comprovante</th><th class="action-cell">Ações</th></tr></thead><tbody>${tableRows || noRows("Nenhum lançamento encontrado para os filtros selecionados.", 10)}</tbody></table>`;
+          }${rows.length ? `<div class="fin-detail-total"><span>Valor total (${rows.length} lançamento${rows.length === 1 ? "" : "s"})</span><strong>${n2(periodTotal)}</strong></div>` : ""}</div>`
+        : `<table class="fin-table"><thead><tr><th>Data</th><th>Empresa</th><th>Parceiro</th><th>Centro de Custo</th><th>Empresa depositante</th><th>Tipo</th><th class="num">Valor (R$)</th><th>Situação</th><th>Comprovante</th><th class="action-cell">Ações</th></tr></thead><tbody>${tableRows || noRows("Nenhum lançamento encontrado para os filtros selecionados.", 10)}</tbody>${financeFoot}</table>`;
     $("#finance-pager").innerHTML =
       `<span>Mostrando ${rows.length ? (state.finPage - 1) * pageSize + 1 : 0} a ${Math.min(state.finPage * pageSize, rows.length)} de ${rows.length} registros</span><div class="fin-page-buttons"><button type="button" id="fin-first" ${state.finPage === 1 ? "disabled" : ""}>«</button><button type="button" id="fin-prev" ${state.finPage === 1 ? "disabled" : ""}>‹</button><span>${state.finPage}</span><button type="button" id="fin-next" ${state.finPage === pages ? "disabled" : ""}>›</button><button type="button" id="fin-last" ${state.finPage === pages ? "disabled" : ""}>»</button></div>`;
-    const bind = (id, key) => {
+    const bind = (id, key, clearAudit = false) => {
       $("#" + id).onchange = (e) => {
         state[key] = e.target.value;
         state.finPage = 1;
+        if (clearAudit) clearFinanceAuditFilter();
         render();
       };
     };
-    bind("fin-period", "mes");
-    bind("fin-company", "empresa");
-    bind("fin-type", "finType");
-    bind("fin-status", "finStatus");
-    bind("fin-cost", "finCost");
+    bind("fin-period", "mes", true);
+    bind("fin-company", "empresa", true);
+    bind("fin-type", "finType", true);
+    bind("fin-status", "finStatus", true);
+    bind("fin-cost", "finCost", true);
     $("#fin-sort").value = state.finSort;
     $("#fin-sort").onchange = (e) => {
       state.finSort = e.target.value === "asc" ? "asc" : "desc";
@@ -780,6 +848,8 @@
         pesquisa: "",
         empresa: "",
         finReconcileIds: null,
+        finSelectionLabel: "",
+        finSelectionKey: "",
         finPage: 1,
       });
       render();
@@ -2122,6 +2192,7 @@
     let sel = e.target.closest("[data-select-company]");
     if (sel) {
       state.empresa = sel.dataset.selectCompany;
+      clearFinanceAuditFilter();
       render();
       return;
     }
@@ -3436,6 +3507,73 @@
       pendingMonth,
     };
   }
+  function financeKpiRecords(rows, reference, key) {
+    const bounds = monthBounds(reference);
+    const ledger = cashLedger(rows);
+    const byIds = (ids) => {
+      const selected = new Set(ids);
+      return rows.filter((record) => selected.has(record.id));
+    };
+    const eventIds = (events) => [...new Set(events.map((event) => event.rowId))];
+    const inCashPeriod = (date) =>
+      bounds
+        ? date && date >= bounds.start && date < bounds.end
+        : isFinancialDate(date);
+
+    if (key === "forecast")
+      return rows.filter(
+        (record) => finKind(record) === "receita" && money(record.previsto) > 0,
+      );
+    if (key === "received-total")
+      return rows.filter(
+        (record) => finKind(record) !== "saida" && money(record.recebido) > 0,
+      );
+    if (key === "out-total")
+      return rows.filter((record) => money(record.saida) > 0);
+    if (key === "total-all")
+      return rows.filter(
+        (record) => money(record.recebido) > 0 || money(record.saida) > 0,
+      );
+
+    if (key === "pending") {
+      const cutoff = bounds?.end || "9999-12-31";
+      return rows.filter((record) => {
+        if (
+          finKind(record) !== "receita" ||
+          !isFinancialDate(record.data) ||
+          record.data >= cutoff
+        )
+          return false;
+        const receivedAtCutoff = receiptCashEvents(record)
+          .filter((event) => event.data && event.data < cutoff)
+          .reduce((total, event) => total + event.value, 0);
+        return money(record.previsto) - receivedAtCutoff > 0.005;
+      });
+    }
+    if (key === "received")
+      return byIds(eventIds(ledger.entries.filter((event) => inCashPeriod(event.data))));
+    if (key === "out")
+      return byIds(eventIds(ledger.exits.filter((event) => inCashPeriod(event.data))));
+    if (key === "carry" && bounds)
+      return byIds(
+        eventIds(
+          [...ledger.entries, ...ledger.exits].filter(
+            (event) => event.data && event.data < bounds.start,
+          ),
+        ),
+      );
+    if (key === "total")
+      return byIds(
+        eventIds(
+          [...ledger.entries, ...ledger.exits].filter((event) =>
+            bounds
+              ? event.data && event.data < bounds.end
+              : isFinancialDate(event.data),
+          ),
+        ),
+      );
+    return [];
+  }
   function rxHistoryRows(obj) {
     const rows = [];
     if (finKind(obj) === "receita")
@@ -3556,6 +3694,7 @@
         "Previsto a Receber",
         fmt(a.prev),
         `<small>${rows.length} lançamento(s) no período</small>`,
+        "forecast",
       ],
       [
         "ok",
@@ -3563,6 +3702,7 @@
         "Recebido",
         fmt(a.rec),
         `<small class="pos">${pct}% do previsto${a.recExtra ? ` · ${fmt(a.recExtra)} por fora` : ""}</small><div class="meter"><i style="width:${Math.min(100, pct)}%"></i></div>`,
+        "received-total",
       ],
       [
         "out",
@@ -3570,6 +3710,7 @@
         "Despesas / Saídas",
         fmt(a.sai),
         "<small>Total de saídas no período</small>",
+        "out-total",
       ],
       [
         "bal",
@@ -3577,13 +3718,15 @@
         "Saldo Líquido",
         fmt(saldo),
         "<small>Recebido – Saídas</small>",
+        "total-all",
       ],
     ];
     $(container).innerHTML = k
-      .map(
-        (x) =>
-          `<article class="kpi ${x[0]}"><span class="kpi-ico">${icon(x[1])}</span><div class="kpi-body"><div class="label">${x[2]}</div><strong class="${x[0] === "bal" && saldo < 0 ? "neg" : ""}" title="${x[3]}">${x[3]}</strong>${x[4]}</div></article>`,
-      )
+      .map((x) => {
+        const active =
+          state.finReconcileIds && state.finSelectionKey === x[5] ? " is-active" : "";
+        return `<button type="button" class="kpi ${x[0]}${active}" data-fin-kpi="${x[5]}" data-fin-kpi-source="dashboard" data-fin-kpi-label="${esc(x[2])}" title="Ver lançamentos deste indicador"><span class="kpi-ico">${icon(x[1])}</span><span class="kpi-body"><span class="label">${x[2]}</span><strong class="${x[0] === "bal" && saldo < 0 ? "neg" : ""}" title="${x[3]}">${x[3]}</strong>${x[4]}</span></button>`;
+      })
       .join("");
   }
   function drawDashboardKpis(rows) {
@@ -3615,6 +3758,7 @@
         `Ficou em ${previousLabel}`,
         fmt(snapshot.prior),
         esc(`Saldo transportado para ${selectedLabel}`),
+        "carry",
       ],
       [
         "in",
@@ -3622,6 +3766,7 @@
         `A Receber em ${selectedLabel}`,
         fmt(stats.pending),
         esc(`${fmt(stats.pendingMonth)} referente aos lançamentos de ${selectedLabel}`),
+        "pending",
       ],
       [
         "cash-in",
@@ -3631,6 +3776,7 @@
         `${esc("Dinheiro efetivamente recebido no mês")}${entryLines
           .map((line) => `<span class="kpi-break">${esc(line)}</span>`)
           .join("")}`,
+        "received",
       ],
       [
         "out",
@@ -3642,6 +3788,7 @@
             ? `Total geral que saiu no mês · ${snapshot.exitCount} saída(s)`
             : "Nenhuma saída registrada no mês",
         ),
+        "out",
       ],
       [
         "bal",
@@ -3649,14 +3796,18 @@
         `Total em ${selectedLabel}`,
         fmt(snapshot.final),
         esc("Saldo anterior mais recebimentos menos saídas"),
+        "total",
       ],
     ];
     root.classList.add("is-month");
     root.innerHTML = items
-      .map(
-        (item) =>
-          `<article class="kpi ${item[0]}"><span class="kpi-ico">${icon(item[1])}</span><div class="kpi-body"><div class="label">${esc(item[2])}</div><strong class="${item[0] === "bal" && snapshot.final < 0 ? "neg" : ""}" title="${esc(item[3])}">${item[3]}</strong><small>${item[4]}</small></div></article>`,
-      )
+      .map((item) => {
+        const active =
+          state.finReconcileIds && state.finSelectionKey === item[5]
+            ? " is-active"
+            : "";
+        return `<button type="button" class="kpi ${item[0]}${active}" data-fin-kpi="${item[5]}" data-fin-kpi-source="dashboard" data-fin-kpi-label="${esc(item[2])}" title="Ver lançamentos deste indicador"><span class="kpi-ico">${icon(item[1])}</span><span class="kpi-body"><span class="label">${esc(item[2])}</span><strong class="${item[0] === "bal" && snapshot.final < 0 ? "neg" : ""}" title="${esc(item[3])}">${item[3]}</strong><small>${item[4]}</small></span></button>`;
+      })
       .join("");
   }
   function cashSummaryTable() {
@@ -4202,10 +4353,17 @@
       goto("financeiro");
       return;
     }
+    const kpi = e.target.closest("[data-fin-kpi]");
+    if (kpi) {
+      openFinanceFromKpi(kpi);
+      return;
+    }
     const rg = e.target.closest("[data-reconcile-go]");
     if (rg) {
       const ids = rg.dataset.reconcileGo.split(",").filter(Boolean);
       state.finReconcileIds = new Set(ids);
+      state.finSelectionLabel = "";
+      state.finSelectionKey = "";
       state.mes = "";
       state.finType = "";
       state.finStatus = "";
@@ -4216,8 +4374,7 @@
       return;
     }
     if (e.target.closest("#fin-reconcile-clear")) {
-      state.finReconcileIds = null;
-      state.finPage = 1;
+      clearFinanceAuditFilter();
       render();
       return;
     }
@@ -4257,6 +4414,7 @@
     if (!t.matches) return;
     if (t.matches("[data-comp]")) {
       state.mes = t.value;
+      clearFinanceAuditFilter();
       render();
     } else if (t.matches("[data-contas-mes]")) {
       state.contasMes = t.value;
