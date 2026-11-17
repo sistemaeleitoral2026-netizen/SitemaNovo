@@ -145,21 +145,28 @@ export function sincronizarFinanceiro(forcar = false) {
 /**
  * Se ainda não houver meses no resumo, roda a carga inicial do salário em loop
  * (a API grava no máximo 4 meses por execução). Só admin/diretoria sincronizam.
+ * Por padrão NÃO bloqueia o menu: use `aguardar: true` só quando o usuário
+ * pediu “atualizar dados oficiais”.
  */
-export async function garantirCargaFinanceiro() {
+export async function garantirCargaFinanceiro(opts?: { aguardar?: boolean }) {
   let resumo = await carregarFinanceiro()
   const qtdMeses = () => (Array.isArray(resumo.meses) ? resumo.meses.length : 0)
   if (qtdMeses() > 0) return resumo
   if (!resumo.podeEditar) return resumo
 
-  for (let i = 0; i < 12; i++) {
-    const r = await sincronizarFinanceiro(false)
-    if (r.folha?.erro) throw new Error(r.folha.erro)
-    const faltam = Number(r.folha?.faltam)
-    if (Number.isFinite(faltam) && faltam <= 0) break
-    if (!r.folha?.meses?.length && !String(r.folha?.status || '').includes('gravada')) break
+  const completar = async () => {
+    for (let i = 0; i < 12; i++) {
+      const r = await sincronizarFinanceiro(false)
+      if (r.folha?.erro) throw new Error(r.folha.erro)
+      const faltam = Number(r.folha?.faltam)
+      if (Number.isFinite(faltam) && faltam <= 0) break
+      if (!r.folha?.meses?.length && !String(r.folha?.status || '').includes('gravada')) break
+    }
+    return carregarFinanceiro()
   }
-  resumo = await carregarFinanceiro()
+
+  if (!opts?.aguardar) return resumo
+  resumo = await completar()
   return resumo
 }
 
