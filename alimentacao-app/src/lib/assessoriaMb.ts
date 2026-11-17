@@ -185,7 +185,10 @@ export type MbMutations = {
 }
 
 function isUuid(v: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v)
+  // Aceita qualquer UUID canônico de 36 chars. Imports/legado às vezes
+  // gravam hex sem nibble de versão RFC (1–5); se rejeitarmos, o save
+  // gera outro id e duplica o lançamento no banco.
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
 }
 
 function asError(err: unknown, fallback = 'Falha ao salvar na nuvem.'): Error {
