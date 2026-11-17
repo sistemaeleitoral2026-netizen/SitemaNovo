@@ -1,11 +1,11 @@
 // Rotina diária do Financeiro do Mandato (vercel.json -> crons).
-// A) Folha da Câmara: salário do vereador + equipe do gabinete (só quando sai mês novo).
-// B) Portal de despesas: VIEP, diárias e outros pagamentos em nome do vereador (todo dia).
+// Só o salário do vereador: puxa a folha da Câmara quando sai mês novo.
+// Equipe do gabinete e VIEP recebida são lançadas à mão no menu Financeiro.
 // Chamada manual (carga inicial): GET /api/folha-cron com "Authorization: Bearer <CRON_SECRET>".
 // A carga inicial grava até 4 meses por execução; chame de novo até "faltam" chegar a 0.
 // Regravação completa: GET /api/folha-cron?forcar=1
 
-const { criarDb, sincronizarFolha, sincronizarDespesas, diagnosticoFinanceiro } = require('./_financeiro')
+const { criarDb, sincronizarFolha, diagnosticoFinanceiro } = require('./_financeiro')
 
 module.exports = async function handler(req, res) {
   const json = (status, body) => {
@@ -27,14 +27,12 @@ module.exports = async function handler(req, res) {
   const resultado = {}
   let falhou = false
 
-  for (const [parte, fn] of [['folha', () => sincronizarFolha(db, { forcar })], ['despesas', () => sincronizarDespesas(db)]]) {
-    try {
-      resultado[parte] = await fn()
-    } catch (err) {
-      falhou = true
-      console.error(`folha-cron [${parte}]`, err)
-      resultado[parte] = { erro: err instanceof Error ? err.message : String(err) }
-    }
+  try {
+    resultado.folha = await sincronizarFolha(db, { forcar })
+  } catch (err) {
+    falhou = true
+    console.error('folha-cron [folha]', err)
+    resultado.folha = { erro: err instanceof Error ? err.message : String(err) }
   }
 
   try {

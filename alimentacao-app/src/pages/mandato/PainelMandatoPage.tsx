@@ -5,13 +5,15 @@ import { hasRole } from '../../lib/roles'
 import { Spinner } from '../../components/ui/Spinner'
 import {
   garantirCargaFinanceiro,
-  definirCompetencia,
+  excluirEquipeGabinete,
   excluirLancamento,
   listarProposicoes,
   mudarStatusLancamento,
-  salvarInfoEquipe,
+  salvarEquipeGabinete,
   salvarLancamento,
+  salvarViepMes,
   sincronizarFinanceiro,
+  type EquipeGabineteEntrada,
   type FinLancamentoEntrada,
   type ProposicaoMandato,
 } from '../../lib/gabinete'
@@ -45,8 +47,8 @@ type FinMensagem = {
   lancamento?: FinLancamentoEntrada
   id?: string
   status?: string
-  pagamento?: { empenho: string; num_pagamento: string; data: string; competencia: string | null }
-  info?: { matricula: string; funcao_real?: string; telefone?: string; indicado_por?: string; observacao?: string }
+  pessoa?: EquipeGabineteEntrada
+  verba?: { mes: string; valor: number | string }
 }
 
 type Feed = ReturnType<typeof montarFeed>
@@ -262,12 +264,15 @@ export function PainelMandatoPage() {
         } else if (d.type === 'mandato-fin-status' && d.id && d.status) {
           await mudarStatusLancamento(d.id, d.status)
           avisar('Situação atualizada')
-        } else if (d.type === 'mandato-fin-competencia' && d.pagamento) {
-          await definirCompetencia(d.pagamento)
-          avisar('Reembolso vinculado ao mês')
-        } else if (d.type === 'mandato-fin-equipe' && d.info?.matricula) {
-          await salvarInfoEquipe(d.info)
-          avisar('Dados da pessoa salvos')
+        } else if (d.type === 'mandato-fin-equipe-salvar' && d.pessoa?.nome) {
+          await salvarEquipeGabinete(d.pessoa)
+          avisar(d.pessoa.id ? 'Dados atualizados' : 'Pessoa cadastrada')
+        } else if (d.type === 'mandato-fin-equipe-excluir' && d.id) {
+          await excluirEquipeGabinete(d.id)
+          avisar('Pessoa removida do gabinete')
+        } else if (d.type === 'mandato-fin-verba-salvar' && d.verba?.mes) {
+          await salvarViepMes(d.verba.mes, d.verba.valor)
+          avisar('VIEP do mês salva')
         } else if (d.type === 'mandato-fin-recarregar') {
           avisar('Atualizando dados oficiais…')
           await recarregarFinanceiro({ sincronizar: true })
