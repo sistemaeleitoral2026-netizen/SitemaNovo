@@ -30,8 +30,38 @@ create table if not exists public.fin_mes_manual (
   atualizado_em timestamptz not null default now()
 );
 
-alter table public.fin_gabinete_manual enable row level security;
-alter table public.fin_mes_manual      enable row level security;
+-- Fundos: de onde sai o dinheiro que paga a equipe do gabinete (ex.: "Verba de gabinete",
+-- "Recurso próprio", "Doação"). Cada fundo recebe lançamentos à mão, um por vez (mês, dia,
+-- ou quantos quiser no mesmo mês), cada um com valor, origem e observação.
+create table if not exists public.fin_fundos (
+  id            uuid primary key default gen_random_uuid(),
+  nome          text not null,
+  descricao     text,
+  ativo         boolean not null default true,
+  criado_em     timestamptz not null default now(),
+  atualizado_em timestamptz not null default now()
+);
+
+create table if not exists public.fin_fundo_lancamento (
+  id           uuid primary key default gen_random_uuid(),
+  fundo_id     uuid not null references public.fin_fundos(id) on delete cascade,
+  data         date not null,
+  valor        numeric(12,2) not null check (valor > 0),
+  origem       text,
+  observacao   text,
+  criado_em    timestamptz not null default now()
+);
+create index if not exists fin_fundo_lancamento_fundo on public.fin_fundo_lancamento (fundo_id);
+
+-- Qual fundo paga o salário de cada pessoa da equipe
+alter table public.fin_gabinete_manual
+  add column if not exists fundo_id uuid references public.fin_fundos(id);
+
+alter table public.fin_gabinete_manual    enable row level security;
+alter table public.fin_mes_manual         enable row level security;
+alter table public.fin_fundos             enable row level security;
+alter table public.fin_fundo_lancamento   enable row level security;
 
 -- Só o servidor (ponte /api/gabinete com a service key) lê e grava. O navegador não acessa direto.
-revoke all on public.fin_gabinete_manual, public.fin_mes_manual from anon, authenticated;
+revoke all on public.fin_gabinete_manual, public.fin_mes_manual, public.fin_fundos, public.fin_fundo_lancamento
+  from anon, authenticated;

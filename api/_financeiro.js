@@ -194,11 +194,13 @@ async function diagnosticoFinanceiro(db) {
 
 // ===================== RESUMO PARA O PAINEL =====================
 async function montarResumo(db) {
-  const [sal, lancamentos, equipe, viepManual] = await Promise.all([
+  const [sal, lancamentos, equipe, viepManual, fundos, fundoLancamentos] = await Promise.all([
     db.get('fin_salario?select=*&order=mes.desc'),
     db.get('fin_lancamento?select=*&order=data.desc,criado_em.desc'),
     db.get('fin_gabinete_manual?select=*&order=criado_em.asc'),
     db.get('fin_mes_manual?select=*'),
+    db.get('fin_fundos?select=*&order=criado_em.asc'),
+    db.get('fin_fundo_lancamento?select=*&order=data.desc,criado_em.desc'),
   ])
   const viepPorMes = new Map(viepManual.map((v) => [v.mes, +v.viep_recebido]))
 
@@ -248,6 +250,23 @@ async function montarResumo(db) {
     return m
   })
 
+  // Fundos: de onde sai o dinheiro que paga a equipe, cada um com seus lançamentos à mão
+  const lancPorFundo = new Map()
+  for (const l of fundoLancamentos) {
+    const arr = lancPorFundo.get(l.fundo_id) || []
+    arr.push(l)
+    lancPorFundo.set(l.fundo_id, arr)
+  }
+  const fundosResumo = fundos.map((f) => {
+    const lancs = lancPorFundo.get(f.id) || []
+    return {
+      id: f.id, nome: f.nome, descricao: f.descricao || '', ativo: f.ativo !== false,
+      total: r2(lancs.reduce((s, l) => s + (+l.valor || 0), 0)),
+      lancamentos: lancs.map((l) => ({ ...l, valor: +l.valor })),
+    }
+  })
+  const fundoNomePorId = new Map(fundos.map((f) => [f.id, f.nome]))
+
   // Equipe do gabinete: cadastro manual, sem histórico mensal
   const equipeAtivos = equipe.filter((e) => e.ativo !== false)
   const totalGabinete = r2(equipeAtivos.reduce((s, e) => s + (+e.salario || 0), 0))
@@ -264,7 +283,11 @@ async function montarResumo(db) {
       despesasProprias: soma((m) => m.proprio), notasLancadas: soma((m) => m.totais.notasLancadas),
     },
     lancamentos: lancamentos.map((l) => ({ ...l, valor: +l.valor })),
-    equipeGabinete: equipe.map((e) => ({ ...e, salario: +e.salario })),
+    equipeGabinete: equipe.map((e) => ({
+      ...e, salario: +e.salario,
+      fundoNome: e.fundo_id ? fundoNomePorId.get(e.fundo_id) || '' : '',
+    })),
+    fundos: fundosResumo,
     gabinete: { teto: CONFIG.tetoGabinete, total: totalGabinete, saldo: r2(CONFIG.tetoGabinete - totalGabinete), pessoas: equipeAtivos.length },
     ultimaFolha: (sal[0] && sal[0].mes) || null,
   }
@@ -300,7 +323,31 @@ function validarEquipeManual(b) {
   if (admissao && !/^\d{4}-\d{2}-\d{2}$/.test(admissao)) erro('Data de admissão inválida.')
   const salario = r2(typeof b.salario === 'number' ? b.salario : num(b.salario))
   if (!(salario >= 0)) erro('Salário inválido.')
-  return { nome, cargo, admissao, salario }
+  const fundo_id = String(b.fundo_id || '').trim() || erro('Informe de onde sai o dinheiro.')
+  if (!/^[0-9a-f-]{36}$/i.test(fundo_id)) erro('Fundo inválido.')
+  return { nome, cargo, admissao, salario, fundo_id }
+}
+
+/** Valida um fundo (de onde sai o dinheiro que paga a equipe). */
+function validarFundo(b) {
+  const erro = (m) => { throw Object.assign(new Error(m), { status: 400 }) }
+  const nome = String(b.nome || '').trim().slice(0, 120) || erro('Informe o nome do fundo.')
+  const descricao = b.descricao ? String(b.descricao).trim().slice(0, 300) : null
+  return { nome, descricao }
+}
+
+/** Valida um lançamento (depósito) num fundo: valor, origem e observação, num dia. */
+function validarFundoLancamento(b) {
+  const erro = (m) => { throw Object.assign(new Error(m), { status: 400 }) }
+  const fundo_id = String(b.fundo_id || '').trim()
+  if (!/^[0-9a-f-]{36}$/i.test(fundo_id)) erro('Fundo inválido.')
+  const data = String(b.data || '').slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) erro('Informe a data no formato AAAA-MM-DD.')
+  const valor = r2(typeof b.valor === 'number' ? b.valor : num(b.valor))
+  if (!(valor > 0)) erro('Valor precisa ser maior que zero.')
+  const origem = b.origem ? String(b.origem).trim().slice(0, 160) : null
+  const observacao = b.observacao ? String(b.observacao).trim().slice(0, 500) : null
+  return { fundo_id, data, valor, origem, observacao }
 }
 
 /** Valida o valor de VIEP recebido num mês. */
@@ -315,7 +362,8 @@ function validarViepManual(b) {
 
 module.exports = {
   CONFIG, CATEGORIAS, criarDb, limparUrlSupabase, sincronizarFolha, montarResumo,
-  validarLancamento, validarEquipeManual, validarViepManual, diagnosticoFinanceiro,
+  validarLancamento, validarEquipeManual, validarViepManual, validarFundo, validarFundoLancamento,
+  diagnosticoFinanceiro,
   // exportados para teste
   refParaMes, normNome, mesEsperado,
 }

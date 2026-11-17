@@ -6,15 +6,21 @@ import { Spinner } from '../../components/ui/Spinner'
 import {
   garantirCargaFinanceiro,
   excluirEquipeGabinete,
+  excluirFundo,
+  excluirFundoLancamento,
   excluirLancamento,
   listarProposicoes,
   mudarStatusLancamento,
   salvarEquipeGabinete,
+  salvarFundo,
+  salvarFundoLancamento,
   salvarLancamento,
   salvarViepMes,
   sincronizarFinanceiro,
   type EquipeGabineteEntrada,
   type FinLancamentoEntrada,
+  type FundoEntrada,
+  type FundoLancamentoEntrada,
   type ProposicaoMandato,
 } from '../../lib/gabinete'
 import {
@@ -49,6 +55,8 @@ type FinMensagem = {
   status?: string
   pessoa?: EquipeGabineteEntrada
   verba?: { mes: string; valor: number | string }
+  fundo?: FundoEntrada
+  fundoLancamento?: FundoLancamentoEntrada
 }
 
 type Feed = ReturnType<typeof montarFeed>
@@ -273,6 +281,18 @@ export function PainelMandatoPage() {
         } else if (d.type === 'mandato-fin-verba-salvar' && d.verba?.mes) {
           await salvarViepMes(d.verba.mes, d.verba.valor)
           avisar('VIEP do mês salva')
+        } else if (d.type === 'mandato-fin-fundo-salvar' && d.fundo?.nome) {
+          await salvarFundo(d.fundo)
+          avisar(d.fundo.id ? 'Fundo atualizado' : 'Fundo criado')
+        } else if (d.type === 'mandato-fin-fundo-excluir' && d.id) {
+          await excluirFundo(d.id)
+          avisar('Fundo removido')
+        } else if (d.type === 'mandato-fin-fundo-lancamento-salvar' && d.fundoLancamento?.fundo_id) {
+          await salvarFundoLancamento(d.fundoLancamento)
+          avisar('Lançamento adicionado ao fundo')
+        } else if (d.type === 'mandato-fin-fundo-lancamento-excluir' && d.id) {
+          await excluirFundoLancamento(d.id)
+          avisar('Lançamento removido')
         } else if (d.type === 'mandato-fin-recarregar') {
           avisar('Atualizando dados oficiais…')
           await recarregarFinanceiro({ sincronizar: true })

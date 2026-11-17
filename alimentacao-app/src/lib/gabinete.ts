@@ -171,7 +171,15 @@ export const salvarLancamento = (l: FinLancamentoEntrada) => postFin('financeiro
 export const excluirLancamento = (id: string) => postFin('financeiro-excluir', { id })
 export const mudarStatusLancamento = (id: string, status: string) => postFin('financeiro-status', { id, status })
 
-export type EquipeGabineteEntrada = { id?: string; nome: string; cargo?: string; admissao?: string; salario: number | string }
+export type EquipeGabineteEntrada = { id?: string; nome: string; cargo?: string; admissao?: string; salario: number | string; fundo_id: string }
 export const salvarEquipeGabinete = (e: EquipeGabineteEntrada) => postFin('financeiro-equipe-salvar', e)
 export const excluirEquipeGabinete = (id: string) => postFin('financeiro-equipe-excluir', { id })
 export const salvarViepMes = (mes: string, valor: number | string) => postFin('financeiro-verbas-salvar', { mes, valor })
+
+export type FundoEntrada = { id?: string; nome: string; descricao?: string }
+export const salvarFundo = (f: FundoEntrada) => postFin('financeiro-fundo-salvar', f)
+export const excluirFundo = (id: string) => postFin('financeiro-fundo-excluir', { id })
+
+export type FundoLancamentoEntrada = { fundo_id: string; data: string; valor: number | string; origem?: string; observacao?: string }
+export const salvarFundoLancamento = (l: FundoLancamentoEntrada) => postFin('financeiro-fundo-lancamento-salvar', l)
+export const excluirFundoLancamento = (id: string) => postFin('financeiro-fundo-lancamento-excluir', { id })
