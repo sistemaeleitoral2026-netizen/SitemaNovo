@@ -245,6 +245,7 @@
     finSelectionLabel: "",
     finSelectionKey: "",
     finSort: "desc",
+    finSortBy: "data",
     finPage: 1,
     finPageSize: 5,
     finView: "table",
@@ -901,19 +902,93 @@
       return;
     }
     const direction = state.finSort === "asc" ? 1 : -1;
+    const FIN_SORT_KEYS = [
+      "data",
+      "empresa",
+      "parceiro",
+      "centro",
+      "contaBancaria",
+      "empresaDepositante",
+      "tipo",
+      "valor",
+      "situacao",
+    ];
+    const sortBy = FIN_SORT_KEYS.includes(state.finSortBy)
+      ? state.finSortBy
+      : "data";
+    const finDisplayValue = (r) => {
+      const kind = finKind(r);
+      if (kind === "saida") return money(r.saida);
+      if (kind === "entrada_por_fora") return money(r.recebido);
+      return money(r.previsto);
+    };
+    const compareFinSort = (a, b, key) => {
+      if (key === "data")
+        return String(a.data || "").localeCompare(String(b.data || ""));
+      if (key === "empresa")
+        return String(a.sub || "").localeCompare(String(b.sub || ""), "pt-BR", {
+          sensitivity: "base",
+        });
+      if (key === "parceiro")
+        return String(a.parceiro || "").localeCompare(
+          String(b.parceiro || ""),
+          "pt-BR",
+          { sensitivity: "base" },
+        );
+      if (key === "centro") return compareCentro(a.centro, b.centro);
+      if (key === "contaBancaria")
+        return String(a.contaBancaria || "").localeCompare(
+          String(b.contaBancaria || ""),
+          "pt-BR",
+          { sensitivity: "base" },
+        );
+      if (key === "empresaDepositante")
+        return String(a.empresaDepositante || "").localeCompare(
+          String(b.empresaDepositante || ""),
+          "pt-BR",
+          { sensitivity: "base" },
+        );
+      if (key === "tipo")
+        return String(finTipo(a) || "").localeCompare(
+          String(finTipo(b) || ""),
+          "pt-BR",
+          { sensitivity: "base" },
+        );
+      if (key === "valor") return finDisplayValue(a) - finDisplayValue(b);
+      if (key === "situacao")
+        return String(finStatus(a)?.[0] || "").localeCompare(
+          String(finStatus(b)?.[0] || ""),
+          "pt-BR",
+          { sensitivity: "base" },
+        );
+      return 0;
+    };
     const rows = [...financeFiltered()].sort((a, b) => {
-      const byDate = String(a.data || "").localeCompare(String(b.data || ""));
-      if (byDate) return byDate * direction;
-      return String(a.id || "").localeCompare(String(b.id || "")) * direction;
+      const primary = compareFinSort(a, b, sortBy);
+      if (primary) return primary * direction;
+      if (sortBy !== "data") {
+        const byDate = compareFinSort(a, b, "data");
+        if (byDate) return byDate;
+      }
+      return String(a.id || "").localeCompare(String(b.id || ""));
     });
+    const finTh = (key, label, extraClass = "") => {
+      const active = sortBy === key;
+      const mark = active ? (direction === 1 ? " ↑" : " ↓") : "";
+      return `<th class="${extraClass}"><button type="button" class="fin-th-sort${active ? " is-active" : ""}" data-fin-sort-by="${key}" title="Ordenar por ${label}">${label}${mark}</button></th>`;
+    };
     metrics("#finance-metrics");
-    const pageSize = state.finPageSize || 5,
-      pages = Math.max(1, Math.ceil(rows.length / pageSize));
-    state.finPage = Math.min(Math.max(1, state.finPage || 1), pages);
-    const shown = rows.slice(
-      (state.finPage - 1) * pageSize,
-      state.finPage * pageSize,
-    );
+    const showAllPages = state.finPageSize === "all";
+    const pageSize = showAllPages
+      ? Math.max(rows.length, 1)
+      : Math.max(1, Number(state.finPageSize) || 5);
+    const pages = Math.max(1, Math.ceil(rows.length / pageSize) || 1);
+    state.finPage = showAllPages
+      ? 1
+      : Math.min(Math.max(1, state.finPage || 1), pages);
+    const shown = showAllPages
+      ? rows
+      : rows.slice((state.finPage - 1) * pageSize, state.finPage * pageSize);
     $("#finance-count").textContent = `Exibindo ${rows.length} registro(s)`;
     $("#fin-reconcile-banner").innerHTML = (() => {
       if (!state.finReconcileIds) return "";
@@ -933,7 +1008,7 @@
     })();
     const costs = [
       ...new Set(db.finance.map((r) => r.centro).filter(Boolean)),
-    ].sort();
+    ].sort(compareCentro);
     const banks = [
       ...new Set([
         ...(db.banks || []),
@@ -951,12 +1026,7 @@
         )}</select></div><div class="field"><label>Empresa</label><select class="control" id="fin-company"><option value="">Todas</option>${subdivisions.map((s) => `<option value="${esc(s)}" ${s === state.empresa ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div><div class="field"><label>Tipo</label><select class="control" id="fin-type"><option value="">Todos</option>${["Receita", "Entrada por fora", "Saída"].map((s) => `<option value="${s}" ${state.finType === s ? "selected" : ""}>${s}</option>`).join("")}</select></div><div class="field"><label>Situação</label><select class="control" id="fin-status"><option value="">Todas</option>${["Concluído", "Em aberto", "Pendente", "Recebido", "Pago", "Valor excedente — revisar"].map((s) => `<option ${s === state.finStatus ? "selected" : ""}>${s}</option>`).join("")}</select></div><div class="field"><label>Centro de custo</label><select class="control" id="fin-cost"><option value="">Todos</option>${costs.map((s) => `<option value="${esc(s)}" ${s === state.finCost ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div><div class="field"><label>Conta Bancária</label><select class="control" id="fin-bank"><option value="">Todas</option>${banks.map((s) => `<option value="${esc(s)}" ${s === state.finBank ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div><div class="field fin-partner-field"><label>Parceiro / referência</label><div class="search-control"><svg><use href="#i-search"></use></svg><input id="fin-search" value="${esc(state.pesquisa)}" placeholder="Buscar parceiro ou referência..."></div></div><button type="button" class="btn primary fin-filter-btn" id="fin-apply"><svg><use href="#i-search"></use></svg>Filtrar</button><button type="button" class="btn fin-clear-btn" id="fin-clear"><svg><use href="#i-history"></use></svg>Limpar</button></div>`;
     // Valor da linha = valor do lançamento (previsto na receita; recebido na
     // entrada; saída na despesa). O rodapé NÃO soma tudo: separa caixa e pendência.
-    const rowValue = (r) => {
-      const kind = finKind(r);
-      if (kind === "saida") return money(r.saida);
-      if (kind === "entrada_por_fora") return money(r.recebido);
-      return money(r.previsto);
-    };
+    const rowValue = finDisplayValue;
     const periodBreak = rows.reduce(
       (acc, r) => {
         const kind = finKind(r);
@@ -998,9 +1068,6 @@
         return `<tr><td class="nowrap">${dateBR(r.data)}${origin ? `<small class="fin-origin-tag ${origin === "Do mês" ? "is-month" : "is-prior"}">${esc(origin)}</small>` : ""}${r.dataRecebida ? `<small class="received-date">Recebida: ${dateBR(r.dataRecebida)}</small>` : ""}</td><td><b>${esc(r.sub || "—")}</b></td><td>${esc(r.parceiro || "—")}${r.observacao ? `<div class="muted">${esc(r.observacao)}</div>` : ""}</td><td>${esc(r.centro || "—")}</td><td>${esc(r.contaBancaria || "—")}</td><td class="description-cell">${esc(r.empresaDepositante || "—")}</td><td><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${icon(tp === "Saída" ? "arrow" : "down")}${tp}</span></td><td class="amount nowrap"><b>${n2(v)}</b>${valorHint}</td><td>${finStatusHTML(r)}</td><td>${fileCell(r.anexos, "fin:" + r.id)}</td><td class="action-cell"><div class="row-actions">${(r.anexos || []).length ? `<button type="button" class="row-icon" data-view-files="fin:${esc(r.id)}" title="Visualizar">${icon("eye")}</button>` : ""}<button type="button" class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")} Editar</button>${canDeleteFinance() ? `<button type="button" class="edit-action danger" data-delete-fin="${esc(r.id)}">${icon("trash")} Excluir</button>` : ""}</div></td></tr>`;
       })
       .join("");
-    const financeFoot = rows.length
-      ? `<tfoot><tr><td colspan="11">${periodFootHtml}</td></tr></tfoot>`
-      : "";
     $("#finance-table").innerHTML =
       state.finView === "detail"
         ? `<div class="fin-detail-list">${
@@ -1015,7 +1082,7 @@
               .join("") ||
             `<div class="fin-empty">Nenhum lançamento encontrado para os filtros selecionados.</div>`
           }${periodFootHtml ? `<div class="fin-detail-total fin-detail-break">${periodFootHtml}</div>` : ""}</div>`
-        : `<table class="fin-table"><thead><tr><th>Data</th><th>Empresa</th><th>Parceiro</th><th>Centro de Custo</th><th>Conta Bancária</th><th>Empresa depositante</th><th>Tipo</th><th class="num">Valor (R$)</th><th>Situação</th><th>Comprovante</th><th class="action-cell">Ações</th></tr></thead><tbody>${tableRows || noRows("Nenhum lançamento encontrado para os filtros selecionados.", 11)}</tbody>${financeFoot}</table>`;
+        : `<div class="fin-table-scroll"><table class="fin-table"><thead><tr>${finTh("data", "Data")}${finTh("empresa", "Empresa")}${finTh("parceiro", "Parceiro")}${finTh("centro", "Centro de Custo")}${finTh("contaBancaria", "Conta Bancária")}${finTh("empresaDepositante", "Empresa depositante")}${finTh("tipo", "Tipo")}${finTh("valor", "Valor (R$)", "num")}${finTh("situacao", "Situação")}<th>Comprovante</th><th class="action-cell">Ações</th></tr></thead><tbody>${tableRows || noRows("Nenhum lançamento encontrado para os filtros selecionados.", 11)}</tbody></table></div>${periodFootHtml ? `<div class="fin-table-foot">${periodFootHtml}</div>` : ""}`;
     $("#finance-pager").innerHTML =
       `<span>Mostrando ${rows.length ? (state.finPage - 1) * pageSize + 1 : 0} a ${Math.min(state.finPage * pageSize, rows.length)} de ${rows.length} registros</span><div class="fin-page-buttons"><button type="button" id="fin-first" ${state.finPage === 1 ? "disabled" : ""}>«</button><button type="button" id="fin-prev" ${state.finPage === 1 ? "disabled" : ""}>‹</button><span>${state.finPage}</span><button type="button" id="fin-next" ${state.finPage === pages ? "disabled" : ""}>›</button><button type="button" id="fin-last" ${state.finPage === pages ? "disabled" : ""}>»</button></div>`;
     const bind = (id, key, clearAudit = false) => {
@@ -1032,15 +1099,34 @@
     bind("fin-status", "finStatus", true);
     bind("fin-cost", "finCost", true);
     bind("fin-bank", "finBank", true);
-    $("#fin-sort").value = state.finSort;
+    $$("[data-fin-sort-by]").forEach((btn) => {
+      btn.onclick = () => {
+        const key = btn.dataset.finSortBy;
+        if (!FIN_SORT_KEYS.includes(key)) return;
+        if (state.finSortBy === key) {
+          state.finSort = state.finSort === "asc" ? "desc" : "asc";
+        } else {
+          state.finSortBy = key;
+          state.finSort =
+            key === "data" || key === "valor" ? "desc" : "asc";
+        }
+        state.finPage = 1;
+        drawFinance();
+      };
+    });
+    $("#fin-sort").value = state.finSortBy === "data" ? state.finSort : "desc";
     $("#fin-sort").onchange = (e) => {
+      state.finSortBy = "data";
       state.finSort = e.target.value === "asc" ? "asc" : "desc";
       state.finPage = 1;
       drawFinance();
     };
-    $("#fin-page-size").value = String(state.finPageSize);
+    $("#fin-page-size").value =
+      state.finPageSize === "all" ? "all" : String(state.finPageSize || 5);
     $("#fin-page-size").onchange = (e) => {
-      state.finPageSize = Number(e.target.value) || 5;
+      const value = e.target.value;
+      state.finPageSize =
+        value === "all" ? "all" : Math.max(1, Number(value) || 5);
       state.finPage = 1;
       drawFinance();
     };
