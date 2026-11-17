@@ -650,54 +650,40 @@
           </section>
           <section
             id="page-tarefas-historico"
-            class="page-section"
+            class="page-section accountability-page"
             data-screen-label="Prestação de contas"
           >
             <div class="heading">
               <div>
                 <h1>Prestação de contas</h1>
                 <p>
-                  Registros mensais da planilha de despesas e tarefas executadas
-                  no sistema. Independente do controle financeiro.
+                  Relatório financeiro dos lançamentos com detalhamento por
+                  período, empresa e documentação comprobatória.
                 </p>
               </div>
-              <button class="btn" data-goto="demandas">Ver tarefas</button>
+              <div class="actions accountability-actions">
+                <button class="btn" type="button" id="account-export-csv">
+                  <svg><use href="#i-dl"></use></svg>Exportar planilha
+                </button>
+                <button class="btn primary" type="button" id="account-print">
+                  <svg><use href="#i-file"></use></svg>Gerar relatório A4
+                </button>
+              </div>
             </div>
-            <div class="panel" style="margin-bottom: 16px">
+            <div class="panel accountability-filter-panel">
               <div class="section-head panel-pad">
                 <div>
-                  <h2>Despesas por banco / origem</h2>
-                  <div class="sub" id="spend-sub"></div>
+                  <h2>Definição do relatório</h2>
+                  <div class="sub">Escolha o período e a abrangência dos dados</div>
                 </div>
+                <button class="btn" type="button" id="account-clear">Limpar filtros</button>
               </div>
-              <div class="panel-pad" id="dash-spend"></div>
+              <div class="accountability-filters" id="account-filters"></div>
             </div>
-            <div class="panel">
-              <div class="section-head panel-pad">
-                <div>
-                  <h2>Planilha histórica por mês</h2>
-                  <div class="sub">
-                    Registros da planilha histórica e despesas por mês
-                  </div>
-                </div>
-                <span class="muted" id="history-count"></span>
-              </div>
-              <div class="filters" id="history-filters"></div>
-              <div id="history-summary" class="history-summary"></div>
-              <div class="table-wrap" id="history-table"></div>
-              <div id="history-pager" class="history-pager"></div>
-            </div>
-            <div class="section panel">
-              <div class="section-head panel-pad">
-                <div>
-                  <h2>Tarefas atribuídas e executadas no sistema</h2>
-                  <div class="sub">
-                    Prazos, responsáveis e andamento cadastrados
-                  </div>
-                </div>
-              </div>
-              <div class="filters" id="tasks-history-filters"></div>
-              <div class="table-wrap" id="tasks-history-table"></div>
+            <div id="account-report" class="account-report-sheet" aria-live="polite"></div>
+            <div class="accountability-screen-footer">
+              <span id="account-result-count"></span>
+              <span>Relatório gerado com os dados atuais do sistema</span>
             </div>
           </section>
           <section
