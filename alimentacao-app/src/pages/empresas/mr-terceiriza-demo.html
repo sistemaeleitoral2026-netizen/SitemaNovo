@@ -255,17 +255,6 @@ table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
 .r-red svg{color:var(--red)}.r-blue svg{color:var(--blue)}.r-green svg{color:var(--green)}
 .rules .with-ico svg{color:#2563eb}
 
-/* Vendas da loja (Phibo) */
-.auto-tag{display:inline-block;font-size:11px;font-weight:600;color:#7c3aed;background:#f3e8ff;border-radius:999px;padding:2px 8px;white-space:nowrap;vertical-align:middle}
-.ph-status{display:flex;align-items:center;gap:10px;background:var(--green-soft);color:#14532d;border:1px solid #bbe5c8;border-radius:var(--radius);padding:10px 14px;margin:0 0 14px;font-size:13px}
-.ph-status>svg{width:18px;height:18px;flex:none;color:var(--green)}
-.ph-status span{flex:1}
-.ph-status.warn{background:#fef6e0;border-color:#f6dfa4;color:#7c4a03}.ph-status.warn>svg{color:#d97706}
-.ph-status.bad{background:var(--red-soft);border-color:#f5c2c2;color:#7f1d1d}.ph-status.bad>svg{color:var(--red)}
-.dot.gray{background:#94a3b8}
-.ph-steps{font-size:13px;line-height:1.6;margin:12px 0 8px;padding-left:20px}
-.ph-code{display:block;font-size:11px;background:var(--gray-soft);border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin:0 0 8px;word-break:break-all;user-select:all}
-
 /* Contratos */
 .co-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:0 0 14px}
 .co-tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:10px 18px;font-weight:600;font-size:14px;color:var(--muted);margin-bottom:-1px}
@@ -529,7 +518,6 @@ let audit=[];
 let contracts=EMBED?[]:[{id:'k-demo',company:'globo',name:'Contrato A',total:120000,cc:'Eventos',start:'2026-10',months:12,notes:'',createdById:''}];
 let centros=EMBED?[]:['Eventos','Coleta','Obras'];
 let perms={},users=[],structOk=true,coTab='geral',contractId=null,contractEditing=null;
-let phibo=null,phiboBusy=false;
 let page='dashboard',company='',filterFrom='2026-10-01',filterTo='2026-10-31',draftFiles=[],editing=null,showAll=false;
 let fileMem={},cloudTimer=null,cloudReq=0,cloudPending={},persistBusyRetries=0;
 
@@ -546,9 +534,7 @@ const title=(name,desc,tools='')=>`<div class="page-heading"><div><h1>${name}</h
 const card=(head,body,action='',cls='')=>`<section class="card ${cls}"><div class="card-head"><span>${head}</span>${action}</div><div class="card-body">${body}</div></section>`;
 const emptyBox=(icon,head,text)=>`<div class="empty">${ico(icon,1.6)}<b>${head}</b>${text}</div>`;
 const newBtn=`<button class="btn primary" onclick="showForm()">${ico('plus')} Novo lançamento</button>`;
-const isAuto=e=>e?.origem==='phibo';
-const autoTag='<span class="auto-tag" title="Importado automaticamente do Phibo">Automático</span>';
-const editCell=e=>isAuto(e)?autoTag:`<button class="link" onclick="showForm('${e.id}')">Editar</button>`;
+const editCell=e=>`<button class="link" onclick="showForm('${e.id}')">Editar</button>`;
 const companyLabel=()=>{const c=companyById(company);return c?`${esc(c.nome)} · ${esc(c.tipo)}`:'Todas as empresas'};
 const coFilter=()=>`<select id="coFilter" aria-label="Empresa"><option value="">Todas as empresas</option>${companies.map(c=>`<option value="${c.id}" ${company===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}</select>`;
 
@@ -589,14 +575,13 @@ function renderDashboard(){
   const nIn=a.filter(e=>e.type==='entrada').length,nOut=a.filter(e=>e.type==='saida').length;
   const last=a.slice().sort((x,y)=>y.date.localeCompare(x.date)).slice(0,5);
   const aud=c?audit.filter(x=>x.company===company).slice(0,5):[];
-  const tabList=c?.licitado?[['geral','Geral'],['contratos',`Contratos (${contracts.filter(k=>k.company===c.id).length})`]]:c?.id==='re-fashion'?[['geral','Geral'],['vendas','Vendas da loja']]:[];
+  const tabList=c?.licitado?[['geral','Geral'],['contratos',`Contratos (${contracts.filter(k=>k.company===c.id).length})`]]:[];
   const tab=tabList.some(t=>t[0]===coTab)?coTab:'geral';
   const tabs=tabList.length?`<div class="co-tabs">${tabList.map(([id,l])=>`<button class="${tab===id?'active':''}" onclick="setCoTab('${id}')">${l}</button>`).join('')}</div>`:'';
   const head=title('Painel Financeiro',c?`Mostrando ${esc(c.nome)} · ${esc(c.tipo)}. Clique na empresa de novo para limpar.`:'Selecione uma empresa para visualizar as informações.',tab==='geral'?rangeBox():'')
   +`<div class="section-title"><span>Empresas</span><button class="link" onclick="toggleAll()">${showAll?'Ver menos':'Ver todas'}</button></div>`
   +card('Empresas',companyTiles(),'','companies')+tabs;
   if(tab==='contratos'){view().innerHTML=head+contractsBlock(c.id);return}
-  if(tab==='vendas'){view().innerHTML=head+vendasBlock();return}
   view().innerHTML=head
   +`<div class="metric-grid">`
     +metric('arrow-down','mi-green','Total de entradas','Entradas',fmt(s.in),c?`${nIn} lançamento(s)`:pick)
@@ -610,7 +595,7 @@ function renderDashboard(){
     +card('Resumo do período',`<div class="sumline"><span>Total de entradas</span><b>${fmt(s.in)}</b></div><div class="sumline"><span>Total de saídas</span><b class="negative">${fmt(s.out)}</b></div><div class="sumline"><span>Diferença</span><b>${fmt(s.in-s.out)}</b></div><div class="sumline"><span>Total de lançamentos</span><b>${a.length}</b></div>`)
   +`</div>`
   +`<div class="row-3">`
-    +card('Últimos lançamentos',`<div class="table-wrap"><table class="tbl"><thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Empresa</th><th>Conta de origem</th><th>Ações</th></tr></thead>${last.length?`<tbody>${last.map(e=>`<tr><td>${short(e.date)}</td><td>${esc(e.desc)}</td><td class="${e.type==='entrada'?'type-in':'type-out'}">${e.type==='entrada'?'Entrada':'Saída'}</td><td>${fmt(e.value)}</td><td>${esc(companyName(e.company))}</td><td>${esc(e.account)}</td><td>${editCell(e)}</td></tr>`).join('')}</tbody>`:''}</table></div>${last.length?'':emptyBox('file','Nenhum lançamento encontrado',c?'Esta empresa não tem lançamentos no período.':'Selecione uma empresa para visualizar os lançamentos.')}`,`<button class="link" onclick="navigate('lancamentos')">Ver todos</button>`)
+    +card('Últimos lançamentos',`<div class="table-wrap"><table class="tbl"><thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Empresa</th><th>Conta de origem</th><th>Ações</th></tr></thead>${last.length?`<tbody>${last.map(e=>`<tr><td>${short(e.date)}</td><td>${esc(e.desc)}</td><td class="${e.type==='entrada'?'type-in':'type-out'}">${e.type==='entrada'?'Entrada':'Saída'}</td><td>${fmt(e.value)}</td><td>${esc(companyName(e.company))}</td><td>${esc(e.account)}</td><td><button class="link" onclick="showForm('${e.id}')">Editar</button></td></tr>`).join('')}</tbody>`:''}</table></div>${last.length?'':emptyBox('file','Nenhum lançamento encontrado',c?'Esta empresa não tem lançamentos no período.':'Selecione uma empresa para visualizar os lançamentos.')}`,`<button class="link" onclick="navigate('lancamentos')">Ver todos</button>`)
     +card('Últimas auditorias',`<div class="table-wrap"><table class="tbl"><thead><tr><th>Data</th><th>Usuário</th><th>Ação</th><th>Descrição</th></tr></thead>${aud.length?`<tbody>${aud.map(x=>`<tr><td>${short(x.date)}</td><td>${esc(x.user)}</td><td>${esc(x.action)}</td><td>${esc(x.desc)}</td></tr>`).join('')}</tbody>`:''}</table></div>${aud.length?'':emptyBox('clock','Nenhum registro de auditoria',c?'Ainda não há alterações registradas nesta empresa.':'Selecione uma empresa para visualizar o histórico.')}`,`<button class="link" onclick="navigate('auditoria')">Ver todas</button>`)
   +`</div>`;
   wireDates();
@@ -621,86 +606,6 @@ function openFile(id,i){const f=entries.find(e=>e.id===id)?.files[i];if(!f?.url)
 // Tabela no estilo planilha: letras de coluna, números de linha, grade e total no rodapé.
 function sheet(a,o={}){if(!a.length)return emptyBox('file','Nenhum lançamento encontrado','Ajuste a empresa ou o período.');a=a.slice().sort((x,y)=>y.date.localeCompare(x.date));const cols=[['Data',e=>short(e.date)],...(company?[]:[['Empresa',e=>esc(companyName(e.company))]]),...(o.type?[]:[['Tipo',e=>e.type==='entrada'?'Entrada':'Saída']]),['Descrição',e=>esc(e.desc),'wrap'],['Conta',e=>esc(e.account)],['Forma de pagamento',e=>esc(e.method||'—')],['Valor',e=>`<span class="${e.type==='entrada'?'positive':'negative'}">${fmt(e.value)}</span>`,'num'],['Comprovantes',thumbs],...(o.edit?[['',editCell]]:[])];const s=sums(a),total=o.type?(o.type==='entrada'?s.in:s.out):s.in-s.out,vi=cols.findIndex(c=>c[0]==='Valor');return `<div class="sheet-hint">Deslize a tabela para o lado para ver todas as colunas</div><div class="sheet-wrap"><table class="sheet"><thead><tr class="cols"><th class="rn"></th>${cols.map((_,i)=>`<th>${String.fromCharCode(65+i)}</th>`).join('')}</tr><tr class="heads"><th class="rn">1</th>${cols.map(c=>`<th class="${c[2]||''}">${c[0]}</th>`).join('')}</tr></thead><tbody>${a.map((e,r)=>`<tr><td class="rn">${r+2}</td>${cols.map(c=>`<td class="${c[2]||''}">${c[1](e)}</td>`).join('')}</tr>`).join('')}</tbody><tfoot><tr><td class="rn">${a.length+2}</td>${cols.map((c,i)=>`<td class="${c[2]||''}">${i===0?(o.type?'Total':'Saldo'):i===vi?`<span class="${total<0||o.type==='saida'?'negative':'positive'}">${fmt(total)}</span>`:''}</td>`).join('')}</tr></tfoot></table></div>`}
 
-// ====== Vendas da loja (RE FASHION, importadas do Phibo pelo servidor) ======
-const dtHora=iso=>{if(!iso)return '—';const d=new Date(iso);return isNaN(d)?'—':d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})};
-const num=v=>Number(v)||0;
-const pctTxt=v=>(v>0?'+':'')+v.toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
-function phiboStatusLine(){
-  const s=phibo?.status;
-  if(!s?.conectado)return `<div class="ph-status warn">${ico('info')}<span>Phibo não conectado.${ME.admin?' Conecte em Configurações.':' Peça ao administrador para conectar.'}</span>${ME.admin?`<button class="btn sm" onclick="navigate('config')">Conectar</button>`:''}</div>`;
-  const err=s.ultimoErro;
-  return `<div class="ph-status ${err?'bad':''}">${ico(err?'info':'check-circle')}<span>${err?`Última tentativa falhou: ${esc(err)}.`:'Atualiza sozinho de hora em hora.'} Última atualização: <b>${dtHora(s.ultimoOk)}</b></span>${ME.admin?`<button class="btn sm" ${phiboBusy?'disabled':''} onclick="phiboSync()">${ico('refresh')} ${phiboBusy?'Sincronizando…':'Sincronizar agora'}</button>`:''}</div>`;
-}
-function vendasChart(dias,ant){
-  const W=620,H=210,L=44,R=12,T=10,B=26,n=Math.max(dias.length,ant.length,1);
-  const max=Math.max(1,...dias.map(d=>num(d.valor)),...ant.map(d=>num(d.valor)));
-  const bw=(W-L-R)/n,x=i=>L+i*bw,y=v=>T+(H-T-B)*(1-v/max);
-  let g='';for(let i=0;i<=4;i++){const v=max*i/4;g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="#eef1f5"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end" font-size="10" fill="#64748b">${v>=1000?(v/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mil':Math.round(v)}</text>`}
-  dias.forEach((d,i)=>{const v=num(d.valor);if(v>0)g+=`<rect x="${x(i)+bw*.15}" y="${y(v)}" width="${bw*.7}" height="${H-B-y(v)}" rx="2" fill="#16a34a"><title>Dia ${d.dia}: ${fmt(v)} · ${num(d.qtdeVendas)} venda(s)</title></rect>`});
-  if(ant.length)g+=`<polyline fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="4 3" points="${ant.map((d,i)=>(x(i)+bw/2)+','+y(num(d.valor))).join(' ')}"/>`;
-  for(let i=0;i<n;i+=5)g+=`<text x="${x(i)+bw/2}" y="${H-6}" text-anchor="middle" font-size="10" fill="#64748b">${i+1}</text>`;
-  g+=`<line x1="${L}" x2="${W-R}" y1="${H-B}" y2="${H-B}" stroke="#cbd5e1"/>`;
-  return `<svg class="axes" viewBox="0 0 ${W} ${H}" role="img" aria-label="Vendas por dia no mês">${g}</svg>`;
-}
-function vendasBlock(){
-  if(!phibo)return card('Vendas da loja',emptyBox('settings','Integração com o Phibo ainda não preparada','Rode o arquivo 20261117c_mr_phibo.sql no SQL Editor do Supabase e recarregue esta página.'));
-  const r=phibo.resumo,v=r?.vendasMes;
-  if(!v||!Array.isArray(v.diasMes))return phiboStatusLine()+card('Vendas da loja',emptyBox('chart','Ainda sem dados do Phibo','Os números aparecem aqui depois da primeira sincronização.'));
-  const hoje=String(v.hoje||'').slice(0,10),hd=+hoje.slice(8,10)||31,ym=r.mes||hoje.slice(0,7);
-  const dias=v.diasMes,ant=Array.isArray(v.diasMesAnterior)?v.diasMesAnterior:[];
-  const tot=dias.reduce((s,d)=>s+num(d.valor),0),qt=dias.reduce((s,d)=>s+num(d.qtdeVendas),0),ticket=qt?tot/qt:0;
-  const antAte=ant.filter(d=>num(d.dia)<=hd).reduce((s,d)=>s+num(d.valor),0),antTot=ant.reduce((s,d)=>s+num(d.valor),0);
-  const varPct=antAte?(tot-antAte)/antAte*100:null;
-  const abertos=num(v.diasAbertosAteHoje)||dias.filter(d=>d.lojaAberta===true||num(d.valor)>0).length,abertosMes=num(v.diasAbertosMes);
-  const media=abertos?tot/abertos:0,proj=abertosMes?media*abertosMes:null;
-  const metaV=typeof v.meta==='number'?v.meta:num(v.meta?.valor)||null,sug=num(v.sugestaoMeta?.valor)||null,alvo=metaV||sug,pct=alvo?tot/alvo*100:null;
-  const vend=(Array.isArray(v.vendedores)?v.vendedores:[]).map(s=>{const ds=Array.isArray(s.dias)?s.dias:[];const t=ds.reduce((a,d)=>a+num(d.valor),0),q=ds.reduce((a,d)=>a+num(d.qtdeVendas),0);const m=typeof s.valorMeta==='number'?s.valorMeta:num(s.valorMeta?.valor);return {nome:s.nome||'—',t,q,m}}).sort((a,b)=>b.t-a.t);
-  const t0=r.totais&&typeof r.totais==='object'?r.totais:null,tt=t0&&!('valorTotal' in t0)&&t0.totais&&typeof t0.totais==='object'?t0.totais:t0;
-  const TOT=[['valorTotal','Valor bruto vendido'],['totalDescto','Descontos'],['valorLiquido','Valor líquido'],['totalPago','Já recebido'],['valorTotalAReceber','A receber'],['totalAPagarAVencer','A receber (a vencer)'],['totalAPagarVencido','A receber (vencido)'],['juros','Juros']].filter(([k])=>tt&&tt[k]!=null&&isFinite(Number(tt[k])));
-  const comVenda=dias.filter(d=>num(d.valor)>0||num(d.qtdeVendas)>0).slice().reverse();
-  const daySheet=comVenda.length?`<div class="sheet-wrap"><table class="sheet"><thead><tr class="heads"><th class="rn">#</th><th>Dia</th><th class="num">Vendido</th><th class="num">Vendas</th><th class="num">Ticket médio</th><th class="num">Mesmo dia mês anterior</th></tr></thead><tbody>${comVenda.map((d,i)=>{const a=ant.find(x=>num(x.dia)===num(d.dia));return `<tr class="${num(d.dia)===hd?'cur':''}"><td class="rn">${i+1}</td><td>${String(d.dia).padStart(2,'0')}/${ym.slice(5,7)}${num(d.dia)===hd?' <span class="muted">(hoje)</span>':''}</td><td class="num positive">${fmt(d.valor)}</td><td class="num">${num(d.qtdeVendas)}</td><td class="num">${fmt(num(d.qtdeVendas)?num(d.valor)/num(d.qtdeVendas):0)}</td><td class="num muted">${a?fmt(a.valor):'—'}</td></tr>`}).join('')}</tbody><tfoot><tr><td class="rn"></td><td>Total</td><td class="num positive">${fmt(tot)}</td><td class="num">${qt}</td><td class="num">${fmt(ticket)}</td><td class="num muted">${fmt(antAte)}</td></tr></tfoot></table></div>`:emptyBox('chart','Nenhuma venda neste mês ainda','');
-  return phiboStatusLine()
-  +`<div class="metric-grid">`
-    +metric('arrow-down','mi-green',`Faturamento de ${ymLabel(ym)}`,'Faturamento',`<span class="positive">${fmt(tot)}</span>`,`${qt} venda(s) · ${abertos} dia(s) de loja aberta`)
-    +metric('card','mi-blue','Ticket médio','Ticket',fmt(ticket),`${fmt(media)} por dia aberto`)
-    +metric('chart','mi-gray','Comparado ao mês anterior','Vs. anterior',varPct==null?'—':`<span class="${varPct<0?'negative':'positive'}">${pctTxt(varPct)}</span>`,`Até o dia ${hd} do mês passado: ${fmt(antAte)}`)
-    +metric('shield-ok','mi-yellow',metaV?'Meta do mês':'Meta sugerida','Meta',alvo?fmt(alvo):'—',pct==null?'Sem meta cadastrada no Phibo':`${pct.toLocaleString('pt-BR',{maximumFractionDigits:0})}% atingido${metaV?'':' (sugestão do Phibo)'}`)
-    +metric('clock','mi-gray','Projeção do mês','Projeção',proj==null?'—':fmt(proj),proj==null?'':`Mantendo a média · mês passado fechou em ${fmt(antTot)}`)
-  +`</div>`
-  +`<div class="row-2">`
-    +card('Vendas por dia',`<div class="chart">${vendasChart(dias,ant)}</div>`,`<div class="legend"><span><i class="dot"></i>Este mês</span><span><i class="dot gray"></i>Mês anterior</span></div>`)
-    +card('Recebimentos do mês',TOT.length?TOT.map(([k,l])=>`<div class="sumline"><span>${l}</span><b class="${/\(vencido\)/.test(l)&&num(tt[k])>0?'negative':''}">${fmt(tt[k])}</b></div>`).join(''):'<div class="muted" style="font-size:13px">O Phibo não devolveu os totais de recebimento nesta sincronização.</div>')
-  +`</div>`
-  +`<div class="row-2">`
-    +card('Vendedoras',vend.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Nome</th><th>Vendido</th><th>Vendas</th><th>Ticket médio</th><th>% da loja</th>${vend.some(s=>s.m)?'<th>Meta</th>':''}</tr></thead><tbody>${vend.map(s=>`<tr><td><b>${esc(s.nome)}</b></td><td class="positive">${fmt(s.t)}</td><td>${s.q}</td><td>${fmt(s.q?s.t/s.q:0)}</td><td>${tot?(s.t/tot*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%':'—'}</td>${vend.some(x=>x.m)?`<td>${s.m?fmt(s.m)+` (${(s.t/s.m*100).toFixed(0)}%)`:'—'}</td>`:''}</tr>`).join('')}</tbody></table></div>`:emptyBox('users','Sem vendas por vendedora',''))
-    +card('Como entra no financeiro',`<div style="font-size:13px;line-height:1.55">Cada dia com venda vira uma <b>entrada automática</b> da RE FASHION na conta <b>Caixa</b> (descrição “Vendas do dia … (Phibo)”). Ela aparece em Lançamentos e no Geral com a etiqueta ${autoTag} e é corrigida sozinha se a venda mudar no Phibo.</div>`)
-  +`</div>`
-  +card('Dia a dia',daySheet,`<span class="muted" style="font-size:12px">Dados de ${dtHora(r.atualizadoEm)}</span>`);
-}
-function phiboConnect(tok){
-  tok=String(tok||'').trim();if(!tok)return;
-  if(!EMBED){toast('Disponível só dentro do Nerites.');return}
-  phiboBusy=true;render();toParent({type:'mr-phibo-conectar',requestId:'ph'+Date.now(),token:tok});
-}
-function phiboSync(){
-  if(!EMBED){toast('Disponível só dentro do Nerites.');return}
-  phiboBusy=true;render();toParent({type:'mr-phibo-sync',requestId:'ph'+Date.now()});
-}
-const PHIBO_SNIPPET="copy((()=>{for(const [k,v] of [...Object.entries(localStorage),...Object.entries(sessionStorage)]){if(/refresh/i.test(k))return v;try{const o=JSON.parse(v);const f=o&&(o.refreshToken||o.refresh_token);if(f)return f}catch(e){}}return 'NAO ACHEI'})())";
-function phiboConfigCard(){
-  if(!ME.admin)return '';
-  const head='Integração Phibo (RE FASHION)';
-  if(!phibo)return card(head,'<div class="muted" style="font-size:13px">Rode o arquivo 20261117c_mr_phibo.sql no SQL Editor do Supabase e recarregue esta página.</div>');
-  const s=phibo.status||{};
-  return card(head,`<div class="sumline"><span>Situação</span><b class="${s.conectado?(s.ultimoErro?'negative':'positive'):'warn'}">${s.conectado?(s.ultimoErro?'Conectado, com erro':'Conectado'):'Não conectado'}</b></div>`
-    +`<div class="sumline"><span>Última atualização com sucesso</span><b>${dtHora(s.ultimoOk)}</b></div>`
-    +(s.ultimoErro?`<div class="sumline"><span>Último erro</span><span class="negative" style="text-align:right">${esc(s.ultimoErro)}</span></div>`:'')
-    +`<ol class="ph-steps"><li>Entre no Phibo (app.phibo.com.br) neste computador.</li><li>Aperte <b>F12</b>, abra a aba <b>Console</b>, cole o comando abaixo e aperte <b>Enter</b> — ele copia a chave da sessão.</li><li>Cole a chave no campo e clique em <b>Conectar</b>.</li></ol>`
-    +`<code class="ph-code">${esc(PHIBO_SNIPPET)}</code><button type="button" class="btn sm" onclick="navigator.clipboard?.writeText(PHIBO_SNIPPET).then(()=>toast('Comando copiado'),()=>toast('Selecione e copie o comando'))">Copiar comando</button>`
-    +`<form class="inline-form" onsubmit="event.preventDefault();phiboConnect(this.tok.value)"><input name="tok" type="password" autocomplete="off" placeholder="Cole aqui a chave do Phibo" required aria-label="Chave do Phibo"><button class="btn primary" ${phiboBusy?'disabled':''}>${phiboBusy?'Conectando…':'Conectar'}</button></form>`
-    +(s.conectado?`<button class="btn" style="margin-top:10px" ${phiboBusy?'disabled':''} onclick="phiboSync()">${ico('refresh')} ${phiboBusy?'Sincronizando…':'Sincronizar agora'}</button>`:'')
-    +`<p class="muted" style="font-size:12px;margin:12px 0 0">A chave fica guardada só no servidor (ninguém consegue ler pela tela). O sistema puxa as vendas de hora em hora e lança uma entrada por dia na RE FASHION. Se o Phibo ficar mais de um dia sem ser consultado, a chave vence — aí é só conectar de novo.</p>`);
-}
 
 // ====== Contratos (empresas licitadas: GLOBO, MCC, MR) ======
 const MESES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
@@ -841,17 +746,17 @@ function updateLanc(){
   const a=filtered(),s=sums(a),nIn=a.filter(e=>e.type==='entrada').length;
   const pages=Math.max(1,Math.ceil(a.length/PAGE));lf.page=Math.min(lf.page,pages);const start=(lf.page-1)*PAGE,rows=a.slice(start,start+PAGE);
   document.getElementById('lancStats').innerHTML=`<div class="metric-grid">${metric('file','mi-blue','Total de lançamentos','Lançamentos',a.length,'no período selecionado')}${lancType?(lancType==='entrada'?metric('arrow-down','mi-green','Total de entradas','Entradas',`<span class="positive">${fmt(s.in)}</span>`,`${nIn} lançamentos`):metric('arrow-up','mi-red','Total de saídas','Saídas',`<span class="negative">${fmt(s.out)}</span>`,`${a.length-nIn} lançamentos`)):metric('arrow-down','mi-green','Total de entradas','Entradas',`<span class="positive">${fmt(s.in)}</span>`,`${nIn} lançamentos`)+metric('arrow-up','mi-red','Total de saídas','Saídas',`<span class="negative">${fmt(s.out)}</span>`,`${a.length-nIn} lançamentos`)}</div>`;
-  document.getElementById('lancTable').innerHTML=a.length?`<div class="table-wrap"><table class="tbl lanc"><thead><tr><th>Data</th><th>Empresa</th>${lancType?'':'<th>Tipo</th>'}<th>Descrição</th><th>Contrato</th><th>Conta de origem/destino</th><th>Forma de pagamento</th><th>Valor</th><th>Comprovante</th><th>Ações</th></tr></thead><tbody>${rows.map(e=>`<tr><td data-label="Data">${short(e.date)}</td><td class="wrap" data-label="Empresa">${esc(companyName(e.company))}</td>${lancType?'':`<td data-label="Tipo" class="${e.type==='entrada'?'type-in':'type-out'}">${e.type==='entrada'?'Entrada':'Saída'}</td>`}<td class="wrap desc c-desc">${esc(e.desc)}${isAuto(e)?' '+autoTag:''}</td><td class="wrap" data-label="Contrato">${e.contract&&contractById(e.contract)?`<button class="link" onclick="openContract('${e.contract}')">${esc(contractName(e.contract))}</button>`:'<span class="muted">—</span>'}</td><td class="wrap" data-label="Conta">${esc(e.account)}</td><td class="wrap" data-label="Pagamento">${esc(e.method)}</td><td data-label="Valor" class="c-valor ${e.type==='entrada'?'positive':'negative'}">${fmt(e.value)}</td><td data-label="Comprovante">${e.files.length?e.files.map((f,i)=>`<button class="link file-link" onclick="openFile('${e.id}',${i})">${esc(f.name)}</button>`).join('<br>'):'<span class="muted">Sem anexo</span>'}</td><td class="c-acoes"><button class="icon-btn row-act" aria-label="Ações" onclick="rowMenu(event,'${e.id}')">${ico('dots')}</button></td></tr>`).join('')}</tbody></table></div><div class="pager"><span class="muted">Mostrando ${start+1} a ${start+rows.length} de ${a.length} lançamentos</span><div class="pager-btns"><button class="btn sm" ${lf.page===1?'disabled':''} onclick="goPage(${lf.page-1})">${ico('chevron-left',2)} Anterior</button>${Array.from({length:pages},(_,i)=>`<button class="btn sm ${i+1===lf.page?'current':''}" onclick="goPage(${i+1})">${i+1}</button>`).join('')}<button class="btn sm" ${lf.page===pages?'disabled':''} onclick="goPage(${lf.page+1})">Próxima ${ico('chevron-right',2)}</button></div></div>`:emptyBox('file','Nenhum lançamento encontrado','Ajuste os filtros ou o período.');
+  document.getElementById('lancTable').innerHTML=a.length?`<div class="table-wrap"><table class="tbl lanc"><thead><tr><th>Data</th><th>Empresa</th>${lancType?'':'<th>Tipo</th>'}<th>Descrição</th><th>Contrato</th><th>Conta de origem/destino</th><th>Forma de pagamento</th><th>Valor</th><th>Comprovante</th><th>Ações</th></tr></thead><tbody>${rows.map(e=>`<tr><td data-label="Data">${short(e.date)}</td><td class="wrap" data-label="Empresa">${esc(companyName(e.company))}</td>${lancType?'':`<td data-label="Tipo" class="${e.type==='entrada'?'type-in':'type-out'}">${e.type==='entrada'?'Entrada':'Saída'}</td>`}<td class="wrap desc c-desc">${esc(e.desc)}</td><td class="wrap" data-label="Contrato">${e.contract&&contractById(e.contract)?`<button class="link" onclick="openContract('${e.contract}')">${esc(contractName(e.contract))}</button>`:'<span class="muted">—</span>'}</td><td class="wrap" data-label="Conta">${esc(e.account)}</td><td class="wrap" data-label="Pagamento">${esc(e.method)}</td><td data-label="Valor" class="c-valor ${e.type==='entrada'?'positive':'negative'}">${fmt(e.value)}</td><td data-label="Comprovante">${e.files.length?e.files.map((f,i)=>`<button class="link file-link" onclick="openFile('${e.id}',${i})">${esc(f.name)}</button>`).join('<br>'):'<span class="muted">Sem anexo</span>'}</td><td class="c-acoes"><button class="icon-btn row-act" aria-label="Ações" onclick="rowMenu(event,'${e.id}')">${ico('dots')}</button></td></tr>`).join('')}</tbody></table></div><div class="pager"><span class="muted">Mostrando ${start+1} a ${start+rows.length} de ${a.length} lançamentos</span><div class="pager-btns"><button class="btn sm" ${lf.page===1?'disabled':''} onclick="goPage(${lf.page-1})">${ico('chevron-left',2)} Anterior</button>${Array.from({length:pages},(_,i)=>`<button class="btn sm ${i+1===lf.page?'current':''}" onclick="goPage(${i+1})">${i+1}</button>`).join('')}<button class="btn sm" ${lf.page===pages?'disabled':''} onclick="goPage(${lf.page+1})">Próxima ${ico('chevron-right',2)}</button></div></div>`:emptyBox('file','Nenhum lançamento encontrado','Ajuste os filtros ou o período.');
 }
 function goPage(p){lf.page=p;updateLanc()}
 function clearFilters(){lf={q:'',type:'',account:'',method:'',page:1};company='';filterFrom=DEFAULT_FROM;filterTo=DEFAULT_TO;render()}
 function hideMenus(){document.getElementById('userMenu').classList.add('hidden');document.getElementById('rowMenu').classList.add('hidden')}
 function rowMenu(ev,id){
   ev.stopPropagation();const m=document.getElementById('rowMenu'),e=entries.find(x=>x.id===id),r=ev.currentTarget.getBoundingClientRect();
-  m.innerHTML=isAuto(e)?'<button disabled>Lançado automaticamente pelo Phibo</button>':`<button onclick="showForm('${id}')">Editar</button><button class="danger" onclick="removeEntry('${id}')">Excluir</button>`;
+  m.innerHTML=`<button onclick="showForm('${id}')">Editar</button><button class="danger" onclick="removeEntry('${id}')">Excluir</button>`;
   m.classList.remove('hidden');m.style.top=(r.bottom+window.scrollY+4)+'px';m.style.left=Math.max(8,r.right+window.scrollX-m.offsetWidth)+'px';
 }
-function removeEntry(id){const e=entries.find(x=>x.id===id);hideMenus();if(!e||isAuto(e))return;if(!confirm(`Excluir o lançamento "${e.desc}"?`))return;entries=entries.filter(x=>x.id!==id);audit.unshift({id:crypto.randomUUID(),date:stamp(),user:ME.nome,action:'Exclusão',desc:e.desc,company:e.company});render();scheduleCloudSave()}
+function removeEntry(id){const e=entries.find(x=>x.id===id);hideMenus();if(!e)return;if(!confirm(`Excluir o lançamento "${e.desc}"?`))return;entries=entries.filter(x=>x.id!==id);audit.unshift({id:crypto.randomUUID(),date:stamp(),user:ME.nome,action:'Exclusão',desc:e.desc,company:e.company});render();scheduleCloudSave()}
 
 const fsec=(icon,head,body)=>`<section class="card fsec"><div class="card-head"><span class="with-ico">${ico(icon)} ${head}</span></div><div class="card-body">${body}</div></section>`;
 const req=t=>`<span>${t} <b class="req">*</b></span>`;
@@ -859,7 +764,6 @@ function fillAccounts(co,sel){document.getElementById('fAccount').innerHTML='<op
 function fillContracts(co,sel){const wrap=document.getElementById('fContractWrap'),el=document.getElementById('fContract');if(!wrap||!el)return;const list=contracts.filter(k=>k.company===co);wrap.classList.toggle('hidden',!companyById(co)?.licitado&&!list.length);el.innerHTML=opt('','Sem contrato',sel||'')+list.map(k=>opt(k.id,k.name,sel||'')).join('')}
 let formBack='lancamentos';
 function showForm(id,presetType='',presetContract=''){
-  if(id&&isAuto(entries.find(x=>x.id===id))){toast('Lançamento automático do Phibo: é atualizado sozinho e não pode ser editado aqui.');return}
   formBack=page==='form'?formBack:page;if(!['lancamentos','entradas','saidas','contrato'].includes(formBack))formBack='lancamentos';
   editing=id??null;draftFiles=[];page='form';markNav(formBack==='contrato'?'contratos':formBack);hideMenus();
   const e=entries.find(x=>x.id===id),pk=contractById(presetContract),co=e?.company||pk?.company||company;keptFiles=[...(e?.files||[])];
@@ -953,8 +857,7 @@ function togglePerm(uid,coId,on){
 function renderConfig(){
   const list=centros.slice().sort((a,b)=>a.localeCompare(b,'pt-BR'));
   view().innerHTML=title('Configurações','Cadastros usados nos contratos e lançamentos.')
-  +card('Centros de custo',(list.length?list.map(n=>`<div class="sumline"><span>${esc(n)}</span><span class="muted">${contracts.filter(k=>k.cc===n).length} contrato(s)</span></div>`).join(''):'<div class="muted" style="font-size:13px">Nenhum centro de custo cadastrado ainda.</div>')+`<form class="inline-form" onsubmit="event.preventDefault();addCentro(this.nome.value);"><input name="nome" placeholder="Novo centro de custo" required maxlength="80"><button class="btn">${ico('plus')} Adicionar</button></form>`)
-  +(ME.admin?'<div style="height:14px"></div>'+phiboConfigCard():'');
+  +card('Centros de custo',(list.length?list.map(n=>`<div class="sumline"><span>${esc(n)}</span><span class="muted">${contracts.filter(k=>k.cc===n).length} contrato(s)</span></div>`).join(''):'<div class="muted" style="font-size:13px">Nenhum centro de custo cadastrado ainda.</div>')+`<form class="inline-form" onsubmit="event.preventDefault();addCentro(this.nome.value);"><input name="nome" placeholder="Novo centro de custo" required maxlength="80"><button class="btn">${ico('plus')} Adicionar</button></form>`);
 }
 
 // ====== Ponte com o React (Supabase): hidratação e salvamento na nuvem ======
@@ -971,7 +874,7 @@ async function collectPendingFiles(){
 }
 function toServerSnapshot(){
   return {
-    lancamentos:entries.map(e=>({id:e.id,empresa:e.company,data:e.date,tipo:e.type,descricao:e.desc,valor:e.value,conta:e.account,formaPagamento:e.method,observacoes:e.notes,contratoId:e.contract||null,origem:e.origem||'',anexos:e.files.map(f=>({id:f.id,name:f.name,type:f.type,size:f.size,path:f.path}))})),
+    lancamentos:entries.map(e=>({id:e.id,empresa:e.company,data:e.date,tipo:e.type,descricao:e.desc,valor:e.value,conta:e.account,formaPagamento:e.method,observacoes:e.notes,contratoId:e.contract||null,anexos:e.files.map(f=>({id:f.id,name:f.name,type:f.type,size:f.size,path:f.path}))})),
     contas:accounts,
     audit:audit.map(a=>({id:a.id,at:a.date,actor:a.user,action:a.action,detail:a.desc,empresa:a.company})),
     contratos:contracts.map(k=>({id:k.id,empresa:k.company,nome:k.name,valorTotal:k.total,centroCusto:k.cc,inicio:k.start,meses:k.months,observacoes:k.notes,criadoPorId:k.createdById})),
@@ -993,8 +896,8 @@ function applyCloudDb(payload){
   entries=Array.isArray(payload.lancamentos)?payload.lancamentos.map(l=>({
     id:l.id,company:l.empresa,date:l.data,type:l.tipo,desc:l.descricao||'',value:Number(l.valor)||0,
     account:l.conta||'',method:l.formaPagamento||'',notes:l.observacoes||'',
-    contract:l.contratoId||null,origem:l.origem||'',
-    created:l.origem==='phibo'?'Phibo (automático)':(l.criadoPor||'—'),
+    contract:l.contratoId||null,
+    created:l.criadoPor||'—',
     files:(l.anexos||[]).map(a=>({id:a.id,name:a.name,type:a.type,size:a.size,path:a.path,url:a.signedUrl})),
   })):[];
   if(payload.contas&&typeof payload.contas==='object'){
@@ -1006,7 +909,6 @@ function applyCloudDb(payload){
   if(payload.permissoes&&typeof payload.permissoes==='object')perms=JSON.parse(JSON.stringify(payload.permissoes));
   if(Array.isArray(payload.usuarios))users=payload.usuarios.slice();
   structOk=payload.estruturaOk!==false;
-  phibo=payload.phibo||null;
   const mine=payload.minhasEmpresas;
   companies=Array.isArray(mine)?ALL_COMPANIES.filter(c=>mine.includes(c.id)):ALL_COMPANIES.slice();
   if(company&&!companies.some(c=>c.id===company))company='';
@@ -1109,7 +1011,6 @@ window.addEventListener('message',e=>{
   const d=e.data||{};
   if(d.type==='mr-hydrate'&&d.payload){applyCloudDb(d.payload);return}
   if(d.type==='mr-persist-ok'){delete cloudPending[d.requestId];persistBusyRetries=0;if(d.payload&&!cloudTimer&&!Object.keys(cloudPending).length)applyCloudDb(d.payload);toast('Salvo na nuvem');return}
-  if(d.type==='mr-phibo-ok'||d.type==='mr-phibo-erro'){phiboBusy=false;toast(d.msg||(d.type==='mr-phibo-ok'?'Phibo sincronizado':'Falha no Phibo'));if(page!=='form'&&page!=='contratoForm')render();return}
   if(d.type==='mr-persist-erro'){delete cloudPending[d.requestId];const msg=d.erro||'Falha ao salvar na nuvem';if(/em andamento/i.test(msg)&&persistBusyRetries<20){persistBusyRetries++;scheduleCloudSave()}else{persistBusyRetries=0;toast(msg)}return}
 });
 toParent('mr-pronto');
