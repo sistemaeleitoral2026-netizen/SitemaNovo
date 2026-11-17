@@ -30,8 +30,8 @@
   <nav style="display:flex;flex-direction:column;gap:2px;padding:16px 12px">
     <span style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#7F93BC;padding:4px 12px 8px;font-weight:600">Sistema do Mandato</span>
     <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="10">
-      <button sc-camel-on-click="{{ n.onClick }}" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:0;border-radius:9px;background:{{ n.bg }};color:{{ n.color }};font-size:14.5px;font-weight:{{ n.fw }};cursor:pointer;text-align:left;width:100%">
-        <i class="ti ti-{{ n.icon }}" style="font-size:19px"></i>
+      <button sc-camel-on-click="{{ n.onClick }}" style="display:flex;align-items:center;gap:12px;padding:10px 12px 10px {{ n.pl }};border:0;border-radius:9px;background:{{ n.bg }};color:{{ n.color }};font-size:{{ n.fsz }};font-weight:{{ n.fw }};cursor:pointer;text-align:left;width:100%">
+        <i class="ti ti-{{ n.icon }}" style="font-size:{{ n.isz }}"></i>
         <span style="flex:1">{{ n.label }}</span>
         <sc-if value="{{ n.hasBadge }}" hint-placeholder-val="{{ false }}"><span style="background:#F2B233;color:#3B2A00;font-size:11.5px;font-weight:700;border-radius:20px;padding:2px 8px">{{ n.badge }}</span></sc-if>
       </button>
@@ -568,12 +568,6 @@
     <div style="display:flex;gap:10px;align-items:flex-start;background:#FEF0EF;border:1px solid #F6D2CF;color:#8A1C12;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.4"><i class="ti ti-alert-triangle" style="font-size:19px"></i><span>{{ finErro }}</span></div>
   </sc-if>
 
-  <div style="display:flex;gap:4px;border-bottom:1px solid #DCE3EE;overflow-x:auto">
-    <sc-for list="{{ finTabs }}" as="t" hint-placeholder-count="5">
-      <button sc-camel-on-click="{{ t.onClick }}" style="white-space:nowrap;padding:10px 14px;border:0;background:transparent;font-size:14px;font-weight:600;cursor:pointer;color:{{ t.color }};border-bottom:2px solid {{ t.line }};margin-bottom:-1px">{{ t.label }}</button>
-    </sc-for>
-  </div>
-
   <!-- ---------- PAINEL ---------- -->
   <sc-if value="{{ finIsPainel }}" hint-placeholder-val="{{ true }}">
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:12px;font-variant-numeric:tabular-nums">
@@ -687,23 +681,17 @@
 
   <!-- ---------- VERBAS DA CÂMARA ---------- -->
   <sc-if value="{{ finIsVerbas }}" hint-placeholder-val="{{ false }}">
-    <div style="display:flex;gap:10px;align-items:flex-start;background:#EEF4FE;border:1px solid #D3E1FB;color:#1C3F7A;border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.45"><i class="ti ti-info-circle" style="font-size:19px"></i><span>Dados oficiais, atualizados sozinhos todo dia: salário pela folha da Câmara e VIEP pelo portal de despesas da Prefeitura. A VIEP entra no mês da competência definida na Conciliação; sem isso, entra no mês em que o dinheiro caiu. {{ finAtualizado }}</span></div>
+    <div style="display:flex;gap:10px;align-items:flex-start;background:#EEF4FE;border:1px solid #D3E1FB;color:#1C3F7A;border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.45"><i class="ti ti-info-circle" style="font-size:19px"></i><span>O salário vem automático da folha da Câmara. A VIEP recebida é lançada à mão, mês a mês. {{ finAtualizado }}</span></div>
     <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden">
-      <div style="padding:14px 16px;border-bottom:1px solid #E3E8F0"><h2 style="margin:0;font-size:16px;font-weight:800">Pagamentos da Câmara, mês a mês</h2></div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:14px;border-bottom:1px solid #E3E8F0">
-        <span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#33425C;margin-right:4px"><i class="ti ti-filter" style="font-size:16px"></i>Filtros</span>
-        <sc-raw-select value="{{ verbasFilTipo }}" sc-camel-on-change="{{ verbasOnFilTipo }}" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 30px 0 12px;font-size:14px;background:#fff;color:#13213A;min-width:170px;cursor:pointer"><option value="todos">Todos os meses</option><option value="comSalario">Só com salário</option><option value="comViep">Só com VIEP</option></sc-raw-select>
-        <span style="margin-left:auto;font-size:13px;color:#5B6B85;white-space:nowrap">{{ verbasResumo }}</span>
-      </div>
+      <div style="padding:14px 16px;border-bottom:1px solid #E3E8F0"><h2 style="margin:0;font-size:16px;font-weight:800">Subsídio e VIEP, mês a mês</h2><span style="font-size:13px;color:#5B6B85">{{ verbasResumo }}</span></div>
       <div style="overflow-x:auto">
-        <sc-raw-table style="width:100%;min-width:760px;border-collapse:collapse">
+        <sc-raw-table style="width:100%;min-width:620px;border-collapse:collapse">
           <sc-raw-thead><sc-raw-tr>
             <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Mês</sc-raw-th>
             <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Salário bruto</sc-raw-th>
             <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Descontos</sc-raw-th>
             <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Salário líquido</sc-raw-th>
-            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">VIEP recebida (reembolso)</sc-raw-th>
-            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Diárias/outros</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9">VIEP recebida (lançar)</sc-raw-th>
           </sc-raw-tr></sc-raw-thead>
           <sc-raw-tbody>
             <sc-for list="{{ verbasRows }}" as="v" hint-placeholder-count="5">
@@ -712,59 +700,64 @@
                 <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right">{{ v.bruto }}</sc-raw-td>
                 <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right;color:#B42318">{{ v.desconto }}</sc-raw-td>
                 <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right">{{ v.liquido }}</sc-raw-td>
-                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right;color:#157A3E">{{ v.viep }}</sc-raw-td>
-                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right">{{ v.outros }}</sc-raw-td>
+                <sc-raw-td style="padding:8px 14px;border-bottom:1px solid #E3E8F0;font-size:14px">
+                  <sc-if value="{{ finPodeEditar }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex;gap:6px;align-items:center">
+                      <input type="text" inputmode="decimal" value="{{ v.viepValor }}" sc-camel-on-change="{{ v.onViepInput }}" placeholder="0,00" style="height:36px;width:120px;border:1px solid #DCE3EE;border-radius:8px;padding:0 10px;font-size:13.5px;color:#13213A">
+                      <button type="button" sc-camel-on-click="{{ v.salvarViep }}" style="height:36px;padding:0 12px;border:0;background:#1B5BD0;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;color:#fff">Salvar</button>
+                    </div>
+                  </sc-if>
+                </sc-raw-td>
               </sc-raw-tr>
             </sc-for>
           </sc-raw-tbody>
         </sc-raw-table>
       </div>
-      <sc-if value="{{ noVerbas }}" hint-placeholder-val="{{ false }}"><div style="padding:28px;text-align:center;color:#5B6B85;font-size:14px">Ainda sem dados oficiais. Rode a rotina /api/folha-cron uma vez para a carga inicial.</div></sc-if>
+      <sc-if value="{{ noVerbas }}" hint-placeholder-val="{{ false }}"><div style="padding:28px;text-align:center;color:#5B6B85;font-size:14px">Ainda sem dados. Rode a rotina /api/folha-cron uma vez para a carga inicial do salário.</div></sc-if>
       <sc-if value="{{ verbasTemPag }}" hint-placeholder-val="{{ false }}"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;background:#F7F9FC;border-top:1px solid #E3E8F0"><span style="font-size:13px;color:#5B6B85">{{ verbasRotulo }}</span><div style="display:flex;gap:8px;align-items:center"><button sc-camel-on-click="{{ verbasAnt }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Anterior</button><span style="font-size:13px;font-weight:700;color:#13213A">{{ verbasPagina }} / {{ verbasPaginas }}</span><button sc-camel-on-click="{{ verbasProx }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Próxima</button></div></div></sc-if>
-    </section>
-    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden">
-      <div style="padding:14px 16px;border-bottom:1px solid #E3E8F0"><h2 style="margin:0;font-size:16px;font-weight:800">Empenhos em nome do vereador</h2><span style="font-size:13px;color:#5B6B85">Valor reservado pela Câmara e quanto já foi pago</span></div>
-      <div style="overflow-x:auto"><sc-raw-table style="width:100%;min-width:780px;border-collapse:collapse"><sc-raw-thead><sc-raw-tr><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Empenho</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Categoria</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Data</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Objeto</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Reservado</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Pago</sc-raw-th></sc-raw-tr></sc-raw-thead><sc-raw-tbody><sc-for list="{{ empRows }}" as="e" hint-placeholder-count="2"><sc-raw-tr><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;font-weight:700;white-space:nowrap">{{ e.empenho }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap">{{ e.categoria }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap;color:#5B6B85">{{ e.dataBr }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;">{{ e.objeto }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;text-align:right;white-space:nowrap">{{ e.empenhado }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;text-align:right;font-weight:700;color:#157A3E;white-space:nowrap">{{ e.pago }}</sc-raw-td></sc-raw-tr></sc-for></sc-raw-tbody></sc-raw-table></div><sc-if value="{{ noEmp }}" hint-placeholder-val="{{ false }}"><div style="padding:24px;text-align:center;color:#5B6B85;font-size:14px">Nenhum empenho encontrado.</div></sc-if><sc-if value="{{ empTemPag }}" hint-placeholder-val="{{ false }}"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;background:#F7F9FC;border-top:1px solid #E3E8F0"><span style="font-size:13px;color:#5B6B85">{{ empRotulo }}</span><div style="display:flex;gap:8px;align-items:center"><button sc-camel-on-click="{{ empAnt }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Anterior</button><span style="font-size:13px;font-weight:700;color:#13213A">{{ empPagina }} / {{ empPaginas }}</span><button sc-camel-on-click="{{ empProx }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Próxima</button></div></div></sc-if></section>
-  </sc-if>
-
-  <!-- ---------- CONCILIAÇÃO ---------- -->
-  <sc-if value="{{ finIsConc }}" hint-placeholder-val="{{ false }}">
-    <div style="display:flex;gap:10px;align-items:flex-start;background:#FFF6E8;border:1px solid #F6DFB8;color:#6B4300;border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.45"><i class="ti ti-arrows-exchange" style="font-size:19px"></i><span>A Câmara paga a VIEP com atraso e às vezes junta meses. Para cada pagamento, diga a qual mês ele se refere (competência). Assim cada mês fecha certo: gasto lançado × reembolsado × a receber.</span></div>
-    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden">
-      <div style="padding:14px 16px;border-bottom:1px solid #E3E8F0"><h2 style="margin:0;font-size:16px;font-weight:800">Pagamentos da Câmara</h2></div>
-      <div style="overflow-x:auto"><sc-raw-table style="width:100%;min-width:860px;border-collapse:collapse"><sc-raw-thead><sc-raw-tr><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Data</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Categoria</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Empenho / pagamento</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Valor</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Competência</sc-raw-th></sc-raw-tr></sc-raw-thead><sc-raw-tbody><sc-for list="{{ pagRows }}" as="p" hint-placeholder-count="3"><sc-raw-tr><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap;font-weight:600">{{ p.dataBr }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap">{{ p.categoria }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;color:#5B6B85">Empenho {{ p.empenho }} · nº {{ p.num_pagamento }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;text-align:right;font-weight:800;color:#157A3E;white-space:nowrap">{{ p.valorBr }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;"><sc-raw-select value="{{ p.competencia }}" sc-camel-on-change="{{ p.onComp }}" style="height:36px;border:1px solid {{ p.bd }};border-radius:9px;padding:0 10px;font-size:13px;font-weight:700;background:#fff;color:#13213A;cursor:pointer"><sc-for list="{{ finCompOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select></sc-raw-td></sc-raw-tr></sc-for></sc-raw-tbody></sc-raw-table></div><sc-if value="{{ noPag }}" hint-placeholder-val="{{ false }}"><div style="padding:24px;text-align:center;color:#5B6B85;font-size:14px">Nenhum pagamento da Câmara encontrado ainda.</div></sc-if><sc-if value="{{ pagTemPag }}" hint-placeholder-val="{{ false }}"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;background:#F7F9FC;border-top:1px solid #E3E8F0"><span style="font-size:13px;color:#5B6B85">{{ pagRotulo }}</span><div style="display:flex;gap:8px;align-items:center"><button sc-camel-on-click="{{ pagAnt }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Anterior</button><span style="font-size:13px;font-weight:700;color:#13213A">{{ pagPagina }} / {{ pagPaginas }}</span><button sc-camel-on-click="{{ pagProx }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Próxima</button></div></div></sc-if></section>
-    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden">
-      <div style="padding:14px 16px;border-bottom:1px solid #E3E8F0"><h2 style="margin:0;font-size:16px;font-weight:800">Fechamento da VIEP por mês</h2></div>
-      <div style="overflow-x:auto">
-        <sc-raw-table style="width:100%;min-width:640px;border-collapse:collapse">
-          <sc-raw-thead><sc-raw-tr>
-            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Mês</sc-raw-th>
-            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Gasto lançado</sc-raw-th>
-            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Reembolsado</sc-raw-th>
-            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">A receber</sc-raw-th>
-            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Sobra do teto</sc-raw-th>
-            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Situação</sc-raw-th>
-          </sc-raw-tr></sc-raw-thead>
-          <sc-raw-tbody>
-            <sc-for list="{{ concRows }}" as="c" hint-placeholder-count="4">
-              <sc-raw-tr>
-                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;font-weight:700">{{ c.rotulo }}</sc-raw-td>
-                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right">{{ c.gasto }}</sc-raw-td>
-                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right;color:#157A3E">{{ c.reembolsado }}</sc-raw-td>
-                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right;color:#9A5800">{{ c.aReceber }}</sc-raw-td>
-                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right">{{ c.saldo }}</sc-raw-td>
-                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px"><span style="font-size:12px;font-weight:700;padding:3px 9px;border-radius:20px;background:{{ c.sbg }};color:{{ c.sc }};white-space:nowrap">{{ c.sit }}</span></sc-raw-td>
-              </sc-raw-tr>
-            </sc-for>
-          </sc-raw-tbody>
-        </sc-raw-table>
-      </div>
     </section>
   </sc-if>
 
   <!-- ---------- EQUIPE ---------- -->
   <sc-if value="{{ finIsEquipe }}" hint-placeholder-val="{{ false }}">
-    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden"><div style="padding:14px 16px;border-bottom:1px solid #E3E8F0"><h2 style="margin:0;font-size:16px;font-weight:800">Equipe do gabinete</h2></div><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:14px;border-bottom:1px solid #E3E8F0"><span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#33425C;margin-right:4px"><i class="ti ti-filter" style="font-size:16px"></i>Filtros</span><sc-raw-select value="{{ eqFilSit }}" sc-camel-on-change="{{ eqOnFilSit }}" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 30px 0 12px;font-size:14px;background:#fff;color:#13213A;min-width:150px;cursor:pointer"><option value="">Todas as situações</option><option value="No gabinete">No gabinete</option><option value="Saiu">Saíram</option></sc-raw-select><sc-raw-select value="{{ eqFilOrigem }}" sc-camel-on-change="{{ eqOnFilOrigem }}" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 30px 0 12px;font-size:14px;background:#fff;color:#13213A;min-width:180px;cursor:pointer"><sc-for list="{{ eqOrigemFiltro }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select><input type="search" value="{{ eqFilQ }}" sc-camel-on-change="{{ eqOnFilQ }}" placeholder="Buscar nome, cargo ou função" style="height:40px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:14px;background:#fff;color:#13213A;min-width:220px;flex:1 1 200px"><span style="margin-left:auto;font-size:13px;color:#5B6B85;white-space:nowrap">{{ eqResumo }}</span></div><div style="overflow-x:auto"><sc-raw-table style="width:100%;min-width:920px;border-collapse:collapse"><sc-raw-thead><sc-raw-tr><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Servidor</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Cargo / função</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Origem</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Período</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Situação</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Bruto</sc-raw-th><sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Ações</sc-raw-th></sc-raw-tr></sc-raw-thead><sc-raw-tbody><sc-for list="{{ eqRows }}" as="e" hint-placeholder-count="6"><sc-raw-tr><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;"><div style="display:flex;gap:10px;align-items:center"><div style="width:34px;height:34px;border-radius:50%;background:#EAF1FE;color:#1B5BD0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex:0 0 34px">{{ e.ini }}</div><span style="font-weight:700">{{ e.servidor }}</span></div></sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;"><div style="display:flex;flex-direction:column;gap:2px"><span>{{ e.cargo }}</span><span style="font-size:12px;color:#5B6B85">{{ e.funcaoTxt }}</span></div></sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap">{{ e.origem }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap;color:#5B6B85">{{ e.periodo }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;"><span style="font-size:12px;font-weight:700;padding:3px 9px;border-radius:20px;background:{{ e.sbg }};color:{{ e.sc }};white-space:nowrap">{{ e.situacao }}</span></sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;text-align:right;font-weight:700;white-space:nowrap">{{ e.brutoBr }}</sc-raw-td><sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;text-align:right"><sc-if value="{{ finPodeEditar }}" hint-placeholder-val="{{ true }}"><button title="Completar dados" sc-camel-on-click="{{ e.editar }}" style="width:34px;height:34px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;cursor:pointer;color:#1B5BD0"><i class="ti ti-id" style="font-size:16px"></i></button></sc-if></sc-raw-td></sc-raw-tr></sc-for></sc-raw-tbody></sc-raw-table></div><sc-if value="{{ noEq }}" hint-placeholder-val="{{ false }}"><div style="padding:28px;text-align:center;color:#5B6B85;font-size:14px">Nenhuma pessoa encontrada no gabinete configurado.</div></sc-if><sc-if value="{{ eqTemPag }}" hint-placeholder-val="{{ false }}"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;background:#F7F9FC;border-top:1px solid #E3E8F0"><span style="font-size:13px;color:#5B6B85">{{ eqRotulo }}</span><div style="display:flex;gap:8px;align-items:center"><button sc-camel-on-click="{{ eqAnt }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Anterior</button><span style="font-size:13px;font-weight:700;color:#13213A">{{ eqPagina }} / {{ eqPaginas }}</span><button sc-camel-on-click="{{ eqProx }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Próxima</button></div></div></sc-if></section>
+    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid #E3E8F0">
+        <div><h2 style="margin:0;font-size:16px;font-weight:800">Equipe do gabinete</h2><span style="font-size:13px;color:#5B6B85">{{ eqResumo }}</span></div>
+        <sc-if value="{{ finPodeEditar }}" hint-placeholder-val="{{ true }}">
+          <button type="button" sc-camel-on-click="{{ eqNova }}" style="display:flex;align-items:center;gap:6px;height:40px;padding:0 14px;border:0;background:#1B5BD0;border-radius:9px;font-size:13.5px;font-weight:600;cursor:pointer;color:#fff"><i class="ti ti-plus" style="font-size:16px"></i>Nova pessoa</button>
+        </sc-if>
+      </div>
+      <div style="overflow-x:auto">
+        <sc-raw-table style="width:100%;min-width:680px;border-collapse:collapse">
+          <sc-raw-thead><sc-raw-tr>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Nome</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Cargo / Função</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Admissão</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Salário</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Ações</sc-raw-th>
+          </sc-raw-tr></sc-raw-thead>
+          <sc-raw-tbody>
+            <sc-for list="{{ eqAll }}" as="e" hint-placeholder-count="6">
+              <sc-raw-tr>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle"><div style="display:flex;gap:10px;align-items:center"><div style="width:34px;height:34px;border-radius:50%;background:#EAF1FE;color:#1B5BD0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex:0 0 34px">{{ e.ini }}</div><span style="font-weight:700">{{ e.nome }}</span></div></sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle">{{ e.cargoTxt }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap;color:#5B6B85">{{ e.admissaoBr }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;text-align:right;font-weight:700;white-space:nowrap">{{ e.salarioBr }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;text-align:right">
+                  <sc-if value="{{ finPodeEditar }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex;gap:6px;justify-content:flex-end">
+                      <button title="Editar" sc-camel-on-click="{{ e.editar }}" style="width:34px;height:34px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;cursor:pointer;color:#1B5BD0"><i class="ti ti-pencil" style="font-size:16px"></i></button>
+                      <button title="Remover" sc-camel-on-click="{{ e.excluir }}" style="width:34px;height:34px;border:1px solid #F6D2CF;background:#fff;border-radius:8px;cursor:pointer;color:#B42318"><i class="ti ti-trash" style="font-size:16px"></i></button>
+                    </div>
+                  </sc-if>
+                </sc-raw-td>
+              </sc-raw-tr>
+            </sc-for>
+          </sc-raw-tbody>
+        </sc-raw-table>
+      </div>
+      <sc-if value="{{ noEq }}" hint-placeholder-val="{{ false }}"><div style="padding:28px;text-align:center;color:#5B6B85;font-size:14px">Ninguém cadastrado ainda. Use “Nova pessoa” para começar.</div></sc-if>
+    </section>
   </sc-if>
 </div>
 </sc-if>
@@ -792,7 +785,7 @@
     </div>
     <nav style="display:flex;flex-direction:column;gap:2px;padding:8px 12px">
       <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="10">
-        <button sc-camel-on-click="{{ n.onClick }}" style="display:flex;align-items:center;gap:12px;padding:12px;border:0;border-radius:9px;background:{{ n.bg }};color:{{ n.color }};font-size:15px;font-weight:{{ n.fw }};cursor:pointer;text-align:left;min-height:46px">
+        <button sc-camel-on-click="{{ n.onClick }}" style="display:flex;align-items:center;gap:12px;padding:12px 12px 12px {{ n.pl }};border:0;border-radius:9px;background:{{ n.bg }};color:{{ n.color }};font-size:15px;font-weight:{{ n.fw }};cursor:pointer;text-align:left;min-height:46px">
           <i class="ti ti-{{ n.icon }}" style="font-size:20px"></i><span style="flex:1">{{ n.label }}</span>
           <sc-if value="{{ n.hasBadge }}" hint-placeholder-val="{{ false }}"><span style="background:#F2B233;color:#3B2A00;font-size:11.5px;font-weight:700;border-radius:20px;padding:2px 8px">{{ n.badge }}</span></sc-if>
         </button>
@@ -937,24 +930,21 @@
 </div>
 </sc-if>
 
-<!-- ============ FINANCEIRO · DADOS DA PESSOA DA EQUIPE ============ -->
+<!-- ============ FINANCEIRO · PESSOA DO GABINETE (cadastro manual) ============ -->
 <sc-if value="{{ eqFormOpen }}" hint-placeholder-val="{{ false }}">
 <div style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:12px">
   <div sc-camel-on-click="{{ eqFechar }}" style="position:absolute;inset:0;background:rgba(8,18,40,.45)"></div>
-  <form sc-camel-on-submit="{{ eqSalvar }}" style="position:relative;width:min(560px,100%);max-height:100%;overflow-y:auto;background:#fff;border-radius:16px;display:flex;flex-direction:column">
+  <form sc-camel-on-submit="{{ eqSalvar }}" style="position:relative;width:min(480px,100%);max-height:100%;overflow-y:auto;background:#fff;border-radius:16px;display:flex;flex-direction:column">
     <div style="display:flex;align-items:center;gap:10px;padding:18px 22px;border-bottom:1px solid #E3E8F0">
-      <div style="flex:1;display:flex;flex-direction:column;gap:2px"><h2 style="margin:0;font-size:18px;font-weight:700">{{ eqForm.servidor }}</h2><span style="font-size:13px;color:#5B6B85">Na folha: {{ eqForm.cargo }} · matrícula {{ eqForm.matricula }}</span></div>
+      <h2 style="margin:0;flex:1;font-size:18px;font-weight:700">{{ eqFormTitulo }}</h2>
       <button type="button" sc-camel-on-click="{{ eqFechar }}" style="width:40px;height:40px;border:0;background:transparent;cursor:pointer;color:#13213A"><i class="ti ti-x" style="font-size:20px"></i></button>
     </div>
     <div style="padding:20px 22px;display:flex;flex-direction:column;gap:14px">
-      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">O que faz de verdade no gabinete<input type="text" value="{{ eqForm.funcao_real }}" sc-camel-on-change="{{ ef_funcao_real }}" placeholder="Ex.: motorista do vereador, atendimento no bairro" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Nome *<input type="text" value="{{ eqForm.nome }}" sc-camel-on-change="{{ ef_nome }}" placeholder="Nome completo" required style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Cargo / Função<input type="text" value="{{ eqForm.cargo }}" sc-camel-on-change="{{ ef_cargo }}" placeholder="Ex.: Assessor parlamentar" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
-        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Telefone<input type="text" inputmode="tel" value="{{ eqForm.telefone }}" sc-camel-on-change="{{ ef_telefone }}" placeholder="(98) 90000-0000" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
-        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Indicado por<input type="text" value="{{ eqForm.indicado_por }}" sc-camel-on-change="{{ ef_indicado_por }}" placeholder="Quem indicou" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
-      </div>
-      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Observação<textarea value="{{ eqForm.observacao }}" sc-camel-on-change="{{ ef_observacao }}" rows="3" style="border:1px solid #DCE3EE;border-radius:9px;padding:10px 12px;font-size:15px;resize:vertical;color:#13213A"></textarea></label>
-      <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:13px;font-weight:700;color:#33425C">Histórico na folha</span>
-        <sc-for list="{{ eqForm.hist }}" as="h" hint-placeholder-count="3"><span style="font-size:13px;color:#5B6B85">{{ h.rotulo }} · {{ h.cargo }} · {{ h.vinculo }} · {{ h.brutoBr }}</span></sc-for>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Data de admissão<input type="date" value="{{ eqForm.admissao }}" sc-camel-on-change="{{ ef_admissao }}" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Salário (R$)<input type="text" inputmode="decimal" value="{{ eqForm.salario }}" sc-camel-on-change="{{ ef_salario }}" placeholder="0,00" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
       </div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;padding:14px 22px;border-top:1px solid #E3E8F0;flex-wrap:wrap">

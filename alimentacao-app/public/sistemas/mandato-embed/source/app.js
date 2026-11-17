@@ -299,15 +299,11 @@ class Component extends DCLogic {
     finTab: "painel",
     finMes: "",
     finPageDesp: 0,
-    finPageEq: 0,
     finPageVerbas: 0,
-    finPagePag: 0,
-    finPageEmp: 0,
     finFil: { origem: "", todos: "mes" },
-    eqFil: { sit: "", q: "", origem: "" },
-    verbasFil: { tipo: "todos" },
     finForm: null,
     eqForm: null,
+    viepDrafts: {},
     w: window.innerWidth,
     drawer: false,
     notif: false,
@@ -569,6 +565,10 @@ class Component extends DCLogic {
     this.setState({ page: p, drawer: false, notif: false });
     window.scrollTo(0, 0);
   };
+  goFin = (tab) => {
+    this.setState({ page: "fin", finTab: tab, drawer: false, notif: false });
+    window.scrollTo(0, 0);
+  };
   flash = (t) => {
     clearTimeout(this.tt);
     this.setState({ toast: t });
@@ -651,18 +651,45 @@ class Component extends DCLogic {
       ["rel", "Relatórios", "chart-bar"],
       ["conf", "Configurações", "settings"],
     ];
-    const navItems = NAV.map(([id, label, icon, badge]) => {
+    const FIN_CHILDREN = [
+      ["painel", "Painel", "layout-dashboard"],
+      ["desp", "Despesas", "receipt"],
+      ["verbas", "Verbas da Câmara", "building-bank"],
+      ["equipe", "Equipe do gabinete", "users-group"],
+    ];
+    const finAberto = s.page === "fin";
+    const navItems = NAV.flatMap(([id, label, icon, badge]) => {
       const a = s.page === id;
-      return {
+      const item = {
         label,
-        icon,
+        icon: id === "fin" ? (finAberto ? "chevron-down" : "chevron-right") : icon,
         badge,
         hasBadge: !!badge,
-        onClick: () => this.go(id),
+        onClick: id === "fin" ? () => this.goFin("painel") : () => this.go(id),
         bg: a ? "#1B5BD0" : "transparent",
         color: a ? "#fff" : "#C9D5EA",
         fw: a ? 600 : 500,
+        pl: "12px",
+        fsz: "14.5px",
+        isz: "19px",
       };
+      if (id !== "fin") return [item];
+      // ícone do item pai some pra dar lugar à seta de expandir; o "wallet" some junto
+      item.icon = finAberto ? "chevron-down" : "chevron-right";
+      if (!finAberto) return [item];
+      const children = FIN_CHILDREN.map(([tab, tlabel, ticon]) => ({
+        label: tlabel,
+        icon: ticon,
+        hasBadge: false,
+        onClick: () => this.goFin(tab),
+        bg: s.finTab === tab ? "#16366B" : "transparent",
+        color: s.finTab === tab ? "#fff" : "#9FB2D6",
+        fw: s.finTab === tab ? 600 : 500,
+        pl: "34px",
+        fsz: "13.5px",
+        isz: "16px",
+      }));
+      return [item, ...children];
     });
     const bottomNav = [
       ["painel", "Painel", "layout-dashboard"],
@@ -1454,8 +1481,8 @@ class Component extends DCLogic {
           qtdNotas: 0,
         };
     const pctV = Math.min(100, vp.teto ? (vp.gasto / vp.teto) * 100 : 0);
-    const g = mesAtual && mesAtual.gabinete;
-    const pctG = g ? Math.min(100, g.teto ? (g.cota / g.teto) * 100 : 0) : 0;
+    const gab = (FIN && FIN.gabinete) || { teto: 0, total: 0, saldo: 0, pessoas: 0 };
+    const pctG = gab.teto ? Math.min(100, (gab.total / gab.teto) * 100) : 0;
     const sal = mesAtual && mesAtual.salario;
     const tt = (mesAtual && mesAtual.totais) || {
       salarioBruto: 0,
@@ -1540,48 +1567,33 @@ class Component extends DCLogic {
         vp.gasto > vp.teto
           ? `Notas acima do limite mensal em ${brl(vp.gasto - vp.teto)}: o excedente não é reembolsável.`
           : vp.reembolsado > 0 && vp.gasto === 0
-            ? "Reembolso recebido sem notas lançadas neste mês. Lance as notas ou ajuste o mês na Conciliação."
+            ? "VIEP recebida sem notas lançadas neste mês. Lance as notas em Despesas."
             : "",
     };
-    const blocoGab = g
-      ? {
-          titulo: "Cota de gabinete",
-          fonte: "Paga direto aos assessores",
-          rotuloPrincipal: "Folha do gabinete",
-          principal: brl(g.cota + g.foraCota),
-          corPrincipal: TXT,
-          linhas: [
-            L("Limite estimado", brl(g.teto)),
-            L(`Assessores na cota`, menos(g.cota), { cor: NEG }),
-            L("Saldo da cota", brl(g.saldo), {
+    const blocoGab = {
+      titulo: "Cota de gabinete",
+      fonte: "Cadastro manual · atual",
+      rotuloPrincipal: "Folha do gabinete",
+      principal: brl(gab.total),
+      corPrincipal: TXT,
+      linhas: gab.pessoas
+        ? [
+            L("Limite estimado", brl(gab.teto)),
+            L("Saldo da cota", brl(gab.saldo), {
               total: true,
-              cor: g.saldo < 0 ? NEG : TXT,
+              cor: gab.saldo < 0 ? NEG : TXT,
             }),
-            ...(g.foraCota
-              ? [L("Fora da cota (orçamento da Câmara)", brl(g.foraCota))]
-              : []),
-            L("Pessoas", String(g.pessoas)),
-          ],
-          temBarra: true,
-          barra: pctG.toFixed(1),
-          corBarra: g.saldo < 0 ? NEG : "#1B5BD0",
-          legendaBarra: `${g.lotacao} · ${pctG.toFixed(0)}% da cota`,
-          temAviso: false,
-          corAviso: CINZA,
-          aviso: "",
-        }
-      : {
-          titulo: "Cota de gabinete",
-          fonte: "Paga direto aos assessores",
-          rotuloPrincipal: "Folha do gabinete",
-          principal: brl(0),
-          corPrincipal: TXT,
-          linhas: [L("Situação", "Sem gabinete atribuído no mês")],
-          temBarra: false,
-          temAviso: false,
-          corAviso: CINZA,
-          aviso: "",
-        };
+            L("Pessoas cadastradas", String(gab.pessoas)),
+          ]
+        : [L("Situação", "Nenhuma pessoa cadastrada")],
+      temBarra: gab.pessoas > 0,
+      barra: pctG.toFixed(1),
+      corBarra: gab.saldo < 0 ? NEG : "#1B5BD0",
+      legendaBarra: `${pctG.toFixed(0)}% da cota estimada`,
+      temAviso: false,
+      corAviso: CINZA,
+      aviso: "",
+    };
     const blocos = [blocoSal, blocoViep, blocoGab];
     const cats = (mesAtual && mesAtual.porCategoria) || [];
     const catSoma = cats.reduce((a, c) => a + c.valor, 0);
@@ -1642,139 +1654,60 @@ class Component extends DCLogic {
     };
     const despPg = paginar(despAll, "finPageDesp");
     const despList = despPg.lista;
-    const VF = s.verbasFil || { tipo: "todos" };
-    const verbasAll = finMeses
-      .filter((m) => {
-        if (VF.tipo === "comSalario") return !!(m.salario && m.salario.recebeu);
-        if (VF.tipo === "comViep") return !!(m.viep && m.viep.reembolsado > 0);
-        return true;
-      })
-      .map((m) => ({
-        rotulo: m.rotulo,
-        bruto: brl(m.salario ? m.salario.bruto : 0),
-        desconto: brl(m.salario ? m.salario.desconto : 0),
-        liquido: brl(m.salario ? m.salario.liquido : 0),
-        viep: brl(m.viep.reembolsado),
-        outros: brl(m.diarias + m.outrosRecebidos),
-      }));
+    const viepDrafts = s.viepDrafts || {};
+    const verbasAll = finMeses.map((m) => ({
+      mes: m.mes,
+      rotulo: m.rotulo,
+      bruto: brl(m.salario ? m.salario.bruto : 0),
+      desconto: brl(m.salario ? m.salario.desconto : 0),
+      liquido: brl(m.salario ? m.salario.liquido : 0),
+      viepValor:
+        m.mes in viepDrafts ? viepDrafts[m.mes] : String(m.viep.reembolsado || "").replace(".", ","),
+      onViepInput: (e) =>
+        this.setState((st) => ({
+          viepDrafts: { ...st.viepDrafts, [m.mes]: e.target.value },
+        })),
+      salvarViep: () => {
+        post({
+          type: "mandato-fin-verba-salvar",
+          verba: { mes: m.mes, valor: (viepDrafts[m.mes] ?? m.viep.reembolsado) || 0 },
+        });
+        this.setState((st) => {
+          const d = { ...st.viepDrafts };
+          delete d[m.mes];
+          return { viepDrafts: d };
+        });
+      },
+    }));
     const verbasPg = paginar(verbasAll, "finPageVerbas");
     const verbasRows = verbasPg.lista;
-    const empAll = ((FIN && FIN.empenhos) || []).map((e) => ({
+    const eqTodos = (FIN && FIN.equipeGabinete) || [];
+    const eqAll = eqTodos.map((e) => ({
       ...e,
-      dataBr: dataBr(e.data_empenho),
-      empenhado: brl(e.empenhado),
-      pago: brl(e.pago),
-      objeto: (e.objeto || "").slice(0, 140),
-    }));
-    const empPg = paginar(empAll, "finPageEmp");
-    const empRows = empPg.lista;
-    const compSet = new Set(finMeses.map((m) => m.mes));
-    if (finMes) compSet.add(finMes);
-    const finCompOpts = [
-      { v: "", l: "Mês do pagamento" },
-      ...[...compSet]
-        .sort()
-        .reverse()
-        .map((m) => ({ v: m, l: rot(m) })),
-    ];
-    const pagAll = ((FIN && FIN.pagamentosCamara) || []).map((p) => ({
-      ...p,
-      dataBr: dataBr(p.data),
-      valorBr: brl(p.valor),
-      competencia: p.competencia || "",
-      bd: p.competencia ? "#CDEBD8" : "#F6DFB8",
-      onComp: (e) =>
-        post({
-          type: "mandato-fin-competencia",
-          pagamento: {
-            empenho: p.empenho,
-            num_pagamento: p.num_pagamento,
-            data: String(p.data).slice(0, 10),
-            competencia: e.target.value || null,
-          },
-        }),
-    }));
-    const pagPg = paginar(pagAll, "finPagePag");
-    const pagRows = pagPg.lista;
-    const concRows = finMeses
-      .filter((m) => m.viep.gasto > 0 || m.viep.reembolsado > 0)
-      .map((m) => {
-        const sit =
-          m.viep.gasto === 0
-            ? ["Sem lançamento", "#FFF3DE", "#9A5800"]
-            : m.viep.aReceber > 0
-              ? ["Falta receber", "#FFF3DE", "#9A5800"]
-              : m.viep.reembolsado > m.viep.gasto
-                ? ["Recebeu mais que lançou", "#FDECEC", "#B42318"]
-                : ["Fechado", "#E5F5EB", "#157A3E"];
-        return {
-          rotulo: m.rotulo,
-          gasto: brl(m.viep.gasto),
-          reembolsado: brl(m.viep.reembolsado),
-          aReceber: brl(m.viep.aReceber),
-          saldo: brl(m.viep.saldo),
-          sit: sit[0],
-          sbg: sit[1],
-          sc: sit[2],
-        };
-      });
-    const eq = (FIN && FIN.equipe) || [];
-    const eqAtivos = eq.filter((e) => e.situacao === "No gabinete");
-    const EQF = s.eqFil || { sit: "", q: "", origem: "" };
-    const eqQ = String(EQF.q || "")
-      .trim()
-      .toLocaleLowerCase("pt-BR");
-    const eqFiltrada = eq.filter((e) => {
-      if (EQF.sit && e.situacao !== EQF.sit) return false;
-      if (EQF.origem && e.origem !== EQF.origem) return false;
-      if (eqQ) {
-        const blob = [e.servidor, e.cargo, e.funcao_real]
-          .map((x) => String(x || "").toLocaleLowerCase("pt-BR"))
-          .join(" ");
-        if (!blob.includes(eqQ)) return false;
-      }
-      return true;
-    });
-    const eqAll = eqFiltrada.map((e) => ({
-      ...e,
-      ini: e.servidor
+      ini: String(e.nome || "")
         .split(" ")
         .filter((w) => w.length > 2)
         .slice(0, 2)
         .map((w) => w[0])
         .join(""),
-      brutoBr: e.situacao === "Saiu" ? "—" : brl(e.bruto),
-      funcaoTxt: e.funcao_real || "função não informada",
-      periodo:
-        e.situacao === "Saiu"
-          ? `de ${rot(e.primeiroMes)} a ${rot(e.ultimoMes)}`
-          : `desde ${rot(e.primeiroMes)}`,
-      sbg: e.situacao === "Saiu" ? "#FDECEC" : "#E5F5EB",
-      sc: e.situacao === "Saiu" ? "#B42318" : "#157A3E",
+      cargoTxt: e.cargo || "cargo não informado",
+      admissaoBr: e.admissao ? dataBr(e.admissao) : "—",
+      salarioBr: brl(e.salario),
       editar: () =>
         this.setState({
           eqForm: {
-            matricula: e.matricula,
-            servidor: e.servidor,
-            cargo: e.cargo,
-            funcao_real: e.funcao_real,
-            telefone: e.telefone,
-            indicado_por: e.indicado_por,
-            observacao: e.observacao,
-            hist: e.historico
-              .slice()
-              .reverse()
-              .map((h) => ({
-                rotulo: rot(h.mes),
-                cargo: h.cargo,
-                vinculo: h.vinculo,
-                brutoBr: brl(h.bruto),
-              })),
+            id: e.id,
+            nome: e.nome,
+            cargo: e.cargo || "",
+            admissao: e.admissao || "",
+            salario: String(e.salario || "").replace(".", ","),
           },
         }),
+      excluir: () => {
+        if (window.confirm(`Remover ${e.nome} do gabinete?`))
+          post({ type: "mandato-fin-equipe-excluir", id: e.id });
+      },
     }));
-    const eqPg = paginar(eqAll, "finPageEq");
-    const eqRows = eqPg.lista;
     const fF = s.finForm || {};
     const setFF = (k) => (e) => {
       const val = e.target.value;
@@ -1805,19 +1738,17 @@ class Component extends DCLogic {
       desp: ["Despesas", "Notas e recibos do mandato lançados pelo gabinete"],
       verbas: [
         "Verbas da Câmara",
-        "Subsídio e reembolsos pagos pela Câmara, separados · dados oficiais atualizados todo dia",
+        "Subsídio vem automático da folha; VIEP recebida é lançada à mão todo mês",
       ],
-      conc: [
-        "Conciliação",
-        "Reembolsos da VIEP ligados ao mês de cada despesa",
+      equipe: [
+        "Equipe do gabinete",
+        "Cadastro manual de quem recebe pela cota de gabinete",
       ],
-      equipe: ["Equipe do gabinete", ""],
     };
     const FIN_TABS = [
       ["painel", "Painel", "layout-dashboard"],
       ["desp", "Despesas", "receipt"],
       ["verbas", "Verbas da Câmara", "building-bank"],
-      ["conc", "Conciliação", "arrows-exchange"],
       ["equipe", "Equipe do gabinete", "users-group"],
     ];
 
@@ -2303,24 +2234,9 @@ class Component extends DCLogic {
       isFin: s.page === "fin",
       finTemErro: !!finErro,
       finErro,
-      finTabs: FIN_TABS.map(([k, label, icon]) => ({
-        label,
-        icon,
-        onClick: () =>
-          this.setState({
-            finTab: k,
-            finPageDesp: 0,
-            finPageEq: 0,
-            finPagePag: 0,
-            finPageEmp: 0,
-          }),
-        color: s.finTab === k ? "#1B5BD0" : "#5B6B85",
-        line: s.finTab === k ? "#1B5BD0" : "transparent",
-      })),
       finIsPainel: s.finTab === "painel",
       finIsDesp: s.finTab === "desp",
       finIsVerbas: s.finTab === "verbas",
-      finIsConc: s.finTab === "conc",
       finIsEquipe: s.finTab === "equipe",
       finTitulo: FIN_CAB[s.finTab][0],
       finSub: FIN_CAB[s.finTab][1],
@@ -2384,66 +2300,15 @@ class Component extends DCLogic {
       verbasAnt: verbasPg.ant,
       verbasProx: verbasPg.prox,
       verbasResumo: `${verbasAll.length} mês(es)`,
-      verbasFilTipo: VF.tipo,
-      verbasOnFilTipo: (e) =>
-        this.setState({
-          verbasFil: { ...(this.state.verbasFil || {}), tipo: e.target.value },
-          finPageVerbas: 0,
-        }),
-      empRows,
-      noEmp: empAll.length === 0,
-      empTemPag: empPg.tem,
-      empRotulo: empPg.rotulo,
-      empPagina: empPg.page + 1,
-      empPaginas: empPg.pages,
-      empAnt: empPg.ant,
-      empProx: empPg.prox,
       finAtualizado:
         FIN && FIN.ultimaFolha
           ? `Última folha publicada: ${rot(FIN.ultimaFolha)}.`
           : "",
-      pagRows,
-      noPag: pagAll.length === 0,
-      pagTemPag: pagPg.tem,
-      pagRotulo: pagPg.rotulo,
-      pagPagina: pagPg.page + 1,
-      pagPaginas: pagPg.pages,
-      pagAnt: pagPg.ant,
-      pagProx: pagPg.prox,
-      finCompOpts,
-      concRows,
-      eqRows,
+      eqAll,
       noEq: eqAll.length === 0,
-      eqTemPag: eqPg.tem,
-      eqRotulo: eqPg.rotulo,
-      eqPagina: eqPg.page + 1,
-      eqPaginas: eqPg.pages,
-      eqAnt: eqPg.ant,
-      eqProx: eqPg.prox,
-      eqResumo: `${eqAll.length} pessoa(s)`,
-      eqFilSit: EQF.sit,
-      eqFilOrigem: EQF.origem,
-      eqFilQ: EQF.q || "",
-      eqOnFilSit: (e) =>
-        this.setState({
-          eqFil: { ...(this.state.eqFil || {}), sit: e.target.value },
-          finPageEq: 0,
-        }),
-      eqOnFilOrigem: (e) =>
-        this.setState({
-          eqFil: { ...(this.state.eqFil || {}), origem: e.target.value },
-          finPageEq: 0,
-        }),
-      eqOnFilQ: (e) =>
-        this.setState({
-          eqFil: { ...(this.state.eqFil || {}), q: e.target.value },
-          finPageEq: 0,
-        }),
-      eqOrigemFiltro: [
-        { v: "", l: "Todas as origens" },
-        { v: "Cota de gabinete", l: "Cota de gabinete" },
-        { v: "Orçamento geral da Câmara (a confirmar)", l: "Orçamento geral" },
-      ],
+      eqResumo: `${eqAll.length} pessoa(s) · ${brl((FIN && FIN.gabinete && FIN.gabinete.total) || 0)} de ${brl((FIN && FIN.gabinete && FIN.gabinete.teto) || 0)}`,
+      eqNova: () =>
+        this.setState({ eqForm: { nome: "", cargo: "", admissao: "", salario: "" } }),
       finNovo: () =>
         this.setState({
           finForm: {
@@ -2504,23 +2369,28 @@ class Component extends DCLogic {
         this.setState({ finForm: null });
       },
       eqFormOpen: !!s.eqForm,
-      eqForm: s.eqForm || { hist: [] },
+      eqFormTitulo: s.eqForm && s.eqForm.id ? "Editar pessoa" : "Nova pessoa no gabinete",
+      eqForm: s.eqForm || {},
       eqFechar: () => this.setState({ eqForm: null }),
-      ef_funcao_real: setEF("funcao_real"),
-      ef_telefone: setEF("telefone"),
-      ef_indicado_por: setEF("indicado_por"),
-      ef_observacao: setEF("observacao"),
+      ef_nome: setEF("nome"),
+      ef_cargo: setEF("cargo"),
+      ef_admissao: setEF("admissao"),
+      ef_salario: setEF("salario"),
       eqSalvar: (e) => {
         e.preventDefault();
         const f = this.state.eqForm;
+        if (!String(f.nome || "").trim()) {
+          this.flash("Informe o nome.");
+          return;
+        }
         post({
-          type: "mandato-fin-equipe",
-          info: {
-            matricula: f.matricula,
-            funcao_real: f.funcao_real,
-            telefone: f.telefone,
-            indicado_por: f.indicado_por,
-            observacao: f.observacao,
+          type: "mandato-fin-equipe-salvar",
+          pessoa: {
+            id: f.id,
+            nome: f.nome,
+            cargo: f.cargo,
+            admissao: f.admissao,
+            salario: Number(String(f.salario || "0").replace(/\./g, "").replace(",", ".")) || 0,
           },
         });
         this.setState({ eqForm: null });
