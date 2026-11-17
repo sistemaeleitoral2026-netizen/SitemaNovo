@@ -23,12 +23,26 @@ create table if not exists public.fin_gabinete_manual (
   atualizado_em timestamptz not null default now()
 );
 
--- Um valor por mês, lançado à mão (hoje só a VIEP recebida da Câmara)
+-- Um valor por mês, lançado à mão (legado: VIEP recebida). Preferir fin_verba.
 create table if not exists public.fin_mes_manual (
   mes           text primary key,               -- 'AAAA-MM'
   viep_recebido numeric(12,2) not null default 0,
   atualizado_em timestamptz not null default now()
 );
+
+-- Verbas da Câmara lançadas à mão (VIEP, diárias e outras), com editar/excluir
+create table if not exists public.fin_verba (
+  id            uuid primary key default gen_random_uuid(),
+  mes           text not null,                  -- 'AAAA-MM'
+  tipo          text not null check (tipo in ('VIEP', 'DIARIA', 'OUTRA')),
+  descricao     text not null default '',
+  valor         numeric(12,2) not null check (valor > 0),
+  data          date,
+  observacao    text,
+  criado_em     timestamptz not null default now(),
+  atualizado_em timestamptz not null default now()
+);
+create index if not exists fin_verba_mes on public.fin_verba (mes);
 
 -- Fundos: de onde sai o dinheiro que paga a equipe do gabinete (ex.: "Verba de gabinete",
 -- "Recurso próprio", "Doação"). Cada fundo recebe lançamentos à mão, um por vez (mês, dia,
@@ -59,9 +73,10 @@ alter table public.fin_gabinete_manual
 
 alter table public.fin_gabinete_manual    enable row level security;
 alter table public.fin_mes_manual         enable row level security;
+alter table public.fin_verba              enable row level security;
 alter table public.fin_fundos             enable row level security;
 alter table public.fin_fundo_lancamento   enable row level security;
 
 -- Só o servidor (ponte /api/gabinete com a service key) lê e grava. O navegador não acessa direto.
-revoke all on public.fin_gabinete_manual, public.fin_mes_manual, public.fin_fundos, public.fin_fundo_lancamento
+revoke all on public.fin_gabinete_manual, public.fin_mes_manual, public.fin_verba, public.fin_fundos, public.fin_fundo_lancamento
   from anon, authenticated;

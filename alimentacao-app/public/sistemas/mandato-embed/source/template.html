@@ -707,30 +707,63 @@
 
   <!-- ---------- VERBAS DA CÂMARA ---------- -->
   <sc-if value="{{ finIsVerbas }}" hint-placeholder-val="{{ false }}">
-    <div style="display:flex;gap:10px;align-items:flex-start;background:#EEF4FE;border:1px solid #D3E1FB;color:#1C3F7A;border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.45"><i class="ti ti-info-circle" style="font-size:19px"></i><span>O salário vem automático da folha da Câmara. A VIEP recebida é lançada à mão, mês a mês. {{ finAtualizado }}</span></div>
+    <div style="display:flex;gap:10px;align-items:flex-start;background:#EEF4FE;border:1px solid #D3E1FB;color:#1C3F7A;border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.45"><i class="ti ti-info-circle" style="font-size:19px"></i><span>O salário do vereador entra automático pela folha da Câmara. VIEP, diárias e outras verbas você lança, edita ou exclui abaixo. {{ finAtualizado }}</span></div>
+
     <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden">
-      <div style="padding:14px 16px;border-bottom:1px solid #E3E8F0"><h2 style="margin:0;font-size:16px;font-weight:800">Subsídio e VIEP, mês a mês</h2><span style="font-size:13px;color:#5B6B85">{{ verbasResumo }}</span></div>
+      <div style="padding:14px 16px;border-bottom:1px solid #E3E8F0"><h2 style="margin:0;font-size:16px;font-weight:800">Salário do vereador</h2><span style="font-size:13px;color:#5B6B85">Atualizado pela folha oficial — sem lançamento manual</span></div>
       <div style="overflow-x:auto">
-        <sc-raw-table style="width:100%;min-width:620px;border-collapse:collapse">
+        <sc-raw-table style="width:100%;min-width:520px;border-collapse:collapse">
           <sc-raw-thead><sc-raw-tr>
             <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Mês</sc-raw-th>
-            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Salário bruto</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Bruto</sc-raw-th>
             <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Descontos</sc-raw-th>
-            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Salário líquido</sc-raw-th>
-            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9">VIEP recebida (lançar)</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Líquido</sc-raw-th>
+          </sc-raw-tr></sc-raw-thead>
+          <sc-raw-tbody>
+            <sc-for list="{{ salarioRows }}" as="sal" hint-placeholder-count="4">
+              <sc-raw-tr>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;font-weight:700">{{ sal.rotulo }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right">{{ sal.bruto }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right;color:#B42318">{{ sal.desconto }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right;font-weight:700">{{ sal.liquido }}</sc-raw-td>
+              </sc-raw-tr>
+            </sc-for>
+          </sc-raw-tbody>
+        </sc-raw-table>
+      </div>
+      <sc-if value="{{ noSalario }}" hint-placeholder-val="{{ false }}"><div style="padding:28px;text-align:center;color:#5B6B85;font-size:14px">Ainda sem salário na base. Use “Atualizar dados oficiais” ou a rotina da folha.</div></sc-if>
+    </section>
+
+    <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid #E3E8F0">
+        <div><h2 style="margin:0;font-size:16px;font-weight:800">VIEP e outras verbas</h2><span style="font-size:13px;color:#5B6B85">{{ verbasResumo }}</span></div>
+        <sc-if value="{{ finPodeEditar }}" hint-placeholder-val="{{ true }}">
+          <button type="button" sc-camel-on-click="{{ verbaNova }}" style="display:flex;align-items:center;gap:6px;height:40px;padding:0 14px;border:0;background:#1B5BD0;border-radius:9px;font-size:13.5px;font-weight:600;cursor:pointer;color:#fff"><i class="ti ti-plus" style="font-size:16px"></i>Nova verba</button>
+        </sc-if>
+      </div>
+      <div style="overflow-x:auto">
+        <sc-raw-table style="width:100%;min-width:760px;border-collapse:collapse">
+          <sc-raw-thead><sc-raw-tr>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Mês</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Tipo</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Descrição</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Data</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Valor</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Ações</sc-raw-th>
           </sc-raw-tr></sc-raw-thead>
           <sc-raw-tbody>
             <sc-for list="{{ verbasRows }}" as="v" hint-placeholder-count="5">
               <sc-raw-tr>
-                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;font-weight:700">{{ v.rotulo }}</sc-raw-td>
-                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right">{{ v.bruto }}</sc-raw-td>
-                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right;color:#B42318">{{ v.desconto }}</sc-raw-td>
-                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:14px;text-align:right">{{ v.liquido }}</sc-raw-td>
-                <sc-raw-td style="padding:8px 14px;border-bottom:1px solid #E3E8F0;font-size:14px">
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;font-weight:700;white-space:nowrap">{{ v.rotulo }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;white-space:nowrap">{{ v.tipoTxt }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px">{{ v.descricao }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;color:#5B6B85;white-space:nowrap">{{ v.dataBr }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;text-align:right;font-weight:700;white-space:nowrap">{{ v.valorBr }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;text-align:right">
                   <sc-if value="{{ finPodeEditar }}" hint-placeholder-val="{{ true }}">
-                    <div style="display:flex;gap:6px;align-items:center">
-                      <input type="text" inputmode="decimal" value="{{ v.viepValor }}" sc-camel-on-change="{{ v.onViepInput }}" placeholder="0,00" style="height:36px;width:120px;border:1px solid #DCE3EE;border-radius:8px;padding:0 10px;font-size:13.5px;color:#13213A">
-                      <button type="button" sc-camel-on-click="{{ v.salvarViep }}" style="height:36px;padding:0 12px;border:0;background:#1B5BD0;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;color:#fff">Salvar</button>
+                    <div style="display:flex;gap:6px;justify-content:flex-end">
+                      <button title="Editar" sc-camel-on-click="{{ v.editar }}" style="width:34px;height:34px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;cursor:pointer;color:#1B5BD0"><i class="ti ti-pencil" style="font-size:16px"></i></button>
+                      <button title="Excluir" sc-camel-on-click="{{ v.excluir }}" style="width:34px;height:34px;border:1px solid #F6D2CF;background:#fff;border-radius:8px;cursor:pointer;color:#B42318"><i class="ti ti-trash" style="font-size:16px"></i></button>
                     </div>
                   </sc-if>
                 </sc-raw-td>
@@ -739,7 +772,7 @@
           </sc-raw-tbody>
         </sc-raw-table>
       </div>
-      <sc-if value="{{ noVerbas }}" hint-placeholder-val="{{ false }}"><div style="padding:28px;text-align:center;color:#5B6B85;font-size:14px">Ainda sem dados. Rode a rotina /api/folha-cron uma vez para a carga inicial do salário.</div></sc-if>
+      <sc-if value="{{ noVerbas }}" hint-placeholder-val="{{ false }}"><div style="padding:28px;text-align:center;color:#5B6B85;font-size:14px">Nenhuma VIEP ou outra verba lançada. Use “Nova verba”.</div></sc-if>
       <sc-if value="{{ verbasTemPag }}" hint-placeholder-val="{{ false }}"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;background:#F7F9FC;border-top:1px solid #E3E8F0"><span style="font-size:13px;color:#5B6B85">{{ verbasRotulo }}</span><div style="display:flex;gap:8px;align-items:center"><button sc-camel-on-click="{{ verbasAnt }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Anterior</button><span style="font-size:13px;font-weight:700;color:#13213A">{{ verbasPagina }} / {{ verbasPaginas }}</span><button sc-camel-on-click="{{ verbasProx }}" style="height:34px;padding:0 12px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#33425C">Próxima</button></div></div></sc-if>
     </section>
   </sc-if>
@@ -928,7 +961,7 @@
   <div sc-camel-on-click="{{ finFechar }}" style="position:absolute;inset:0;background:rgba(8,18,40,.45)"></div>
   <form sc-camel-on-submit="{{ finSalvar }}" style="position:relative;width:min(680px,100%);max-height:100%;overflow-y:auto;background:#fff;border-radius:16px;display:flex;flex-direction:column">
     <div style="display:flex;align-items:center;gap:10px;padding:18px 22px;border-bottom:1px solid #E3E8F0;position:sticky;top:0;background:#fff;z-index:1">
-      <div style="flex:1;display:flex;flex-direction:column;gap:2px"><h2 style="margin:0;font-size:18px;font-weight:700">{{ finFormTitulo }}</h2><span style="font-size:13px;color:#5B6B85">Guarde a nota fiscal: ela é a prova para o reembolso da VIEP</span></div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:2px"><h2 style="margin:0;font-size:18px;font-weight:700">{{ finFormTitulo }}</h2><span style="font-size:13px;color:#5B6B85">Padrão VIEP — troque a origem se for recurso próprio ou outra fonte. Guarde a nota.</span></div>
       <button type="button" sc-camel-on-click="{{ finFechar }}" style="width:40px;height:40px;border:0;background:transparent;cursor:pointer;color:#13213A"><i class="ti ti-x" style="font-size:20px"></i></button>
     </div>
     <div style="padding:20px 22px;display:flex;flex-direction:column;gap:14px">
@@ -952,6 +985,35 @@
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;padding:14px 22px;border-top:1px solid #E3E8F0;position:sticky;bottom:0;background:#fff;flex-wrap:wrap">
       <button type="button" sc-camel-on-click="{{ finFechar }}" style="height:46px;padding:0 18px;border:1px solid #DCE3EE;background:#fff;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;color:#13213A">Cancelar</button>
+      <button type="submit" style="height:46px;padding:0 20px;border:0;background:#1B5BD0;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;color:#fff;display:flex;align-items:center;gap:6px"><i class="ti ti-check" style="font-size:18px"></i>Salvar</button>
+    </div>
+  </form>
+</div>
+</sc-if>
+
+<!-- ============ FINANCEIRO · VERBA DA CÂMARA ============ -->
+<sc-if value="{{ verbaFormOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:12px">
+  <div sc-camel-on-click="{{ verbaFechar }}" style="position:absolute;inset:0;background:rgba(8,18,40,.45)"></div>
+  <form sc-camel-on-submit="{{ verbaSalvar }}" style="position:relative;width:min(520px,100%);max-height:100%;overflow-y:auto;background:#fff;border-radius:16px;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:10px;padding:18px 22px;border-bottom:1px solid #E3E8F0">
+      <h2 style="margin:0;flex:1;font-size:18px;font-weight:700">{{ verbaFormTitulo }}</h2>
+      <button type="button" sc-camel-on-click="{{ verbaFechar }}" style="width:40px;height:40px;border:0;background:transparent;cursor:pointer;color:#13213A"><i class="ti ti-x" style="font-size:20px"></i></button>
+    </div>
+    <div style="padding:20px 22px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Mês *<input type="month" required value="{{ verbaForm.mes }}" sc-camel-on-change="{{ vf_mes }}" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Tipo *<sc-raw-select value="{{ verbaForm.tipo }}" sc-camel-on-change="{{ vf_tipo }}" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 10px;font-size:15px;background:#fff;color:#13213A;width:100%"><sc-for list="{{ verbaTipoOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select></label>
+      </div>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Descrição *<input type="text" required value="{{ verbaForm.descricao }}" sc-camel-on-change="{{ vf_descricao }}" placeholder="Ex.: VIEP recebida / Diária viagem" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Valor (R$) *<input type="text" required inputmode="decimal" value="{{ verbaForm.valor }}" sc-camel-on-change="{{ vf_valor }}" placeholder="0,00" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Data<input type="date" value="{{ verbaForm.data }}" sc-camel-on-change="{{ vf_data }}" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+      </div>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Observação<textarea value="{{ verbaForm.observacao }}" sc-camel-on-change="{{ vf_observacao }}" rows="3" placeholder="Opcional" style="border:1px solid #DCE3EE;border-radius:9px;padding:10px 12px;font-size:15px;resize:vertical;color:#13213A"></textarea></label>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;padding:14px 22px;border-top:1px solid #E3E8F0;flex-wrap:wrap">
+      <button type="button" sc-camel-on-click="{{ verbaFechar }}" style="height:46px;padding:0 18px;border:1px solid #DCE3EE;background:#fff;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;color:#13213A">Cancelar</button>
       <button type="submit" style="height:46px;padding:0 20px;border:0;background:#1B5BD0;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;color:#fff;display:flex;align-items:center;gap:6px"><i class="ti ti-check" style="font-size:18px"></i>Salvar</button>
     </div>
   </form>

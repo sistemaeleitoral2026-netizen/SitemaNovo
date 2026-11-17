@@ -9,19 +9,21 @@ import {
   excluirFundo,
   excluirFundoLancamento,
   excluirLancamento,
+  excluirVerbaCamara,
   listarProposicoes,
   mudarStatusLancamento,
   salvarEquipeGabinete,
   salvarFundo,
   salvarFundoLancamento,
   salvarLancamento,
-  salvarViepMes,
+  salvarVerbaCamara,
   sincronizarFinanceiro,
   type EquipeGabineteEntrada,
   type FinLancamentoEntrada,
   type FundoEntrada,
   type FundoLancamentoEntrada,
   type ProposicaoMandato,
+  type VerbaCamaraEntrada,
 } from '../../lib/gabinete'
 import {
   buscarFichasPorNome,
@@ -54,7 +56,7 @@ type FinMensagem = {
   id?: string
   status?: string
   pessoa?: EquipeGabineteEntrada
-  verba?: { mes: string; valor: number | string }
+  verba?: VerbaCamaraEntrada
   fundo?: FundoEntrada
   fundoLancamento?: FundoLancamentoEntrada
 }
@@ -301,8 +303,11 @@ export function PainelMandatoPage() {
           await excluirEquipeGabinete(d.id)
           avisar('Pessoa removida do gabinete')
         } else if (d.type === 'mandato-fin-verba-salvar' && d.verba?.mes) {
-          await salvarViepMes(d.verba.mes, d.verba.valor)
-          avisar('VIEP do mês salva')
+          await salvarVerbaCamara(d.verba)
+          avisar(d.verba.id ? 'Verba atualizada' : 'Verba lançada')
+        } else if (d.type === 'mandato-fin-verba-excluir' && d.id) {
+          await excluirVerbaCamara(d.id)
+          avisar('Verba excluída')
         } else if (d.type === 'mandato-fin-fundo-salvar' && d.fundo?.nome) {
           await salvarFundo(d.fundo)
           avisar(d.fundo.id ? 'Fundo atualizado' : 'Fundo criado')
