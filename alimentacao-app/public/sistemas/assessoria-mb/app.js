@@ -2323,6 +2323,28 @@
             totalRec = 0;
           }
         }
+        const dataRecebidaForm =
+          selectedFinanceType === "saida"
+            ? ""
+            : String(f.get("dataRecebida") || "").trim();
+        // Se a usuária altera "Data recebida" (ex.: fechar o mês em 30/06),
+        // o caixa segue o histórico de recebimentos — alinha o último/único.
+        if (
+          dataRecebidaForm &&
+          rx.length &&
+          !(addData && addValor > 0) &&
+          selectedFinanceType !== "saida"
+        ) {
+          const sorted = rx
+            .slice()
+            .sort((a, b) => String(a.data).localeCompare(String(b.data)));
+          const last = sorted[sorted.length - 1];
+          if (last && last.data !== dataRecebidaForm) {
+            rx = rx.map((item) =>
+              item.id === last.id ? { ...item, data: dataRecebidaForm } : item,
+            );
+          }
+        }
         const lastRx = rx
           .slice()
           .sort((a, b) => String(a.data).localeCompare(String(b.data)))
@@ -2333,8 +2355,7 @@
         const dataRecebida =
           selectedFinanceType === "saida"
             ? ""
-            : String(f.get("dataRecebida") || "") ||
-              (lastRx ? lastRx.data : "");
+            : dataRecebidaForm || (lastRx ? lastRx.data : "");
         const empresaDepositante =
           selectedFinanceType === "saida"
             ? ""
