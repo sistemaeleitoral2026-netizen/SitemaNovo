@@ -691,14 +691,23 @@
     `<span class="pill ${s === "Concluída" ? "ok" : s === "Em andamento" ? "info" : "warn"}">${esc(s)}</span>`;
   const dateBR = (d) =>
     d ? new Date(`${d}T12:00:00`).toLocaleDateString("pt-BR") : "—";
-  const timeBR = (iso) => {
-    if (!iso) return "—";
+  const launchedAt = (iso) => {
+    if (!iso) return null;
     const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return "—";
-    return date.toLocaleTimeString("pt-BR", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+  const launchedDateBR = (iso) => {
+    const date = launchedAt(iso);
+    return date ? date.toLocaleDateString("pt-BR") : "—";
+  };
+  const timeBR = (iso) => {
+    const date = launchedAt(iso);
+    return date
+      ? date.toLocaleTimeString("pt-BR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "—";
   };
   const noRows = (s, col = 5) =>
     `<tr><td colspan="${col}" class="empty">${esc(s)}</td></tr>`;
@@ -733,15 +742,23 @@
         return String(b.data || "").localeCompare(String(a.data || ""));
       })
       .slice(0, 12);
+    const launchedDateTimeBR = (iso) => {
+      const date = launchedAt(iso);
+      if (!date) return "—";
+      return `${date.toLocaleDateString("pt-BR")} ${date.toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`;
+    };
     $("#dash-fin-table").innerHTML =
-      `<table class="recent-table"><thead><tr><th>Data</th><th>Hora</th><th>Usuário</th><th>Empresa</th><th>Descrição</th><th>Tipo</th><th class="num">Valor (R$)</th><th>Status</th></tr></thead><tbody>${recent
+      `<table class="recent-table"><thead><tr><th>Data/hora do lançamento</th><th>Usuário</th><th>Empresa</th><th>Descrição</th><th>Competência</th><th>Tipo</th><th class="num">Valor (R$)</th><th>Status</th></tr></thead><tbody>${recent
         .map((r) => {
           const tp = finTipo(r),
             v =
               tp === "Saída"
                 ? money(r.saida)
                 : money(r.previsto) || money(r.recebido);
-          return `<tr data-edit-fin="${esc(r.id)}" title="Editar lançamento"><td>${dateBR(r.data)}</td><td class="nowrap">${timeBR(r.criadoEm)}</td><td>${esc(r.criadoPor || "—")}</td><td><b>${esc(r.sub || "—")}</b></td><td>${esc(r.parceiro)}${r.centro ? `<div class="muted">${esc(r.centro)}</div>` : ""}</td><td><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${tp}</span></td><td class="amount">${n2(v)}</td><td>${finStatusHTML(r)}</td></tr>`;
+          return `<tr data-edit-fin="${esc(r.id)}" title="Editar lançamento"><td class="nowrap">${launchedDateTimeBR(r.criadoEm)}</td><td>${esc(r.criadoPor || "—")}</td><td><b>${esc(r.sub || "—")}</b></td><td>${esc(r.parceiro)}${r.centro ? `<div class="muted">${esc(r.centro)}</div>` : ""}</td><td class="nowrap">${dateBR(r.data)}</td><td><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${tp}</span></td><td class="amount">${n2(v)}</td><td>${finStatusHTML(r)}</td></tr>`;
         })
         .join(
           "",

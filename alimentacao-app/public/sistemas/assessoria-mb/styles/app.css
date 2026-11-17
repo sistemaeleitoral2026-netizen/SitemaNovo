@@ -3492,6 +3492,12 @@ p.mchart-help {
 .recent-table tbody tr {
   cursor: pointer;
 }
+.recent-table td small.muted {
+  display: block;
+  margin-top: 2px;
+  font-size: 10.5px;
+  font-weight: 500;
+}
 .tipo {
   font-weight: 600;
   font-size: 12px;
