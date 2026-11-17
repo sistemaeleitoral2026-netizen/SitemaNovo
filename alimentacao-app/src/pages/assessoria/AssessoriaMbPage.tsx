@@ -145,6 +145,9 @@ export function AssessoriaMbPage() {
 
     const sincronizar = () => {
       enviarUsuario()
+      // Não hidratar no meio do save: o focus após o confirm de exclusão
+      // trazia snapshot antigo e o lançamento “voltava” até o F5.
+      if (persistindo.current) return
       void hidratar()
     }
     const aoVoltarParaAba = () => {
@@ -183,7 +186,7 @@ export function AssessoriaMbPage() {
           ref={frameRef}
           className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
           title="Financeiro Corporativo"
-          src="/sistemas/assessoria-mb/index.html?v=modular-2"
+          src="/sistemas/assessoria-mb/index.html?v=modular-3"
           onLoad={() => window.setTimeout(() => setPronto(true), 4000)}
         />
       </div>
