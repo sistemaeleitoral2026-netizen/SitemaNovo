@@ -91,6 +91,7 @@
       }
     }
   }
+  const isEmbed = window.parent !== window;
   let db;
   try {
     db = JSON.parse(localStorage.getItem(KEY)) || initial();
@@ -129,12 +130,45 @@
   if (!Array.isArray(db.staff)) db.staff = [];
   if (!db.historyEdits) db.historyEdits = {};
   if (!Array.isArray(db.companies)) db.companies = [];
-  refreshCostCodes();
-  refreshCompanies();
   let page = "dashboard",
     typeModal = "",
     editing = null;
   let removedAttachments = new Set();
+  // No iframe, o localStorage pode ressuscitar lançamentos já excluídos no
+  // banco até o mb-hydrate. Mantém só o que ainda tem upsert pendente.
+  let awaitingCloudHydrate = isEmbed;
+  const emptyMutations = () => ({
+    financeUpserts: {},
+    financeDeletes: {},
+    taskUpserts: {},
+    taskDeletes: {},
+    auditUpserts: {},
+    historyUpserts: {},
+    settings: {},
+  });
+  let pendingMutations;
+  try {
+    pendingMutations = {
+      ...emptyMutations(),
+      ...(JSON.parse(localStorage.getItem(PENDING_KEY)) || {}),
+    };
+  } catch {
+    pendingMutations = emptyMutations();
+  }
+  for (const key of Object.keys(emptyMutations())) {
+    if (!pendingMutations[key] || typeof pendingMutations[key] !== "object")
+      pendingMutations[key] = {};
+  }
+  if (isEmbed) {
+    const keepFin = new Set(Object.keys(pendingMutations.financeUpserts || {}));
+    const keepTask = new Set(Object.keys(pendingMutations.taskUpserts || {}));
+    db.finance = db.finance.filter((r) => keepFin.has(r.id));
+    db.tasks = Array.isArray(db.tasks)
+      ? db.tasks.filter((t) => keepTask.has(t.id))
+      : [];
+  }
+  refreshCostCodes();
+  refreshCompanies();
   const state = {
     mes: "",
     demanda: "",
@@ -187,28 +221,6 @@
   };
   if (state.empresa === "__ref__") state.empresa = "";
   if (state.finHistCompany === "__ref__") state.finHistCompany = "";
-  const emptyMutations = () => ({
-    financeUpserts: {},
-    financeDeletes: {},
-    taskUpserts: {},
-    taskDeletes: {},
-    auditUpserts: {},
-    historyUpserts: {},
-    settings: {},
-  });
-  let pendingMutations;
-  try {
-    pendingMutations = {
-      ...emptyMutations(),
-      ...(JSON.parse(localStorage.getItem(PENDING_KEY)) || {}),
-    };
-  } catch {
-    pendingMutations = emptyMutations();
-  }
-  for (const key of Object.keys(emptyMutations())) {
-    if (!pendingMutations[key] || typeof pendingMutations[key] !== "object")
-      pendingMutations[key] = {};
-  }
   let mutationVersion = Math.max(
     0,
     ...Object.values(pendingMutations).flatMap((group) =>
@@ -801,6 +813,15 @@
         )}</tbody></table>${recent.length ? "" : `<div class="chart-empty sm">${icon("file")}<strong>Nenhum lançamento registrado.</strong><p>Clique em “Novo Lançamento” para começar.</p></div>`}`;
   }
   function drawFinance() {
+    if (awaitingCloudHydrate) {
+      $("#finance-count").textContent = "Sincronizando com a nuvem…";
+      $("#fin-reconcile-banner").innerHTML = "";
+      $("#filter-financeiro").innerHTML = "";
+      $("#finance-table").innerHTML =
+        `<div class="fin-empty">Carregando lançamentos do banco…</div>`;
+      $("#finance-pager").innerHTML = "";
+      return;
+    }
     const direction = state.finSort === "asc" ? 1 : -1;
     const rows = [...financeFiltered()].sort((a, b) => {
       const byDate = String(a.data || "").localeCompare(String(b.data || ""));
@@ -4529,6 +4550,7 @@
     }
     if (d.type === "mb-hydrate" && d.payload) {
       const p = d.payload;
+      awaitingCloudHydrate = false;
       if (hasPendingMutations()) {
         applyCloudDbPreservingPending(p);
         toast("Reenviando alterações pendentes…");
