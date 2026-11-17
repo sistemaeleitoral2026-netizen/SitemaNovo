@@ -304,6 +304,9 @@ class Component extends DCLogic {
     finForm: null,
     eqForm: null,
     viepDrafts: {},
+    confTab: "geral",
+    fundoForm: null,
+    fundoLancForm: null,
     w: window.innerWidth,
     drawer: false,
     notif: false,
@@ -569,6 +572,10 @@ class Component extends DCLogic {
     this.setState({ page: "fin", finTab: tab, drawer: false, notif: false });
     window.scrollTo(0, 0);
   };
+  goConf = (tab) => {
+    this.setState({ page: "conf", confTab: tab, drawer: false, notif: false });
+    window.scrollTo(0, 0);
+  };
   flash = (t) => {
     clearTimeout(this.tt);
     this.setState({ toast: t });
@@ -651,21 +658,36 @@ class Component extends DCLogic {
       ["rel", "Relatórios", "chart-bar"],
       ["conf", "Configurações", "settings"],
     ];
-    const FIN_CHILDREN = [
-      ["painel", "Painel", "layout-dashboard"],
-      ["desp", "Despesas", "receipt"],
-      ["verbas", "Verbas da Câmara", "building-bank"],
-      ["equipe", "Equipe do gabinete", "users-group"],
-    ];
-    const finAberto = s.page === "fin";
+    const GRUPOS = {
+      fin: {
+        tabAtivo: s.finTab,
+        ir: (tab) => this.goFin(tab),
+        filhos: [
+          ["painel", "Painel", "layout-dashboard"],
+          ["desp", "Despesas", "receipt"],
+          ["verbas", "Verbas da Câmara", "building-bank"],
+          ["equipe", "Equipe do gabinete", "users-group"],
+        ],
+      },
+      conf: {
+        tabAtivo: s.confTab,
+        ir: (tab) => this.goConf(tab),
+        filhos: [
+          ["geral", "Configurações", "adjustments"],
+          ["fundos", "Fundos", "building-bank"],
+        ],
+      },
+    };
     const navItems = NAV.flatMap(([id, label, icon, badge]) => {
       const a = s.page === id;
+      const grupo = GRUPOS[id];
+      const aberto = grupo && a;
       const item = {
         label,
-        icon: id === "fin" ? (finAberto ? "chevron-down" : "chevron-right") : icon,
+        icon: grupo ? (aberto ? "chevron-down" : "chevron-right") : icon,
         badge,
         hasBadge: !!badge,
-        onClick: id === "fin" ? () => this.goFin("painel") : () => this.go(id),
+        onClick: grupo ? () => grupo.ir(grupo.filhos[0][0]) : () => this.go(id),
         bg: a ? "#1B5BD0" : "transparent",
         color: a ? "#fff" : "#C9D5EA",
         fw: a ? 600 : 500,
@@ -673,18 +695,15 @@ class Component extends DCLogic {
         fsz: "14.5px",
         isz: "19px",
       };
-      if (id !== "fin") return [item];
-      // ícone do item pai some pra dar lugar à seta de expandir; o "wallet" some junto
-      item.icon = finAberto ? "chevron-down" : "chevron-right";
-      if (!finAberto) return [item];
-      const children = FIN_CHILDREN.map(([tab, tlabel, ticon]) => ({
+      if (!grupo || !aberto) return [item];
+      const children = grupo.filhos.map(([tab, tlabel, ticon]) => ({
         label: tlabel,
         icon: ticon,
         hasBadge: false,
-        onClick: () => this.goFin(tab),
-        bg: s.finTab === tab ? "#16366B" : "transparent",
-        color: s.finTab === tab ? "#fff" : "#9FB2D6",
-        fw: s.finTab === tab ? 600 : 500,
+        onClick: () => grupo.ir(tab),
+        bg: grupo.tabAtivo === tab ? "#16366B" : "transparent",
+        color: grupo.tabAtivo === tab ? "#fff" : "#9FB2D6",
+        fw: grupo.tabAtivo === tab ? 600 : 500,
         pl: "34px",
         fsz: "13.5px",
         isz: "16px",
@@ -1693,6 +1712,7 @@ class Component extends DCLogic {
       cargoTxt: e.cargo || "cargo não informado",
       admissaoBr: e.admissao ? dataBr(e.admissao) : "—",
       salarioBr: brl(e.salario),
+      fundoTxt: e.fundoNome || "sem fundo definido",
       editar: () =>
         this.setState({
           eqForm: {
@@ -1701,6 +1721,7 @@ class Component extends DCLogic {
             cargo: e.cargo || "",
             admissao: e.admissao || "",
             salario: String(e.salario || "").replace(".", ","),
+            fundoId: e.fundo_id || "",
           },
         }),
       excluir: () => {
@@ -1729,7 +1750,60 @@ class Component extends DCLogic {
       const val = e.target.value;
       this.setState((st) => ({ eqForm: { ...st.eqForm, [k]: val } }));
     };
+    const setFDF = (k) => (e) => {
+      const val = e.target.value;
+      this.setState((st) => ({ fundoForm: { ...st.fundoForm, [k]: val } }));
+    };
+    const setFLF = (k) => (e) => {
+      const val = e.target.value;
+      this.setState((st) => ({ fundoLancForm: { ...st.fundoLancForm, [k]: val } }));
+    };
     const hojeISO = new Date().toISOString().slice(0, 10);
+    const fundosTodos = (FIN && FIN.fundos) || [];
+    const fundoOpts = fundosTodos
+      .filter((f) => f.ativo !== false)
+      .map((f) => ({ v: f.id, l: f.nome }));
+    const fundosAll = fundosTodos.map((f) => ({
+      id: f.id,
+      nome: f.nome,
+      descricao: f.descricao || "",
+      totalBr: brl(f.total),
+      noLanc: !f.lancamentos.length,
+      lancamentos: f.lancamentos.map((l) => ({
+        dataBr: dataBr(l.data),
+        valorBr: brl(l.valor),
+        origem: l.origem || "—",
+        observacao: l.observacao || "—",
+        excluir: () => {
+          if (window.confirm("Excluir este lançamento do fundo?"))
+            post({ type: "mandato-fin-fundo-lancamento-excluir", id: l.id });
+        },
+      })),
+      editar: () =>
+        this.setState({
+          fundoForm: { id: f.id, nome: f.nome, descricao: f.descricao || "" },
+        }),
+      excluir: () => {
+        if (window.confirm(`Remover o fundo "${f.nome}"?`))
+          post({ type: "mandato-fin-fundo-excluir", id: f.id });
+      },
+      novoLancamento: () =>
+        this.setState({
+          fundoLancForm: {
+            fundoId: f.id,
+            fundoNome: f.nome,
+            data: hojeISO,
+            valor: "",
+            origem: "",
+            observacao: "",
+          },
+        }),
+    }));
+    const noFundos = fundosAll.length === 0;
+    const CONF_CAB = {
+      geral: ["Configurações", "Equipe do gabinete e permissões de acesso"],
+      fundos: ["Fundos", "De onde sai o dinheiro que paga a equipe do gabinete"],
+    };
     const FIN_CAB = {
       painel: [
         "Financeiro",
@@ -1775,6 +1849,10 @@ class Component extends DCLogic {
       isCom: s.page === "com",
       isRel: s.page === "rel",
       isConf: s.page === "conf",
+      isConfGeral: s.confTab === "geral",
+      isConfFundos: s.confTab === "fundos",
+      confTitulo: CONF_CAB[s.confTab][0],
+      confSub: CONF_CAB[s.confTab][1],
       q: s.q,
       onSearch: (e) => {
         const v = e.target.value;
@@ -2371,16 +2449,22 @@ class Component extends DCLogic {
       eqFormOpen: !!s.eqForm,
       eqFormTitulo: s.eqForm && s.eqForm.id ? "Editar pessoa" : "Nova pessoa no gabinete",
       eqForm: s.eqForm || {},
+      eqFundoOpts: fundoOpts,
       eqFechar: () => this.setState({ eqForm: null }),
       ef_nome: setEF("nome"),
       ef_cargo: setEF("cargo"),
       ef_admissao: setEF("admissao"),
       ef_salario: setEF("salario"),
+      ef_fundo: setEF("fundoId"),
       eqSalvar: (e) => {
         e.preventDefault();
         const f = this.state.eqForm;
         if (!String(f.nome || "").trim()) {
           this.flash("Informe o nome.");
+          return;
+        }
+        if (!f.fundoId) {
+          this.flash("Informe de onde sai o dinheiro.");
           return;
         }
         post({
@@ -2391,9 +2475,61 @@ class Component extends DCLogic {
             cargo: f.cargo,
             admissao: f.admissao,
             salario: Number(String(f.salario || "0").replace(/\./g, "").replace(",", ".")) || 0,
+            fundo_id: f.fundoId,
           },
         });
         this.setState({ eqForm: null });
+      },
+      fundosAll,
+      noFundos,
+      fundoNovo: () => this.setState({ fundoForm: { nome: "", descricao: "" } }),
+      fundoFormOpen: !!s.fundoForm,
+      fundoFormTitulo: s.fundoForm && s.fundoForm.id ? "Editar fundo" : "Novo fundo",
+      fundoForm: s.fundoForm || {},
+      fundoFechar: () => this.setState({ fundoForm: null }),
+      fdf_nome: setFDF("nome"),
+      fdf_descricao: setFDF("descricao"),
+      fundoSalvar: (e) => {
+        e.preventDefault();
+        const f = this.state.fundoForm;
+        if (!String(f.nome || "").trim()) {
+          this.flash("Informe o nome do fundo.");
+          return;
+        }
+        post({
+          type: "mandato-fin-fundo-salvar",
+          fundo: { id: f.id, nome: f.nome, descricao: f.descricao },
+        });
+        this.setState({ fundoForm: null });
+      },
+      fundoLancFormOpen: !!s.fundoLancForm,
+      fundoLancForm: s.fundoLancForm || {},
+      fundoLancFechar: () => this.setState({ fundoLancForm: null }),
+      flf_data: setFLF("data"),
+      flf_valor: setFLF("valor"),
+      flf_origem: setFLF("origem"),
+      flf_observacao: setFLF("observacao"),
+      fundoLancSalvar: (e) => {
+        e.preventDefault();
+        const f = this.state.fundoLancForm;
+        const valor = Number(
+          String(f.valor || "0").replace(/\./g, "").replace(",", "."),
+        );
+        if (!(valor > 0)) {
+          this.flash("Informe um valor válido.");
+          return;
+        }
+        post({
+          type: "mandato-fin-fundo-lancamento-salvar",
+          fundoLancamento: {
+            fundo_id: f.fundoId,
+            data: f.data || hojeISO,
+            valor,
+            origem: f.origem,
+            observacao: f.observacao,
+          },
+        });
+        this.setState({ fundoLancForm: null });
       },
     };
   }

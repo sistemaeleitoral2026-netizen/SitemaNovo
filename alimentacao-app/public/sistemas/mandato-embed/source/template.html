@@ -523,9 +523,17 @@
 <sc-if value="{{ isConf }}" hint-placeholder-val="{{ false }}">
 <div style="display:flex;flex-direction:column;gap:16px">
   <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px">
-    <div><h1 style="margin:0;font-size:24px;font-weight:800">Configurações</h1><span style="font-size:14px;color:#5B6B85">Equipe do gabinete e permissões de acesso</span></div>
-    <button sc-camel-on-click="{{ toastConv }}" style="display:flex;align-items:center;gap:6px;height:42px;padding:0 16px;border:0;background:#1B5BD0;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#fff"><i class="ti ti-mail" style="font-size:17px"></i>Convidar assessor</button>
+    <div><h1 style="margin:0;font-size:24px;font-weight:800">{{ confTitulo }}</h1><span style="font-size:14px;color:#5B6B85">{{ confSub }}</span></div>
+    <sc-if value="{{ isConfGeral }}" hint-placeholder-val="{{ true }}">
+      <button sc-camel-on-click="{{ toastConv }}" style="display:flex;align-items:center;gap:6px;height:42px;padding:0 16px;border:0;background:#1B5BD0;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#fff"><i class="ti ti-mail" style="font-size:17px"></i>Convidar assessor</button>
+    </sc-if>
+    <sc-if value="{{ isConfFundos }}" hint-placeholder-val="{{ false }}">
+      <button type="button" sc-camel-on-click="{{ fundoNovo }}" style="display:flex;align-items:center;gap:6px;height:42px;padding:0 16px;border:0;background:#1B5BD0;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#fff"><i class="ti ti-plus" style="font-size:17px"></i>Novo fundo</button>
+    </sc-if>
   </div>
+
+  <!-- ---------- CONFIGURAÇÕES · GERAL ---------- -->
+  <sc-if value="{{ isConfGeral }}" hint-placeholder-val="{{ true }}">
   <section style="background:#fff;border:1px solid #E3E8F0;border-radius:16px;overflow:hidden">
     <sc-for list="{{ equipe }}" as="e" hint-placeholder-count="5">
       <div style="display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center;padding:14px 18px;border-bottom:1px solid #EEF1F6">
@@ -543,6 +551,50 @@
     <div style="display:flex;gap:12px;align-items:center;font-size:14px"><i class="ti ti-shield-check" style="font-size:20px;color:#17994B"></i><span style="flex:1">Verificação em duas etapas obrigatória para toda a equipe</span><b style="color:#17994B">Ativa</b></div>
     <div style="display:flex;gap:12px;align-items:center;font-size:14px"><i class="ti ti-lock" style="font-size:20px;color:#5B6B85"></i><span style="flex:1">Dados de cidadãos tratados conforme a LGPD (Lei 13.709/2018)</span><b style="color:#17994B">Conforme</b></div>
   </section>
+  </sc-if>
+
+  <!-- ---------- CONFIGURAÇÕES · FUNDOS ---------- -->
+  <sc-if value="{{ isConfFundos }}" hint-placeholder-val="{{ false }}">
+    <sc-for list="{{ fundosAll }}" as="f" hint-placeholder-count="2">
+      <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid #E3E8F0">
+          <div><h2 style="margin:0;font-size:16px;font-weight:800">{{ f.nome }}</h2><span style="font-size:13px;color:#5B6B85">{{ f.descricao }}</span></div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="text-align:right"><span style="display:block;font-size:11px;color:#7A889E;text-transform:uppercase">Total recebido</span><b style="font-size:16px">{{ f.totalBr }}</b></div>
+            <button type="button" title="Editar fundo" sc-camel-on-click="{{ f.editar }}" style="width:36px;height:36px;border:1px solid #DCE3EE;background:#fff;border-radius:8px;cursor:pointer;color:#1B5BD0"><i class="ti ti-pencil" style="font-size:16px"></i></button>
+            <button type="button" title="Remover fundo" sc-camel-on-click="{{ f.excluir }}" style="width:36px;height:36px;border:1px solid #F6D2CF;background:#fff;border-radius:8px;cursor:pointer;color:#B42318"><i class="ti ti-trash" style="font-size:16px"></i></button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <sc-raw-table style="width:100%;min-width:620px;border-collapse:collapse">
+            <sc-raw-thead><sc-raw-tr>
+              <sc-raw-th style="padding:9px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Data</sc-raw-th>
+              <sc-raw-th style="padding:9px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Valor</sc-raw-th>
+              <sc-raw-th style="padding:9px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Origem</sc-raw-th>
+              <sc-raw-th style="padding:9px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9">Observação</sc-raw-th>
+              <sc-raw-th style="padding:9px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Ações</sc-raw-th>
+            </sc-raw-tr></sc-raw-thead>
+            <sc-raw-tbody>
+              <sc-for list="{{ f.lancamentos }}" as="l" hint-placeholder-count="3">
+                <sc-raw-tr>
+                  <sc-raw-td style="padding:10px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap;color:#5B6B85">{{ l.dataBr }}</sc-raw-td>
+                  <sc-raw-td style="padding:10px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;text-align:right;font-weight:700;white-space:nowrap;color:#157A3E">{{ l.valorBr }}</sc-raw-td>
+                  <sc-raw-td style="padding:10px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap">{{ l.origem }}</sc-raw-td>
+                  <sc-raw-td style="padding:10px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle">{{ l.observacao }}</sc-raw-td>
+                  <sc-raw-td style="padding:10px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;text-align:right"><button type="button" title="Excluir" sc-camel-on-click="{{ l.excluir }}" style="width:32px;height:32px;border:1px solid #F6D2CF;background:#fff;border-radius:7px;cursor:pointer;color:#B42318"><i class="ti ti-trash" style="font-size:15px"></i></button></sc-raw-td>
+                </sc-raw-tr>
+              </sc-for>
+            </sc-raw-tbody>
+          </sc-raw-table>
+          <sc-if value="{{ f.noLanc }}" hint-placeholder-val="{{ false }}"><div style="padding:18px;text-align:center;color:#5B6B85;font-size:13.5px">Nenhum lançamento ainda neste fundo.</div></sc-if>
+        </div>
+        <div style="padding:12px 16px;border-top:1px solid #E3E8F0">
+          <button type="button" sc-camel-on-click="{{ f.novoLancamento }}" style="display:flex;align-items:center;gap:6px;height:38px;padding:0 14px;border:1px solid #DCE3EE;background:#fff;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;color:#1B5BD0"><i class="ti ti-plus" style="font-size:15px"></i>Adicionar lançamento</button>
+        </div>
+      </section>
+    </sc-for>
+    <sc-if value="{{ noFundos }}" hint-placeholder-val="{{ false }}"><div style="padding:36px;text-align:center;color:#5B6B85;font-size:14px;background:#fff;border:1px solid #E3E8F0;border-radius:14px">Nenhum fundo cadastrado ainda. Use “Novo fundo” para começar.</div></sc-if>
+  </sc-if>
 </div>
 </sc-if>
 
@@ -728,11 +780,12 @@
         </sc-if>
       </div>
       <div style="overflow-x:auto">
-        <sc-raw-table style="width:100%;min-width:680px;border-collapse:collapse">
+        <sc-raw-table style="width:100%;min-width:860px;border-collapse:collapse">
           <sc-raw-thead><sc-raw-tr>
             <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Nome</sc-raw-th>
             <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Cargo / Função</sc-raw-th>
             <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Admissão</sc-raw-th>
+            <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:left;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">De onde sai o dinheiro</sc-raw-th>
             <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Salário</sc-raw-th>
             <sc-raw-th style="padding:10px 14px;font-size:11.5px;font-weight:700;color:#5B6B85;text-transform:uppercase;letter-spacing:.04em;text-align:right;background:#EEF2F8;border-bottom:1px solid #D5DDE9;white-space:nowrap">Ações</sc-raw-th>
           </sc-raw-tr></sc-raw-thead>
@@ -742,6 +795,7 @@
                 <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle"><div style="display:flex;gap:10px;align-items:center"><div style="width:34px;height:34px;border-radius:50%;background:#EAF1FE;color:#1B5BD0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex:0 0 34px">{{ e.ini }}</div><span style="font-weight:700">{{ e.nome }}</span></div></sc-raw-td>
                 <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle">{{ e.cargoTxt }}</sc-raw-td>
                 <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap;color:#5B6B85">{{ e.admissaoBr }}</sc-raw-td>
+                <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;white-space:nowrap;color:#5B6B85">{{ e.fundoTxt }}</sc-raw-td>
                 <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;text-align:right;font-weight:700;white-space:nowrap">{{ e.salarioBr }}</sc-raw-td>
                 <sc-raw-td style="padding:11px 14px;border-bottom:1px solid #E3E8F0;font-size:13.5px;vertical-align:middle;text-align:right">
                   <sc-if value="{{ finPodeEditar }}" hint-placeholder-val="{{ true }}">
@@ -946,9 +1000,56 @@
         <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Data de admissão<input type="date" value="{{ eqForm.admissao }}" sc-camel-on-change="{{ ef_admissao }}" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
         <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Salário (R$)<input type="text" inputmode="decimal" value="{{ eqForm.salario }}" sc-camel-on-change="{{ ef_salario }}" placeholder="0,00" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
       </div>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">De onde sai o dinheiro *<sc-raw-select value="{{ eqForm.fundoId }}" sc-camel-on-change="{{ ef_fundo }}" required style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%;cursor:pointer"><option value="">Selecione o fundo</option><sc-for list="{{ eqFundoOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></sc-raw-select></label>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;padding:14px 22px;border-top:1px solid #E3E8F0;flex-wrap:wrap">
       <button type="button" sc-camel-on-click="{{ eqFechar }}" style="height:46px;padding:0 18px;border:1px solid #DCE3EE;background:#fff;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;color:#13213A">Cancelar</button>
+      <button type="submit" style="height:46px;padding:0 20px;border:0;background:#1B5BD0;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;color:#fff;display:flex;align-items:center;gap:6px"><i class="ti ti-check" style="font-size:18px"></i>Salvar</button>
+    </div>
+  </form>
+</div>
+</sc-if>
+
+<!-- ============ CONFIGURAÇÕES · FUNDO (criar/editar) ============ -->
+<sc-if value="{{ fundoFormOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:12px">
+  <div sc-camel-on-click="{{ fundoFechar }}" style="position:absolute;inset:0;background:rgba(8,18,40,.45)"></div>
+  <form sc-camel-on-submit="{{ fundoSalvar }}" style="position:relative;width:min(460px,100%);max-height:100%;overflow-y:auto;background:#fff;border-radius:16px;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:10px;padding:18px 22px;border-bottom:1px solid #E3E8F0">
+      <h2 style="margin:0;flex:1;font-size:18px;font-weight:700">{{ fundoFormTitulo }}</h2>
+      <button type="button" sc-camel-on-click="{{ fundoFechar }}" style="width:40px;height:40px;border:0;background:transparent;cursor:pointer;color:#13213A"><i class="ti ti-x" style="font-size:20px"></i></button>
+    </div>
+    <div style="padding:20px 22px;display:flex;flex-direction:column;gap:14px">
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Nome *<input type="text" value="{{ fundoForm.nome }}" sc-camel-on-change="{{ fdf_nome }}" placeholder="Ex.: Verba de gabinete" required style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Descrição<textarea value="{{ fundoForm.descricao }}" sc-camel-on-change="{{ fdf_descricao }}" rows="3" placeholder="Opcional" style="border:1px solid #DCE3EE;border-radius:9px;padding:10px 12px;font-size:15px;resize:vertical;color:#13213A"></textarea></label>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;padding:14px 22px;border-top:1px solid #E3E8F0;flex-wrap:wrap">
+      <button type="button" sc-camel-on-click="{{ fundoFechar }}" style="height:46px;padding:0 18px;border:1px solid #DCE3EE;background:#fff;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;color:#13213A">Cancelar</button>
+      <button type="submit" style="height:46px;padding:0 20px;border:0;background:#1B5BD0;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;color:#fff;display:flex;align-items:center;gap:6px"><i class="ti ti-check" style="font-size:18px"></i>Salvar</button>
+    </div>
+  </form>
+</div>
+</sc-if>
+
+<!-- ============ CONFIGURAÇÕES · LANÇAMENTO NO FUNDO ============ -->
+<sc-if value="{{ fundoLancFormOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:12px">
+  <div sc-camel-on-click="{{ fundoLancFechar }}" style="position:absolute;inset:0;background:rgba(8,18,40,.45)"></div>
+  <form sc-camel-on-submit="{{ fundoLancSalvar }}" style="position:relative;width:min(460px,100%);max-height:100%;overflow-y:auto;background:#fff;border-radius:16px;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:10px;padding:18px 22px;border-bottom:1px solid #E3E8F0">
+      <div style="flex:1"><h2 style="margin:0;font-size:18px;font-weight:700">Novo lançamento</h2><span style="font-size:13px;color:#5B6B85">Fundo: {{ fundoLancForm.fundoNome }}</span></div>
+      <button type="button" sc-camel-on-click="{{ fundoLancFechar }}" style="width:40px;height:40px;border:0;background:transparent;cursor:pointer;color:#13213A"><i class="ti ti-x" style="font-size:20px"></i></button>
+    </div>
+    <div style="padding:20px 22px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Data *<input type="date" value="{{ fundoLancForm.data }}" sc-camel-on-change="{{ flf_data }}" required style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Valor (R$) *<input type="text" inputmode="decimal" value="{{ fundoLancForm.valor }}" sc-camel-on-change="{{ flf_valor }}" placeholder="0,00" required style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+      </div>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Origem<input type="text" value="{{ fundoLancForm.origem }}" sc-camel-on-change="{{ flf_origem }}" placeholder="De onde veio esse valor" style="height:44px;border:1px solid #DCE3EE;border-radius:9px;padding:0 12px;font-size:15px;background:#fff;color:#13213A;width:100%"></label>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#33425C">Observação<textarea value="{{ fundoLancForm.observacao }}" sc-camel-on-change="{{ flf_observacao }}" rows="3" placeholder="Opcional" style="border:1px solid #DCE3EE;border-radius:9px;padding:10px 12px;font-size:15px;resize:vertical;color:#13213A"></textarea></label>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;padding:14px 22px;border-top:1px solid #E3E8F0;flex-wrap:wrap">
+      <button type="button" sc-camel-on-click="{{ fundoLancFechar }}" style="height:46px;padding:0 18px;border:1px solid #DCE3EE;background:#fff;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;color:#13213A">Cancelar</button>
       <button type="submit" style="height:46px;padding:0 20px;border:0;background:#1B5BD0;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;color:#fff;display:flex;align-items:center;gap:6px"><i class="ti ti-check" style="font-size:18px"></i>Salvar</button>
     </div>
   </form>
