@@ -28,6 +28,8 @@ export type MbFinance = {
   data: string
   dataRecebida?: string
   empresaDepositante?: string
+  /** Conta bancária (controle interno; não entra na prestação). */
+  contaBancaria?: string
   demanda?: string
   sub?: string
   previsto: number
@@ -428,6 +430,7 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
       data: String(r.data || '').slice(0, 10),
       dataRecebida: r.data_recebida ? String(r.data_recebida).slice(0, 10) : '',
       empresaDepositante: (r.empresa_depositante as string) || '',
+      contaBancaria: (r.conta_bancaria as string) || '',
       demanda: (r.demanda as string) || '',
       sub: (r.empresa as string) || '',
       previsto: money(r.previsto),
@@ -745,6 +748,7 @@ export async function salvarEstadoAssessoria(
                 data: emptyDate(r.data) || new Date().toISOString().slice(0, 10),
                 data_recebida: emptyDate(r.dataRecebida),
                 empresa_depositante: r.empresaDepositante || null,
+                conta_bancaria: r.contaBancaria || null,
                 demanda: r.demanda || null,
                 empresa: r.sub || null,
                 previsto: money(r.previsto),
@@ -761,10 +765,15 @@ export async function salvarEstadoAssessoria(
               }
             })
             let { error } = await supabase.from('mb_lancamentos').upsert(rows, { onConflict: 'id' })
-            if (error && /tipo_lancamento|recebimentos|schema cache|column/i.test(String(error.message || error))) {
+            if (error && /tipo_lancamento|recebimentos|conta_bancaria|schema cache|column/i.test(String(error.message || error))) {
               const originalById = new Map(rowsToUpsert.map((r) => [r.id, r]))
               const legacyRows = rows.map((row) => {
-                const { tipo_lancamento: _tipo, recebimentos: rx, ...legacy } = row
+                const {
+                  tipo_lancamento: _tipo,
+                  recebimentos: rx,
+                  conta_bancaria: _conta,
+                  ...legacy
+                } = row
                 const original = originalById.get(row.id)
                 return {
                   ...legacy,

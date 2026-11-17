@@ -78,6 +78,7 @@ create table if not exists public.mb_lancamentos (
   data date not null,
   data_recebida date,
   empresa_depositante text,
+  conta_bancaria text,                    -- controle interno (não vai à prestação)
   demanda text,
   empresa text,                           -- subdivision: ESP, MTAREIA, MTEX...
   previsto numeric(14, 2) not null default 0 check (previsto >= 0),
