@@ -1,3 +1,4 @@
+const { randomUUID } = require('crypto')
 const NERITES_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const NERITES_ANON = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
 const NERITES_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -336,6 +337,126 @@ module.exports = async function handler(req, res) {
           observacao: body.observacao ? String(body.observacao).slice(0, 500) : null,
           atualizado_em: new Date().toISOString(),
         })
+        return json(res, 200, { ok: true })
+      }
+
+      if (recurso === 'financeiro-verbas-salvar') {
+        let linha
+        try { linha = fin.validarVerba(body) } catch (e) { return json(res, e.status || 400, { error: e.message }) }
+        const agora = new Date().toISOString()
+        const rawId = String(body.id || '')
+        if (rawId && !rawId.startsWith('manual:')) {
+          const id = rawId.replace(/[^0-9a-f-]/gi, '')
+          if (!id) return json(res, 400, { error: 'Informe a verba.' })
+          await db.patch(`fin_verba?id=eq.${id}`, { ...linha, atualizado_em: agora })
+        } else {
+          const id = randomUUID()
+          await db.upsert('fin_verba', 'id', { ...linha, id, criado_em: agora, atualizado_em: agora })
+          if (rawId.startsWith('manual:') || linha.tipo === 'VIEP') {
+            try { await db.del(`fin_mes_manual?mes=eq.${encodeURIComponent(linha.mes)}`) } catch { /* ok */ }
+          }
+        }
+        return json(res, 200, { ok: true })
+      }
+
+      if (recurso === 'financeiro-verbas-excluir') {
+        const rawId = String(body.id || '')
+        if (rawId.startsWith('manual:')) {
+          const mes = rawId.slice(7)
+          if (!/^\d{4}-\d{2}$/.test(mes)) return json(res, 400, { error: 'Mês inválido.' })
+          try { await db.del(`fin_mes_manual?mes=eq.${encodeURIComponent(mes)}`) } catch { /* ok */ }
+          return json(res, 200, { ok: true })
+        }
+        const id = rawId.replace(/[^0-9a-f-]/gi, '')
+        if (!id) return json(res, 400, { error: 'Informe a verba.' })
+        await db.del(`fin_verba?id=eq.${id}`)
+        return json(res, 200, { ok: true })
+      }
+
+      if (recurso === 'financeiro-equipe-salvar') {
+        const nome = String(body.nome || '').trim().slice(0, 160)
+        if (!nome) return json(res, 400, { error: 'Informe o nome.' })
+        const fundoId = String(body.fundo_id || '').replace(/[^0-9a-f-]/gi, '')
+        if (!fundoId) return json(res, 400, { error: 'Selecione o fundo.' })
+        const agora = new Date().toISOString()
+        const salario = fin.r2(typeof body.salario === 'number' ? body.salario : fin.num(body.salario))
+        const admissao = body.admissao && /^\d{4}-\d{2}-\d{2}$/.test(String(body.admissao).slice(0, 10))
+          ? String(body.admissao).slice(0, 10) : null
+        const linha = {
+          nome,
+          cargo: body.cargo ? String(body.cargo).trim().slice(0, 120) : null,
+          admissao,
+          salario: salario || 0,
+          fundo_id: fundoId,
+          ativo: true,
+          atualizado_em: agora,
+        }
+        if (body.id) {
+          const id = String(body.id).replace(/[^0-9a-f-]/gi, '')
+          await db.patch(`fin_gabinete_manual?id=eq.${id}`, linha)
+        } else {
+          await db.upsert('fin_gabinete_manual', 'id', { ...linha, id: randomUUID(), criado_em: agora })
+        }
+        return json(res, 200, { ok: true })
+      }
+
+      if (recurso === 'financeiro-equipe-excluir') {
+        const id = String(body.id || '').replace(/[^0-9a-f-]/gi, '')
+        if (!id) return json(res, 400, { error: 'Informe a pessoa.' })
+        await db.patch(`fin_gabinete_manual?id=eq.${id}`, { ativo: false, atualizado_em: new Date().toISOString() })
+        return json(res, 200, { ok: true })
+      }
+
+      if (recurso === 'financeiro-fundo-salvar') {
+        const nome = String(body.nome || '').trim().slice(0, 120)
+        if (!nome) return json(res, 400, { error: 'Informe o nome do fundo.' })
+        const agora = new Date().toISOString()
+        const linha = {
+          nome,
+          descricao: body.descricao ? String(body.descricao).trim().slice(0, 500) : null,
+          ativo: true,
+          atualizado_em: agora,
+        }
+        if (body.id) {
+          const id = String(body.id).replace(/[^0-9a-f-]/gi, '')
+          await db.patch(`fin_fundos?id=eq.${id}`, linha)
+        } else {
+          await db.upsert('fin_fundos', 'id', { ...linha, id: randomUUID(), criado_em: agora })
+        }
+        return json(res, 200, { ok: true })
+      }
+
+      if (recurso === 'financeiro-fundo-excluir') {
+        const id = String(body.id || '').replace(/[^0-9a-f-]/gi, '')
+        if (!id) return json(res, 400, { error: 'Informe o fundo.' })
+        await db.del(`fin_fundo_lancamento?fundo_id=eq.${id}`)
+        await db.del(`fin_fundos?id=eq.${id}`)
+        return json(res, 200, { ok: true })
+      }
+
+      if (recurso === 'financeiro-fundo-lancamento-salvar') {
+        const fundoId = String(body.fundo_id || '').replace(/[^0-9a-f-]/gi, '')
+        const data = String(body.data || '').slice(0, 10)
+        const valor = fin.r2(typeof body.valor === 'number' ? body.valor : fin.num(body.valor))
+        if (!fundoId) return json(res, 400, { error: 'Informe o fundo.' })
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return json(res, 400, { error: 'Informe a data.' })
+        if (!(valor > 0)) return json(res, 400, { error: 'Valor precisa ser maior que zero.' })
+        await db.upsert('fin_fundo_lancamento', 'id', {
+          id: randomUUID(),
+          fundo_id: fundoId,
+          data,
+          valor,
+          origem: body.origem ? String(body.origem).trim().slice(0, 160) : null,
+          observacao: body.observacao ? String(body.observacao).trim().slice(0, 500) : null,
+          criado_em: new Date().toISOString(),
+        })
+        return json(res, 200, { ok: true })
+      }
+
+      if (recurso === 'financeiro-fundo-lancamento-excluir') {
+        const id = String(body.id || '').replace(/[^0-9a-f-]/gi, '')
+        if (!id) return json(res, 400, { error: 'Informe o lançamento.' })
+        await db.del(`fin_fundo_lancamento?id=eq.${id}`)
         return json(res, 200, { ok: true })
       }
 

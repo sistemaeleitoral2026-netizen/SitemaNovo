@@ -181,7 +181,21 @@ export const mudarStatusLancamento = (id: string, status: string) => postFin('fi
 export type EquipeGabineteEntrada = { id?: string; nome: string; cargo?: string; admissao?: string; salario: number | string; fundo_id: string }
 export const salvarEquipeGabinete = (e: EquipeGabineteEntrada) => postFin('financeiro-equipe-salvar', e)
 export const excluirEquipeGabinete = (id: string) => postFin('financeiro-equipe-excluir', { id })
-export const salvarViepMes = (mes: string, valor: number | string) => postFin('financeiro-verbas-salvar', { mes, valor })
+
+export type VerbaCamaraEntrada = {
+  id?: string
+  mes: string
+  tipo?: 'VIEP' | 'DIARIA' | 'OUTRA'
+  descricao?: string
+  valor: number | string
+  data?: string
+  observacao?: string
+}
+export const salvarVerbaCamara = (v: VerbaCamaraEntrada) => postFin('financeiro-verbas-salvar', v)
+/** @deprecated use salvarVerbaCamara */
+export const salvarViepMes = (mes: string, valor: number | string) =>
+  salvarVerbaCamara({ mes, tipo: 'VIEP', descricao: 'VIEP recebida', valor })
+export const excluirVerbaCamara = (id: string) => postFin('financeiro-verbas-excluir', { id })
 
 export type FundoEntrada = { id?: string; nome: string; descricao?: string }
 export const salvarFundo = (f: FundoEntrada) => postFin('financeiro-fundo-salvar', f)
