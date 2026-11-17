@@ -658,10 +658,22 @@ export async function salvarEstadoAssessoria(
   }
 
   const remapIds = (ids: string[] | undefined) => [...new Set((ids || []).map((id) => ensureUuid(id)))]
+  // Exclusão NUNCA pode trocar o id por um UUID novo: isso apaga 0 linhas,
+  // o sync “passa”, a fila local limpa e no refresh o lançamento volta
+  // (parecia cache). Só aceita id já canônico.
+  const requireDeleteUuid = (id: string, label: string) => {
+    const raw = String(id || '').trim()
+    if (isUuid(raw)) return raw
+    throw new Error(
+      `${label}: id inválido (${raw || 'vazio'}). Atualize a página (Ctrl+F5) e exclua de novo.`,
+    )
+  }
+  const deleteIds = (ids: string[] | undefined, label: string) =>
+    [...new Set((ids || []).map((id) => requireDeleteUuid(id, label)))]
   const financeUpsertIds = remapIds(mutations.financeUpserts)
-  const financeDeleteIds = remapIds(mutations.financeDeletes)
+  const financeDeleteIds = deleteIds(mutations.financeDeletes, 'Exclusão de lançamento')
   const taskUpsertIds = remapIds(mutations.taskUpserts)
-  const taskDeleteIds = remapIds(mutations.taskDeletes)
+  const taskDeleteIds = deleteIds(mutations.taskDeletes, 'Exclusão de tarefa')
   const auditUpsertIds = remapIds(mutations.auditUpserts)
   const historyUpsertIds = new Set(mutations.historyUpserts || [])
   const settings = new Set(mutations.settings || [])
