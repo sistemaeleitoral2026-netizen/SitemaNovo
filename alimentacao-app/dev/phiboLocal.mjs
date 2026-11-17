@@ -33,9 +33,18 @@ function erroPhibo(text, status) {
   return `Phibo recusou (HTTP ${status}).`
 }
 
+// O Phibo exige Origin/Referer da própria app dele (sem isso, o firewall
+// devolve 403 pra qualquer chamador, mesmo de um IP residencial normal).
+const PHIBO_HEADERS_BASE = {
+  'User-Agent': UA,
+  Accept: 'application/json',
+  Origin: 'https://app.phibo.com.br',
+  Referer: 'https://app.phibo.com.br/',
+}
+
 async function phibo(path, accessToken) {
   const r = await fetch(`${PHIBO_API}${path}`, {
-    headers: { Authorization: `Bearer ${accessToken}`, 'User-Agent': UA, Accept: 'application/json' },
+    headers: { Authorization: `Bearer ${accessToken}`, ...PHIBO_HEADERS_BASE },
   })
   const text = await r.text()
   if (!r.ok) throw new Error(erroPhibo(text, r.status))
@@ -47,7 +56,7 @@ export async function puxarPhibo(refreshToken) {
   if (token.length < 20) return { ok: false, erro: 'Chave do Phibo inválida.' }
 
   const r = await fetch(`${PHIBO_API}/auth/refreshToken/${encodeURIComponent(token)}`, {
-    headers: { 'User-Agent': UA, Accept: 'application/json' },
+    headers: PHIBO_HEADERS_BASE,
   })
   const text = await r.text()
   if (!r.ok) return { ok: false, erro: erroPhibo(text, r.status) }
