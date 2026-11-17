@@ -304,7 +304,7 @@ class Component extends DCLogic {
     finForm: null,
     eqForm: null,
     viepDrafts: {},
-    confTab: "geral",
+    confTab: "fundos",
     fundoForm: null,
     fundoLancForm: null,
     w: window.innerWidth,
@@ -672,10 +672,7 @@ class Component extends DCLogic {
       conf: {
         tabAtivo: s.confTab,
         ir: (tab) => this.goConf(tab),
-        filhos: [
-          ["geral", "Configurações", "adjustments"],
-          ["fundos", "Fundos", "building-bank"],
-        ],
+        filhos: [["fundos", "Fundos", "building-bank"]],
       },
     };
     const navItems = NAV.flatMap(([id, label, icon, badge]) => {
@@ -1390,6 +1387,9 @@ class Component extends DCLogic {
     ];
 
     // ===================== FINANCEIRO =====================
+    // Só monta listas pesadas na página Financeiro/Config (fundos).
+    // Antes isso rodava em TODO render e deixava o menu lento.
+    const precisaFinUi = s.page === "fin" || s.page === "conf";
     const FIN = (window.__MANDATO__ && window.__MANDATO__.fin) || null;
     const finErro = (window.__MANDATO__ && window.__MANDATO__.finErro) || "";
     const brl = (n) =>
@@ -1437,7 +1437,8 @@ class Component extends DCLogic {
     const statusOpts = Object.keys(STF).map((k) => ({ v: k, l: STF[k][0] }));
     const post = (msg) =>
       window.parent.postMessage(msg, window.location.origin);
-    const lanc = ((FIN && FIN.lancamentos) || []).map((l) => {
+    const lancRaw = precisaFinUi ? (FIN && FIN.lancamentos) || [] : [];
+    const lanc = lancRaw.map((l) => {
       const o = ORIG[l.origem] || ORIG.OUTRO,
         st = STF[l.status] || STF.pendente;
       return {
@@ -1801,7 +1802,6 @@ class Component extends DCLogic {
     }));
     const noFundos = fundosAll.length === 0;
     const CONF_CAB = {
-      geral: ["Configurações", "Equipe do gabinete e permissões de acesso"],
       fundos: ["Fundos", "De onde sai o dinheiro que paga a equipe do gabinete"],
     };
     const FIN_CAB = {
@@ -1849,10 +1849,9 @@ class Component extends DCLogic {
       isCom: s.page === "com",
       isRel: s.page === "rel",
       isConf: s.page === "conf",
-      isConfGeral: s.confTab === "geral",
-      isConfFundos: s.confTab === "fundos",
-      confTitulo: CONF_CAB[s.confTab][0],
-      confSub: CONF_CAB[s.confTab][1],
+      isConfFundos: true,
+      confTitulo: CONF_CAB.fundos[0],
+      confSub: CONF_CAB.fundos[1],
       q: s.q,
       onSearch: (e) => {
         const v = e.target.value;
@@ -2284,28 +2283,6 @@ class Component extends DCLogic {
         pdf: () => this.flash(`PDF gerado: ${r[1]}`),
         xls: () => this.flash(`Planilha gerada: ${r[1]}`),
       })),
-      equipe: [].map((e) => {
-        const c =
-          e[2] === "Administrador"
-            ? ["#0D2350", "#fff"]
-            : e[2] === "Editor"
-              ? ["#EAF1FE", "#1B5BD0"]
-              : ["#F1ECFD", "#6741C9"];
-        return {
-          n: e[0],
-          cargo: e[1],
-          perm: e[2],
-          ult: e[3],
-          bg: c[0],
-          c: c[1],
-          ini: e[0]
-            .split(" ")
-            .map((w) => w[0])
-            .slice(0, 2)
-            .join(""),
-        };
-      }),
-      toastConv: () => this.flash("Convite enviado por e-mail"),
       hasToast: !!s.toast,
       toast: s.toast,
       toastBottom: toBottom,

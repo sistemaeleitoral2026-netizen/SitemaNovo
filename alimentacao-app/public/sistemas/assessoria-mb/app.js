@@ -35,6 +35,51 @@
     const digits = el.value.replace(/\D/g, "");
     el.value = fmt(Number(digits || 0) / 100);
   };
+  /** Padrão dos lançamentos: texto sempre em maiúsculas. */
+  const caps = (s) => String(s ?? "").trim().toLocaleUpperCase("pt-BR");
+  const FIN_CAPS_FIELDS = ["parceiro", "empresaDepositante", "observacao"];
+  function withFinanceCaps(row) {
+    if (!row || typeof row !== "object") return row;
+    const next = { ...row };
+    for (const key of FIN_CAPS_FIELDS) next[key] = caps(next[key]);
+    return next;
+  }
+  function normalizeFinanceCaps(list, { mark = false } = {}) {
+    if (!Array.isArray(list)) return 0;
+    let changed = 0;
+    for (let i = 0; i < list.length; i++) {
+      const row = list[i];
+      if (!row) continue;
+      const next = withFinanceCaps(row);
+      const dirty = FIN_CAPS_FIELDS.some(
+        (key) => String(row[key] || "") !== String(next[key] || ""),
+      );
+      if (!dirty) continue;
+      list[i] = next;
+      changed++;
+      if (mark && next.id) markMutation("financeUpserts", next.id);
+    }
+    return changed;
+  }
+  function wireFinanceCapsInputs() {
+    for (const name of FIN_CAPS_FIELDS) {
+      const el = $(`#modal-body [name="${name}"]`);
+      if (!el) continue;
+      el.classList.add("caps-input");
+      el.addEventListener("input", () => {
+        const start = el.selectionStart;
+        const end = el.selectionEnd;
+        const next = String(el.value || "").toLocaleUpperCase("pt-BR");
+        if (el.value === next) return;
+        el.value = next;
+        try {
+          if (start != null && end != null) el.setSelectionRange(start, end);
+        } catch {
+          /* ignore */
+        }
+      });
+    }
+  }
   let subdivisions = [
     "ESP",
     "MTAREIA",
@@ -169,6 +214,13 @@
   }
   refreshCostCodes();
   refreshCompanies();
+  if (normalizeFinanceCaps(db.finance, { mark: true })) {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(db));
+    } catch {
+      /* ignore */
+    }
+  }
   const state = {
     mes: "",
     demanda: "",
@@ -402,10 +454,12 @@
         ? payload.historyEdits
         : {};
     monthlyHistory = [];
+    const capsFixed = normalizeFinanceCaps(db.finance, { mark: true });
     try {
       localStorage.setItem(KEY, JSON.stringify(db));
     } catch {}
     render();
+    if (capsFixed) scheduleCloudSave();
   }
   function applyCloudDbPreservingPending(payload) {
     const local = {
@@ -459,10 +513,12 @@
     }
     refreshCostCodes();
     refreshCompanies();
+    const capsFixed = normalizeFinanceCaps(db.finance, { mark: true });
     try {
       localStorage.setItem(KEY, JSON.stringify(db));
     } catch {}
     render();
+    if (capsFixed) scheduleCloudSave();
   }
   function toast(t) {
     const e = $("#toast");
@@ -2149,6 +2205,7 @@
     }
     if (kind === "finance") {
       wireFinanceTypeForm();
+      wireFinanceCapsInputs();
     }
   }
   function wireFinanceTypeForm() {
@@ -2379,7 +2436,7 @@
           .slice()
           .sort((a, b) => String(a.data).localeCompare(String(b.data)))
           .pop();
-        const parceiro = String(f.get("parceiro") || "").trim();
+        const parceiro = caps(f.get("parceiro"));
         const centro = String(f.get("centro") || "").trim();
         const data = f.get("data") || old.data;
         const dataRecebida =
@@ -2387,9 +2444,7 @@
             ? ""
             : dataRecebidaForm || (lastRx ? lastRx.data : "");
         const empresaDepositante =
-          selectedFinanceType === "saida"
-            ? ""
-            : String(f.get("empresaDepositante") || "").trim();
+          selectedFinanceType === "saida" ? "" : caps(f.get("empresaDepositante"));
         const contaBancaria = String(f.get("contaBancaria") || "").trim();
         const sub = String(f.get("sub") || state.empresa || old.sub || "");
         if (!window.__mbFinAudit)
@@ -2412,7 +2467,7 @@
           recebido: totalRec,
           saida: formSaida,
           recebimentos: rx,
-          observacao: String(f.get("observacao") || "").trim(),
+          observacao: caps(f.get("observacao")),
           anexos,
           origem: old.origem || "Cadastro manual",
           criadoPor: old.criadoPor || MB.nome || "",
@@ -2443,7 +2498,7 @@
         rec = {
           id: crypto.randomUUID(),
           tipoLancamento: selectedFinanceType,
-          parceiro: String(f.get("parceiro")).trim(),
+          parceiro: caps(f.get("parceiro")),
           centro: String(f.get("centro")).trim(),
           data: f.get("data"),
           dataRecebida:
@@ -2453,7 +2508,7 @@
           empresaDepositante:
             selectedFinanceType === "saida"
               ? ""
-              : String(f.get("empresaDepositante") || "").trim(),
+              : caps(f.get("empresaDepositante")),
           contaBancaria: String(f.get("contaBancaria") || "").trim(),
           demanda: "",
           sub: String(f.get("sub") || state.empresa),
@@ -2461,7 +2516,7 @@
           recebido: sumRecebimentos(rx) || recebido0,
           saida,
           recebimentos: rx,
-          observacao: String(f.get("observacao") || "").trim(),
+          observacao: caps(f.get("observacao")),
           anexos,
           origem: "Cadastro manual",
           criadoPor: MB.nome || "",
@@ -3514,6 +3569,7 @@
         { centers: {}, banks: [], templates: [], staff: [], historyEdits: {} },
         d,
       );
+      normalizeFinanceCaps(db.finance);
       const financeIds = new Set(db.finance.map((row) => row.id));
       const taskIds = new Set(db.tasks.map((row) => row.id));
       db.finance.forEach((row) => markMutation("financeUpserts", row.id));
