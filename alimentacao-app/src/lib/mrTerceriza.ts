@@ -379,6 +379,99 @@ export async function sincronizarPhibo(): Promise<{ ok: boolean; erro?: string; 
   return body
 }
 
+export function phiboNesteComputador() {
+  return location.hostname === '127.0.0.1' || location.hostname === 'localhost'
+}
+
+type PhiboPacote = {
+  refresh: string
+  vendasMes: { hoje?: string; diasMes?: { dia: number; valor: number; qtdeVendas: number; frete?: number }[]; diasMesAnterior?: { dia: number; valor: number; qtdeVendas: number; frete?: number }[] }
+  totais: unknown
+}
+
+async function uuidDe(texto: string) {
+  const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(texto))
+  const h = [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('')
+  const variante = ((parseInt(h.slice(16, 18), 16) & 0x3f) | 0x80).toString(16)
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${variante}${h.slice(18, 20)}-${h.slice(20, 32)}`
+}
+
+function mesAnterior(ym: string) {
+  const [y, m] = ym.split('-').map(Number)
+  const d = new Date(Date.UTC(y, m - 2, 1))
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+/** Puxa as vendas a partir deste computador (o IP da Vercel leva 403 do Phibo). */
+export async function puxarPhiboDaqui(refreshToken: string): Promise<PhiboPacote> {
+  let res: Response
+  try {
+    res = await fetch('/api/phibo-local', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    })
+  } catch {
+    throw new Error('O preview local não está pronto para falar com o Phibo. Recarregue a página.')
+  }
+  const body = await res.json().catch(() => null)
+  if (!body || body.ok === false) throw new Error(body?.erro || 'Falha ao puxar o Phibo neste computador.')
+  if (!body.refresh || !body.vendasMes) throw new Error('Resposta incompleta do Phibo.')
+  return { refresh: body.refresh, vendasMes: body.vendasMes, totais: body.totais ?? null }
+}
+
+export async function lerRefreshPhibo() {
+  const { data, error } = await supabase.rpc('mr_phibo_ler_refresh')
+  if (error || !data) {
+    throw new Error('Cole a chave no campo Conectar. O servidor da nuvem está bloqueado pelo Phibo, então a busca roda neste computador.')
+  }
+  return String(data)
+}
+
+/** Grava as vendas puxadas neste computador. Devolve quantos dias entrou. */
+export async function gravarVendasPhibo(pacote: PhiboPacote, userId: string) {
+  const agora = new Date().toISOString()
+  const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+  const ym = String(pacote.vendasMes.hoje || hoje).slice(0, 7)
+  const montar = async (mes: string, dias: PhiboPacote['vendasMes']['diasMes']) => {
+    const linhas = []
+    for (const d of dias || []) {
+      if (!(Number(d.dia) >= 1 && (Number(d.valor) > 0 || Number(d.qtdeVendas) > 0))) continue
+      const dia = `${mes}-${String(d.dia).padStart(2, '0')}`
+      linhas.push({
+        id: await uuidDe(`phibo:re-fashion:${dia}`),
+        empresa: 're-fashion',
+        data: dia,
+        tipo: 'entrada',
+        descricao: `Vendas do dia ${String(d.dia).padStart(2, '0')}/${mes.slice(5, 7)} (Phibo)`,
+        valor: Math.round((Number(d.valor) || 0) * 100) / 100,
+        conta: 'Caixa',
+        forma_pagamento: 'Outro',
+        observacoes: `Importado automaticamente do Phibo · ${Number(d.qtdeVendas) || 0} venda(s)`,
+        origem: 'phibo',
+        updated_at: agora,
+        updated_by: userId,
+        created_by: userId,
+      })
+    }
+    return linhas
+  }
+  const linhas = [...(await montar(ym, pacote.vendasMes.diasMes)), ...(await montar(mesAnterior(ym), pacote.vendasMes.diasMesAnterior))]
+  if (linhas.length) {
+    const { error } = await supabase.from('mr_lancamentos').upsert(linhas, { onConflict: 'id' })
+    if (error) throw asError(error, 'Falha ao gravar as vendas.')
+  }
+  const { error: resumoErr } = await supabase.from('mr_phibo_resumo').upsert(
+    { empresa: 're-fashion', mes: ym, vendas_mes: pacote.vendasMes, totais: pacote.totais, atualizado_em: agora },
+    { onConflict: 'empresa,mes' },
+  )
+  if (resumoErr) {
+    throw new Error(`Vendas gravadas (${linhas.length} dia(s)), mas a aba Vendas da loja precisa do SQL 20261117d_mr_phibo_preview.sql.`)
+  }
+  await supabase.rpc('mr_phibo_marcar_ok')
+  return linhas.length
+}
+
 async function uploadBytes(userId: string, fileId: string, meta: { name: string; type: string; dataBase64: string }) {
   try {
     const raw = meta.dataBase64.includes(',') ? meta.dataBase64.split(',')[1] : meta.dataBase64

@@ -173,9 +173,18 @@ module.exports = async function handler(req, res) {
     })
     const text = await r.text()
     if (!r.ok) {
-      const msg = r.status === 401 || r.status === 403 || r.status === 400
-        ? `Sessão do Phibo expirou (HTTP ${r.status}). Conecte de novo em Configurações.`
-        : `Phibo recusou a renovação (HTTP ${r.status}).`
+      let detalhe = ''
+      try {
+        const j = JSON.parse(text)
+        if (j && typeof j.mensagem === 'string') detalhe = j.mensagem.slice(0, 180)
+      } catch { /* HTML do firewall, sem mensagem */ }
+      const msg = r.status === 403 && !detalhe
+        ? 'O Phibo bloqueou o servidor da nuvem (HTTP 403). A chave continua válida. Sincronize pelo preview neste computador.'
+        : detalhe
+          ? `Phibo recusou a renovação (HTTP ${r.status}): ${detalhe}`
+          : r.status === 401
+            ? 'Sessão do Phibo expirou. Conecte de novo em Configurações.'
+            : `Phibo recusou a renovação (HTTP ${r.status}).`
       await registrarErro(msg)
       return json(res, 200, { ok: false, erro: msg })
     }
