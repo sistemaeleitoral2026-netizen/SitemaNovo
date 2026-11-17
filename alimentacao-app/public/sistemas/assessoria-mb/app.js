@@ -490,6 +490,10 @@
       return true;
     return !MB.userId && samePerson(r.criadoPor, MB.nome);
   }
+  /** Qualquer usuário do financeiro pode excluir lançamento; a auditoria registra quem excluiu. */
+  function canDeleteFinance() {
+    return true;
+  }
   function deleteBtn(kind, id) {
     return `<button class='edit-action danger' type='button' data-delete-${kind}='${esc(id)}'>Excluir</button>`;
   }
@@ -821,7 +825,7 @@
           st = finStatus(r),
           v = rowValue(r);
         const origin = state.finSelectionLabel ? financeAuditOrigin(r) : "";
-        return `<tr><td class="nowrap">${dateBR(r.data)}${origin ? `<small class="fin-origin-tag ${origin === "Do mês" ? "is-month" : "is-prior"}">${esc(origin)}</small>` : ""}${r.dataRecebida ? `<small class="received-date">Recebida: ${dateBR(r.dataRecebida)}</small>` : ""}</td><td><b>${esc(r.sub || "—")}</b></td><td>${esc(r.parceiro || "—")}${r.observacao ? `<div class="muted">${esc(r.observacao)}</div>` : ""}</td><td>${esc(r.centro || "—")}</td><td class="description-cell">${esc(r.empresaDepositante || "—")}</td><td><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${icon(tp === "Saída" ? "arrow" : "down")}${tp}</span></td><td class="amount nowrap"><b>${n2(v)}</b></td><td>${finStatusHTML(r)}</td><td>${fileCell(r.anexos, "fin:" + r.id)}</td><td class="action-cell"><div class="row-actions">${(r.anexos || []).length ? `<button type="button" class="row-icon" data-view-files="fin:${esc(r.id)}" title="Visualizar">${icon("eye")}</button>` : ""}<button type="button" class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")} Editar</button>${canDeleteRec(r) ? `<button type="button" class="edit-action danger" data-delete-fin="${esc(r.id)}">${icon("trash")} Excluir</button>` : ""}</div></td></tr>`;
+        return `<tr><td class="nowrap">${dateBR(r.data)}${origin ? `<small class="fin-origin-tag ${origin === "Do mês" ? "is-month" : "is-prior"}">${esc(origin)}</small>` : ""}${r.dataRecebida ? `<small class="received-date">Recebida: ${dateBR(r.dataRecebida)}</small>` : ""}</td><td><b>${esc(r.sub || "—")}</b></td><td>${esc(r.parceiro || "—")}${r.observacao ? `<div class="muted">${esc(r.observacao)}</div>` : ""}</td><td>${esc(r.centro || "—")}</td><td class="description-cell">${esc(r.empresaDepositante || "—")}</td><td><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${icon(tp === "Saída" ? "arrow" : "down")}${tp}</span></td><td class="amount nowrap"><b>${n2(v)}</b></td><td>${finStatusHTML(r)}</td><td>${fileCell(r.anexos, "fin:" + r.id)}</td><td class="action-cell"><div class="row-actions">${(r.anexos || []).length ? `<button type="button" class="row-icon" data-view-files="fin:${esc(r.id)}" title="Visualizar">${icon("eye")}</button>` : ""}<button type="button" class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")} Editar</button>${canDeleteFinance() ? `<button type="button" class="edit-action danger" data-delete-fin="${esc(r.id)}">${icon("trash")} Excluir</button>` : ""}</div></td></tr>`;
       })
       .join("");
     const financeFoot = rows.length
@@ -836,7 +840,7 @@
                   st = finStatus(r),
                   v = rowValue(r);
                 const origin = state.finSelectionLabel ? financeAuditOrigin(r) : "";
-                return `<article><div><span>${dateBR(r.data)} · ${esc(r.sub || "—")}${origin ? ` · ${esc(origin)}` : ""}</span><h3>${esc(r.parceiro || "Lançamento financeiro")}</h3><p>${esc(r.centro || "Sem centro de custo")}${r.dataRecebida ? " · Recebida em " + dateBR(r.dataRecebida) : ""}${r.empresaDepositante ? " · Depositante: " + esc(r.empresaDepositante) : ""}${r.observacao ? " · " + esc(r.observacao) : ""}</p></div><div><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${tp}</span><strong>${fmt(v)}</strong>${finStatusHTML(r)}<button class="inline-btn" data-edit-fin="${esc(r.id)}">Editar</button>${canDeleteRec(r) ? `<button class="inline-btn danger" data-delete-fin="${esc(r.id)}">Excluir</button>` : ""}</div></article>`;
+                return `<article><div><span>${dateBR(r.data)} · ${esc(r.sub || "—")}${origin ? ` · ${esc(origin)}` : ""}</span><h3>${esc(r.parceiro || "Lançamento financeiro")}</h3><p>${esc(r.centro || "Sem centro de custo")}${r.dataRecebida ? " · Recebida em " + dateBR(r.dataRecebida) : ""}${r.empresaDepositante ? " · Depositante: " + esc(r.empresaDepositante) : ""}${r.observacao ? " · " + esc(r.observacao) : ""}</p></div><div><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${tp}</span><strong>${fmt(v)}</strong>${finStatusHTML(r)}<button class="inline-btn" data-edit-fin="${esc(r.id)}">Editar</button>${canDeleteFinance() ? `<button class="inline-btn danger" data-delete-fin="${esc(r.id)}">Excluir</button>` : ""}</div></article>`;
               })
               .join("") ||
             `<div class="fin-empty">Nenhum lançamento encontrado para os filtros selecionados.</div>`
@@ -1397,7 +1401,7 @@
         shown
           .map((r) => {
             const st = finStatus(r);
-            return `<tr><td>${dateBR(r.data)}</td><td>${esc(r.sub || "Não identificada")}</td><td>${esc(r.parceiro)}</td><td>${esc(r.centro)}</td><td class="amount">${fmt(r.previsto)}</td><td class="amount">${fmt(r.recebido)}</td><td class="amount">${fmt(r.saida)}</td><td>${finStatusHTML(r)}</td><td>${fileCell(r.anexos, "fin:" + r.id)}</td><td class="action-cell"><div class="row-actions"><button class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")} Editar</button>${canDeleteRec(r) ? `<button class="edit-action danger" type="button" data-delete-fin="${esc(r.id)}">${icon("trash")} Excluir</button>` : ""}</div></td></tr>`;
+            return `<tr><td>${dateBR(r.data)}</td><td>${esc(r.sub || "Não identificada")}</td><td>${esc(r.parceiro)}</td><td>${esc(r.centro)}</td><td class="amount">${fmt(r.previsto)}</td><td class="amount">${fmt(r.recebido)}</td><td class="amount">${fmt(r.saida)}</td><td>${finStatusHTML(r)}</td><td>${fileCell(r.anexos, "fin:" + r.id)}</td><td class="action-cell"><div class="row-actions"><button class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")} Editar</button>${canDeleteFinance() ? `<button class="edit-action danger" type="button" data-delete-fin="${esc(r.id)}">${icon("trash")} Excluir</button>` : ""}</div></td></tr>`;
           })
           .join("") || noRows("Nenhum lançamento financeiro encontrado.", 10)
       }</tbody></table>`;
@@ -2455,8 +2459,8 @@
       const id = delFin.dataset.deleteFin;
       const r = db.finance.find((x) => x.id === id);
       if (!r) return;
-      if (!canDeleteRec(r)) {
-        toast("Você só pode excluir o que você mesmo lançou.");
+      if (!canDeleteFinance()) {
+        toast("Sem permissão para excluir lançamentos.");
         return;
       }
       if (
@@ -2477,7 +2481,8 @@
           (r.parceiro || id) +
           " / " +
           (r.centro || "—") +
-          (r.sub ? " · " + r.sub : ""),
+          (r.sub ? " · " + r.sub : "") +
+          (r.criadoPor ? " · lançado por " + r.criadoPor : ""),
       );
       save();
       render();

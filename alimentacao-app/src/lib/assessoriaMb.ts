@@ -725,7 +725,7 @@ export async function salvarEstadoAssessoria(
             if ((deletedFin?.length || 0) < (existingFinDeletes?.length || 0)) {
               throw asError(
                 new Error(
-                  'O banco recusou a exclusão. Confirme que você é o autor ou admin e que a migration 20261118_assessoria_mb_owner_delete.sql foi aplicada.',
+                  'O banco recusou a exclusão do lançamento. Confirme o acesso ao financeiro e que a migration 20261120_assessoria_mb_finance_delete_all.sql foi aplicada.',
                 ),
               )
             }
