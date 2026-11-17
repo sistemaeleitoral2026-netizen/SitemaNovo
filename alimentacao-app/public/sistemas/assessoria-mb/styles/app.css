@@ -3974,9 +3974,37 @@ p.mchart-help {
 }
 .fin-table tfoot td {
   background: #ececec;
+  text-align: center;
 }
 .fin-table tfoot .amount {
   font-size: 13.5px;
+}
+.fin-period-break {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 18px;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #334155;
+}
+.fin-period-break b {
+  font-variant-numeric: tabular-nums;
+  color: #0f172a;
+}
+.fin-period-break .neg,
+.fin-period-break b.neg {
+  color: #b42318;
+}
+.fin-period-count {
+  color: #64748b;
+  font-weight: 600;
+}
+.fin-period-saldo {
+  margin-left: 0;
+  font-size: 13px;
 }
 .fin-detail-total {
   display: flex;
@@ -3989,6 +4017,11 @@ p.mchart-help {
   background: #ececec;
   font-size: 13px;
   font-weight: 700;
+}
+.fin-detail-total.fin-detail-break {
+  display: flex;
+  justify-content: center;
+  font-weight: 600;
 }
 .fin-table .tipo {
   display: inline-flex;
