@@ -142,6 +142,7 @@
     finType: "",
     finStatus: "",
     finCost: "",
+    finBank: "",
     finReconcileIds: null,
     finSelectionLabel: "",
     finSelectionKey: "",
@@ -510,8 +511,16 @@
             (!state.finType || finTipo(r) === state.finType) &&
             (!state.finStatus || finStatus(r)[0] === state.finStatus) &&
             (!state.finCost || r.centro === state.finCost) &&
+            (!state.finBank || (r.contaBancaria || "") === state.finBank) &&
             (!state.pesquisa ||
-              [r.parceiro, r.centro, r.empresaDepositante, r.demanda, r.sub]
+              [
+                r.parceiro,
+                r.centro,
+                r.empresaDepositante,
+                r.contaBancaria,
+                r.demanda,
+                r.sub,
+              ]
                 .join(" ")
                 .toLocaleLowerCase("pt-BR")
                 .includes(state.pesquisa.toLocaleLowerCase("pt-BR"))))),
@@ -530,15 +539,37 @@
         (!state.finType || finTipo(record) === state.finType) &&
         (!state.finStatus || finStatus(record)[0] === state.finStatus) &&
         (!state.finCost || record.centro === state.finCost) &&
+        (!state.finBank || (record.contaBancaria || "") === state.finBank) &&
         (!state.pesquisa ||
-          [record.parceiro, record.centro, record.empresaDepositante, record.demanda, record.sub]
+          [
+            record.parceiro,
+            record.centro,
+            record.empresaDepositante,
+            record.contaBancaria,
+            record.demanda,
+            record.sub,
+          ]
             .join(" ")
             .toLocaleLowerCase("pt-BR")
             .includes(state.pesquisa.toLocaleLowerCase("pt-BR"))),
     );
   }
   function financeAuditOrigin(record) {
-    if (!state.mes || !isFinancialDate(record.data)) return "";
+    if (!state.mes) return "";
+    const key = state.finSelectionKey || "";
+    // Em "Recebido", o selo segue a data do recebimento (caixa), não a
+    // competência do lançamento — assim um lançamento de junho recebido em
+    // julho não aparece como "Mês anterior" ao abrir Recebido em julho.
+    if (key === "received" || key === "received-total") {
+      const bounds = monthBounds(state.mes);
+      if (!bounds) return "";
+      const receivedInMonth = receiptCashEvents(record).some(
+        (event) =>
+          event.data && event.data >= bounds.start && event.data < bounds.end,
+      );
+      return receivedInMonth ? "Do mês" : "Mês anterior";
+    }
+    if (!isFinancialDate(record.data)) return "";
     return month(record.data) === state.mes ? "Do mês" : "Mês anterior";
   }
   function openFinanceFromKpi(button) {
@@ -558,6 +589,7 @@
       state.finType = "";
       state.finStatus = "";
       state.finCost = "";
+      state.finBank = "";
       state.pesquisa = "";
     }
     goto("financeiro");
@@ -803,6 +835,12 @@
     const costs = [
       ...new Set(db.finance.map((r) => r.centro).filter(Boolean)),
     ].sort();
+    const banks = [
+      ...new Set([
+        ...(db.banks || []),
+        ...db.finance.map((r) => r.contaBancaria).filter(Boolean),
+      ]),
+    ].sort((a, b) => a.localeCompare(b, "pt-BR"));
     $("#filter-financeiro").innerHTML =
       `<div class="fin-filter-grid"><div class="field"><label>Período</label><select class="control" id="fin-period"><option value="" ${!state.mes ? "selected" : ""}>Todo o período</option>${compOptions()
         .map(
@@ -811,7 +849,7 @@
         )
         .join(
           "",
-        )}</select></div><div class="field"><label>Empresa</label><select class="control" id="fin-company"><option value="">Todas</option>${subdivisions.map((s) => `<option value="${esc(s)}" ${s === state.empresa ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div><div class="field"><label>Tipo</label><select class="control" id="fin-type"><option value="">Todos</option>${["Receita", "Entrada por fora", "Saída"].map((s) => `<option value="${s}" ${state.finType === s ? "selected" : ""}>${s}</option>`).join("")}</select></div><div class="field"><label>Situação</label><select class="control" id="fin-status"><option value="">Todas</option>${["Concluído", "Em aberto", "Pendente", "Recebido", "Pago", "Valor excedente — revisar"].map((s) => `<option ${s === state.finStatus ? "selected" : ""}>${s}</option>`).join("")}</select></div><div class="field"><label>Centro de custo</label><select class="control" id="fin-cost"><option value="">Todos</option>${costs.map((s) => `<option value="${esc(s)}" ${s === state.finCost ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div><div class="field fin-partner-field"><label>Parceiro / referência</label><div class="search-control"><svg><use href="#i-search"></use></svg><input id="fin-search" value="${esc(state.pesquisa)}" placeholder="Buscar parceiro ou referência..."></div></div><button type="button" class="btn primary fin-filter-btn" id="fin-apply"><svg><use href="#i-search"></use></svg>Filtrar</button><button type="button" class="btn fin-clear-btn" id="fin-clear"><svg><use href="#i-history"></use></svg>Limpar</button></div>`;
+        )}</select></div><div class="field"><label>Empresa</label><select class="control" id="fin-company"><option value="">Todas</option>${subdivisions.map((s) => `<option value="${esc(s)}" ${s === state.empresa ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div><div class="field"><label>Tipo</label><select class="control" id="fin-type"><option value="">Todos</option>${["Receita", "Entrada por fora", "Saída"].map((s) => `<option value="${s}" ${state.finType === s ? "selected" : ""}>${s}</option>`).join("")}</select></div><div class="field"><label>Situação</label><select class="control" id="fin-status"><option value="">Todas</option>${["Concluído", "Em aberto", "Pendente", "Recebido", "Pago", "Valor excedente — revisar"].map((s) => `<option ${s === state.finStatus ? "selected" : ""}>${s}</option>`).join("")}</select></div><div class="field"><label>Centro de custo</label><select class="control" id="fin-cost"><option value="">Todos</option>${costs.map((s) => `<option value="${esc(s)}" ${s === state.finCost ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div><div class="field"><label>Conta Bancária</label><select class="control" id="fin-bank"><option value="">Todas</option>${banks.map((s) => `<option value="${esc(s)}" ${s === state.finBank ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div><div class="field fin-partner-field"><label>Parceiro / referência</label><div class="search-control"><svg><use href="#i-search"></use></svg><input id="fin-search" value="${esc(state.pesquisa)}" placeholder="Buscar parceiro ou referência..."></div></div><button type="button" class="btn primary fin-filter-btn" id="fin-apply"><svg><use href="#i-search"></use></svg>Filtrar</button><button type="button" class="btn fin-clear-btn" id="fin-clear"><svg><use href="#i-history"></use></svg>Limpar</button></div>`;
     const rowValue = (r) => {
       const tp = finTipo(r);
       return tp === "Saída"
@@ -825,11 +863,11 @@
           st = finStatus(r),
           v = rowValue(r);
         const origin = state.finSelectionLabel ? financeAuditOrigin(r) : "";
-        return `<tr><td class="nowrap">${dateBR(r.data)}${origin ? `<small class="fin-origin-tag ${origin === "Do mês" ? "is-month" : "is-prior"}">${esc(origin)}</small>` : ""}${r.dataRecebida ? `<small class="received-date">Recebida: ${dateBR(r.dataRecebida)}</small>` : ""}</td><td><b>${esc(r.sub || "—")}</b></td><td>${esc(r.parceiro || "—")}${r.observacao ? `<div class="muted">${esc(r.observacao)}</div>` : ""}</td><td>${esc(r.centro || "—")}</td><td class="description-cell">${esc(r.empresaDepositante || "—")}</td><td><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${icon(tp === "Saída" ? "arrow" : "down")}${tp}</span></td><td class="amount nowrap"><b>${n2(v)}</b></td><td>${finStatusHTML(r)}</td><td>${fileCell(r.anexos, "fin:" + r.id)}</td><td class="action-cell"><div class="row-actions">${(r.anexos || []).length ? `<button type="button" class="row-icon" data-view-files="fin:${esc(r.id)}" title="Visualizar">${icon("eye")}</button>` : ""}<button type="button" class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")} Editar</button>${canDeleteFinance() ? `<button type="button" class="edit-action danger" data-delete-fin="${esc(r.id)}">${icon("trash")} Excluir</button>` : ""}</div></td></tr>`;
+        return `<tr><td class="nowrap">${dateBR(r.data)}${origin ? `<small class="fin-origin-tag ${origin === "Do mês" ? "is-month" : "is-prior"}">${esc(origin)}</small>` : ""}${r.dataRecebida ? `<small class="received-date">Recebida: ${dateBR(r.dataRecebida)}</small>` : ""}</td><td><b>${esc(r.sub || "—")}</b></td><td>${esc(r.parceiro || "—")}${r.observacao ? `<div class="muted">${esc(r.observacao)}</div>` : ""}</td><td>${esc(r.centro || "—")}</td><td>${esc(r.contaBancaria || "—")}</td><td class="description-cell">${esc(r.empresaDepositante || "—")}</td><td><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${icon(tp === "Saída" ? "arrow" : "down")}${tp}</span></td><td class="amount nowrap"><b>${n2(v)}</b></td><td>${finStatusHTML(r)}</td><td>${fileCell(r.anexos, "fin:" + r.id)}</td><td class="action-cell"><div class="row-actions">${(r.anexos || []).length ? `<button type="button" class="row-icon" data-view-files="fin:${esc(r.id)}" title="Visualizar">${icon("eye")}</button>` : ""}<button type="button" class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")} Editar</button>${canDeleteFinance() ? `<button type="button" class="edit-action danger" data-delete-fin="${esc(r.id)}">${icon("trash")} Excluir</button>` : ""}</div></td></tr>`;
       })
       .join("");
     const financeFoot = rows.length
-      ? `<tfoot><tr><td colspan="6">Valor total (${rows.length} lançamento${rows.length === 1 ? "" : "s"})</td><td class="amount nowrap"><b>${n2(periodTotal)}</b></td><td colspan="3"></td></tr></tfoot>`
+      ? `<tfoot><tr><td colspan="7">Valor total (${rows.length} lançamento${rows.length === 1 ? "" : "s"})</td><td class="amount nowrap"><b>${n2(periodTotal)}</b></td><td colspan="3"></td></tr></tfoot>`
       : "";
     $("#finance-table").innerHTML =
       state.finView === "detail"
@@ -840,12 +878,12 @@
                   st = finStatus(r),
                   v = rowValue(r);
                 const origin = state.finSelectionLabel ? financeAuditOrigin(r) : "";
-                return `<article><div><span>${dateBR(r.data)} · ${esc(r.sub || "—")}${origin ? ` · ${esc(origin)}` : ""}</span><h3>${esc(r.parceiro || "Lançamento financeiro")}</h3><p>${esc(r.centro || "Sem centro de custo")}${r.dataRecebida ? " · Recebida em " + dateBR(r.dataRecebida) : ""}${r.empresaDepositante ? " · Depositante: " + esc(r.empresaDepositante) : ""}${r.observacao ? " · " + esc(r.observacao) : ""}</p></div><div><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${tp}</span><strong>${fmt(v)}</strong>${finStatusHTML(r)}<button class="inline-btn" data-edit-fin="${esc(r.id)}">Editar</button>${canDeleteFinance() ? `<button class="inline-btn danger" data-delete-fin="${esc(r.id)}">Excluir</button>` : ""}</div></article>`;
+                return `<article><div><span>${dateBR(r.data)} · ${esc(r.sub || "—")}${origin ? ` · ${esc(origin)}` : ""}</span><h3>${esc(r.parceiro || "Lançamento financeiro")}</h3><p>${esc(r.centro || "Sem centro de custo")}${r.contaBancaria ? " · Conta: " + esc(r.contaBancaria) : ""}${r.dataRecebida ? " · Recebida em " + dateBR(r.dataRecebida) : ""}${r.empresaDepositante ? " · Depositante: " + esc(r.empresaDepositante) : ""}${r.observacao ? " · " + esc(r.observacao) : ""}</p></div><div><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${tp}</span><strong>${fmt(v)}</strong>${finStatusHTML(r)}<button class="inline-btn" data-edit-fin="${esc(r.id)}">Editar</button>${canDeleteFinance() ? `<button class="inline-btn danger" data-delete-fin="${esc(r.id)}">Excluir</button>` : ""}</div></article>`;
               })
               .join("") ||
             `<div class="fin-empty">Nenhum lançamento encontrado para os filtros selecionados.</div>`
           }${rows.length ? `<div class="fin-detail-total"><span>Valor total (${rows.length} lançamento${rows.length === 1 ? "" : "s"})</span><strong>${n2(periodTotal)}</strong></div>` : ""}</div>`
-        : `<table class="fin-table"><thead><tr><th>Data</th><th>Empresa</th><th>Parceiro</th><th>Centro de Custo</th><th>Empresa depositante</th><th>Tipo</th><th class="num">Valor (R$)</th><th>Situação</th><th>Comprovante</th><th class="action-cell">Ações</th></tr></thead><tbody>${tableRows || noRows("Nenhum lançamento encontrado para os filtros selecionados.", 10)}</tbody>${financeFoot}</table>`;
+        : `<table class="fin-table"><thead><tr><th>Data</th><th>Empresa</th><th>Parceiro</th><th>Centro de Custo</th><th>Conta Bancária</th><th>Empresa depositante</th><th>Tipo</th><th class="num">Valor (R$)</th><th>Situação</th><th>Comprovante</th><th class="action-cell">Ações</th></tr></thead><tbody>${tableRows || noRows("Nenhum lançamento encontrado para os filtros selecionados.", 11)}</tbody>${financeFoot}</table>`;
     $("#finance-pager").innerHTML =
       `<span>Mostrando ${rows.length ? (state.finPage - 1) * pageSize + 1 : 0} a ${Math.min(state.finPage * pageSize, rows.length)} de ${rows.length} registros</span><div class="fin-page-buttons"><button type="button" id="fin-first" ${state.finPage === 1 ? "disabled" : ""}>«</button><button type="button" id="fin-prev" ${state.finPage === 1 ? "disabled" : ""}>‹</button><span>${state.finPage}</span><button type="button" id="fin-next" ${state.finPage === pages ? "disabled" : ""}>›</button><button type="button" id="fin-last" ${state.finPage === pages ? "disabled" : ""}>»</button></div>`;
     const bind = (id, key, clearAudit = false) => {
@@ -861,6 +899,7 @@
     bind("fin-type", "finType", true);
     bind("fin-status", "finStatus", true);
     bind("fin-cost", "finCost", true);
+    bind("fin-bank", "finBank", true);
     $("#fin-sort").value = state.finSort;
     $("#fin-sort").onchange = (e) => {
       state.finSort = e.target.value === "asc" ? "asc" : "desc";
@@ -885,6 +924,7 @@
         finType: "",
         finStatus: "",
         finCost: "",
+        finBank: "",
         pesquisa: "",
         empresa: "",
         finReconcileIds: null,
@@ -2048,6 +2088,7 @@
       html += field("Data *", "data", obj?.data || todayISO(), "date", true);
       html += `<div class="field" data-fin-types="receita entrada_por_fora"><label>Data recebida</label><input class="control" name="dataRecebida" type="date" value="${esc(obj?.dataRecebida || "")}"></div>`;
       html += `<div class="field" data-fin-types="receita entrada_por_fora"><label>Empresa que depositou o pagamento</label><input class="control" name="empresaDepositante" value="${esc(obj?.empresaDepositante || "")}"></div>`;
+      html += `<div class="field"><label>Conta Bancária</label><select class="control" name="contaBancaria"><option value="">Não informada</option>${[...new Set([...(obj?.contaBancaria ? [obj.contaBancaria] : []), ...(db.banks || [])])].map((x) => `<option value="${esc(x)}" ${obj?.contaBancaria === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select><small class="field-note">Controle interno — não aparece na prestação de contas.</small></div>`;
       html += `<div class="form-section">Valores</div>`;
       html += finValue("A receber", "previsto", "receita");
       html += finValue("Recebido", "recebido", "receita entrada_por_fora");
@@ -2298,6 +2339,7 @@
           selectedFinanceType === "saida"
             ? ""
             : String(f.get("empresaDepositante") || "").trim();
+        const contaBancaria = String(f.get("contaBancaria") || "").trim();
         const sub = String(f.get("sub") || state.empresa || old.sub || "");
         if (!window.__mbFinAudit)
           window.__mbFinAudit = [
@@ -2312,6 +2354,7 @@
           data,
           dataRecebida,
           empresaDepositante,
+          contaBancaria,
           demanda: old.demanda || "",
           sub,
           previsto: formPrevisto,
@@ -2360,6 +2403,7 @@
             selectedFinanceType === "saida"
               ? ""
               : String(f.get("empresaDepositante") || "").trim(),
+          contaBancaria: String(f.get("contaBancaria") || "").trim(),
           demanda: "",
           sub: String(f.get("sub") || state.empresa),
           previsto,
@@ -2514,6 +2558,7 @@
       "Data recebida",
       "Parceiro",
       "Centro de custo",
+      "Conta Bancária",
       "Empresa depositante",
       "Empresa",
       "A receber",
@@ -2527,6 +2572,7 @@
       r.dataRecebida || "",
       r.parceiro,
       r.centro,
+      r.contaBancaria || "",
       r.empresaDepositante || "",
       r.sub,
       r.previsto,
@@ -2562,6 +2608,7 @@
       "Data recebida",
       "Parceiro",
       "Centro de custo",
+      "Conta Bancária",
       "Empresa depositante",
       "Empresa",
       "A receber",
@@ -2575,6 +2622,7 @@
       r.dataRecebida || "",
       r.parceiro,
       r.centro,
+      r.contaBancaria || "",
       r.empresaDepositante || "",
       r.sub,
       r.previsto,
@@ -2987,11 +3035,13 @@
       usage: (v) => db.finance.filter((r) => r.centro === v).length,
     },
     banks: {
-      title: "Contas e origens de pagamento",
-      desc: "Opções do campo “Origem do pagamento” nas tarefas e prestações de contas.",
+      title: "Conta Bancária",
+      desc: "Contas usadas no campo Conta Bancária dos lançamentos (controle interno). Também alimenta a origem de pagamento das tarefas.",
       key: "banks",
-      item: "origem",
-      usage: (v) => db.tasks.filter((t) => t.origemPagamento === v).length,
+      item: "conta",
+      usage: (v) =>
+        db.finance.filter((r) => r.contaBancaria === v).length +
+        db.tasks.filter((t) => t.origemPagamento === v).length,
     },
     templates: {
       title: "Modelos de tarefas",
@@ -4518,6 +4568,7 @@
       state.finType = "";
       state.finStatus = "";
       state.finCost = "";
+      state.finBank = "";
       state.pesquisa = "";
       state.finPage = 1;
       goto("financeiro");
