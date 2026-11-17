@@ -577,12 +577,21 @@
                     <div class="sub" id="finance-count"></div>
                   </div>
                 </div>
-                <div class="fin-view-switch">
-                  <button type="button" class="active" data-fin-view="table">
-                    <svg><use href="#i-grid"></use></svg>Tabela</button
-                  ><button type="button" data-fin-view="detail">
-                    <svg><use href="#i-list"></use></svg>Detalhado
-                  </button>
+                <div class="fin-ledger-controls">
+                  <label class="fin-sort-control" for="fin-sort">
+                    <span>Ordenar por data</span>
+                    <select class="control" id="fin-sort">
+                      <option value="desc">Decrescente — mais recentes</option>
+                      <option value="asc">Crescente — mais antigos</option>
+                    </select>
+                  </label>
+                  <div class="fin-view-switch">
+                    <button type="button" class="active" data-fin-view="table">
+                      <svg><use href="#i-grid"></use></svg>Tabela</button
+                    ><button type="button" data-fin-view="detail">
+                      <svg><use href="#i-list"></use></svg>Detalhado
+                    </button>
+                  </div>
                 </div>
               </div>
               <div class="table-wrap" id="finance-table"></div>
@@ -837,7 +846,14 @@
               Alterações de lançamentos, tarefas e cadastros ficam registradas
               nesta auditoria.
             </div>
-            <div class="panel table-wrap" id="audit-table"></div>
+            <div class="panel">
+              <div class="table-wrap" id="audit-table"></div>
+              <div
+                class="history-pager fin-pager"
+                id="audit-pager"
+                hidden
+              ></div>
+            </div>
           </section>
           <section
             id="page-configuracoes"
