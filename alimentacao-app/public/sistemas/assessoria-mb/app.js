@@ -145,6 +145,7 @@
     finReconcileIds: null,
     finSort: "desc",
     finPage: 1,
+    finPageSize: 5,
     finView: "table",
     finFiltersOpen: true,
     taskStatus: "",
@@ -627,7 +628,7 @@
       return String(a.id || "").localeCompare(String(b.id || "")) * direction;
     });
     metrics("#finance-metrics", rows);
-    const pageSize = 5,
+    const pageSize = state.finPageSize || 5,
       pages = Math.max(1, Math.ceil(rows.length / pageSize));
     state.finPage = Math.min(Math.max(1, state.finPage || 1), pages);
     const shown = rows.slice(
@@ -695,6 +696,12 @@
     $("#fin-sort").value = state.finSort;
     $("#fin-sort").onchange = (e) => {
       state.finSort = e.target.value === "asc" ? "asc" : "desc";
+      state.finPage = 1;
+      drawFinance();
+    };
+    $("#fin-page-size").value = String(state.finPageSize);
+    $("#fin-page-size").onchange = (e) => {
+      state.finPageSize = Number(e.target.value) || 5;
       state.finPage = 1;
       drawFinance();
     };
