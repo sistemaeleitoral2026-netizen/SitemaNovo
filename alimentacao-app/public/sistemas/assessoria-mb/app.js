@@ -594,12 +594,17 @@
             `<option value="${m}" ${m === state.mes ? "selected" : ""}>${compLabel(m)}</option>`,
         )
         .join("")}`;
-    const scopeRows = db.finance.filter(
-      (record) => !state.empresa || record.sub === state.empresa,
+    const scopeRows = db.finance.filter((record) =>
+      state.empresa
+        ? record.sub === state.empresa
+        : subdivisions.includes(record.sub),
     );
     const rows = financeFiltered();
     drawDashboardKpis(scopeRows);
     drawCashMovement(scopeRows);
+    $("#dash-chart")
+      ?.closest(".dash-row")
+      ?.classList.toggle("is-company", !!state.empresa);
     $("#dash-sum-month").textContent = `(${compLabel(state.mes)})`;
     $("#dash-summary").innerHTML = cashSummaryTable();
     const recent = [...rows]
@@ -2931,10 +2936,7 @@
       arr = [
         {
           id: "seed-" + r.id,
-          data:
-            finKind(r) === "entrada_por_fora"
-              ? r.dataRecebida || ""
-              : r.dataRecebida || r.data || "",
+          data: r.dataRecebida || "",
           valor: money(r.recebido),
           actor: r.criadoPor || "",
           at: "",
@@ -2960,6 +2962,7 @@
           rowId: record.id,
           company: record.sub || "",
           kind: finKind(record),
+          launchData: isFinancialDate(record.data) ? String(record.data) : "",
           data: isFinancialDate(item.data) ? String(item.data) : "",
           value: money(item.valor),
         }))
@@ -2973,6 +2976,7 @@
         rowId: record.id,
         company: record.sub || "",
         kind: finKind(record),
+        launchData: isFinancialDate(record.data) ? String(record.data) : "",
         data: isFinancialDate(record.dataRecebida)
           ? String(record.dataRecebida)
           : "",
@@ -3045,21 +3049,40 @@
     const beforeExits = datedExits
       .filter((event) => event.data < bounds.start)
       .reduce((sum, event) => sum + event.value, 0);
-    const entries = datedEntries
-      .filter(
-        (event) => event.data >= bounds.start && event.data < bounds.end,
-      )
-      .reduce((sum, event) => sum + event.value, 0);
-    const exits = datedExits
-      .filter(
-        (event) => event.data >= bounds.start && event.data < bounds.end,
-      )
-      .reduce((sum, event) => sum + event.value, 0);
+    const monthEntries = datedEntries.filter(
+      (event) => event.data >= bounds.start && event.data < bounds.end,
+    );
+    const monthExits = datedExits.filter(
+      (event) => event.data >= bounds.start && event.data < bounds.end,
+    );
+    const sumOf = (events) =>
+      events.reduce((sum, event) => sum + event.value, 0);
+    const entries = sumOf(monthEntries);
+    const exits = sumOf(monthExits);
+    const entriesFromMonth = sumOf(
+      monthEntries.filter(
+        (event) =>
+          event.launchData &&
+          event.launchData >= bounds.start &&
+          event.launchData < bounds.end,
+      ),
+    );
+    const entriesFromPrior = sumOf(
+      monthEntries.filter(
+        (event) => event.launchData && event.launchData < bounds.start,
+      ),
+    );
     const prior = beforeEntries - beforeExits;
     return {
       prior,
       entries,
       exits,
+      exitCount: monthExits.length,
+      entriesFromMonth,
+      entriesFromPrior,
+      entriesFromOther:
+        Math.round((entries - entriesFromMonth - entriesFromPrior) * 100) /
+        100,
       final: prior + entries - exits,
       unknownEntries,
       unknownExits,
@@ -3084,6 +3107,12 @@
       ...exits.map((event) => event.rowId),
     ]);
     const cutoff = bounds?.end || "9999-12-31";
+    const openAtCutoff = (record) => {
+      const receivedAtCutoff = receiptCashEvents(record)
+        .filter((event) => event.data && event.data < cutoff)
+        .reduce((total, event) => total + event.value, 0);
+      return Math.max(0, money(record.previsto) - receivedAtCutoff);
+    };
     const pending = rows
       .filter(
         (record) =>
@@ -3091,12 +3120,11 @@
           isFinancialDate(record.data) &&
           record.data < cutoff,
       )
-      .reduce((sum, record) => {
-        const receivedAtCutoff = receiptCashEvents(record)
-          .filter((event) => event.data && event.data < cutoff)
-          .reduce((total, event) => total + event.value, 0);
-        return sum + Math.max(0, money(record.previsto) - receivedAtCutoff);
-      }, 0);
+      .reduce((sum, record) => sum + openAtCutoff(record), 0);
+    const pendingMonth = launchRows.reduce(
+      (sum, record) => sum + openAtCutoff(record),
+      0,
+    );
     return {
       rowIds: ids,
       rowCount: ids.size,
@@ -3113,6 +3141,7 @@
         .reduce((sum, event) => sum + event.value, 0),
       saidas: exits.reduce((sum, event) => sum + event.value, 0),
       pending,
+      pendingMonth,
     };
   }
   function rxHistoryRows(obj) {
@@ -3278,40 +3307,56 @@
       previousParts[0] === state.mes.split("-")[0]
         ? MESES[Number(previousParts[1]) - 1]
         : compLabel(previous);
+    const pendingReconcile =
+      snapshot.unknownEntries.length + snapshot.unknownExits.length;
+    const entryLines = [
+      `${fmt(snapshot.entriesFromMonth)} de lançamentos de ${selectedLabel.toLowerCase()}`,
+      `${fmt(snapshot.entriesFromPrior)} de lançamentos de meses anteriores`,
+    ];
+    if (Math.abs(snapshot.entriesFromOther) >= 0.005)
+      entryLines.push(`${fmt(snapshot.entriesFromOther)} de outros lançamentos`);
     const items = [
       [
         "in",
         "down",
-        `Ficou em ${previousLabel}`,
+        `Saldo ${previousLabel}`,
         fmt(snapshot.prior),
-        `Saldo acumulado até ${compLabel(previous)}`,
+        esc(`Quanto ficou no fim de ${previousLabel}`),
       ],
       [
         "cash-in",
         "arrow",
-        `Entrada ${selectedLabel}`,
+        `Entrou em ${selectedLabel}`,
         fmt(snapshot.entries),
-        "Total de recebimentos efetivos do mês",
+        `${esc("Total geral que entrou no mês")}${entryLines
+          .map((line) => `<span class="kpi-break">${esc(line)}</span>`)
+          .join("")}`,
       ],
       [
         "out",
         "arrow",
-        `Saída ${selectedLabel}`,
+        `Saiu em ${selectedLabel}`,
         fmt(snapshot.exits),
-        "Pagamentos e despesas do mês",
+        esc(
+          snapshot.exitCount
+            ? `Total geral que saiu no mês · ${snapshot.exitCount} saída(s)`
+            : "Nenhuma saída registrada no mês",
+        ),
       ],
       [
         "bal",
         "database",
-        `Saldo ${selectedLabel}`,
+        `Saldo ${selectedLabel}${pendingReconcile ? " (provisório)" : ""}`,
         fmt(snapshot.final),
-        "Saldo anterior + entradas − saídas",
+        pendingReconcile
+          ? `${esc("Saldo anterior + entradas − saídas")}<span class="kpi-break">${esc(`${pendingReconcile} movimentação(ões) sem data aguardam conciliação`)}</span>`
+          : esc("Saldo anterior + entradas − saídas"),
       ],
     ];
     $("#dash-metrics").innerHTML = items
       .map(
         (item) =>
-          `<article class="kpi ${item[0]}"><span class="kpi-ico">${icon(item[1])}</span><div class="kpi-body"><div class="label">${esc(item[2])}</div><strong class="${item[0] === "bal" && snapshot.final < 0 ? "neg" : ""}" title="${esc(item[3])}">${item[3]}</strong><small>${esc(item[4])}</small></div></article>`,
+          `<article class="kpi ${item[0]}"><span class="kpi-ico">${icon(item[1])}</span><div class="kpi-body"><div class="label">${esc(item[2])}</div><strong class="${item[0] === "bal" && snapshot.final < 0 ? "neg" : ""}" title="${esc(item[3])}">${item[3]}</strong><small>${item[4]}</small></div></article>`,
       )
       .join("");
   }
@@ -3322,7 +3367,10 @@
       );
       return [company, cashSnapshot(companyRows, state.mes)];
     });
-    const total = cashSnapshot(db.finance, state.mes);
+    const total = cashSnapshot(
+      db.finance.filter((record) => subdivisions.includes(record.sub)),
+      state.mes,
+    );
     const priorCell = (value) =>
       value == null ? '<span class="muted">—</span>' : n2(value);
     const unknownEntries = rows.reduce(
@@ -3333,6 +3381,14 @@
       (sum, [, snapshot]) => sum + snapshot.unknownExits.length,
       0,
     );
+    if (state.empresa) {
+      return `<table class="sum-table data-table cash-summary-table is-compact"><thead><tr><th>Empresa</th><th class="num">Saldo Anterior</th></tr></thead><tbody>${rows
+        .map(
+          ([company, snapshot]) =>
+            `<tr class="clickable ${state.empresa === company ? "sel" : ""}" data-select-company="${esc(company)}" title="Filtrar painel por ${esc(company)}"><td><b>${esc(company)}</b></td><td class="amount ${(snapshot.prior || 0) < 0 ? "neg" : ""}">${priorCell(snapshot.prior)}</td></tr>`,
+        )
+        .join("")}</tbody><tfoot><tr><td>Total</td><td class="amount">${priorCell(total.prior)}</td></tr></tfoot></table>`;
+    }
     const note =
       unknownEntries || unknownExits
         ? `<div class="cash-reconcile-note">${icon("info")}<span>${unknownEntries + unknownExits} movimentação(ões) sem data efetiva aguardam conciliação e não foram atribuídas ao fluxo mensal.</span></div>`
@@ -3467,19 +3523,39 @@
         ),
       ),
     ];
+    const ctxBox = (iconName, label, value, note = "") =>
+      `<div><i class="mchart-ico">${icon(iconName)}</i><div><span>${label}</span><strong>${value}</strong>${note ? `<small>${note}</small>` : ""}</div></div>`;
+    const kpiBox = (cls, iconName, label, value, note = "") =>
+      `<div class="${cls}"><span>${icon(iconName)}${label}</span><strong>${value}</strong>${note ? `<small>${note}</small>` : ""}</div>`;
+    const porFora = stats.entradaPorFora
+      ? ` · ${fmt(stats.entradaPorFora)} por fora`
+      : "";
     el.innerHTML = `<div class="mchart">
       <div class="mchart-context">
-        <div><span>Empresa</span><strong>${esc(state.empresa || "Todas as empresas")}</strong></div>
-        <div><span>Período</span><strong>${esc(compLabel(state.mes))}</strong></div>
-        <div><span>Lançamentos</span><strong>${stats.rowCount}</strong><small>${receitas} receita(s) · ${entradasFora} entrada(s) por fora · ${saidas} saída(s)</small></div>
+        ${ctxBox("building", "Empresa:", esc(state.empresa || "Todas as empresas"))}
+        ${ctxBox("calendar", "Período:", esc(compLabel(state.mes)))}
+        ${ctxBox("layers", "Lançamentos:", stats.rowCount, `${receitas} receita(s) · ${entradasFora} entrada(s) por fora · ${saidas} saída(s)`)}
       </div>
-      <div class="mchart-kpis">
-        <div><span>Previsto</span><strong>${fmt(stats.previsto)}</strong></div>
-        <div class="is-received"><span>Recebido</span><strong>${fmt(stats.recebido)}</strong><small>${pct}% do previsto${stats.entradaPorFora ? ` · ${fmt(stats.entradaPorFora)} por fora` : ""}</small></div>
-        <div class="is-pending"><span>Pendente</span><strong>${fmt(stats.pending)}</strong></div>
-        <div class="is-expense"><span>Saídas</span><strong>${fmt(stats.saidas)}</strong></div>
-        <div class="${snapshot.final < 0 ? "is-negative" : "is-balance"}"><span>Saldo final</span><strong>${fmt(snapshot.final)}</strong></div>
+      <div class="mchart-kpis">${
+        state.mes
+          ? kpiBox("is-forecast", "calendar", "Previsto no mês", fmt(stats.previsto)) +
+            kpiBox("is-received", "database", "Recebido no mês", fmt(stats.recebido), `Inclui meses anteriores${porFora}`) +
+            kpiBox("is-pending", "clock", "Pendente do mês", fmt(stats.pendingMonth))
+          : kpiBox("is-forecast", "calendar", "Previsto", fmt(stats.previsto)) +
+            kpiBox("is-received", "database", "Recebido", fmt(stats.recebido), `${pct}% do previsto${porFora}`) +
+            kpiBox("is-pending", "clock", "Pendente", fmt(stats.pending))
+      }${kpiBox("is-expense", "down", "Saídas", fmt(stats.saidas))}${kpiBox(
+        snapshot.final < 0 ? "is-negative" : "is-balance",
+        "wallet",
+        "Saldo final",
+        fmt(snapshot.final),
+      )}
       </div>
+      ${
+        state.mes
+          ? `<div class="mchart-alert">${icon("info")}<span>Pendente acumulado até o fim do mês: <b>${fmt(stats.pending)}</b></span></div>`
+          : ""
+      }
       <div class="mchart-scroll"><div class="mchart-canvas" style="--chart-cols:${Math.max(data.length, 1)}">
         <div class="mchart-plot">${data
           .map(
@@ -3496,7 +3572,9 @@
           )
           .join("")}</div>
       </div></div>
-      <div class="mchart-legend"><span><i class="p"></i>Previsto</span><span><i class="r"></i>Recebido</span><span><i class="s"></i>Saídas</span><span>Escala máxima: ${fmt(max)}</span>${unknownCount ? `<button type="button" class="mchart-reconcile" data-reconcile-go="${esc(unknownIds.join(","))}" title="Ver estes lançamentos em Lançamentos">${unknownCount} movimentação(ões) aguardam conciliação de data</button>` : ""}<span class="mchart-help">Passe o mouse ou toque nas barras para ver todos os valores.</span></div>
+      <div class="mchart-legend"><span><i class="p"></i>Previsto</span><span><i class="r"></i>Recebido</span><span><i class="s"></i>Saídas</span></div>
+      ${unknownCount ? `<button type="button" class="mchart-alert mchart-reconcile" data-reconcile-go="${esc(unknownIds.join(","))}" title="Ver estes lançamentos em Lançamentos">${icon("info")}<span>${unknownCount} movimentação(ões) aguardam conciliação de data</span></button>` : ""}
+      <p class="mchart-help">Passe o mouse ou toque nas barras para ver os valores detalhados.</p>
     </div>`;
   }
   function companyTiles(where) {
