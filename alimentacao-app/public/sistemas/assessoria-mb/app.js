@@ -153,7 +153,12 @@
     taskStatus: "",
     empresa: "",
     historyQuery: "",
+    finHistPeriod: "all",
     finHistMonth: "",
+    finHistYear: new Date().toLocaleDateString("en-CA").slice(0, 4),
+    finHistWeek: new Date().toLocaleDateString("en-CA"),
+    finHistFrom: "",
+    finHistTo: "",
     finHistCompany: "",
     finHistCost: "",
     finHistSearch: "",
@@ -686,6 +691,15 @@
     `<span class="pill ${s === "Concluída" ? "ok" : s === "Em andamento" ? "info" : "warn"}">${esc(s)}</span>`;
   const dateBR = (d) =>
     d ? new Date(`${d}T12:00:00`).toLocaleDateString("pt-BR") : "—";
+  const timeBR = (iso) => {
+    if (!iso) return "—";
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return "—";
+    return date.toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
   const noRows = (s, col = 5) =>
     `<tr><td colspan="${col}" class="empty">${esc(s)}</td></tr>`;
   function drawDashboard() {
@@ -711,18 +725,23 @@
     $("#dash-sum-month").textContent = `(${compLabel(state.mes)})`;
     $("#dash-summary").innerHTML = cashSummaryTable();
     const recent = [...rows]
-      .sort((a, b) => String(b.data).localeCompare(String(a.data)))
-      .slice(0, 6);
+      .sort((a, b) => {
+        const byCreated = String(b.criadoEm || "").localeCompare(
+          String(a.criadoEm || ""),
+        );
+        if (byCreated) return byCreated;
+        return String(b.data || "").localeCompare(String(a.data || ""));
+      })
+      .slice(0, 12);
     $("#dash-fin-table").innerHTML =
-      `<table class="recent-table"><thead><tr><th>Data</th><th>Empresa</th><th>Descrição</th><th>Tipo</th><th class="num">Valor (R$)</th><th>Status</th></tr></thead><tbody>${recent
+      `<table class="recent-table"><thead><tr><th>Data</th><th>Hora</th><th>Usuário</th><th>Empresa</th><th>Descrição</th><th>Tipo</th><th class="num">Valor (R$)</th><th>Status</th></tr></thead><tbody>${recent
         .map((r) => {
           const tp = finTipo(r),
-            st = finStatus(r),
             v =
               tp === "Saída"
                 ? money(r.saida)
                 : money(r.previsto) || money(r.recebido);
-          return `<tr data-edit-fin="${esc(r.id)}" title="Editar lançamento"><td>${dateBR(r.data)}</td><td><b>${esc(r.sub || "—")}</b></td><td>${esc(r.parceiro)}${r.centro ? `<div class="muted">${esc(r.centro)}</div>` : ""}</td><td><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${tp}</span></td><td class="amount">${n2(v)}</td><td>${finStatusHTML(r)}</td></tr>`;
+          return `<tr data-edit-fin="${esc(r.id)}" title="Editar lançamento"><td>${dateBR(r.data)}</td><td class="nowrap">${timeBR(r.criadoEm)}</td><td>${esc(r.criadoPor || "—")}</td><td><b>${esc(r.sub || "—")}</b></td><td>${esc(r.parceiro)}${r.centro ? `<div class="muted">${esc(r.centro)}</div>` : ""}</td><td><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${tp}</span></td><td class="amount">${n2(v)}</td><td>${finStatusHTML(r)}</td></tr>`;
         })
         .join(
           "",
@@ -1262,10 +1281,20 @@
   }
   function drawFinancialHistory() {
     const companies = [...subdivisions];
+    const mode = state.finHistPeriod || "all";
+    if (!state.finHistMonth) state.finHistMonth = todayISO().slice(0, 7);
+    if (!state.finHistYear) state.finHistYear = todayISO().slice(0, 4);
+    if (!state.finHistWeek) state.finHistWeek = todayISO();
+    if (mode === "custom") {
+      if (!state.finHistFrom)
+        state.finHistFrom = `${todayISO().slice(0, 7)}-01`;
+      if (!state.finHistTo) state.finHistTo = todayISO();
+    }
+    const range = finHistRange();
     const rows = db.finance
       .filter(
         (r) =>
-          (!state.finHistMonth || month(r.data) === state.finHistMonth) &&
+          inFinHistRange(r.data, range) &&
           (!state.finHistCompany || r.sub === state.finHistCompany) &&
           (!state.finHistCost || r.centro === state.finHistCost) &&
           (!state.finHistSearch ||
@@ -1276,21 +1305,58 @@
       )
       .sort((a, b) => b.data.localeCompare(a.data));
     const f = $("#fin-history-filters");
-    f.innerHTML = `<div class="field"><label>Mês</label><input type="month" class="control" id="fh-month" value="${esc(state.finHistMonth)}"></div><div class="field"><label>Empresa</label><select class="control" id="fh-company"><option value="">Todas</option>${companies.map((c) => `<option value="${esc(c)}" ${c === state.finHistCompany ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></div>${selectField("Centro de custo", "fh-cost", COST_CODES, state.finHistCost)}<div class="field history-search"><label>Pesquisar parceiro</label><input class="control" type="search" id="fh-search" value="${esc(state.finHistSearch)}" placeholder="Parceiro ou centro de custo"></div><div class="field"><label>&nbsp;</label><button class="btn" id="fh-clear">Limpar filtros</button></div>`;
+    const customFrom = state.finHistFrom || `${todayISO().slice(0, 7)}-01`;
+    const customTo = state.finHistTo || todayISO();
+    f.innerHTML = `<div class="field"><label>Periodicidade</label><select class="control" id="fh-period" lang="pt-BR"><option value="all" ${mode === "all" ? "selected" : ""}>Todo o período</option><option value="month" ${mode === "month" ? "selected" : ""}>Mensal</option><option value="week" ${mode === "week" ? "selected" : ""}>Semanal</option><option value="year" ${mode === "year" ? "selected" : ""}>Anual</option><option value="custom" ${mode === "custom" ? "selected" : ""}>Período personalizado</option></select></div><div class="field fh-mode fh-mode-month" ${mode === "month" ? "" : "hidden"}><label>Mês</label>${accountMonthSelectHTML("fh-month", state.finHistMonth)}</div><div class="field fh-mode fh-mode-week" ${mode === "week" ? "" : "hidden"}><label>Semana de referência</label>${accountDateSelectHTML("fh-week", state.finHistWeek)}</div><div class="field fh-mode fh-mode-year" ${mode === "year" ? "" : "hidden"}><label>Ano</label>${accountYearSelectHTML("fh-year", state.finHistYear)}</div><div class="field fh-mode fh-mode-custom fh-date" ${mode === "custom" ? "" : "hidden"}><label>Data inicial</label>${accountDateSelectHTML("fh-from", customFrom)}</div><div class="field fh-mode fh-mode-custom fh-date" ${mode === "custom" ? "" : "hidden"}><label>Data final</label>${accountDateSelectHTML("fh-to", customTo)}</div><div class="field"><label>Empresa</label><select class="control" id="fh-company"><option value="">Todas</option>${companies.map((c) => `<option value="${esc(c)}" ${c === state.finHistCompany ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></div>${selectField("Centro de custo", "fh-cost", COST_CODES, state.finHistCost)}<div class="field history-search"><label>Pesquisar parceiro</label><input class="control" type="search" id="fh-search" value="${esc(state.finHistSearch)}" placeholder="Parceiro ou centro de custo"></div><div class="field"><label>&nbsp;</label><button class="btn" id="fh-clear">Limpar filtros</button></div>`;
+    const redraw = (key, value) => {
+      state[key] = value;
+      state.finHistPage = 1;
+      drawFinancialHistory();
+    };
+    $("#fh-period").onchange = (e) => {
+      state.finHistPeriod = e.target.value;
+      if (state.finHistPeriod === "custom") {
+        if (!state.finHistFrom)
+          state.finHistFrom = `${todayISO().slice(0, 7)}-01`;
+        if (!state.finHistTo) state.finHistTo = todayISO();
+      }
+      state.finHistPage = 1;
+      drawFinancialHistory();
+    };
+    const monthEl = $("#fh-month");
+    if (monthEl)
+      monthEl.onchange = (e) => redraw("finHistMonth", e.target.value);
+    const yearEl = $("#fh-year");
+    if (yearEl) yearEl.onchange = (e) => redraw("finHistYear", e.target.value);
+    if (mode === "week")
+      wireAccountDateSelect("fh-week", "finHistWeek", () => {
+        state.finHistPage = 1;
+        drawFinancialHistory();
+      });
+    if (mode === "custom") {
+      wireAccountDateSelect("fh-from", "finHistFrom", () => {
+        state.finHistPage = 1;
+        drawFinancialHistory();
+      });
+      wireAccountDateSelect("fh-to", "finHistTo", () => {
+        state.finHistPage = 1;
+        drawFinancialHistory();
+      });
+    }
     for (const [id, key] of [
-      ["fh-month", "finHistMonth"],
       ["fh-company", "finHistCompany"],
       ["fh-cost", "finHistCost"],
       ["fh-search", "finHistSearch"],
     ])
-      $("#" + id).onchange = (e) => {
-        state[key] = e.target.value;
-        state.finHistPage = 1;
-        drawFinancialHistory();
-      };
+      $("#" + id).onchange = (e) => redraw(key, e.target.value);
     $("#fh-clear").onclick = () => {
       Object.assign(state, {
-        finHistMonth: "",
+        finHistPeriod: "all",
+        finHistMonth: todayISO().slice(0, 7),
+        finHistYear: todayISO().slice(0, 4),
+        finHistWeek: todayISO(),
+        finHistFrom: "",
+        finHistTo: "",
         finHistCompany: "",
         finHistCost: "",
         finHistSearch: "",
@@ -1300,7 +1366,7 @@
     };
     const t = totals(rows);
     $("#fin-history-summary").innerHTML =
-      `<div class="hsummary"><span>Registros</span><strong>${rows.length}</strong></div><div class="hsummary"><span>A receber</span><strong>${fmt(t.prev)}</strong></div><div class="hsummary"><span>Recebido</span><strong>${fmt(t.rec)}</strong></div><div class="hsummary"><span>Saídas</span><strong>${fmt(t.sai)}</strong></div>`;
+      `<div class="hsummary"><span>Registros</span><strong>${rows.length}</strong></div><div class="hsummary"><span>A receber</span><strong>${fmt(t.prev)}</strong></div><div class="hsummary"><span>Recebido</span><strong>${fmt(t.rec)}</strong></div><div class="hsummary"><span>Saídas</span><strong>${fmt(t.sai)}</strong></div><div class="hsummary"><span>Período</span><strong class="hsummary-period">${esc(range.label)}</strong></div>`;
     const size = 25,
       pages = Math.max(1, Math.ceil(rows.length / size));
     state.finHistPage = Math.min(state.finHistPage, pages);
@@ -1545,21 +1611,161 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  function accountYearList() {
+    const years = new Set(compOptions().map((item) => item.slice(0, 4)));
+    const current = todayISO().slice(0, 4);
+    years.add(current);
+    for (let year = Number(current) - 4; year <= Number(current) + 1; year++)
+      years.add(String(year));
+    return [...years].sort().reverse();
+  }
+  function accountMonthSelectHTML(id, value) {
+    const selected = /^\d{4}-\d{2}$/.test(value) ? value : todayISO().slice(0, 7);
+    const months = new Set(compOptions());
+    months.add(selected);
+    return `<select class="control" id="${id}" lang="pt-BR">${[...months]
+      .sort()
+      .reverse()
+      .map(
+        (item) =>
+          `<option value="${esc(item)}" ${item === selected ? "selected" : ""}>${esc(compLabel(item))}</option>`,
+      )
+      .join("")}</select>`;
+  }
+  function accountYearSelectHTML(id, value) {
+    const selected = /^\d{4}$/.test(value) ? value : todayISO().slice(0, 4);
+    return `<select class="control" id="${id}" lang="pt-BR">${accountYearList()
+      .map(
+        (year) =>
+          `<option value="${esc(year)}" ${year === selected ? "selected" : ""}>${esc(year)}</option>`,
+      )
+      .join("")}</select>`;
+  }
+  function accountDateSelectHTML(id, value) {
+    const iso = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : todayISO();
+    const year = iso.slice(0, 4);
+    const month = iso.slice(5, 7);
+    const daysInMonth = new Date(Number(year), Number(month), 0).getDate();
+    const day = String(
+      Math.min(Number(iso.slice(8, 10)) || 1, daysInMonth),
+    ).padStart(2, "0");
+    const days = Array.from({ length: daysInMonth }, (_, index) =>
+      String(index + 1).padStart(2, "0"),
+    );
+    return `<div class="br-date-fields" data-br-date="${esc(id)}" lang="pt-BR"><select class="control" id="${id}-d" aria-label="Dia">${days.map((item) => `<option value="${item}" ${item === day ? "selected" : ""}>${Number(item)}</option>`).join("")}</select><select class="control" id="${id}-m" aria-label="Mês">${MESES.map((name, index) => {
+      const code = String(index + 1).padStart(2, "0");
+      return `<option value="${code}" ${code === month ? "selected" : ""}>${name}</option>`;
+    }).join("")}</select><select class="control" id="${id}-y" aria-label="Ano">${accountYearList().map((item) => `<option value="${esc(item)}" ${item === year ? "selected" : ""}>${esc(item)}</option>`).join("")}</select></div>`;
+  }
+  function readAccountDateSelect(id) {
+    const dayEl = $("#" + id + "-d");
+    const monthEl = $("#" + id + "-m");
+    const yearEl = $("#" + id + "-y");
+    if (!dayEl || !monthEl || !yearEl) return "";
+    const year = yearEl.value;
+    const month = monthEl.value;
+    const maxDay = new Date(Number(year), Number(month), 0).getDate();
+    const day = String(Math.min(Number(dayEl.value) || 1, maxDay)).padStart(
+      2,
+      "0",
+    );
+    return `${year}-${month}-${day}`;
+  }
+  function wireAccountDateSelect(id, stateKey, onDone) {
+    const update = () => {
+      state[stateKey] = readAccountDateSelect(id);
+      (onDone || drawAccountability)();
+    };
+    ["d", "m", "y"].forEach((part) => {
+      const element = $("#" + id + "-" + part);
+      if (element) element.onchange = update;
+    });
+  }
+  function finHistRange() {
+    const mode = state.finHistPeriod || "all";
+    if (mode === "all") return { start: "", end: "", label: "Todo o período" };
+    if (mode === "year") {
+      const year = /^\d{4}$/.test(state.finHistYear)
+        ? state.finHistYear
+        : todayISO().slice(0, 4);
+      return {
+        start: `${year}-01-01`,
+        end: `${year}-12-31`,
+        label: `Ano de ${year}`,
+      };
+    }
+    if (mode === "custom") {
+      const start = state.finHistFrom || "";
+      const end = state.finHistTo || "";
+      return {
+        start,
+        end,
+        label:
+          start && end
+            ? `${dateBR(start)} a ${dateBR(end)}`
+            : "Período personalizado",
+      };
+    }
+    if (mode === "week") {
+      const base = /^\d{4}-\d{2}-\d{2}$/.test(state.finHistWeek)
+        ? state.finHistWeek
+        : todayISO();
+      const date = new Date(base + "T12:00:00");
+      const day = date.getDay() || 7;
+      date.setDate(date.getDate() - day + 1);
+      const start = date.toLocaleDateString("en-CA");
+      date.setDate(date.getDate() + 6);
+      const end = date.toLocaleDateString("en-CA");
+      return { start, end, label: `${dateBR(start)} a ${dateBR(end)}` };
+    }
+    const selected = /^\d{4}-\d{2}$/.test(state.finHistMonth)
+      ? state.finHistMonth
+      : todayISO().slice(0, 7);
+    const bounds = monthBounds(selected);
+    const endDate = new Date(bounds.end + "T12:00:00");
+    endDate.setDate(endDate.getDate() - 1);
+    return {
+      start: bounds.start,
+      end: endDate.toLocaleDateString("en-CA"),
+      label: compLabel(selected),
+    };
+  }
+  function inFinHistRange(date, range) {
+    if (!range.start && !range.end) return true;
+    if (!isFinancialDate(date)) return false;
+    if (range.start && date < range.start) return false;
+    if (range.end && date > range.end) return false;
+    return true;
+  }
   function drawAccountability() {
     const filters = $("#account-filters");
     const report = $("#account-report");
     if (!filters || !report) return;
     const mode = state.accountPeriod || "month";
-    filters.innerHTML = `<div class="field"><label>Periodicidade</label><select class="control" id="account-period"><option value="week" ${mode === "week" ? "selected" : ""}>Semanal</option><option value="month" ${mode === "month" ? "selected" : ""}>Mensal</option><option value="year" ${mode === "year" ? "selected" : ""}>Anual</option><option value="custom" ${mode === "custom" ? "selected" : ""}>Período personalizado</option><option value="all" ${mode === "all" ? "selected" : ""}>Todo o período</option></select></div><div class="field account-mode account-mode-week" ${mode === "week" ? "" : "hidden"}><label>Semana de referência</label><input type="date" class="control" id="account-week" value="${esc(state.accountWeek)}"></div><div class="field account-mode account-mode-month" ${mode === "month" ? "" : "hidden"}><label>Mês</label><input type="month" class="control" id="account-month" value="${esc(state.accountMonth)}"></div><div class="field account-mode account-mode-year" ${mode === "year" ? "" : "hidden"}><label>Ano</label><input type="number" min="2000" max="2100" class="control" id="account-year" value="${esc(state.accountYear)}"></div><div class="field account-mode account-mode-custom" ${mode === "custom" ? "" : "hidden"}><label>Data inicial</label><input type="date" class="control" id="account-from" value="${esc(state.accountFrom)}"></div><div class="field account-mode account-mode-custom" ${mode === "custom" ? "" : "hidden"}><label>Data final</label><input type="date" class="control" id="account-to" value="${esc(state.accountTo)}"></div><div class="field"><label>Empresa</label><select class="control" id="account-company"><option value="">Consolidado</option>${subdivisions.map((company) => `<option value="${esc(company)}" ${state.accountCompany === company ? "selected" : ""}>${esc(company)}</option>`).join("")}</select></div><div class="field"><label>Comprovantes</label><select class="control" id="account-files"><option value="all" ${state.accountFiles === "all" ? "selected" : ""}>Todos os lançamentos</option><option value="with" ${state.accountFiles === "with" ? "selected" : ""}>Com comprovante</option><option value="without" ${state.accountFiles === "without" ? "selected" : ""}>Sem comprovante</option></select></div><div class="field account-search"><label>Localizar lançamento</label><input type="search" class="control" id="account-query" value="${esc(state.accountQuery)}" placeholder="Empresa, parceiro, centro ou observação"></div>`;
+    filters.innerHTML = `<div class="field"><label>Periodicidade</label><select class="control" id="account-period" lang="pt-BR"><option value="week" ${mode === "week" ? "selected" : ""}>Semanal</option><option value="month" ${mode === "month" ? "selected" : ""}>Mensal</option><option value="year" ${mode === "year" ? "selected" : ""}>Anual</option><option value="custom" ${mode === "custom" ? "selected" : ""}>Período personalizado</option><option value="all" ${mode === "all" ? "selected" : ""}>Todo o período</option></select></div><div class="field account-mode account-mode-week" ${mode === "week" ? "" : "hidden"}><label>Semana de referência</label>${accountDateSelectHTML("account-week", state.accountWeek)}</div><div class="field account-mode account-mode-month" ${mode === "month" ? "" : "hidden"}><label>Mês</label>${accountMonthSelectHTML("account-month", state.accountMonth)}</div><div class="field account-mode account-mode-year" ${mode === "year" ? "" : "hidden"}><label>Ano</label>${accountYearSelectHTML("account-year", state.accountYear)}</div><div class="field account-mode account-mode-custom" ${mode === "custom" ? "" : "hidden"}><label>Data inicial</label>${accountDateSelectHTML("account-from", state.accountFrom || todayISO())}</div><div class="field account-mode account-mode-custom" ${mode === "custom" ? "" : "hidden"}><label>Data final</label>${accountDateSelectHTML("account-to", state.accountTo || todayISO())}</div><div class="field"><label>Empresa</label><select class="control" id="account-company"><option value="">Consolidado</option>${subdivisions.map((company) => `<option value="${esc(company)}" ${state.accountCompany === company ? "selected" : ""}>${esc(company)}</option>`).join("")}</select></div><div class="field"><label>Comprovantes</label><select class="control" id="account-files"><option value="all" ${state.accountFiles === "all" ? "selected" : ""}>Todos os lançamentos</option><option value="with" ${state.accountFiles === "with" ? "selected" : ""}>Com comprovante</option><option value="without" ${state.accountFiles === "without" ? "selected" : ""}>Sem comprovante</option></select></div><div class="field account-search"><label>Localizar lançamento</label><input type="search" class="control" id="account-query" value="${esc(state.accountQuery)}" placeholder="Empresa, parceiro, centro ou observação"></div>`;
     const redraw = (key, value) => {
       state[key] = value;
       drawAccountability();
     };
-    const links = [["account-period", "accountPeriod"], ["account-week", "accountWeek"], ["account-month", "accountMonth"], ["account-year", "accountYear"], ["account-from", "accountFrom"], ["account-to", "accountTo"], ["account-company", "accountCompany"], ["account-files", "accountFiles"], ["account-query", "accountQuery"]];
+    const links = [
+      ["account-period", "accountPeriod"],
+      ["account-month", "accountMonth"],
+      ["account-year", "accountYear"],
+      ["account-company", "accountCompany"],
+      ["account-files", "accountFiles"],
+      ["account-query", "accountQuery"],
+    ];
     links.forEach(([id, key]) => {
       const element = $("#" + id);
       if (element) element.onchange = (event) => redraw(key, event.target.value);
     });
+    if (mode === "week") wireAccountDateSelect("account-week", "accountWeek");
+    if (mode === "custom") {
+      if (!state.accountFrom) state.accountFrom = todayISO();
+      if (!state.accountTo) state.accountTo = todayISO();
+      wireAccountDateSelect("account-from", "accountFrom");
+      wireAccountDateSelect("account-to", "accountTo");
+    }
     const range = accountabilityRange();
     const scope = accountScopeRows();
     const rows = accountReportRows(scope, range);
@@ -1882,7 +2088,7 @@
           type === "receita"
             ? "Parceiro *"
             : type === "entrada_por_fora"
-              ? "Referência *"
+              ? "Descrição do crédito *"
               : "Beneficiário / descrição *";
       const help = body.querySelector("#fin-type-help");
       if (help)
@@ -2144,10 +2350,16 @@
           origem: "Cadastro manual",
           criadoPor: MB.nome || "",
           criadoPorId: MB.userId || "",
+          criadoEm: new Date().toISOString(),
         };
       }
     }
     if (old) {
+      if (typeModal !== "task") {
+        rec.criadoEm = old.criadoEm || rec.criadoEm || "";
+        rec.criadoPor = old.criadoPor || rec.criadoPor || MB.nome || "";
+        rec.criadoPorId = old.criadoPorId || rec.criadoPorId || MB.userId || "";
+      }
       arr[arr.indexOf(old)] = rec;
     } else {
       arr.push(rec);
@@ -3831,14 +4043,6 @@
       (sum, [, snapshot]) => sum + snapshot.unknownExits.length,
       0,
     );
-    if (state.empresa) {
-      return `<table class="sum-table data-table cash-summary-table is-compact"><thead><tr><th>Empresa</th><th class="num">Saldo Anterior</th></tr></thead><tbody>${rows
-        .map(
-          ([company, snapshot]) =>
-            `<tr class="clickable ${state.empresa === company ? "sel" : ""}" data-select-company="${esc(company)}" title="Filtrar painel por ${esc(company)}"><td><b>${esc(company)}</b></td><td class="amount ${(snapshot.prior || 0) < 0 ? "neg" : ""}">${priorCell(snapshot.prior)}</td></tr>`,
-        )
-        .join("")}</tbody><tfoot><tr><td>Total</td><td class="amount">${priorCell(total.prior)}</td></tr></tfoot></table>`;
-    }
     const note =
       unknownEntries || unknownExits
         ? `<div class="cash-reconcile-note">${icon("info")}<span>${unknownEntries + unknownExits} ${unknownEntries + unknownExits === 1 ? "registro sem data financeira" : "registros sem data financeira"}. Revisar em Lançamentos.</span></div>`
@@ -3895,49 +4099,6 @@
     if (!el) return;
     const snapshot = cashSnapshot(rows, state.mes);
     const stats = dashboardPeriodStats(rows, state.mes);
-    let data = [];
-    if (state.mes) {
-      const bounds = monthBounds(state.mes);
-      const [year, monthNumber] = state.mes.split("-").map(Number);
-      const days = new Date(year, monthNumber, 0).getDate();
-      const ranges = [
-        [1, 7],
-        [8, 14],
-        [15, 21],
-        [22, 28],
-        [29, days],
-      ].filter(([start]) => start <= days);
-      const pad = (value) => String(value).padStart(2, "0");
-      data = ranges.map(([startDay, endDay]) =>
-        cashBucket(
-          rows,
-          `${state.mes}-${pad(startDay)}`,
-          endDay === days ? bounds.end : `${state.mes}-${pad(endDay + 1)}`,
-          `${pad(startDay)}–${pad(endDay)}`,
-          `${pad(startDay)} a ${pad(endDay)} de ${compLabel(state.mes)}`,
-        ),
-      );
-    } else {
-      data = compOptions()
-        .slice()
-        .reverse()
-        .map((reference) => {
-          const bounds = monthBounds(reference);
-          const [year, monthNumber] = reference.split("-");
-          return cashBucket(
-            rows,
-            bounds.start,
-            bounds.end,
-            `${MESES[Number(monthNumber) - 1].slice(0, 3)}/${year.slice(2)}`,
-            compLabel(reference),
-          );
-        });
-    }
-    let runningBalance = state.mes ? snapshot.prior : 0;
-    data.forEach((bucket) => {
-      runningBalance += bucket.t.rec - bucket.t.sai;
-      bucket.closing = runningBalance;
-    });
     const touched = rows.filter((record) => stats.rowIds.has(record.id));
     const receitas = touched.filter((record) => finKind(record) === "receita").length;
     const entradasFora = touched.filter(
@@ -3949,21 +4110,6 @@
       : stats.recebidoReceitas
         ? 100
         : 0;
-    const compactFmt = (value) =>
-      (Number(value) || 0).toLocaleString("pt-BR", {
-        style: "currency",
-        currency: "BRL",
-        notation: Math.abs(Number(value) || 0) >= 1000 ? "compact" : "standard",
-        maximumFractionDigits: 1,
-      });
-    const max = Math.max(
-      1,
-      ...data.flatMap((bucket) => [bucket.t.prev, bucket.t.rec, bucket.t.sai]),
-    );
-    const height = (value) =>
-      value > 0 ? Math.max(1.5, (value / max) * 100).toFixed(2) : 0;
-    const detail = (bucket) =>
-      `${bucket.fullLabel}\n${bucket.rowCount} lançamento(s)\nPrevisto: ${fmt(bucket.t.prev)}\nRecebido: ${fmt(bucket.t.rec)}\nEntrada por fora: ${fmt(bucket.t.recExtra)}\nSaídas: ${fmt(bucket.t.sai)}\nSaldo acumulado: ${fmt(bucket.closing)}`;
     const unknownCount =
       snapshot.unknownEntries.length + snapshot.unknownExits.length;
     const unknownIds = [
@@ -3980,7 +4126,7 @@
     const porFora = stats.entradaPorFora
       ? ` · ${fmt(stats.entradaPorFora)} por fora`
       : "";
-    el.innerHTML = `<div class="mchart">
+    el.innerHTML = `<div class="mchart no-chart">
       <div class="mchart-context">
         ${ctxBox("building", "Empresa:", esc(state.empresa || "Todas as empresas"))}
         ${ctxBox("calendar", "Período:", esc(compLabel(state.mes)))}
@@ -4006,25 +4152,7 @@
           ? `<div class="mchart-alert">${icon("info")}<span>Pendente acumulado até o fim do mês: <b>${fmt(stats.pending)}</b></span></div>`
           : ""
       }
-      <div class="mchart-scroll"><div class="mchart-canvas" style="--chart-cols:${Math.max(data.length, 1)}">
-        <div class="mchart-plot">${data
-          .map(
-            (bucket) => `<div class="mbars" tabindex="0" aria-label="${esc(detail(bucket))}" data-chart-detail="${esc(detail(bucket))}">
-              <span class="mbar"><em>${compactFmt(bucket.t.prev)}</em><i class="p" style="height:${height(bucket.t.prev)}%" title="Previsto ${fmt(bucket.t.prev)}"></i></span>
-              <span class="mbar"><em>${compactFmt(bucket.t.rec)}</em><i class="r" style="height:${height(bucket.t.rec)}%" title="Recebido ${fmt(bucket.t.rec)}"></i></span>
-              <span class="mbar"><em>${compactFmt(bucket.t.sai)}</em><i class="s" style="height:${height(bucket.t.sai)}%" title="Saídas ${fmt(bucket.t.sai)}"></i></span>
-            </div>`,
-          )
-          .join("")}</div>
-        <div class="mlabels">${data
-          .map(
-            (bucket) => `<span><b>${bucket.lab}</b><small>${bucket.rowCount} lançamento(s)</small><em class="${bucket.closing < 0 ? "neg" : ""}">Saldo ${compactFmt(bucket.closing)}</em></span>`,
-          )
-          .join("")}</div>
-      </div></div>
-      <div class="mchart-legend"><span><i class="p"></i>Previsto</span><span><i class="r"></i>Recebido</span><span><i class="s"></i>Saídas</span></div>
       ${unknownCount ? `<button type="button" class="mchart-alert mchart-reconcile" data-reconcile-go="${esc(unknownIds.join(","))}" title="Ver em Lançamentos">${icon("info")}<span>${unknownCount} ${unknownCount === 1 ? "registro sem data financeira" : "registros sem data financeira"}</span></button>` : ""}
-      <p class="mchart-help">Passe o mouse ou toque nas barras para ver os valores detalhados.</p>
     </div>`;
   }
   function companyTiles(where) {

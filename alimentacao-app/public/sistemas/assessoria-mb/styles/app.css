@@ -1225,6 +1225,17 @@ td .muted {
 .history-search {
   min-width: 220px;
 }
+#fin-history-filters .fh-mode[hidden] {
+  display: none !important;
+}
+#fin-history-filters .fh-date {
+  min-width: 280px;
+}
+.hsummary strong.hsummary-period {
+  text-transform: none;
+  font-size: 15px;
+  letter-spacing: 0;
+}
 /* Info */
 .info-strip {
   display: flex;
@@ -3459,6 +3470,12 @@ p.mchart-help {
     min-width: max(500px, calc(var(--chart-cols) * 90px));
   }
 }
+.mchart.no-chart {
+  padding-bottom: 4px;
+}
+.mchart.no-chart .mchart-kpis {
+  margin-bottom: 10px;
+}
 /* Lançamentos recentes */
 .recent-wrap {
   padding: 10px 16px 14px;
@@ -4883,6 +4900,11 @@ body {
 
 .accountability-filters .account-search {
   grid-column: span 2;
+}
+.br-date-fields {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1.4fr) 88px;
+  gap: 6px;
 }
 
 .account-report-sheet {
