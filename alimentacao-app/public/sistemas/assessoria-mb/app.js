@@ -1950,6 +1950,54 @@
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 500);
   };
+  $("#csv-export-all").onclick = () => {
+    const rows = [...db.finance].sort((a, b) =>
+      String(b.data || "").localeCompare(String(a.data || "")),
+    );
+    const columns = [
+      "Tipo de lançamento",
+      "Data",
+      "Data recebida",
+      "Parceiro",
+      "Centro de custo",
+      "Empresa depositante",
+      "Empresa",
+      "A receber",
+      "Recebido",
+      "Saída",
+      "Observação",
+    ];
+    const vals = rows.map((r) => [
+      finTipo(r),
+      r.data,
+      r.dataRecebida || "",
+      r.parceiro,
+      r.centro,
+      r.empresaDepositante || "",
+      r.sub,
+      r.previsto,
+      r.recebido,
+      r.saida,
+      r.observacao || "",
+    ]);
+    const csv =
+      "﻿" +
+      [columns, ...vals]
+        .map((row) =>
+          row
+            .map((v) => '"' + String(v ?? "").replaceAll('"', '""') + '"')
+            .join(";"),
+        )
+        .join("\r\n");
+    const url = URL.createObjectURL(
+      new Blob([csv], { type: "text/csv;charset=utf-8" }),
+    );
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "assessoria-mb-todos-os-lancamentos.csv";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 500);
+  };
   const todayISO = () => {
     const d = new Date();
     return new Date(d.getTime() - d.getTimezoneOffset() * 6e4)
