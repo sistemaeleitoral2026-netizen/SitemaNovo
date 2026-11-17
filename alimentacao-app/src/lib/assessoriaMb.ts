@@ -629,9 +629,27 @@ export async function salvarEstadoAssessoria(
     await Promise.all([
       delFin.length
         ? (async () => {
-            await supabase.from('mb_anexos').delete().eq('entidade', 'lancamento').in('entidade_id', delFin)
-            const { error } = await supabase.from('mb_lancamentos').delete().in('id', delFin)
+            // PostgREST DELETE sem .select() devolve 204 mesmo com 0 linhas (RLS).
+            // Sem checar, o sync "passa" e no refresh o lançamento volta.
+            const { error: anexErr } = await supabase
+              .from('mb_anexos')
+              .delete()
+              .eq('entidade', 'lancamento')
+              .in('entidade_id', delFin)
+            if (anexErr) throw asError(anexErr)
+            const { data: deletedFin, error } = await supabase
+              .from('mb_lancamentos')
+              .delete()
+              .in('id', delFin)
+              .select('id')
             if (error) throw asError(error)
+            if ((deletedFin?.length || 0) < delFin.length) {
+              throw asError(
+                new Error(
+                  'Não foi possível excluir um ou mais lançamentos (sem permissão no banco). Só o autor ou um admin pode excluir.',
+                ),
+              )
+            }
           })()
         : Promise.resolve(),
       finance.length
@@ -682,9 +700,25 @@ export async function salvarEstadoAssessoria(
     await Promise.all([
       delTasks.length
         ? (async () => {
-            await supabase.from('mb_anexos').delete().eq('entidade', 'tarefa').in('entidade_id', delTasks)
-            const { error } = await supabase.from('mb_tarefas').delete().in('id', delTasks)
+            const { error: anexErr } = await supabase
+              .from('mb_anexos')
+              .delete()
+              .eq('entidade', 'tarefa')
+              .in('entidade_id', delTasks)
+            if (anexErr) throw asError(anexErr)
+            const { data: deletedTasks, error } = await supabase
+              .from('mb_tarefas')
+              .delete()
+              .in('id', delTasks)
+              .select('id')
             if (error) throw asError(error)
+            if ((deletedTasks?.length || 0) < delTasks.length) {
+              throw asError(
+                new Error(
+                  'Não foi possível excluir uma ou mais demandas (sem permissão no banco). Só o autor ou um admin pode excluir.',
+                ),
+              )
+            }
           })()
         : Promise.resolve(),
       tasks.length
