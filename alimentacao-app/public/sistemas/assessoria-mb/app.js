@@ -142,6 +142,7 @@
     finType: "",
     finStatus: "",
     finCost: "",
+    finReconcileIds: null,
     finSort: "desc",
     finPage: 1,
     finView: "table",
@@ -483,7 +484,8 @@
         (!state.mes || month(r.data) === state.mes) &&
         (!state.empresa || r.sub === state.empresa) &&
         (page !== "financeiro" ||
-          ((!state.finType || finTipo(r) === state.finType) &&
+          ((!state.finReconcileIds || state.finReconcileIds.has(r.id)) &&
+            (!state.finType || finTipo(r) === state.finType) &&
             (!state.finStatus || finStatus(r)[0] === state.finStatus) &&
             (!state.finCost || r.centro === state.finCost) &&
             (!state.pesquisa ||
@@ -591,11 +593,14 @@
             `<option value="${m}" ${m === state.mes ? "selected" : ""}>${compLabel(m)}</option>`,
         )
         .join("")}`;
+    const scopeRows = db.finance.filter(
+      (record) => !state.empresa || record.sub === state.empresa,
+    );
     const rows = financeFiltered();
-    kpis("#dash-metrics", rows);
-    movChart(rows);
+    drawDashboardKpis(scopeRows);
+    drawCashMovement(scopeRows);
     $("#dash-sum-month").textContent = `(${compLabel(state.mes)})`;
-    $("#dash-summary").innerHTML = summaryTable(false);
+    $("#dash-summary").innerHTML = cashSummaryTable();
     const recent = [...rows]
       .sort((a, b) => String(b.data).localeCompare(String(a.data)))
       .slice(0, 6);
@@ -630,6 +635,9 @@
       state.finPage * pageSize,
     );
     $("#finance-count").textContent = `Exibindo ${rows.length} registro(s)`;
+    $("#fin-reconcile-banner").innerHTML = state.finReconcileIds
+      ? `<div class="fin-reconcile-banner">${icon("info")}<span>Filtrando ${state.finReconcileIds.size} movimentação(ões) sem data efetiva que aguardam conciliação.</span><button type="button" id="fin-reconcile-clear">Limpar filtro</button></div>`
+      : "";
     const costs = [
       ...new Set(db.finance.map((r) => r.centro).filter(Boolean)),
     ].sort();
@@ -704,6 +712,7 @@
         finCost: "",
         pesquisa: "",
         empresa: "",
+        finReconcileIds: null,
         finPage: 1,
       });
       render();
@@ -2795,11 +2804,15 @@
       maximumFractionDigits: 2,
     });
   function compOptions() {
-    const set = new Set(
-      db.finance
-        .map((r) => month(r.data))
-        .filter((m) => /^\d{4}-\d{2}$/.test(m)),
-    );
+    const set = new Set();
+    db.finance.forEach((r) => {
+      const launchMonth = month(r.data);
+      if (/^\d{4}-\d{2}$/.test(launchMonth)) set.add(launchMonth);
+      receiptCashEvents(r).forEach((event) => {
+        const receiptMonth = month(event.data);
+        if (/^\d{4}-\d{2}$/.test(receiptMonth)) set.add(receiptMonth);
+      });
+    });
     if (state.mes) set.add(state.mes);
     if (state.contasMes) set.add(state.contasMes);
     set.add(todayISO().slice(0, 7));
@@ -2877,6 +2890,175 @@
   }
   function sumRecebimentos(arr) {
     return (arr || []).reduce((s, x) => s + money(x.valor), 0);
+  }
+  const isFinancialDate = (value) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+  function receiptCashEvents(record) {
+    if (!record || finKind(record) === "saida") return [];
+    const saved = Array.isArray(record.recebimentos)
+      ? record.recebimentos
+      : [];
+    if (saved.length) {
+      return saved
+        .map((item, index) => ({
+          id: item.id || `${record.id}-rx-${index}`,
+          rowId: record.id,
+          company: record.sub || "",
+          kind: finKind(record),
+          data: isFinancialDate(item.data) ? String(item.data) : "",
+          value: money(item.valor),
+        }))
+        .filter((event) => event.value > 0);
+    }
+    const value = money(record.recebido);
+    if (value <= 0) return [];
+    return [
+      {
+        id: `${record.id}-received`,
+        rowId: record.id,
+        company: record.sub || "",
+        kind: finKind(record),
+        data: isFinancialDate(record.dataRecebida)
+          ? String(record.dataRecebida)
+          : "",
+        value,
+      },
+    ];
+  }
+  function cashLedger(rows) {
+    const entries = [];
+    const exits = [];
+    rows.forEach((record) => {
+      receiptCashEvents(record).forEach((event) => entries.push(event));
+      if (finKind(record) === "saida" && money(record.saida) > 0) {
+        exits.push({
+          id: `${record.id}-out`,
+          rowId: record.id,
+          company: record.sub || "",
+          data: isFinancialDate(record.data) ? String(record.data) : "",
+          value: money(record.saida),
+        });
+      }
+    });
+    return { entries, exits };
+  }
+  function monthBounds(reference) {
+    if (!/^\d{4}-\d{2}$/.test(String(reference || ""))) return null;
+    let [year, monthNumber] = String(reference).split("-").map(Number);
+    const start = `${year}-${String(monthNumber).padStart(2, "0")}-01`;
+    monthNumber++;
+    if (monthNumber > 12) {
+      monthNumber = 1;
+      year++;
+    }
+    return {
+      start,
+      end: `${year}-${String(monthNumber).padStart(2, "0")}-01`,
+    };
+  }
+  function previousMonth(reference) {
+    let [year, monthNumber] = String(reference).split("-").map(Number);
+    monthNumber--;
+    if (monthNumber < 1) {
+      monthNumber = 12;
+      year--;
+    }
+    return `${year}-${String(monthNumber).padStart(2, "0")}`;
+  }
+  function cashSnapshot(rows, reference = "") {
+    const ledger = cashLedger(rows);
+    const unknownEntries = ledger.entries.filter((event) => !event.data);
+    const unknownExits = ledger.exits.filter((event) => !event.data);
+    const datedEntries = ledger.entries.filter((event) => event.data);
+    const datedExits = ledger.exits.filter((event) => event.data);
+    const bounds = monthBounds(reference);
+    if (!bounds) {
+      const entries = datedEntries.reduce((sum, event) => sum + event.value, 0);
+      const exits = datedExits.reduce((sum, event) => sum + event.value, 0);
+      return {
+        prior: null,
+        entries,
+        exits,
+        final: entries - exits,
+        unknownEntries,
+        unknownExits,
+      };
+    }
+    const beforeEntries = datedEntries
+      .filter((event) => event.data < bounds.start)
+      .reduce((sum, event) => sum + event.value, 0);
+    const beforeExits = datedExits
+      .filter((event) => event.data < bounds.start)
+      .reduce((sum, event) => sum + event.value, 0);
+    const entries = datedEntries
+      .filter(
+        (event) => event.data >= bounds.start && event.data < bounds.end,
+      )
+      .reduce((sum, event) => sum + event.value, 0);
+    const exits = datedExits
+      .filter(
+        (event) => event.data >= bounds.start && event.data < bounds.end,
+      )
+      .reduce((sum, event) => sum + event.value, 0);
+    const prior = beforeEntries - beforeExits;
+    return {
+      prior,
+      entries,
+      exits,
+      final: prior + entries - exits,
+      unknownEntries,
+      unknownExits,
+    };
+  }
+  function dashboardPeriodStats(rows, reference = "") {
+    const bounds = monthBounds(reference);
+    const ledger = cashLedger(rows);
+    const inPeriod = (date) =>
+      !bounds || (date && date >= bounds.start && date < bounds.end);
+    const launchRows = rows.filter(
+      (record) =>
+        finKind(record) === "receita" &&
+        isFinancialDate(record.data) &&
+        inPeriod(record.data),
+    );
+    const entries = ledger.entries.filter((event) => inPeriod(event.data));
+    const exits = ledger.exits.filter((event) => inPeriod(event.data));
+    const ids = new Set([
+      ...launchRows.map((record) => record.id),
+      ...entries.map((event) => event.rowId),
+      ...exits.map((event) => event.rowId),
+    ]);
+    const cutoff = bounds?.end || "9999-12-31";
+    const pending = rows
+      .filter(
+        (record) =>
+          finKind(record) === "receita" &&
+          isFinancialDate(record.data) &&
+          record.data < cutoff,
+      )
+      .reduce((sum, record) => {
+        const receivedAtCutoff = receiptCashEvents(record)
+          .filter((event) => event.data && event.data < cutoff)
+          .reduce((total, event) => total + event.value, 0);
+        return sum + Math.max(0, money(record.previsto) - receivedAtCutoff);
+      }, 0);
+    return {
+      rowIds: ids,
+      rowCount: ids.size,
+      previsto: launchRows.reduce(
+        (sum, record) => sum + money(record.previsto),
+        0,
+      ),
+      recebido: entries.reduce((sum, event) => sum + event.value, 0),
+      recebidoReceitas: entries
+        .filter((event) => event.kind === "receita")
+        .reduce((sum, event) => sum + event.value, 0),
+      entradaPorFora: entries
+        .filter((event) => event.kind === "entrada_por_fora")
+        .reduce((sum, event) => sum + event.value, 0),
+      saidas: exits.reduce((sum, event) => sum + event.value, 0),
+      pending,
+    };
   }
   function rxHistoryRows(obj) {
     const rows = [];
@@ -3027,6 +3209,240 @@
           `<article class="kpi ${x[0]}"><span class="kpi-ico">${icon(x[1])}</span><div class="kpi-body"><div class="label">${x[2]}</div><strong class="${x[0] === "bal" && saldo < 0 ? "neg" : ""}" title="${x[3]}">${x[3]}</strong>${x[4]}</div></article>`,
       )
       .join("");
+  }
+  function drawDashboardKpis(rows) {
+    if (!state.mes) {
+      kpis("#dash-metrics", rows);
+      return;
+    }
+    const snapshot = cashSnapshot(rows, state.mes);
+    const selectedLabel = compLabel(state.mes).split(" /")[0];
+    const previous = previousMonth(state.mes);
+    const previousParts = previous.split("-");
+    const previousLabel =
+      previousParts[0] === state.mes.split("-")[0]
+        ? MESES[Number(previousParts[1]) - 1]
+        : compLabel(previous);
+    const items = [
+      [
+        "in",
+        "down",
+        `Ficou em ${previousLabel}`,
+        fmt(snapshot.prior),
+        `Saldo acumulado até ${compLabel(previous)}`,
+      ],
+      [
+        "cash-in",
+        "arrow",
+        `Entrada ${selectedLabel}`,
+        fmt(snapshot.entries),
+        "Total de recebimentos efetivos do mês",
+      ],
+      [
+        "out",
+        "arrow",
+        `Saída ${selectedLabel}`,
+        fmt(snapshot.exits),
+        "Pagamentos e despesas do mês",
+      ],
+      [
+        "bal",
+        "database",
+        `Saldo ${selectedLabel}`,
+        fmt(snapshot.final),
+        "Saldo anterior + entradas − saídas",
+      ],
+    ];
+    $("#dash-metrics").innerHTML = items
+      .map(
+        (item) =>
+          `<article class="kpi ${item[0]}"><span class="kpi-ico">${icon(item[1])}</span><div class="kpi-body"><div class="label">${esc(item[2])}</div><strong class="${item[0] === "bal" && snapshot.final < 0 ? "neg" : ""}" title="${esc(item[3])}">${item[3]}</strong><small>${esc(item[4])}</small></div></article>`,
+      )
+      .join("");
+  }
+  function cashSummaryTable() {
+    const rows = subdivisions.map((company) => {
+      const companyRows = db.finance.filter(
+        (record) => record.sub === company,
+      );
+      return [company, cashSnapshot(companyRows, state.mes)];
+    });
+    const total = cashSnapshot(db.finance, state.mes);
+    const priorCell = (value) =>
+      value == null ? '<span class="muted">—</span>' : n2(value);
+    const unknownEntries = rows.reduce(
+      (sum, [, snapshot]) => sum + snapshot.unknownEntries.length,
+      0,
+    );
+    const unknownExits = rows.reduce(
+      (sum, [, snapshot]) => sum + snapshot.unknownExits.length,
+      0,
+    );
+    const note =
+      unknownEntries || unknownExits
+        ? `<div class="cash-reconcile-note">${icon("info")}<span>${unknownEntries + unknownExits} movimentação(ões) sem data efetiva aguardam conciliação e não foram atribuídas ao fluxo mensal.</span></div>`
+        : "";
+    return `<table class="sum-table data-table cash-summary-table"><thead><tr><th>Empresa</th><th class="num">Saldo Anterior</th><th class="num">Entradas</th><th class="num">Saídas</th><th class="num">Saldo Final</th></tr></thead><tbody>${rows
+      .map(
+        ([company, snapshot]) =>
+          `<tr class="clickable ${state.empresa === company ? "sel" : ""}" data-select-company="${esc(company)}" title="Filtrar painel por ${esc(company)}"><td><b>${esc(company)}</b></td><td class="amount">${priorCell(snapshot.prior)}</td><td class="amount">${n2(snapshot.entries)}</td><td class="amount">${n2(snapshot.exits)}</td><td class="amount ${snapshot.final < 0 ? "neg" : ""}">${n2(snapshot.final)}</td></tr>`,
+      )
+      .join("")}</tbody><tfoot><tr><td>Total</td><td class="amount">${priorCell(total.prior)}</td><td class="amount">${n2(total.entries)}</td><td class="amount">${n2(total.exits)}</td><td class="amount ${total.final < 0 ? "neg" : ""}">${n2(total.final)}</td></tr></tfoot></table>${note}`;
+  }
+  function cashBucket(rows, start, end, label, fullLabel) {
+    const ledger = cashLedger(rows);
+    const launches = rows.filter(
+      (record) =>
+        finKind(record) === "receita" &&
+        isFinancialDate(record.data) &&
+        record.data >= start &&
+        record.data < end,
+    );
+    const entries = ledger.entries.filter(
+      (event) => event.data && event.data >= start && event.data < end,
+    );
+    const exits = ledger.exits.filter(
+      (event) => event.data && event.data >= start && event.data < end,
+    );
+    const ids = new Set([
+      ...launches.map((record) => record.id),
+      ...entries.map((event) => event.rowId),
+      ...exits.map((event) => event.rowId),
+    ]);
+    return {
+      lab: label,
+      fullLabel,
+      rowCount: ids.size,
+      t: {
+        prev: launches.reduce(
+          (sum, record) => sum + money(record.previsto),
+          0,
+        ),
+        rec: entries.reduce((sum, event) => sum + event.value, 0),
+        recReceita: entries
+          .filter((event) => event.kind === "receita")
+          .reduce((sum, event) => sum + event.value, 0),
+        recExtra: entries
+          .filter((event) => event.kind === "entrada_por_fora")
+          .reduce((sum, event) => sum + event.value, 0),
+        sai: exits.reduce((sum, event) => sum + event.value, 0),
+      },
+    };
+  }
+  function drawCashMovement(rows) {
+    const el = $("#dash-chart");
+    if (!el) return;
+    const snapshot = cashSnapshot(rows, state.mes);
+    const stats = dashboardPeriodStats(rows, state.mes);
+    let data = [];
+    if (state.mes) {
+      const bounds = monthBounds(state.mes);
+      const [year, monthNumber] = state.mes.split("-").map(Number);
+      const days = new Date(year, monthNumber, 0).getDate();
+      const ranges = [
+        [1, 7],
+        [8, 14],
+        [15, 21],
+        [22, 28],
+        [29, days],
+      ].filter(([start]) => start <= days);
+      const pad = (value) => String(value).padStart(2, "0");
+      data = ranges.map(([startDay, endDay]) =>
+        cashBucket(
+          rows,
+          `${state.mes}-${pad(startDay)}`,
+          endDay === days ? bounds.end : `${state.mes}-${pad(endDay + 1)}`,
+          `${pad(startDay)}–${pad(endDay)}`,
+          `${pad(startDay)} a ${pad(endDay)} de ${compLabel(state.mes)}`,
+        ),
+      );
+    } else {
+      data = compOptions()
+        .slice()
+        .reverse()
+        .map((reference) => {
+          const bounds = monthBounds(reference);
+          const [year, monthNumber] = reference.split("-");
+          return cashBucket(
+            rows,
+            bounds.start,
+            bounds.end,
+            `${MESES[Number(monthNumber) - 1].slice(0, 3)}/${year.slice(2)}`,
+            compLabel(reference),
+          );
+        });
+    }
+    let runningBalance = state.mes ? snapshot.prior : 0;
+    data.forEach((bucket) => {
+      runningBalance += bucket.t.rec - bucket.t.sai;
+      bucket.closing = runningBalance;
+    });
+    const touched = rows.filter((record) => stats.rowIds.has(record.id));
+    const receitas = touched.filter((record) => finKind(record) === "receita").length;
+    const entradasFora = touched.filter(
+      (record) => finKind(record) === "entrada_por_fora",
+    ).length;
+    const saidas = touched.filter((record) => finKind(record) === "saida").length;
+    const pct = stats.previsto
+      ? Math.round((stats.recebidoReceitas / stats.previsto) * 100)
+      : stats.recebidoReceitas
+        ? 100
+        : 0;
+    const compactFmt = (value) =>
+      (Number(value) || 0).toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+        notation: Math.abs(Number(value) || 0) >= 1000 ? "compact" : "standard",
+        maximumFractionDigits: 1,
+      });
+    const max = Math.max(
+      1,
+      ...data.flatMap((bucket) => [bucket.t.prev, bucket.t.rec, bucket.t.sai]),
+    );
+    const height = (value) =>
+      value > 0 ? Math.max(1.5, (value / max) * 100).toFixed(2) : 0;
+    const detail = (bucket) =>
+      `${bucket.fullLabel}\n${bucket.rowCount} lançamento(s)\nPrevisto: ${fmt(bucket.t.prev)}\nRecebido: ${fmt(bucket.t.rec)}\nEntrada por fora: ${fmt(bucket.t.recExtra)}\nSaídas: ${fmt(bucket.t.sai)}\nSaldo acumulado: ${fmt(bucket.closing)}`;
+    const unknownCount =
+      snapshot.unknownEntries.length + snapshot.unknownExits.length;
+    const unknownIds = [
+      ...new Set(
+        [...snapshot.unknownEntries, ...snapshot.unknownExits].map(
+          (event) => event.rowId,
+        ),
+      ),
+    ];
+    el.innerHTML = `<div class="mchart">
+      <div class="mchart-context">
+        <div><span>Empresa</span><strong>${esc(state.empresa || "Todas as empresas")}</strong></div>
+        <div><span>Período</span><strong>${esc(compLabel(state.mes))}</strong></div>
+        <div><span>Lançamentos</span><strong>${stats.rowCount}</strong><small>${receitas} receita(s) · ${entradasFora} entrada(s) por fora · ${saidas} saída(s)</small></div>
+      </div>
+      <div class="mchart-kpis">
+        <div><span>Previsto</span><strong>${fmt(stats.previsto)}</strong></div>
+        <div class="is-received"><span>Recebido</span><strong>${fmt(stats.recebido)}</strong><small>${pct}% do previsto${stats.entradaPorFora ? ` · ${fmt(stats.entradaPorFora)} por fora` : ""}</small></div>
+        <div class="is-pending"><span>Pendente</span><strong>${fmt(stats.pending)}</strong></div>
+        <div class="is-expense"><span>Saídas</span><strong>${fmt(stats.saidas)}</strong></div>
+        <div class="${snapshot.final < 0 ? "is-negative" : "is-balance"}"><span>Saldo final</span><strong>${fmt(snapshot.final)}</strong></div>
+      </div>
+      <div class="mchart-scroll"><div class="mchart-canvas" style="--chart-cols:${Math.max(data.length, 1)}">
+        <div class="mchart-plot">${data
+          .map(
+            (bucket) => `<div class="mbars" tabindex="0" aria-label="${esc(detail(bucket))}" data-chart-detail="${esc(detail(bucket))}">
+              <span class="mbar"><em>${compactFmt(bucket.t.prev)}</em><i class="p" style="height:${height(bucket.t.prev)}%" title="Previsto ${fmt(bucket.t.prev)}"></i></span>
+              <span class="mbar"><em>${compactFmt(bucket.t.rec)}</em><i class="r" style="height:${height(bucket.t.rec)}%" title="Recebido ${fmt(bucket.t.rec)}"></i></span>
+              <span class="mbar"><em>${compactFmt(bucket.t.sai)}</em><i class="s" style="height:${height(bucket.t.sai)}%" title="Saídas ${fmt(bucket.t.sai)}"></i></span>
+            </div>`,
+          )
+          .join("")}</div>
+        <div class="mlabels">${data
+          .map(
+            (bucket) => `<span><b>${bucket.lab}</b><small>${bucket.rowCount} lançamento(s)</small><em class="${bucket.closing < 0 ? "neg" : ""}">Saldo ${compactFmt(bucket.closing)}</em></span>`,
+          )
+          .join("")}</div>
+      </div></div>
+      <div class="mchart-legend"><span><i class="p"></i>Previsto</span><span><i class="r"></i>Recebido</span><span><i class="s"></i>Saídas</span><span>Escala máxima: ${fmt(max)}</span>${unknownCount ? `<button type="button" class="mchart-reconcile" data-reconcile-go="${esc(unknownIds.join(","))}" title="Ver estes lançamentos em Lançamentos">${unknownCount} movimentação(ões) aguardam conciliação de data</button>` : ""}<span class="mchart-help">Passe o mouse ou toque nas barras para ver todos os valores.</span></div>
+    </div>`;
   }
   function companyTiles(where) {
     const el = $(where);
@@ -3352,6 +3768,25 @@
     if (cg) {
       state.empresa = cg.dataset.companyGo;
       goto("financeiro");
+      return;
+    }
+    const rg = e.target.closest("[data-reconcile-go]");
+    if (rg) {
+      const ids = rg.dataset.reconcileGo.split(",").filter(Boolean);
+      state.finReconcileIds = new Set(ids);
+      state.mes = "";
+      state.finType = "";
+      state.finStatus = "";
+      state.finCost = "";
+      state.pesquisa = "";
+      state.finPage = 1;
+      goto("financeiro");
+      return;
+    }
+    if (e.target.closest("#fin-reconcile-clear")) {
+      state.finReconcileIds = null;
+      state.finPage = 1;
+      render();
       return;
     }
     const qd = e.target.closest("[data-open-despesa]");
