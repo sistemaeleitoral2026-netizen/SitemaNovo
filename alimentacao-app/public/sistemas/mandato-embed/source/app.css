@@ -1,0 +1,5 @@
+
+html,body{margin:0;padding:0;background:#F2F5FA;font-family:'Public Sans',system-ui,sans-serif;color:#13213A;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+a{color:#1B5BD0;text-decoration:none}a:hover{color:#0E3F9E;text-decoration:underline}
+input,select,textarea,button{font-family:inherit}

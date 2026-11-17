@@ -18,14 +18,27 @@ A Assessoria MB não é mais empacotada em uma string JSON. Edite diretamente:
 Não volte a gerar `__bundler/template`. Rode `npm run format:assessoria` depois de
 alterações extensas e sempre rode `npm run validate-embeds` e `npm run build`.
 
-## Mandato e Empresas
+## Mandato
 
-Leia `docs/EMBEDS.md` antes de editar:
+Não edite `alimentacao-app/public/sistemas/mandato-embed/index.html` diretamente — ele é
+gerado. Edite os arquivos legíveis em
+`alimentacao-app/public/sistemas/mandato-embed/source/` (`template.html`, `app.js`,
+`app.css`, `fonts.css`) e depois rode, dentro de `alimentacao-app`:
 
-- `alimentacao-app/public/sistemas/mandato-embed/index.html`
-- `alimentacao-app/src/pages/empresas/mr-terceiriza-demo.html`
+```bash
+npm run pack:mandato
+npm run validate-embeds
+npm run build
+```
 
-Esses arquivos já quebraram em produção por uma chave `{` sem fechar.
+Detalhes do formato (`__bundler/template`, manifest, por que um erro de sintaxe trava a
+tela inteira) e do script de empacotamento: `docs/EMBEDS.md`.
+
+## Empresas
+
+`alimentacao-app/src/pages/empresas/mr-terceiriza-demo.html` continua legado (HTML normal,
+mas um único `<script>` grande). Leia `docs/EMBEDS.md` antes de editar — já quebrou em
+produção por uma chave `{` sem fechar.
 
 ### Como são montados
 
