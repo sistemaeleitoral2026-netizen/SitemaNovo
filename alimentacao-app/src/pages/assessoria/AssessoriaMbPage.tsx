@@ -89,9 +89,14 @@ export function AssessoriaMbPage() {
         }
         persistindo.current = true
         try {
-          const estado = await salvarEstadoAssessoria(dados.payload, { userId, userName: nome })
+          await salvarEstadoAssessoria(dados.payload, { userId, userName: nome })
           setErroSync('')
-          postar({ type: 'mb-persist-ok', requestId: dados.requestId, payload: estado })
+          // O iframe mantém o estado mais novo de forma otimista. Reenviar o snapshot
+          // retornado aqui pode ressuscitar uma exclusão feita enquanto este save ainda
+          // estava em andamento: a resposta antiga chega antes do próximo debounce e
+          // substitui a lista local. O save já valida no banco se a exclusão ocorreu;
+          // a hidratação completa fica restrita à carga inicial da página.
+          postar({ type: 'mb-persist-ok', requestId: dados.requestId })
         } catch (e) {
           const o = e as { message?: string; error?: string } | null
           const msg =
