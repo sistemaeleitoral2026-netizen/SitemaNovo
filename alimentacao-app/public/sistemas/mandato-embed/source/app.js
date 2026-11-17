@@ -303,7 +303,7 @@ class Component extends DCLogic {
     finFil: { origem: "", todos: "mes" },
     finForm: null,
     eqForm: null,
-    viepDrafts: {},
+    verbaForm: null,
     confTab: "fundos",
     fundoForm: null,
     fundoLancForm: null,
@@ -1674,33 +1674,49 @@ class Component extends DCLogic {
     };
     const despPg = paginar(despAll, "finPageDesp");
     const despList = despPg.lista;
-    const viepDrafts = s.viepDrafts || {};
-    const verbasAll = finMeses.map((m) => ({
-      mes: m.mes,
-      rotulo: m.rotulo,
-      bruto: brl(m.salario ? m.salario.bruto : 0),
-      desconto: brl(m.salario ? m.salario.desconto : 0),
-      liquido: brl(m.salario ? m.salario.liquido : 0),
-      viepValor:
-        m.mes in viepDrafts ? viepDrafts[m.mes] : String(m.viep.reembolsado || "").replace(".", ","),
-      onViepInput: (e) =>
-        this.setState((st) => ({
-          viepDrafts: { ...st.viepDrafts, [m.mes]: e.target.value },
-        })),
-      salvarViep: () => {
-        post({
-          type: "mandato-fin-verba-salvar",
-          verba: { mes: m.mes, valor: (viepDrafts[m.mes] ?? m.viep.reembolsado) || 0 },
-        });
-        this.setState((st) => {
-          const d = { ...st.viepDrafts };
-          delete d[m.mes];
-          return { viepDrafts: d };
-        });
+    const salarioRows = finMeses
+      .filter((m) => m.salario && (m.salario.bruto > 0 || m.salario.liquido > 0 || m.salario.recebeu))
+      .map((m) => ({
+        mes: m.mes,
+        rotulo: m.rotulo,
+        bruto: brl(m.salario ? m.salario.bruto : 0),
+        desconto: brl(m.salario ? m.salario.desconto : 0),
+        liquido: brl(m.salario ? m.salario.liquido : 0),
+      }));
+    const verbasLanc = ((FIN && FIN.verbas) || []).map((v) => ({
+      id: v.id,
+      mes: v.mes,
+      rotulo: v.rotulo || rot(v.mes),
+      tipo: v.tipo || "VIEP",
+      tipoTxt: v.tipoTxt || v.tipo || "VIEP",
+      descricao: v.descricao || "—",
+      dataBr: v.data ? dataBr(v.data) : "—",
+      valorBr: brl(v.valor),
+      observacao: v.observacao || "",
+      editar: () =>
+        this.setState({
+          verbaForm: {
+            id: v.id,
+            mes: v.mes,
+            tipo: v.tipo || "VIEP",
+            descricao: v.descricao || "",
+            valor: String(v.valor || "").replace(".", ","),
+            data: v.data || "",
+            observacao: v.observacao || "",
+          },
+        }),
+      excluir: () => {
+        if (window.confirm("Excluir esta verba da Câmara?"))
+          post({ type: "mandato-fin-verba-excluir", id: v.id });
       },
     }));
-    const verbasPg = paginar(verbasAll, "finPageVerbas");
+    const verbasPg = paginar(verbasLanc, "finPageVerbas");
     const verbasRows = verbasPg.lista;
+    const vF = s.verbaForm || {};
+    const setVF = (k) => (e) => {
+      const val = e.target.value;
+      this.setState((st) => ({ verbaForm: { ...st.verbaForm, [k]: val } }));
+    };
     const eqTodos = (FIN && FIN.equipeGabinete) || [];
     const eqAll = eqTodos.map((e) => ({
       ...e,
@@ -1809,10 +1825,13 @@ class Component extends DCLogic {
         "Financeiro",
         `Demonstrativo de ${rot(finMes)}: subsídio, verba indenizatória e gabinete, cada um no seu lugar`,
       ],
-      desp: ["Despesas", "Notas e recibos do mandato lançados pelo gabinete"],
+      desp: [
+        "Despesas",
+        "Notas e recibos do mandato — padrão VIEP; pode usar recurso próprio ou outra fonte",
+      ],
       verbas: [
         "Verbas da Câmara",
-        "Subsídio vem automático da folha; VIEP recebida é lançada à mão todo mês",
+        "Salário do vereador vem automático da folha; lance VIEP e outras verbas à mão",
       ],
       equipe: [
         "Equipe do gabinete",
@@ -2346,15 +2365,70 @@ class Component extends DCLogic {
       despPaginas: despPg.pages,
       despAnt: despPg.ant,
       despProx: despPg.prox,
+      salarioRows,
+      noSalario: salarioRows.length === 0,
       verbasRows,
-      noVerbas: verbasAll.length === 0,
+      noVerbas: verbasLanc.length === 0,
       verbasTemPag: verbasPg.tem,
       verbasRotulo: verbasPg.rotulo,
       verbasPagina: verbasPg.page + 1,
       verbasPaginas: verbasPg.pages,
       verbasAnt: verbasPg.ant,
       verbasProx: verbasPg.prox,
-      verbasResumo: `${verbasAll.length} mês(es)`,
+      verbasResumo: `${verbasLanc.length} verba(s) lançada(s)`,
+      verbaNova: () =>
+        this.setState({
+          verbaForm: {
+            id: "",
+            mes: finMes || hojeISO.slice(0, 7),
+            tipo: "VIEP",
+            descricao: "VIEP recebida",
+            valor: "",
+            data: hojeISO,
+            observacao: "",
+          },
+        }),
+      verbaFormOpen: !!s.verbaForm,
+      verbaFormTitulo: vF.id ? "Editar verba" : "Nova verba da Câmara",
+      verbaForm: vF,
+      verbaFechar: () => this.setState({ verbaForm: null }),
+      vf_mes: setVF("mes"),
+      vf_tipo: setVF("tipo"),
+      vf_descricao: setVF("descricao"),
+      vf_valor: setVF("valor"),
+      vf_data: setVF("data"),
+      vf_observacao: setVF("observacao"),
+      verbaTipoOpts: [
+        { v: "VIEP", l: "VIEP — reembolso da Câmara" },
+        { v: "DIARIA", l: "Diária" },
+        { v: "OUTRA", l: "Outra verba" },
+      ],
+      verbaSalvar: (e) => {
+        e.preventDefault();
+        const f = this.state.verbaForm || {};
+        const valor = Number(String(f.valor).replace(/\./g, "").replace(",", "."));
+        if (!(valor > 0)) {
+          this.flash("Informe um valor válido");
+          return;
+        }
+        if (!f.mes) {
+          this.flash("Informe o mês da verba");
+          return;
+        }
+        post({
+          type: "mandato-fin-verba-salvar",
+          verba: {
+            id: f.id || undefined,
+            mes: f.mes,
+            tipo: f.tipo || "VIEP",
+            descricao: f.descricao || "",
+            valor,
+            data: f.data || undefined,
+            observacao: f.observacao || "",
+          },
+        });
+        this.setState({ verbaForm: null });
+      },
       finAtualizado:
         FIN && FIN.ultimaFolha
           ? `Última folha publicada: ${rot(FIN.ultimaFolha)}.`
@@ -2363,7 +2437,7 @@ class Component extends DCLogic {
       noEq: eqAll.length === 0,
       eqResumo: `${eqAll.length} pessoa(s) · ${brl((FIN && FIN.gabinete && FIN.gabinete.total) || 0)} de ${brl((FIN && FIN.gabinete && FIN.gabinete.teto) || 0)}`,
       eqNova: () =>
-        this.setState({ eqForm: { nome: "", cargo: "", admissao: "", salario: "" } }),
+        this.setState({ eqForm: { nome: "", cargo: "", admissao: "", salario: "", fundoId: "" } }),
       finNovo: () =>
         this.setState({
           finForm: {

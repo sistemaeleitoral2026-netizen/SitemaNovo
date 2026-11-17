@@ -312,14 +312,27 @@ async function sincronizarDespesas(db) {
 // ===================== RESUMO PARA O PAINEL =====================
 const ehCota = (vinculo) => String(vinculo || '').toUpperCase().startsWith('VERBA DE GABINETE')
 
+async function getOpcional(db, path) {
+  try {
+    return await db.get(path)
+  } catch {
+    return []
+  }
+}
+
 async function montarResumo(db) {
-  const [sal, pessoas, pagamentos, lancamentos, info, pubs] = await Promise.all([
+  const [sal, pessoas, pagamentos, lancamentos, info, pubs, verbasDb, mesManual, fundosDb, fundoLancDb, equipeManual] = await Promise.all([
     db.get('fin_salario?select=*&order=mes.desc'),
     db.get('fin_gabinete_pessoa?select=*'),
     db.get('fin_pagamento?select=*&order=data.desc'),
     db.get('fin_lancamento?select=*&order=data.desc,criado_em.desc'),
     db.get('fin_equipe_info?select=*'),
     db.get('fin_folha_publicacao?select=*&order=mes.desc'),
+    getOpcional(db, 'fin_verba?select=*&order=mes.desc,data.desc,criado_em.desc'),
+    getOpcional(db, 'fin_mes_manual?select=*'),
+    getOpcional(db, 'fin_fundos?select=*&order=nome.asc'),
+    getOpcional(db, 'fin_fundo_lancamento?select=*&order=data.desc,criado_em.desc'),
+    getOpcional(db, 'fin_gabinete_manual?select=*&order=nome.asc'),
   ])
 
   const meses = new Map()
@@ -346,6 +359,27 @@ async function montarResumo(db) {
     if (p.categoria === 'VIEP') m.viep.reembolsado += +p.valor
     else if (p.categoria === 'DIARIAS') m.diarias += +p.valor
     else m.outrosRecebidos += +p.valor
+  }
+
+  // Verbas lançadas à mão (VIEP / diária / outra)
+  const verbasMesComViep = new Set()
+  for (const v of verbasDb) {
+    const mes = String(v.mes || '')
+    if (!/^\d{4}-\d{2}$/.test(mes)) continue
+    const m = M(mes)
+    const valor = +v.valor || 0
+    if (v.tipo === 'VIEP') {
+      m.viep.reembolsado += valor
+      verbasMesComViep.add(mes)
+    } else if (v.tipo === 'DIARIA') m.diarias += valor
+    else m.outrosRecebidos += valor
+  }
+  // Legado fin_mes_manual: só conta se o mês ainda não tiver VIEP em fin_verba
+  for (const row of mesManual) {
+    const mes = String(row.mes || '')
+    const valor = +row.viep_recebido || 0
+    if (!/^\d{4}-\d{2}$/.test(mes) || !(valor > 0) || verbasMesComViep.has(mes)) continue
+    M(mes).viep.reembolsado += valor
   }
 
   for (const l of lancamentos) {
@@ -417,6 +451,78 @@ async function montarResumo(db) {
     .sort((a, b) => (a.situacao === b.situacao ? a.servidor.localeCompare(b.servidor) : a.situacao === 'No gabinete' ? -1 : 1))
 
   const soma = (f) => r2(lista.reduce((s, m) => s + f(m), 0))
+
+  const tipoRotulo = { VIEP: 'VIEP', DIARIA: 'Diária', OUTRA: 'Outra verba' }
+  const verbas = []
+  for (const v of verbasDb) {
+    verbas.push({
+      id: v.id,
+      mes: v.mes,
+      rotulo: rotuloMes(v.mes),
+      tipo: v.tipo,
+      tipoTxt: tipoRotulo[v.tipo] || v.tipo,
+      descricao: v.descricao || '',
+      valor: +v.valor,
+      data: v.data || null,
+      observacao: v.observacao || '',
+      legado: false,
+    })
+  }
+  for (const row of mesManual) {
+    const mes = String(row.mes || '')
+    const valor = +row.viep_recebido || 0
+    if (!/^\d{4}-\d{2}$/.test(mes) || !(valor > 0) || verbasMesComViep.has(mes)) continue
+    verbas.push({
+      id: `manual:${mes}`,
+      mes,
+      rotulo: rotuloMes(mes),
+      tipo: 'VIEP',
+      tipoTxt: 'VIEP',
+      descricao: 'VIEP recebida',
+      valor,
+      data: null,
+      observacao: '',
+      legado: true,
+    })
+  }
+  verbas.sort((a, b) => String(b.mes).localeCompare(String(a.mes)) || String(b.data || '').localeCompare(String(a.data || '')))
+
+  const fundoNome = new Map(fundosDb.map((f) => [f.id, f.nome]))
+  const fundos = fundosDb.map((f) => {
+    const lancamentosFundo = fundoLancDb
+      .filter((l) => l.fundo_id === f.id)
+      .map((l) => ({
+        id: l.id,
+        fundo_id: l.fundo_id,
+        data: l.data,
+        valor: +l.valor,
+        origem: l.origem || '',
+        observacao: l.observacao || '',
+      }))
+    return {
+      id: f.id,
+      nome: f.nome,
+      descricao: f.descricao || '',
+      ativo: f.ativo !== false,
+      total: r2(lancamentosFundo.reduce((s, l) => s + l.valor, 0)),
+      lancamentos: lancamentosFundo,
+    }
+  })
+
+  const equipeGabinete = equipeManual
+    .filter((e) => e.ativo !== false)
+    .map((e) => ({
+      id: e.id,
+      nome: e.nome,
+      cargo: e.cargo || '',
+      admissao: e.admissao || null,
+      salario: +e.salario || 0,
+      fundo_id: e.fundo_id || null,
+      fundoNome: e.fundo_id ? (fundoNome.get(e.fundo_id) || '') : '',
+    }))
+
+  const gabineteManualTotal = r2(equipeGabinete.reduce((s, e) => s + e.salario, 0))
+
   return {
     atualizadoEm: new Date().toISOString(),
     config: { tetoViep: CONFIG.tetoViep, tetoGabinete: CONFIG.tetoGabinete, gabinetes: CONFIG.gabinetes, desde: CONFIG.desde },
@@ -434,6 +540,10 @@ async function montarResumo(db) {
     pagamentosCamara: [],
     empenhos: [],
     equipe,
+    verbas,
+    fundos,
+    equipeGabinete,
+    gabinete: { total: gabineteManualTotal, teto: CONFIG.tetoGabinete },
     ultimaFolha: ultimoMes || (sal[0] && sal[0].mes) || null,
     publicacoes: pubs.filter((p) => !p.carga_inicial),
   }
@@ -460,8 +570,29 @@ function validarLancamento(b) {
   }
 }
 
+function validarVerba(b) {
+  const erro = (m) => { throw Object.assign(new Error(m), { status: 400 }) }
+  const mes = String(b.mes || '').slice(0, 7)
+  if (!/^\d{4}-\d{2}$/.test(mes)) erro('Informe o mês (AAAA-MM).')
+  const tipo = ['VIEP', 'DIARIA', 'OUTRA'].includes(b.tipo) ? b.tipo : 'VIEP'
+  const valor = r2(typeof b.valor === 'number' ? b.valor : num(b.valor))
+  if (!(valor > 0)) erro('Valor precisa ser maior que zero.')
+  const dataRaw = b.data ? String(b.data).slice(0, 10) : ''
+  const data = /^\d{4}-\d{2}-\d{2}$/.test(dataRaw) ? dataRaw : null
+  const padraoDesc = tipo === 'VIEP' ? 'VIEP recebida' : tipo === 'DIARIA' ? 'Diária' : 'Outra verba'
+  return {
+    mes,
+    tipo,
+    descricao: String(b.descricao || padraoDesc).trim().slice(0, 240) || padraoDesc,
+    valor,
+    data,
+    observacao: b.observacao ? String(b.observacao).trim().slice(0, 500) : null,
+  }
+}
+
 module.exports = {
   CONFIG, CATEGORIAS, criarDb, limparUrlSupabase, sincronizarFolha, sincronizarDespesas, montarResumo, validarLancamento,
+  validarVerba, num, r2,
   diagnosticoFinanceiro,
   // exportados para teste
   refParaMes, listarEmpenhos, listarPagamentos, normNome, mesEsperado,
