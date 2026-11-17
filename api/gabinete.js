@@ -331,6 +331,45 @@ module.exports = async function handler(req, res) {
         return json(res, 200, { ok: true })
       }
 
+      // Fundos: de onde sai o dinheiro que paga a equipe do gabinete
+      if (recurso === 'financeiro-fundo-salvar') {
+        let linha
+        try { linha = fin.validarFundo(body) } catch (e) { return json(res, e.status || 400, { error: e.message }) }
+        const agora = new Date().toISOString()
+        if (body.id) {
+          const id = String(body.id).replace(/[^0-9a-f-]/gi, '')
+          await db.patch(`fin_fundos?id=eq.${id}`, { ...linha, atualizado_em: agora })
+        } else {
+          await db.upsert('fin_fundos', 'id', { ...linha, ativo: true, criado_em: agora, atualizado_em: agora })
+        }
+        return json(res, 200, { ok: true })
+      }
+
+      if (recurso === 'financeiro-fundo-excluir') {
+        const id = String(body.id || '').replace(/[^0-9a-f-]/gi, '')
+        if (!id) return json(res, 400, { error: 'Informe o fundo.' })
+        const emUso = await db.get(`fin_gabinete_manual?select=id&fundo_id=eq.${id}&limit=1`)
+        if (Array.isArray(emUso) && emUso.length) {
+          return json(res, 400, { error: 'Esse fundo paga o salário de alguém da equipe. Troque o fundo da pessoa antes de remover.' })
+        }
+        await db.del(`fin_fundos?id=eq.${id}`)
+        return json(res, 200, { ok: true })
+      }
+
+      if (recurso === 'financeiro-fundo-lancamento-salvar') {
+        let linha
+        try { linha = fin.validarFundoLancamento(body) } catch (e) { return json(res, e.status || 400, { error: e.message }) }
+        await db.upsert('fin_fundo_lancamento', 'id', { ...linha, criado_em: new Date().toISOString() })
+        return json(res, 200, { ok: true })
+      }
+
+      if (recurso === 'financeiro-fundo-lancamento-excluir') {
+        const id = String(body.id || '').replace(/[^0-9a-f-]/gi, '')
+        if (!id) return json(res, 400, { error: 'Informe o lançamento.' })
+        await db.del(`fin_fundo_lancamento?id=eq.${id}`)
+        return json(res, 200, { ok: true })
+      }
+
       return json(res, 404, { error: 'Recurso do financeiro não encontrado.' })
     }
 
