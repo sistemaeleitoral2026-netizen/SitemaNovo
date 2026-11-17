@@ -612,6 +612,16 @@
     state.finSelectionKey = "";
     state.finPage = 1;
   }
+  /** Após excluir: tira o id do filtro de auditoria sem resetar tela/filtros. */
+  function pruneDeletedFinanceId(id) {
+    if (!id || !state.finReconcileIds) return;
+    state.finReconcileIds.delete(id);
+    if (!state.finReconcileIds.size) {
+      state.finReconcileIds = null;
+      state.finSelectionLabel = "";
+      state.finSelectionKey = "";
+    }
+  }
   function taskFiltered() {
     return db.tasks.filter(
       (t) =>
@@ -2559,6 +2569,7 @@
       )
         return;
       db.finance = db.finance.filter((x) => x.id !== id);
+      pruneDeletedFinanceId(id);
       markMutation("financeDeletes", id);
       audit(
         "Lançamento excluído",
@@ -2569,9 +2580,10 @@
           (r.sub ? " · " + r.sub : "") +
           (r.criadoPor ? " · lançado por " + r.criadoPor : ""),
       );
+      // Permanecer na mesma tela/filtros/página; render() só redesenha a lista.
       save();
       render();
-      toast("Excluindo na nuvem…");
+      toast("Excluído. Salvando na nuvem…");
       return;
     }
     let target = e.target.closest(
