@@ -193,8 +193,30 @@ export function PainelMandatoPage() {
     try {
       if (opts?.sincronizar) {
         await sincronizarFinanceiro(false)
+        financeiro.current = await garantirCargaFinanceiro({ aguardar: true })
+      } else {
+        // Resposta rápida para o menu Financeiro não esperar scrape da Câmara.
+        financeiro.current = await garantirCargaFinanceiro({ aguardar: false })
+        finErro.current = ''
+        publicar()
+        const qtd = Array.isArray(financeiro.current?.meses)
+          ? (financeiro.current.meses as unknown[]).length
+          : 0
+        if (qtd === 0 && financeiro.current?.podeEditar) {
+          void garantirCargaFinanceiro({ aguardar: true })
+            .then((resumo) => {
+              financeiro.current = resumo
+              finErro.current = ''
+              publicar()
+            })
+            .catch((e) => {
+              finErro.current =
+                e instanceof Error ? e.message : 'Falha ao carregar o financeiro.'
+              publicar()
+            })
+        }
+        return
       }
-      financeiro.current = await garantirCargaFinanceiro()
       finErro.current = ''
     } catch (e) {
       finErro.current = e instanceof Error ? e.message : 'Falha ao carregar o financeiro.'

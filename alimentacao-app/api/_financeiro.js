@@ -313,10 +313,9 @@ async function sincronizarDespesas(db) {
 const ehCota = (vinculo) => String(vinculo || '').toUpperCase().startsWith('VERBA DE GABINETE')
 
 async function montarResumo(db) {
-  const [sal, pessoas, empenhos, pagamentos, lancamentos, info, pubs] = await Promise.all([
+  const [sal, pessoas, pagamentos, lancamentos, info, pubs] = await Promise.all([
     db.get('fin_salario?select=*&order=mes.desc'),
     db.get('fin_gabinete_pessoa?select=*'),
-    db.get('fin_empenho?select=*&order=data_empenho.desc'),
     db.get('fin_pagamento?select=*&order=data.desc'),
     db.get('fin_lancamento?select=*&order=data.desc,criado_em.desc'),
     db.get('fin_equipe_info?select=*'),
@@ -329,7 +328,7 @@ async function montarResumo(db) {
       meses.set(mes, {
         mes, rotulo: rotuloMes(mes),
         salario: null,
-        viep: { teto: CONFIG.tetoViep, gasto: 0, saldo: CONFIG.tetoViep, reembolsado: 0 },
+        viep: { teto: CONFIG.tetoViep, gasto: 0, saldo: CONFIG.tetoViep, reembolsado: 0, qtdNotas: 0 },
         gabinete: null,
         proprio: 0, outrosGastos: 0, diarias: 0, outrosRecebidos: 0,
         porCategoria: {}, qtdLancamentos: 0,
@@ -354,8 +353,10 @@ async function montarResumo(db) {
     const v = +l.valor
     m.qtdLancamentos++
     if (l.status === 'glosado') continue // glosado não conta como gasto reembolsável
-    if (l.origem === 'VIEP') m.viep.gasto += v
-    else if (l.origem === 'PROPRIO') m.proprio += v
+    if (l.origem === 'VIEP') {
+      m.viep.gasto += v
+      m.viep.qtdNotas = (m.viep.qtdNotas || 0) + 1
+    } else if (l.origem === 'PROPRIO') m.proprio += v
     else m.outrosGastos += v
     m.porCategoria[l.categoria] = (m.porCategoria[l.categoria] || 0) + v
   }
@@ -379,7 +380,7 @@ async function montarResumo(db) {
     m.viep.saldo = r2(m.viep.teto - m.viep.gasto)
     m.viep.aReceber = r2(Math.max(0, m.viep.gasto - m.viep.reembolsado))
     m.viep.aComprovar = r2(Math.max(0, m.viep.reembolsado - m.viep.gasto))
-    m.viep.qtdNotas = lancamentos.filter((l) => l.competencia === m.mes && l.origem === 'VIEP' && l.status !== 'glosado').length
+    m.viep.qtdNotas = m.viep.qtdNotas || 0
     // Salário e VIEP NUNCA se misturam: VIEP é reembolso de despesa, não remuneração
     const bruto = m.salario?.bruto || 0
     const liquido = m.salario?.liquido || 0
@@ -427,9 +428,11 @@ async function montarResumo(db) {
       despesasProprias: soma((m) => m.proprio), notasLancadas: soma((m) => m.totais.notasLancadas),
       gabineteCota: soma((m) => m.gabinete?.cota || 0), gabineteForaCota: soma((m) => m.gabinete?.foraCota || 0),
     },
+    // Painel só usa meses + lançamentos + equipe. Empenhos/pagamentos brutos
+    // inchavam o JSON e deixavam o menu Financeiro lento no iframe.
     lancamentos: lancamentos.map((l) => ({ ...l, valor: +l.valor })),
-    pagamentosCamara: pagamentos.map((p) => ({ ...p, valor: +p.valor })),
-    empenhos: empenhos.map((e) => ({ ...e, empenhado: +e.empenhado, pago: +e.pago, liquidado: +e.liquidado, anulado: +e.anulado })),
+    pagamentosCamara: [],
+    empenhos: [],
     equipe,
     ultimaFolha: ultimoMes || (sal[0] && sal[0].mes) || null,
     publicacoes: pubs.filter((p) => !p.carga_inicial),

@@ -524,37 +524,11 @@
 <div style="display:flex;flex-direction:column;gap:16px">
   <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px">
     <div><h1 style="margin:0;font-size:24px;font-weight:800">{{ confTitulo }}</h1><span style="font-size:14px;color:#5B6B85">{{ confSub }}</span></div>
-    <sc-if value="{{ isConfGeral }}" hint-placeholder-val="{{ true }}">
-      <button sc-camel-on-click="{{ toastConv }}" style="display:flex;align-items:center;gap:6px;height:42px;padding:0 16px;border:0;background:#1B5BD0;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#fff"><i class="ti ti-mail" style="font-size:17px"></i>Convidar assessor</button>
-    </sc-if>
-    <sc-if value="{{ isConfFundos }}" hint-placeholder-val="{{ false }}">
-      <button type="button" sc-camel-on-click="{{ fundoNovo }}" style="display:flex;align-items:center;gap:6px;height:42px;padding:0 16px;border:0;background:#1B5BD0;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#fff"><i class="ti ti-plus" style="font-size:17px"></i>Novo fundo</button>
-    </sc-if>
+    <button type="button" sc-camel-on-click="{{ fundoNovo }}" style="display:flex;align-items:center;gap:6px;height:42px;padding:0 16px;border:0;background:#1B5BD0;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#fff"><i class="ti ti-plus" style="font-size:17px"></i>Novo fundo</button>
   </div>
 
-  <!-- ---------- CONFIGURAÇÕES · GERAL ---------- -->
-  <sc-if value="{{ isConfGeral }}" hint-placeholder-val="{{ true }}">
-  <section style="background:#fff;border:1px solid #E3E8F0;border-radius:16px;overflow:hidden">
-    <sc-for list="{{ equipe }}" as="e" hint-placeholder-count="5">
-      <div style="display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center;padding:14px 18px;border-bottom:1px solid #EEF1F6">
-        <div style="display:flex;gap:12px;align-items:center;flex:1 1 240px;min-width:0">
-          <div style="width:38px;height:38px;border-radius:50%;background:#EAF1FE;color:#1B5BD0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:0 0 38px">{{ e.ini }}</div>
-          <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-weight:700;font-size:14.5px">{{ e.n }}</span><span style="font-size:13px;color:#5B6B85">{{ e.cargo }}</span></div>
-        </div>
-        <span style="font-size:12.5px;font-weight:700;padding:4px 10px;border-radius:20px;background:{{ e.bg }};color:{{ e.c }}">{{ e.perm }}</span>
-        <span style="font-size:13px;color:#7A889E;min-width:120px">{{ e.ult }}</span>
-      </div>
-    </sc-for>
-  </section>
-  <section style="background:#fff;border:1px solid #E3E8F0;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px">
-    <h2 style="margin:0;font-size:16px;font-weight:700">Segurança</h2>
-    <div style="display:flex;gap:12px;align-items:center;font-size:14px"><i class="ti ti-shield-check" style="font-size:20px;color:#17994B"></i><span style="flex:1">Verificação em duas etapas obrigatória para toda a equipe</span><b style="color:#17994B">Ativa</b></div>
-    <div style="display:flex;gap:12px;align-items:center;font-size:14px"><i class="ti ti-lock" style="font-size:20px;color:#5B6B85"></i><span style="flex:1">Dados de cidadãos tratados conforme a LGPD (Lei 13.709/2018)</span><b style="color:#17994B">Conforme</b></div>
-  </section>
-  </sc-if>
-
   <!-- ---------- CONFIGURAÇÕES · FUNDOS ---------- -->
-  <sc-if value="{{ isConfFundos }}" hint-placeholder-val="{{ false }}">
+  <sc-if value="{{ isConfFundos }}" hint-placeholder-val="{{ true }}">
     <sc-for list="{{ fundosAll }}" as="f" hint-placeholder-count="2">
       <section style="background:#fff;border:1px solid #E3E8F0;border-radius:14px;overflow:hidden">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid #E3E8F0">

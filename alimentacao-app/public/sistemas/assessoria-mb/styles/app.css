@@ -597,6 +597,12 @@ kbd {
   font-variant-numeric: tabular-nums;
   font-weight: 500;
 }
+.caps-input,
+#modal-body input[name="parceiro"],
+#modal-body input[name="empresaDepositante"],
+#modal-body textarea[name="observacao"] {
+  text-transform: uppercase;
+}
 textarea.control {
   resize: vertical;
   min-height: 84px;
