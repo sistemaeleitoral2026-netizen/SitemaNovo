@@ -119,6 +119,20 @@
   const KEY = "assessoria-mb-demo-v4";
   const PENDING_KEY = "assessoria-mb-pending-v1";
   let COST_CODES = ["M1", "M2", "M3", "M4", "M5"];
+  /** Ordem natural: M1, M2, M3… (sem centro no fim). */
+  const compareCentro = (a, b) => {
+    const left = String(a || "").trim();
+    const right = String(b || "").trim();
+    const leftEmpty = !left || /^sem centro$/i.test(left);
+    const rightEmpty = !right || /^sem centro$/i.test(right);
+    if (leftEmpty && rightEmpty) return 0;
+    if (leftEmpty) return 1;
+    if (rightEmpty) return -1;
+    return left.localeCompare(right, "pt-BR", {
+      numeric: true,
+      sensitivity: "base",
+    });
+  };
   function refreshCostCodes() {
     if (typeof db === "undefined" || !db) return;
     if (!db.centers || typeof db.centers !== "object") db.centers = {};
@@ -126,9 +140,7 @@
       .map((s) => String(s).trim())
       .filter(Boolean);
     if (keys.length) {
-      COST_CODES = keys.sort((a, b) =>
-        a.localeCompare(b, "pt-BR", { numeric: true }),
-      );
+      COST_CODES = keys.sort(compareCentro);
     } else {
       COST_CODES = ["M1", "M2", "M3", "M4", "M5"];
       for (const c of COST_CODES) {
@@ -1658,7 +1670,12 @@
         }
         return true;
       })
-      .sort((a, b) => String(a.data || "").localeCompare(String(b.data || "")) || String(a.sub || "").localeCompare(String(b.sub || ""), "pt-BR"));
+      .sort(
+        (a, b) =>
+          compareCentro(a.centro, b.centro) ||
+          String(a.data || "").localeCompare(String(b.data || "")) ||
+          String(a.sub || "").localeCompare(String(b.sub || ""), "pt-BR"),
+      );
   }
 
   function accountCashSummary(scope, range) {
@@ -2054,7 +2071,7 @@
   function costChart(rows) {
     const groups = [
       ...new Set(rows.map((r) => r.centro || "Sem centro")),
-    ].sort();
+    ].sort(compareCentro);
     $("#cost-center-section").innerHTML = rows.length
       ? `<div class="panel panel-pad"><div class="section-head"><div><h2>Recebimentos por centro de custo</h2><div class="sub">Comparativo do período e da seleção atual</div></div></div><div class="cost-chart">${groups
           .map((c) => {
