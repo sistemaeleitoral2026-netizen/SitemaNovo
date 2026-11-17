@@ -72,6 +72,7 @@
   const raw = [];
   const initial = () => ({ finance: [], tasks: [], audit: [] });
   const KEY = "assessoria-mb-demo-v4";
+  const PENDING_KEY = "assessoria-mb-pending-v1";
   let COST_CODES = ["M1", "M2", "M3", "M4", "M5"];
   function refreshCostCodes() {
     if (typeof db === "undefined" || !db) return;
@@ -141,6 +142,7 @@
     finType: "",
     finStatus: "",
     finCost: "",
+    finSort: "desc",
     finPage: 1,
     finView: "table",
     finFiltersOpen: true,
@@ -159,12 +161,101 @@
     histFrom: "",
     histTo: "",
     histPage: 1,
+    auditPage: 1,
     taskQuery: "",
     role: "admin",
     taskMonth: "",
   };
   if (state.empresa === "__ref__") state.empresa = "";
   if (state.finHistCompany === "__ref__") state.finHistCompany = "";
+  const emptyMutations = () => ({
+    financeUpserts: {},
+    financeDeletes: {},
+    taskUpserts: {},
+    taskDeletes: {},
+    auditUpserts: {},
+    historyUpserts: {},
+    settings: {},
+  });
+  let pendingMutations;
+  try {
+    pendingMutations = {
+      ...emptyMutations(),
+      ...(JSON.parse(localStorage.getItem(PENDING_KEY)) || {}),
+    };
+  } catch {
+    pendingMutations = emptyMutations();
+  }
+  for (const key of Object.keys(emptyMutations())) {
+    if (!pendingMutations[key] || typeof pendingMutations[key] !== "object")
+      pendingMutations[key] = {};
+  }
+  let mutationVersion = Math.max(
+    0,
+    ...Object.values(pendingMutations).flatMap((group) =>
+      Object.values(group).map(Number),
+    ),
+  );
+  function persistPendingMutations() {
+    try {
+      localStorage.setItem(PENDING_KEY, JSON.stringify(pendingMutations));
+    } catch {
+      toast("Não foi possível guardar a fila de sincronização");
+    }
+  }
+  function markMutation(group, id) {
+    if (!id) return;
+    const opposite = {
+      financeUpserts: "financeDeletes",
+      financeDeletes: "financeUpserts",
+      taskUpserts: "taskDeletes",
+      taskDeletes: "taskUpserts",
+    }[group];
+    if (opposite) delete pendingMutations[opposite][id];
+    pendingMutations[group][id] = ++mutationVersion;
+    persistPendingMutations();
+  }
+  function markSetting(key) {
+    pendingMutations.settings[key] = ++mutationVersion;
+    persistPendingMutations();
+  }
+  function mutationPayload() {
+    return {
+      financeUpserts: Object.keys(pendingMutations.financeUpserts),
+      financeDeletes: Object.keys(pendingMutations.financeDeletes),
+      taskUpserts: Object.keys(pendingMutations.taskUpserts),
+      taskDeletes: Object.keys(pendingMutations.taskDeletes),
+      auditUpserts: Object.keys(pendingMutations.auditUpserts),
+      historyUpserts: Object.keys(pendingMutations.historyUpserts),
+      settings: Object.keys(pendingMutations.settings),
+    };
+  }
+  function hasPendingMutations() {
+    return Object.values(pendingMutations).some(
+      (group) => Object.keys(group).length > 0,
+    );
+  }
+  function captureMutationBatch() {
+    return {
+      versions: Object.fromEntries(
+        Object.entries(pendingMutations).map(([key, group]) => [
+          key,
+          { ...group },
+        ]),
+      ),
+      payload: mutationPayload(),
+    };
+  }
+  function acknowledgeMutationBatch(batch) {
+    if (!batch) return;
+    for (const [group, entries] of Object.entries(batch.versions)) {
+      for (const [id, version] of Object.entries(entries)) {
+        if (pendingMutations[group][id] === version)
+          delete pendingMutations[group][id];
+      }
+    }
+    persistPendingMutations();
+  }
   const save = () => {
     try {
       localStorage.setItem(KEY, JSON.stringify(db));
@@ -215,9 +306,9 @@
     cloudTimer = setTimeout(() => void cloudSave(), 600);
   }
   async function cloudSave() {
-    if (!MB.embed) return;
+    if (!MB.embed || !hasPendingMutations()) return;
     const requestId = "p" + ++cloudReq;
-    const gen = cloudReq;
+    const batch = captureMutationBatch();
     let snapshot = {
       finance: db.finance,
       tasks: db.tasks,
@@ -229,6 +320,7 @@
       companies: db.companies || subdivisions.slice(),
       historyEdits: db.historyEdits || {},
       prestacao: [],
+      _mutations: batch.payload,
     };
     try {
       snapshot._files = await collectPendingFiles(snapshot);
@@ -236,7 +328,6 @@
       toast("Falha ao ler comprovantes para nuvem");
       return;
     }
-    if (gen !== cloudReq) return;
     snapshot = {
       finance: db.finance,
       tasks: db.tasks,
@@ -249,8 +340,9 @@
       historyEdits: db.historyEdits || {},
       prestacao: [],
       _files: snapshot._files,
+      _mutations: batch.payload,
     };
-    cloudPending[requestId] = true;
+    cloudPending[requestId] = batch;
     try {
       toParent({ type: "mb-persist", requestId, payload: snapshot });
     } catch (err) {
@@ -284,6 +376,63 @@
     } catch {}
     render();
   }
+  function applyCloudDbPreservingPending(payload) {
+    const local = {
+      finance: db.finance.slice(),
+      tasks: db.tasks.slice(),
+      audit: db.audit.slice(),
+      banks: db.banks.slice(),
+      templates: db.templates.slice(),
+      staff: db.staff.slice(),
+      centers: { ...(db.centers || {}) },
+      companies: (db.companies || []).slice(),
+      historyEdits: { ...(db.historyEdits || {}) },
+    };
+    applyCloudDb(payload);
+    const mergeRecords = (remote, localRows, upserts, deletes) => {
+      const result = new Map(remote.map((row) => [row.id, row]));
+      for (const id of Object.keys(upserts)) {
+        const row = localRows.find((item) => item.id === id);
+        if (row) result.set(id, row);
+      }
+      for (const id of Object.keys(deletes)) result.delete(id);
+      return [...result.values()];
+    };
+    db.finance = mergeRecords(
+      db.finance,
+      local.finance,
+      pendingMutations.financeUpserts,
+      pendingMutations.financeDeletes,
+    );
+    db.tasks = mergeRecords(
+      db.tasks,
+      local.tasks,
+      pendingMutations.taskUpserts,
+      pendingMutations.taskDeletes,
+    );
+    const auditById = new Map(db.audit.map((row) => [row.id, row]));
+    for (const id of Object.keys(pendingMutations.auditUpserts)) {
+      const row = local.audit.find((item) => item.id === id);
+      if (row) auditById.set(id, row);
+    }
+    db.audit = [...auditById.values()].sort((a, b) =>
+      String(b.at).localeCompare(String(a.at)),
+    );
+    for (const id of Object.keys(pendingMutations.historyUpserts)) {
+      if (local.historyEdits[id]) db.historyEdits[id] = local.historyEdits[id];
+    }
+    for (const key of Object.keys(pendingMutations.settings)) {
+      if (key === "centers") db.centers = local.centers;
+      else if (key === "companies") db.companies = local.companies;
+      else db[key] = local[key];
+    }
+    refreshCostCodes();
+    refreshCompanies();
+    try {
+      localStorage.setItem(KEY, JSON.stringify(db));
+    } catch {}
+    render();
+  }
   function toast(t) {
     const e = $("#toast");
     e.textContent = t;
@@ -291,13 +440,15 @@
     setTimeout(() => e.classList.remove("show"), 3300);
   }
   function audit(action, detail) {
-    db.audit.unshift({
+    const record = {
       id: crypto.randomUUID(),
       at: new Date().toISOString(),
       actor: MB.nome || "Usuário",
       action,
       detail,
-    });
+    };
+    db.audit.unshift(record);
+    markMutation("auditUpserts", record.id);
     save();
   }
   function samePerson(a, b) {
@@ -319,7 +470,7 @@
       String(r.criadoPorId) === String(MB.userId)
     )
       return true;
-    return samePerson(r.criadoPor, MB.nome);
+    return !MB.userId && samePerson(r.criadoPor, MB.nome);
   }
   function deleteBtn(kind, id) {
     return `<button class='edit-action danger' type='button' data-delete-${kind}='${esc(id)}'>Excluir</button>`;
@@ -360,14 +511,18 @@
       (a, r) => (
         (a.prev += money(r.previsto)),
         (a.rec += money(r.recebido)),
+        (a.recReceita +=
+          finKind(r) === "receita" ? money(r.recebido) : 0),
+        (a.recExtra +=
+          finKind(r) === "entrada_por_fora" ? money(r.recebido) : 0),
         (a.sai += money(r.saida)),
         a
       ),
-      { prev: 0, rec: 0, sai: 0 },
+      { prev: 0, rec: 0, recReceita: 0, recExtra: 0, sai: 0 },
     );
   function metrics(container, rows) {
     const a = totals(rows),
-      pct = a.prev ? Math.round((a.rec / a.prev) * 100) : 0,
+      pct = a.prev ? Math.round((a.recReceita / a.prev) * 100) : 0,
       saldo = a.rec - a.sai;
     const items = [
       [
@@ -382,7 +537,7 @@
         "check",
         "Recebido",
         fmt(a.rec),
-        `<span class="pos">${pct}% do previsto</span><div class="meter"><i style="width:${Math.min(100, pct)}%"></i></div>`,
+        `<span class="pos">${pct}% do previsto${a.recExtra ? ` · ${fmt(a.recExtra)} por fora` : ""}</span><div class="meter"><i style="width:${Math.min(100, pct)}%"></i></div>`,
       ],
       [
         "out",
@@ -450,19 +605,22 @@
           const tp = finTipo(r),
             st = finStatus(r),
             v =
-              tp === "Despesa"
+              tp === "Saída"
                 ? money(r.saida)
                 : money(r.previsto) || money(r.recebido);
-          return `<tr data-edit-fin="${esc(r.id)}" title="Editar lançamento"><td>${dateBR(r.data)}</td><td><b>${esc(r.sub || "—")}</b></td><td>${esc(r.parceiro)}${r.centro ? `<div class="muted">${esc(r.centro)}</div>` : ""}</td><td><span class="tipo ${tp === "Despesa" ? "desp" : "rec"}">${tp}</span></td><td class="amount">${n2(v)}</td><td>${finStatusHTML(r)}</td></tr>`;
+          return `<tr data-edit-fin="${esc(r.id)}" title="Editar lançamento"><td>${dateBR(r.data)}</td><td><b>${esc(r.sub || "—")}</b></td><td>${esc(r.parceiro)}${r.centro ? `<div class="muted">${esc(r.centro)}</div>` : ""}</td><td><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${tp}</span></td><td class="amount">${n2(v)}</td><td>${finStatusHTML(r)}</td></tr>`;
         })
         .join(
           "",
         )}</tbody></table>${recent.length ? "" : `<div class="chart-empty sm">${icon("file")}<strong>Nenhum lançamento registrado.</strong><p>Clique em “Novo Lançamento” para começar.</p></div>`}`;
   }
   function drawFinance() {
-    const rows = [...financeFiltered()].sort((a, b) =>
-      String(b.data).localeCompare(String(a.data)),
-    );
+    const direction = state.finSort === "asc" ? 1 : -1;
+    const rows = [...financeFiltered()].sort((a, b) => {
+      const byDate = String(a.data || "").localeCompare(String(b.data || ""));
+      if (byDate) return byDate * direction;
+      return String(a.id || "").localeCompare(String(b.id || "")) * direction;
+    });
     metrics("#finance-metrics", rows);
     const pageSize = 5,
       pages = Math.max(1, Math.ceil(rows.length / pageSize));
@@ -483,16 +641,16 @@
         )
         .join(
           "",
-        )}</select></div><div class="field"><label>Empresa</label><select class="control" id="fin-company"><option value="">Todas</option>${subdivisions.map((s) => `<option value="${esc(s)}" ${s === state.empresa ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div><div class="field"><label>Tipo</label><select class="control" id="fin-type"><option value="">Todos</option><option value="Receita" ${state.finType === "Receita" ? "selected" : ""}>Receita</option><option value="Despesa" ${state.finType === "Despesa" ? "selected" : ""}>Despesa</option></select></div><div class="field"><label>Situação</label><select class="control" id="fin-status"><option value="">Todas</option>${["Concluído", "Em aberto", "Pendente", "Pago"].map((s) => `<option ${s === state.finStatus ? "selected" : ""}>${s}</option>`).join("")}</select></div><div class="field"><label>Centro de custo</label><select class="control" id="fin-cost"><option value="">Todos</option>${costs.map((s) => `<option value="${esc(s)}" ${s === state.finCost ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div><div class="field fin-partner-field"><label>Parceiro</label><div class="search-control"><svg><use href="#i-search"></use></svg><input id="fin-search" value="${esc(state.pesquisa)}" placeholder="Buscar parceiro..."></div></div><button type="button" class="btn primary fin-filter-btn" id="fin-apply"><svg><use href="#i-search"></use></svg>Filtrar</button><button type="button" class="btn fin-clear-btn" id="fin-clear"><svg><use href="#i-history"></use></svg>Limpar</button></div>`;
+        )}</select></div><div class="field"><label>Empresa</label><select class="control" id="fin-company"><option value="">Todas</option>${subdivisions.map((s) => `<option value="${esc(s)}" ${s === state.empresa ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div><div class="field"><label>Tipo</label><select class="control" id="fin-type"><option value="">Todos</option>${["Receita", "Entrada por fora", "Saída"].map((s) => `<option value="${s}" ${state.finType === s ? "selected" : ""}>${s}</option>`).join("")}</select></div><div class="field"><label>Situação</label><select class="control" id="fin-status"><option value="">Todas</option>${["Concluído", "Em aberto", "Pendente", "Recebido", "Pago", "Valor excedente — revisar"].map((s) => `<option ${s === state.finStatus ? "selected" : ""}>${s}</option>`).join("")}</select></div><div class="field"><label>Centro de custo</label><select class="control" id="fin-cost"><option value="">Todos</option>${costs.map((s) => `<option value="${esc(s)}" ${s === state.finCost ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div><div class="field fin-partner-field"><label>Parceiro / referência</label><div class="search-control"><svg><use href="#i-search"></use></svg><input id="fin-search" value="${esc(state.pesquisa)}" placeholder="Buscar parceiro ou referência..."></div></div><button type="button" class="btn primary fin-filter-btn" id="fin-apply"><svg><use href="#i-search"></use></svg>Filtrar</button><button type="button" class="btn fin-clear-btn" id="fin-clear"><svg><use href="#i-history"></use></svg>Limpar</button></div>`;
     const tableRows = shown
       .map((r) => {
         const tp = finTipo(r),
           st = finStatus(r),
           v =
-            tp === "Despesa"
+            tp === "Saída"
               ? money(r.saida)
               : money(r.recebido) || money(r.previsto);
-        return `<tr><td class="nowrap">${dateBR(r.data)}${r.dataRecebida ? `<small class="received-date">Recebida: ${dateBR(r.dataRecebida)}</small>` : ""}</td><td><b>${esc(r.sub || "—")}</b></td><td>${esc(r.parceiro || "—")}</td><td>${esc(r.centro || "—")}</td><td class="description-cell">${esc(r.empresaDepositante || "—")}</td><td><span class="tipo ${tp === "Despesa" ? "desp" : "rec"}">${icon(tp === "Despesa" ? "arrow" : "down")}${tp}</span></td><td class="amount nowrap"><b>${n2(v)}</b></td><td>${finStatusHTML(r)}</td><td>${fileCell(r.anexos, "fin:" + r.id)}</td><td class="action-cell"><div class="row-actions">${(r.anexos || []).length ? `<button type="button" class="row-icon" data-view-files="fin:${esc(r.id)}" title="Visualizar">${icon("eye")}</button>` : ""}<button type="button" class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")} Editar</button>${canDeleteRec(r) ? `<button type="button" class="edit-action danger" data-delete-fin="${esc(r.id)}">${icon("trash")} Excluir</button>` : ""}</div></td></tr>`;
+        return `<tr><td class="nowrap">${dateBR(r.data)}${r.dataRecebida ? `<small class="received-date">Recebida: ${dateBR(r.dataRecebida)}</small>` : ""}</td><td><b>${esc(r.sub || "—")}</b></td><td>${esc(r.parceiro || "—")}${r.observacao ? `<div class="muted">${esc(r.observacao)}</div>` : ""}</td><td>${esc(r.centro || "—")}</td><td class="description-cell">${esc(r.empresaDepositante || "—")}</td><td><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${icon(tp === "Saída" ? "arrow" : "down")}${tp}</span></td><td class="amount nowrap"><b>${n2(v)}</b></td><td>${finStatusHTML(r)}</td><td>${fileCell(r.anexos, "fin:" + r.id)}</td><td class="action-cell"><div class="row-actions">${(r.anexos || []).length ? `<button type="button" class="row-icon" data-view-files="fin:${esc(r.id)}" title="Visualizar">${icon("eye")}</button>` : ""}<button type="button" class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")} Editar</button>${canDeleteRec(r) ? `<button type="button" class="edit-action danger" data-delete-fin="${esc(r.id)}">${icon("trash")} Excluir</button>` : ""}</div></td></tr>`;
       })
       .join("");
     $("#finance-table").innerHTML =
@@ -503,10 +661,10 @@
                 const tp = finTipo(r),
                   st = finStatus(r),
                   v =
-                    tp === "Despesa"
+                    tp === "Saída"
                       ? money(r.saida)
                       : money(r.recebido) || money(r.previsto);
-                return `<article><div><span>${dateBR(r.data)} · ${esc(r.sub || "—")}</span><h3>${esc(r.parceiro || "Lançamento financeiro")}</h3><p>${esc(r.centro || "Sem centro de custo")}${r.dataRecebida ? " · Recebida em " + dateBR(r.dataRecebida) : ""}${r.empresaDepositante ? " · Depositante: " + esc(r.empresaDepositante) : ""}</p></div><div><span class="tipo ${tp === "Despesa" ? "desp" : "rec"}">${tp}</span><strong>${fmt(v)}</strong>${finStatusHTML(r)}<button class="inline-btn" data-edit-fin="${esc(r.id)}">Editar</button>${canDeleteRec(r) ? `<button class="inline-btn danger" data-delete-fin="${esc(r.id)}">Excluir</button>` : ""}</div></article>`;
+                return `<article><div><span>${dateBR(r.data)} · ${esc(r.sub || "—")}</span><h3>${esc(r.parceiro || "Lançamento financeiro")}</h3><p>${esc(r.centro || "Sem centro de custo")}${r.dataRecebida ? " · Recebida em " + dateBR(r.dataRecebida) : ""}${r.empresaDepositante ? " · Depositante: " + esc(r.empresaDepositante) : ""}${r.observacao ? " · " + esc(r.observacao) : ""}</p></div><div><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${tp}</span><strong>${fmt(v)}</strong>${finStatusHTML(r)}<button class="inline-btn" data-edit-fin="${esc(r.id)}">Editar</button>${canDeleteRec(r) ? `<button class="inline-btn danger" data-delete-fin="${esc(r.id)}">Excluir</button>` : ""}</div></article>`;
               })
               .join("") ||
             `<div class="fin-empty">Nenhum lançamento encontrado para os filtros selecionados.</div>`
@@ -526,6 +684,12 @@
     bind("fin-type", "finType");
     bind("fin-status", "finStatus");
     bind("fin-cost", "finCost");
+    $("#fin-sort").value = state.finSort;
+    $("#fin-sort").onchange = (e) => {
+      state.finSort = e.target.value === "asc" ? "asc" : "desc";
+      state.finPage = 1;
+      drawFinance();
+    };
     $("#fin-search").oninput = (e) => {
       state.pesquisa = e.target.value;
     };
@@ -1072,9 +1236,45 @@
       : `<div class="empty">${icon("clip")}<strong>Nenhum comprovante anexado</strong><p>Anexe fotos ou PDFs ao editar um lançamento, uma tarefa ou um registro da prestação de contas.</p></div>`;
   }
   function drawAudit() {
-    $("#audit-table").innerHTML = db.audit.length
-      ? `<table><thead><tr><th>Data</th><th>Responsável</th><th>Ação</th><th>Detalhe</th></tr></thead><tbody>${db.audit.map((a) => `<tr><td>${new Date(a.at).toLocaleString("pt-BR")}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td class="kebab">${esc(a.detail)}</td></tr>`).join("")}</tbody></table>`
+    const rows = [...db.audit].sort((a, b) =>
+      String(b.at || "").localeCompare(String(a.at || "")),
+    );
+    const pageSize = 10;
+    const pages = Math.max(1, Math.ceil(rows.length / pageSize));
+    state.auditPage = Math.min(Math.max(1, state.auditPage || 1), pages);
+    const shown = rows.slice(
+      (state.auditPage - 1) * pageSize,
+      state.auditPage * pageSize,
+    );
+    $("#audit-table").innerHTML = rows.length
+      ? `<table><thead><tr><th>Data</th><th>Responsável</th><th>Ação</th><th>Detalhe</th></tr></thead><tbody>${shown.map((a) => `<tr><td class="nowrap">${new Date(a.at).toLocaleString("pt-BR")}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td class="kebab">${esc(a.detail)}</td></tr>`).join("")}</tbody></table>`
       : `<div class="empty">${icon("history")}<strong>Nenhuma alteração registrada</strong><p>As ações feitas nesta versão aparecerão aqui.</p></div>`;
+    const pager = $("#audit-pager");
+    if (!pager) return;
+    pager.hidden = !rows.length;
+    if (!rows.length) {
+      pager.innerHTML = "";
+      return;
+    }
+    const first = (state.auditPage - 1) * pageSize + 1;
+    const last = Math.min(state.auditPage * pageSize, rows.length);
+    pager.innerHTML = `<span>Mostrando ${first} a ${last} de ${rows.length} registros · Página ${state.auditPage} de ${pages}</span><div class="fin-page-buttons"><button type="button" id="audit-first" title="Primeira página" ${state.auditPage === 1 ? "disabled" : ""}>«</button><button type="button" id="audit-prev" title="Página anterior" ${state.auditPage === 1 ? "disabled" : ""}>‹</button><span>${state.auditPage}</span><button type="button" id="audit-next" title="Próxima página" ${state.auditPage === pages ? "disabled" : ""}>›</button><button type="button" id="audit-last" title="Última página" ${state.auditPage === pages ? "disabled" : ""}>»</button></div>`;
+    $("#audit-first").onclick = () => {
+      state.auditPage = 1;
+      drawAudit();
+    };
+    $("#audit-prev").onclick = () => {
+      state.auditPage = Math.max(1, state.auditPage - 1);
+      drawAudit();
+    };
+    $("#audit-next").onclick = () => {
+      state.auditPage = Math.min(pages, state.auditPage + 1);
+      drawAudit();
+    };
+    $("#audit-last").onclick = () => {
+      state.auditPage = pages;
+      drawAudit();
+    };
   }
   function companyPicker(where) {
     $(where).innerHTML =
@@ -1221,65 +1421,32 @@
       html += `<div class="field wide"><label>Observações</label><textarea class="control" name="descricao">${esc(obj?.descricao || "")}</textarea></div>`;
     } else {
       const locked = !!obj;
+      const selectedType = locked ? finKind(obj) : "receita";
+      const rx = locked ? finRecebimentos(obj) : [];
+      const finValue = (name, value, types) =>
+        `<div class="field" data-fin-types="${types}"><label>${name} (R$)</label><input class="control money-input" type="text" inputmode="numeric" autocomplete="off" name="${value}" value="${inputBRL(locked ? (value === "recebido" ? sumRecebimentos(rx) || obj.recebido || 0 : obj[value] || 0) : 0)}" placeholder="R$ 0,00"></div>`;
       if (locked) {
-        const rx = finRecebimentos(obj);
         window.__finHist = { obj: obj, key: "data", dir: "asc" };
-        html += `<div class="fin-modal-tabs" role="tablist" aria-label="Seções do lançamento"><button type="button" class="active" data-fin-tab="dados" role="tab">Lançamento</button><button type="button" data-fin-tab="historico" role="tab">Histórico</button></div>`;
+        html += `<div class="fin-modal-tabs" role="tablist" aria-label="Seções do lançamento"><button type="button" class="active" data-fin-tab="dados" role="tab">Lançamento</button><button type="button" data-fin-tab="historico" data-fin-history-tab role="tab">Histórico</button></div>`;
         html += `<div data-fin-pane="dados" id="fin-dados-pane">`;
-        html += `<div class="form-section">Identificação</div>`;
-        html += `<div class="field"><label>Empresa *</label><select class="control" name="sub" required><option value="">Selecione</option>${subdivisions.map((s) => `<option value="${esc(s)}" ${(obj.sub || "") === s ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div>`;
-        html += field(
-          "Parceiro *",
-          "parceiro",
-          obj.parceiro || "",
-          "text",
-          true,
-        );
-        html += `<div class="field"><label>Centro de custo</label><select class="control" name="centro" required><option value="">Selecione</option>${COST_CODES.map((code) => `<option value="${code}" ${(obj.centro || "") === code ? "selected" : ""}>${code}${db.centers[code] ? " — " + esc(db.centers[code]) : ""}</option>`).join("")}</select></div>`;
-        html +=
-          field("Data *", "data", obj.data || "", "date", true) +
-          field(
-            "Data recebida",
-            "dataRecebida",
-            obj.dataRecebida || "",
-            "date",
-          ) +
-          field(
-            "Empresa que depositou o pagamento",
-            "empresaDepositante",
-            obj.empresaDepositante || "",
-          );
-        html += `<div class="form-section">Valores</div>`;
-        html += `<div class="field"><label>A receber (R$)</label><input class="control money-input" type="text" inputmode="numeric" autocomplete="off" name="previsto" value="${inputBRL(obj.previsto || 0)}" placeholder="R$ 0,00"></div>`;
-        html += `<div class="field"><label>Recebido (R$)</label><input class="control money-input" type="text" inputmode="numeric" autocomplete="off" name="recebido" value="${inputBRL(sumRecebimentos(rx) || obj.recebido || 0)}" placeholder="R$ 0,00"></div>`;
-        html += `<div class="field"><label>Saída (R$)</label><input class="control money-input" type="text" inputmode="numeric" autocomplete="off" name="saida" value="${inputBRL(obj.saida || 0)}" placeholder="R$ 0,00"></div>`;
-        html += `<div class="form-section">Registrar recebimento</div><p class="field-note wide">Informe a data e o valor recebido. O status muda para <b>Concluído</b> quando o total recebido atingir o valor a receber. O detalhe fica na aba <b>Histórico</b>.</p>`;
-        html += `<div class="field"><label>Data do recebimento</label><input class="control" name="novaBaixaData" type="date" value="${esc(todayISO())}"></div>`;
-        html += `<div class="field"><label>Valor recebido (R$)</label><input class="control money-input" name="novaBaixaValor" inputmode="numeric" value="${inputBRL(0)}" placeholder="R$ 0,00"></div>`;
+      }
+      html += `<div class="field wide fin-type-field"><label>Tipo de lançamento *</label><select class="control" name="tipoLancamento" id="fin-entry-type" required><option value="receita" ${selectedType === "receita" ? "selected" : ""}>Receita</option><option value="entrada_por_fora" ${selectedType === "entrada_por_fora" ? "selected" : ""}>Entrada por fora</option><option value="saida" ${selectedType === "saida" ? "selected" : ""}>Saída</option></select><small class="fin-type-help" id="fin-type-help"></small></div>`;
+      html += `<div class="form-section">Identificação</div>`;
+      html += `<div class="field"><label>Empresa *</label><select class="control" name="sub" required><option value="">Selecione</option>${subdivisions.map((s) => `<option value="${esc(s)}" ${(locked ? obj.sub : state.empresa) === s ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div>`;
+      html += `<div class="field"><label id="fin-partner-label">Parceiro *</label><input class="control" name="parceiro" type="text" value="${esc(obj?.parceiro || "")}" required></div>`;
+      html += `<div class="field" data-fin-center><label>Centro de custo <span id="fin-center-required">*</span></label><select class="control" name="centro"><option value="">Não informado</option>${COST_CODES.map((code) => `<option value="${code}" ${(obj?.centro || "") === code ? "selected" : ""}>${code}${db.centers[code] ? " — " + esc(db.centers[code]) : ""}</option>`).join("")}</select></div>`;
+      html += field("Data *", "data", obj?.data || todayISO(), "date", true);
+      html += `<div class="field" data-fin-types="receita entrada_por_fora"><label>Data recebida</label><input class="control" name="dataRecebida" type="date" value="${esc(obj?.dataRecebida || "")}"></div>`;
+      html += `<div class="field" data-fin-types="receita entrada_por_fora"><label>Empresa que depositou o pagamento</label><input class="control" name="empresaDepositante" value="${esc(obj?.empresaDepositante || "")}"></div>`;
+      html += `<div class="form-section">Valores</div>`;
+      html += finValue("A receber", "previsto", "receita");
+      html += finValue("Recebido", "recebido", "receita entrada_por_fora");
+      html += finValue("Saída", "saida", "saida");
+      html += `<div class="field wide"><label>Observação</label><textarea class="control" name="observacao" placeholder="Informações adicionais do lançamento">${esc(obj?.observacao || "")}</textarea></div>`;
+      if (locked) {
+        html += `<div data-fin-types="receita" class="fin-receipt-register"><div class="form-section">Registrar recebimento</div><p class="field-note wide">Informe a data e o valor recebido. O status muda para <b>Concluído</b> quando o total recebido atingir o valor a receber. O detalhe fica na aba <b>Histórico</b>.</p><div class="field"><label>Data do recebimento</label><input class="control" name="novaBaixaData" type="date" value="${esc(todayISO())}"></div><div class="field"><label>Valor recebido (R$)</label><input class="control money-input" name="novaBaixaValor" inputmode="numeric" value="${inputBRL(0)}" placeholder="R$ 0,00"></div></div>`;
         html += `</div>`;
         html += `<div data-fin-pane="historico" id="fin-hist-pane" class="hidden">${rxSheetHTML(obj, "data", "asc")}</div>`;
-      } else {
-        html += `<div class="form-section">Identificação</div><div class="field"><label>Empresa *</label><select class="control" name="sub" required><option value="">Selecione</option>${subdivisions.map((s) => `<option ${state.empresa === s ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div>`;
-        html +=
-          field("Parceiro *", "parceiro", "", "text", true) +
-          `<div class="field"><label>Centro de custo</label><select class="control" name="centro" required><option value="">Selecione</option>${COST_CODES.map((code) => `<option value="${code}">${code}${db.centers[code] ? " — " + esc(db.centers[code]) : ""}</option>`).join("")}</select></div>`;
-        html +=
-          field(
-            "Data *",
-            "data",
-            new Date().toISOString().slice(0, 10),
-            "date",
-            true,
-          ) +
-          field("Data recebida", "dataRecebida", "", "date") +
-          field("Empresa que depositou o pagamento", "empresaDepositante", "");
-        html += '<div class="form-section">Valores</div>';
-        html += ["previsto", "recebido", "saida"]
-          .map(
-            (name, i) =>
-              `<div class="field"><label>${["A receber", "Recebido", "Saída"][i]} (R$)</label><input class="control money-input" type="text" inputmode="numeric" autocomplete="off" name="${name}" value="${inputBRL(0)}" placeholder="R$ 0,00"></div>`,
-          )
-          .join("");
       }
     }
     html += `<div class="form-section">Comprovantes</div><div class="field wide"><label>Anexar comprovante (foto ou PDF)</label><input class="control" name="anexo" type="file" accept="image/*,.pdf" multiple><div class="attachment-note">Os comprovantes são salvos na nuvem (Supabase) e podem ser visualizados em Comprovantes.</div>${attachmentsListHTML(obj?.anexos)}</div>`;
@@ -1299,6 +1466,58 @@
     if (kind === "finance" && obj) {
       wireFinModalTabs();
     }
+    if (kind === "finance") {
+      wireFinanceTypeForm();
+    }
+  }
+  function wireFinanceTypeForm() {
+    const body = $("#modal-body");
+    const select = body?.querySelector('[name="tipoLancamento"]');
+    if (!select) return;
+    const sync = () => {
+      const type = ["receita", "entrada_por_fora", "saida"].includes(
+        select.value,
+      )
+        ? select.value
+        : "receita";
+      body.querySelectorAll("[data-fin-types]").forEach((el) => {
+        const visible = String(el.dataset.finTypes || "")
+          .split(/\s+/)
+          .includes(type);
+        el.classList.toggle("fin-type-hidden", !visible);
+        el.querySelectorAll("input,select,textarea").forEach((control) => {
+          control.disabled = !visible;
+        });
+      });
+      const center = body.querySelector('[name="centro"]');
+      if (center) center.required = type === "receita";
+      const required = body.querySelector("#fin-center-required");
+      if (required) required.hidden = type !== "receita";
+      const partner = body.querySelector("#fin-partner-label");
+      if (partner)
+        partner.textContent =
+          type === "receita"
+            ? "Parceiro *"
+            : type === "entrada_por_fora"
+              ? "Referência *"
+              : "Beneficiário / descrição *";
+      const help = body.querySelector("#fin-type-help");
+      if (help)
+        help.textContent =
+          type === "receita"
+            ? "Receita prevista, com controle de recebimentos e pendências."
+            : type === "entrada_por_fora"
+              ? "Crédito direto no caixa, sem gerar valor pendente a receber."
+              : "Pagamento ou retirada que reduz o saldo da empresa.";
+      const historyTab = body.querySelector("[data-fin-history-tab]");
+      if (historyTab) {
+        historyTab.hidden = type === "saida";
+        if (type === "saida" && historyTab.classList.contains("active"))
+          body.querySelector('[data-fin-tab="dados"]')?.click();
+      }
+    };
+    select.onchange = sync;
+    sync();
   }
   function closeModal() {
     $("#modal-layer").classList.remove("open");
@@ -1328,12 +1547,40 @@
           e.target,
         ),
       };
+      markMutation("historyUpserts", editing);
       audit("Histórico da planilha editado", rec.aba + " · linha " + rec.linha);
       save();
       closeModal();
       render();
       toast("Registro histórico atualizado");
       return;
+    }
+    let selectedFinanceType = "";
+    if (typeModal === "finance") {
+      selectedFinanceType = ["receita", "entrada_por_fora", "saida"].includes(
+        String(f.get("tipoLancamento")),
+      )
+        ? String(f.get("tipoLancamento"))
+        : "receita";
+      const previsto = money(f.get("previsto"));
+      const recebido = money(f.get("recebido"));
+      const saida = money(f.get("saida"));
+      if (selectedFinanceType === "receita" && !String(f.get("centro") || "")) {
+        toast("Selecione o centro de custo da receita.");
+        return;
+      }
+      if (selectedFinanceType === "entrada_por_fora" && recebido <= 0) {
+        toast("Informe um valor recebido maior que zero.");
+        return;
+      }
+      if (selectedFinanceType === "saida" && saida <= 0) {
+        toast("Informe um valor de saída maior que zero.");
+        return;
+      }
+      if (previsto < 0 || recebido < 0 || saida < 0) {
+        toast("Os valores do lançamento não podem ser negativos.");
+        return;
+      }
     }
     let arr = typeModal === "task" ? db.tasks : db.finance;
     let old = editing ? arr.find((r) => r.id === editing) : null;
@@ -1370,9 +1617,15 @@
       };
     } else {
       if (old) {
-        let rx = finRecebimentos(old);
-        const addData = String(f.get("novaBaixaData") || "").trim();
-        const addValor = money(f.get("novaBaixaValor"));
+        let rx = selectedFinanceType === "saida" ? [] : finRecebimentos(old);
+        const addData =
+          selectedFinanceType === "receita"
+            ? String(f.get("novaBaixaData") || "").trim()
+            : "";
+        const addValor =
+          selectedFinanceType === "receita"
+            ? money(f.get("novaBaixaValor"))
+            : 0;
         window.__mbFinAudit = null;
         if (addData && addValor > 0) {
           rx = rx.concat([
@@ -1389,9 +1642,12 @@
             `Financeiro: ${String(f.get("parceiro") || old.parceiro).trim()} / ${String(f.get("centro") || old.centro).trim()} · ${fmt(addValor)} em ${dateBR(addData)}`,
           ];
         }
-        const formPrevisto = money(f.get("previsto"));
-        const formSaida = money(f.get("saida"));
-        const formRecebido = money(f.get("recebido"));
+        const formPrevisto =
+          selectedFinanceType === "receita" ? money(f.get("previsto")) : 0;
+        const formSaida =
+          selectedFinanceType === "saida" ? money(f.get("saida")) : 0;
+        const formRecebido =
+          selectedFinanceType === "saida" ? 0 : money(f.get("recebido"));
         let totalRec = sumRecebimentos(rx);
         if (
           !(addData && addValor > 0) &&
@@ -1401,9 +1657,10 @@
             rx = [
               {
                 id: crypto.randomUUID(),
-                data: String(
-                  f.get("dataRecebida") || f.get("data") || todayISO(),
-                ),
+                data:
+                  selectedFinanceType === "entrada_por_fora"
+                    ? String(f.get("dataRecebida") || "")
+                    : String(f.get("dataRecebida") || f.get("data") || ""),
                 valor: formRecebido,
                 actor: MB.nome || "",
                 at: new Date().toISOString(),
@@ -1423,10 +1680,14 @@
         const centro = String(f.get("centro") || "").trim();
         const data = f.get("data") || old.data;
         const dataRecebida =
-          String(f.get("dataRecebida") || "") || (lastRx ? lastRx.data : "");
-        const empresaDepositante = String(
-          f.get("empresaDepositante") || "",
-        ).trim();
+          selectedFinanceType === "saida"
+            ? ""
+            : String(f.get("dataRecebida") || "") ||
+              (lastRx ? lastRx.data : "");
+        const empresaDepositante =
+          selectedFinanceType === "saida"
+            ? ""
+            : String(f.get("empresaDepositante") || "").trim();
         const sub = String(f.get("sub") || state.empresa || old.sub || "");
         if (!window.__mbFinAudit)
           window.__mbFinAudit = [
@@ -1435,6 +1696,7 @@
           ];
         rec = {
           ...old,
+          tipoLancamento: selectedFinanceType,
           parceiro,
           centro,
           data,
@@ -1446,23 +1708,28 @@
           recebido: totalRec,
           saida: formSaida,
           recebimentos: rx,
+          observacao: String(f.get("observacao") || "").trim(),
           anexos,
           origem: old.origem || "Cadastro manual",
           criadoPor: old.criadoPor || MB.nome || "",
           criadoPorId: old.criadoPorId || MB.userId || "",
         };
       } else {
-        const previsto = money(f.get("previsto")),
-          recebido0 = money(f.get("recebido")),
-          saida = money(f.get("saida"));
+        const previsto =
+            selectedFinanceType === "receita" ? money(f.get("previsto")) : 0,
+          recebido0 =
+            selectedFinanceType === "saida" ? 0 : money(f.get("recebido")),
+          saida =
+            selectedFinanceType === "saida" ? money(f.get("saida")) : 0;
         let rx = [];
         if (recebido0 > 0) {
           rx = [
             {
               id: crypto.randomUUID(),
-              data: String(
-                f.get("dataRecebida") || f.get("data") || todayISO(),
-              ),
+              data:
+                selectedFinanceType === "entrada_por_fora"
+                  ? String(f.get("dataRecebida") || "")
+                  : String(f.get("dataRecebida") || f.get("data") || ""),
               valor: recebido0,
               actor: MB.nome || "",
               at: new Date().toISOString(),
@@ -1471,17 +1738,25 @@
         }
         rec = {
           id: crypto.randomUUID(),
+          tipoLancamento: selectedFinanceType,
           parceiro: String(f.get("parceiro")).trim(),
           centro: String(f.get("centro")).trim(),
           data: f.get("data"),
-          dataRecebida: String(f.get("dataRecebida") || ""),
-          empresaDepositante: String(f.get("empresaDepositante") || "").trim(),
+          dataRecebida:
+            selectedFinanceType === "saida"
+              ? ""
+              : String(f.get("dataRecebida") || ""),
+          empresaDepositante:
+            selectedFinanceType === "saida"
+              ? ""
+              : String(f.get("empresaDepositante") || "").trim(),
           demanda: "",
           sub: String(f.get("sub") || state.empresa),
           previsto,
           recebido: sumRecebimentos(rx) || recebido0,
           saida,
           recebimentos: rx,
+          observacao: String(f.get("observacao") || "").trim(),
           anexos,
           origem: "Cadastro manual",
           criadoPor: MB.nome || "",
@@ -1494,6 +1769,10 @@
     } else {
       arr.push(rec);
     }
+    markMutation(
+      typeModal === "task" ? "taskUpserts" : "financeUpserts",
+      rec.id,
+    );
     if (window.__mbFinAudit) {
       audit(window.__mbFinAudit[0], window.__mbFinAudit[1]);
       window.__mbFinAudit = null;
@@ -1510,7 +1789,7 @@
       kindAgain = typeModal;
     closeModal();
     render();
-    toast("Registro salvo");
+    toast("Salvando na nuvem…");
     if (again) openModal(kindAgain);
   };
   $$("[data-page]").forEach((b) => (b.onclick = () => goto(b.dataset.page)));
@@ -1551,10 +1830,11 @@
       )
         return;
       db.tasks = db.tasks.filter((x) => x.id !== id);
+      markMutation("taskDeletes", id);
       audit("Tarefa excluída", "Tarefa: " + (t.titulo || id));
       save();
       render();
-      toast("Demanda excluída");
+      toast("Excluindo na nuvem…");
       return;
     }
     const delFin = e.target.closest("[data-delete-fin]");
@@ -1577,6 +1857,7 @@
       )
         return;
       db.finance = db.finance.filter((x) => x.id !== id);
+      markMutation("financeDeletes", id);
       audit(
         "Lançamento excluído",
         "Financeiro: " +
@@ -1587,7 +1868,7 @@
       );
       save();
       render();
-      toast("Lançamento excluído");
+      toast("Excluindo na nuvem…");
       return;
     }
     let target = e.target.closest(
@@ -1610,6 +1891,7 @@
   $("#csv-export").onclick = () => {
     const rows = financeFiltered();
     const columns = [
+      "Tipo de lançamento",
       "Data",
       "Data recebida",
       "Parceiro",
@@ -1619,8 +1901,10 @@
       "A receber",
       "Recebido",
       "Saída",
+      "Observação",
     ];
     const vals = rows.map((r) => [
+      finTipo(r),
       r.data,
       r.dataRecebida || "",
       r.parceiro,
@@ -1630,6 +1914,7 @@
       r.previsto,
       r.recebido,
       r.saida,
+      r.observacao || "",
     ]);
     const csv =
       "\ufeff" +
@@ -2366,11 +2651,12 @@
         db[def.key] = clean;
         audit(def.title + " atualizados", clean.length + " opções");
       }
+      markSetting(SET.tab);
       save();
       SET.edit = false;
       SET.draft = null;
       render();
-      toast(def.title + " salvos");
+      toast("Salvando " + def.title.toLowerCase() + " na nuvem…");
     }
   });
   $("#set-dynamic").addEventListener("input", (e) => {
@@ -2408,7 +2694,7 @@
     }
   });
   window.addEventListener("beforeunload", (e) => {
-    if (setDirty()) {
+    if (setDirty() || hasPendingMutations()) {
       e.preventDefault();
       e.returnValue = "";
     }
@@ -2453,10 +2739,27 @@
         )
       )
         return;
+      const previousDb = db;
       db = Object.assign(
         initial(),
         { centers: {}, banks: [], templates: [], staff: [], historyEdits: {} },
         d,
+      );
+      const financeIds = new Set(db.finance.map((row) => row.id));
+      const taskIds = new Set(db.tasks.map((row) => row.id));
+      db.finance.forEach((row) => markMutation("financeUpserts", row.id));
+      db.tasks.forEach((row) => markMutation("taskUpserts", row.id));
+      previousDb.finance
+        .filter((row) => !financeIds.has(row.id))
+        .forEach((row) => markMutation("financeDeletes", row.id));
+      previousDb.tasks
+        .filter((row) => !taskIds.has(row.id))
+        .forEach((row) => markMutation("taskDeletes", row.id));
+      Object.keys(db.historyEdits || {}).forEach((id) =>
+        markMutation("historyUpserts", id),
+      );
+      ["banks", "templates", "staff", "centers", "companies"].forEach(
+        markSetting,
       );
       audit("Backup importado", f.name);
       save();
@@ -2514,15 +2817,28 @@
     }
     return out.reverse();
   }
+  const finKind = (r) => {
+    const saved = String(r?.tipoLancamento || "");
+    if (["receita", "entrada_por_fora", "saida"].includes(saved)) return saved;
+    return money(r?.saida) > 0 && !money(r?.previsto) && !money(r?.recebido)
+      ? "saida"
+      : "receita";
+  };
   const finTipo = (r) =>
-    money(r.saida) > 0 && !money(r.previsto) && !money(r.recebido)
-      ? "Despesa"
-      : "Receita";
+    ({
+      receita: "Receita",
+      entrada_por_fora: "Entrada por fora",
+      saida: "Saída",
+    })[finKind(r)];
   const finStatus = (r) => {
-    if (finTipo(r) === "Despesa") return ["Pago", "ok"];
+    const kind = finKind(r);
+    if (kind === "saida") return ["Pago", "ok"];
+    if (kind === "entrada_por_fora")
+      return money(r.recebido) > 0 ? ["Recebido", "ok"] : ["Pendente", "warn"];
     const p = money(r.previsto),
       v = money(r.recebido);
-    if (p && v >= p) return ["Concluído", "ok"];
+    if (p && v > p) return ["Valor excedente — revisar", "danger"];
+    if (p && v === p) return ["Concluído", "ok"];
     if (v > 0) return ["Em aberto", "danger"];
     return ["Pendente", "warn"];
   };
@@ -2535,6 +2851,10 @@
       const falta = finFalta(r);
       return `<span class="status-em-aberto"><b>Em aberto</b><span class="status-faltam">Falta ${fmt(falta)}</span></span>`;
     }
+    if (st[0] === "Valor excedente — revisar") {
+      const excedente = Math.max(0, money(r.recebido) - money(r.previsto));
+      return `<span class="status-em-aberto"><b>Valor excedente — revisar</b><span class="status-faltam">Excedente ${fmt(excedente)}</span></span>`;
+    }
     return `<span class="pill ${st[1]}">${st[0]}</span>`;
   }
   function finRecebimentos(r) {
@@ -2543,7 +2863,10 @@
       arr = [
         {
           id: "seed-" + r.id,
-          data: r.dataRecebida || r.data || "",
+          data:
+            finKind(r) === "entrada_por_fora"
+              ? r.dataRecebida || ""
+              : r.dataRecebida || r.data || "",
           valor: money(r.recebido),
           actor: r.criadoPor || "",
           at: "",
@@ -2556,15 +2879,15 @@
     return (arr || []).reduce((s, x) => s + money(x.valor), 0);
   }
   function rxHistoryRows(obj) {
-    const rows = [
-      {
+    const rows = [];
+    if (finKind(obj) === "receita")
+      rows.push({
         tipo: "Lançamento",
         data: String(obj.data || ""),
         valor: money(obj.previsto),
         actor: obj.criadoPor || "—",
         kind: "previsto",
-      },
-    ];
+      });
     finRecebimentos(obj).forEach(function (x, i) {
       rows.push({
         tipo: "Recebimento " + (i + 1),
@@ -2598,7 +2921,12 @@
     const arrow = function (k) {
       return sortKey === k ? (sortDir === "asc" ? " ▲" : " ▼") : "";
     };
-    let h = `<div class='rx-sheet-wrap'><div class='rx-sheet-sum'>Situação: ${finStatusHTML(obj)} · Recebido <b>${fmt(sumRecebimentos(rx) || money(obj.recebido))}</b> de <b>${fmt(obj.previsto || 0)}</b></div>`;
+    const totalRecebido = sumRecebimentos(rx) || money(obj.recebido);
+    const resumo =
+      finKind(obj) === "entrada_por_fora"
+        ? `Crédito registrado <b>${fmt(totalRecebido)}</b>`
+        : `Recebido <b>${fmt(totalRecebido)}</b> de <b>${fmt(obj.previsto || 0)}</b>`;
+    let h = `<div class='rx-sheet-wrap'><div class='rx-sheet-sum'>Situação: ${finStatusHTML(obj)} · ${resumo}</div>`;
     h +=
       `<table class='rx-sheet'><thead><tr>` +
       `<th class='rx-num'>#</th>` +
@@ -2661,7 +2989,7 @@
     `<div class="hsummary"><span>${l}</span><strong>${v}</strong></div>`;
   function kpis(container, rows) {
     const a = totals(rows),
-      pct = a.prev ? Math.round((a.rec / a.prev) * 100) : 0,
+      pct = a.prev ? Math.round((a.recReceita / a.prev) * 100) : 0,
       saldo = a.rec - a.sai;
     const k = [
       [
@@ -2676,7 +3004,7 @@
         "check",
         "Recebido",
         fmt(a.rec),
-        `<small class="pos">${pct}% do previsto</small><div class="meter"><i style="width:${Math.min(100, pct)}%"></i></div>`,
+        `<small class="pos">${pct}% do previsto${a.recExtra ? ` · ${fmt(a.recExtra)} por fora` : ""}</small><div class="meter"><i style="width:${Math.min(100, pct)}%"></i></div>`,
       ],
       [
         "out",
@@ -2741,7 +3069,13 @@
         const [y, mm] = m.split("-");
         const lab =
           (MESES[Number(mm) - 1] || mm).slice(0, 3) + "/" + String(y).slice(2);
-        return { lab, t: totals(rows.filter((r) => month(r.data) === m)) };
+        const periodRows = rows.filter((r) => month(r.data) === m);
+        return {
+          lab,
+          fullLabel: compLabel(m),
+          rows: periodRows,
+          t: totals(periodRows),
+        };
       });
     } else {
       const p = state.mes.split("-").map(Number);
@@ -2759,15 +3093,82 @@
           const d = Number(String(r.data).slice(8, 10));
           return d >= a && d <= z;
         });
-        return { lab: `${pad(a)}–${pad(z)}`, t: totals(rr) };
+        return {
+          lab: `${pad(a)}–${pad(z)}`,
+          fullLabel: `${pad(a)} a ${pad(z)} de ${compLabel(state.mes)}`,
+          rows: rr,
+          t: totals(rr),
+        };
       });
     }
+    const total = totals(rows);
+    const saldo = total.rec - total.sai;
+    const pendente = Math.max(0, total.prev - total.recReceita);
+    const recebidoPct = total.prev
+      ? Math.round((total.recReceita / total.prev) * 100)
+      : total.recReceita
+        ? 100
+        : 0;
+    const receitas = rows.filter((r) => finKind(r) === "receita").length;
+    const entradasFora = rows.filter(
+      (r) => finKind(r) === "entrada_por_fora",
+    ).length;
+    const despesas = rows.filter((r) => finKind(r) === "saida").length;
+    const compactFmt = (value) =>
+      (Number(value) || 0).toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+        notation: Math.abs(Number(value) || 0) >= 1000 ? "compact" : "standard",
+        maximumFractionDigits: 1,
+      });
     const max = Math.max(
       1,
       ...data.flatMap((d) => [d.t.prev, d.t.rec, d.t.sai]),
     );
     const h = (v) => (v > 0 ? Math.max(1.5, (v / max) * 100).toFixed(2) : 0);
-    el.innerHTML = `<div class="mchart"><div class="mchart-plot">${data.map((d) => `<div class="mbars"><i class="p" style="height:${h(d.t.prev)}%" title="Previsto ${fmt(d.t.prev)}"></i><i class="r" style="height:${h(d.t.rec)}%" title="Recebido ${fmt(d.t.rec)}"></i><i class="s" style="height:${h(d.t.sai)}%" title="Saídas ${fmt(d.t.sai)}"></i></div>`).join("")}</div><div class="mlabels">${data.map((d) => `<span>${d.lab}</span>`).join("")}</div><div class="mchart-legend"><span><i class="p"></i>Previsto</span><span><i class="r"></i>Recebido</span><span><i class="s"></i>Saídas</span><span>Maior barra: ${fmt(max)}</span></div></div>`;
+    const detail = (d) => {
+      const periodSaldo = d.t.rec - d.t.sai;
+      const periodPendente = Math.max(0, d.t.prev - d.t.recReceita);
+      const periodPct = d.t.prev
+        ? Math.round((d.t.recReceita / d.t.prev) * 100)
+        : d.t.recReceita
+          ? 100
+          : 0;
+      return `${d.fullLabel}\n${d.rows.length} lançamento(s)\nPrevisto: ${fmt(d.t.prev)}\nRecebido de receitas: ${fmt(d.t.recReceita)} (${periodPct}%)\nEntradas por fora: ${fmt(d.t.recExtra)}\nTotal recebido: ${fmt(d.t.rec)}\nPendente: ${fmt(periodPendente)}\nSaídas: ${fmt(d.t.sai)}\nSaldo: ${fmt(periodSaldo)}`;
+    };
+    el.innerHTML = `<div class="mchart">
+      <div class="mchart-context">
+        <div><span>Empresa</span><strong>${esc(state.empresa || "Todas as empresas")}</strong></div>
+        <div><span>Período</span><strong>${esc(compLabel(state.mes))}</strong></div>
+        <div><span>Lançamentos</span><strong>${rows.length}</strong><small>${receitas} receita(s) · ${entradasFora} entrada(s) por fora · ${despesas} saída(s)</small></div>
+      </div>
+      <div class="mchart-kpis">
+        <div><span>Previsto</span><strong>${fmt(total.prev)}</strong></div>
+        <div class="is-received"><span>Recebido</span><strong>${fmt(total.rec)}</strong><small>${recebidoPct}% do previsto${total.recExtra ? ` · ${fmt(total.recExtra)} por fora` : ""}</small></div>
+        <div class="is-pending"><span>Pendente</span><strong>${fmt(pendente)}</strong></div>
+        <div class="is-expense"><span>Saídas</span><strong>${fmt(total.sai)}</strong></div>
+        <div class="${saldo < 0 ? "is-negative" : "is-balance"}"><span>Saldo líquido</span><strong>${fmt(saldo)}</strong></div>
+      </div>
+      <div class="mchart-scroll">
+        <div class="mchart-canvas" style="--chart-cols:${Math.max(data.length, 1)}">
+          <div class="mchart-plot">${data
+            .map(
+              (d) => `<div class="mbars" tabindex="0" aria-label="${esc(detail(d))}" data-chart-detail="${esc(detail(d))}">
+                <span class="mbar"><em>${compactFmt(d.t.prev)}</em><i class="p" style="height:${h(d.t.prev)}%" title="Previsto ${fmt(d.t.prev)}"></i></span>
+                <span class="mbar"><em>${compactFmt(d.t.rec)}</em><i class="r" style="height:${h(d.t.rec)}%" title="Recebido ${fmt(d.t.rec)}"></i></span>
+                <span class="mbar"><em>${compactFmt(d.t.sai)}</em><i class="s" style="height:${h(d.t.sai)}%" title="Saídas ${fmt(d.t.sai)}"></i></span>
+              </div>`,
+            )
+            .join("")}</div>
+          <div class="mlabels">${data
+            .map(
+              (d) => `<span><b>${d.lab}</b><small>${d.rows.length} lançamento(s)</small><em class="${d.t.rec - d.t.sai < 0 ? "neg" : ""}">Saldo ${compactFmt(d.t.rec - d.t.sai)}</em></span>`,
+            )
+            .join("")}</div>
+        </div>
+      </div>
+      <div class="mchart-legend"><span><i class="p"></i>Previsto</span><span><i class="r"></i>Recebido</span><span><i class="s"></i>Saídas</span><span>Escala máxima: ${fmt(max)}</span><span class="mchart-help">Passe o mouse ou toque nas barras para ver todos os valores.</span></div>
+    </div>`;
   }
   function drawEmpresas() {
     const el = $("#emp-table");
@@ -2808,7 +3209,8 @@
     if (!el) return;
     contasFilters("#rec-filters");
     const rows = contasRows().filter(
-      (r) => money(r.previsto) > money(r.recebido),
+      (r) =>
+        finKind(r) === "receita" && money(r.previsto) > money(r.recebido),
     );
     const prev = rows.reduce((n, r) => n + money(r.previsto), 0),
       rec = rows.reduce((n, r) => n + money(r.recebido), 0);
@@ -2907,10 +3309,9 @@
     }
     if (d.type === "mb-hydrate" && d.payload) {
       const p = d.payload;
-      const remoteEmpty =
-        !(p.finance && p.finance.length) && !(p.tasks && p.tasks.length);
-      if (remoteEmpty && (db.finance.length || db.tasks.length)) {
-        toast("Enviando dados locais para a nuvem");
+      if (hasPendingMutations()) {
+        applyCloudDbPreservingPending(p);
+        toast("Reenviando alterações pendentes…");
         scheduleCloudSave();
       } else {
         applyCloudDb(p);
@@ -2918,15 +3319,12 @@
       }
     }
     if (d.type === "mb-persist-ok") {
+      const batch = cloudPending[d.requestId];
       delete cloudPending[d.requestId];
+      acknowledgeMutationBatch(batch);
       persistBusyRetries = 0;
-      const n = Number(String(d.requestId || "").replace(/^p/, ""));
-      if (n === cloudReq) {
-        if (d.payload) applyCloudDb(d.payload);
-        toast("Salvo na nuvem");
-      } else if (n < cloudReq && !Object.keys(cloudPending).length) {
-        scheduleCloudSave();
-      }
+      toast("Salvo na nuvem");
+      if (hasPendingMutations()) scheduleCloudSave();
     }
     if (d.type === "mb-persist-erro") {
       delete cloudPending[d.requestId];
@@ -2939,6 +3337,7 @@
         toast(persistErroMsg);
       }
     }
+    if (d.type === "mb-retry-save") scheduleCloudSave();
     if (d.type === "mb-file-data" && d.requestId && fileWait[d.requestId]) {
       fileWait[d.requestId].resolve(d);
       delete fileWait[d.requestId];
@@ -2959,6 +3358,11 @@
     if (qd) {
       openModal("finance");
       $("#modal-title").textContent = "Nova despesa / pagamento";
+      const type = $('#modal-form [name="tipoLancamento"]');
+      if (type) {
+        type.value = "saida";
+        type.dispatchEvent(new Event("change"));
+      }
       const s = $('#modal-form [name="saida"]');
       if (s) setTimeout(() => s.focus(), 80);
       return;
