@@ -8,6 +8,8 @@
     "build": "node build-checks/validate-embeds.cjs && tsc && vite build",
     "validate-embeds": "node build-checks/validate-embeds.cjs",
     "format:assessoria": "prettier --write public/sistemas/assessoria-mb/index.html public/sistemas/assessoria-mb/app.js public/sistemas/assessoria-mb/styles/*.css",
+    "unpack:mandato": "node build-checks/unpack-mandato.cjs",
+    "pack:mandato": "node build-checks/pack-mandato.cjs",
     "preview": "vite preview"
   },
   "devDependencies": {
