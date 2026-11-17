@@ -937,24 +937,57 @@
         .join(
           "",
         )}</select></div><div class="field"><label>Empresa</label><select class="control" id="fin-company"><option value="">Todas</option>${subdivisions.map((s) => `<option value="${esc(s)}" ${s === state.empresa ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div><div class="field"><label>Tipo</label><select class="control" id="fin-type"><option value="">Todos</option>${["Receita", "Entrada por fora", "Saída"].map((s) => `<option value="${s}" ${state.finType === s ? "selected" : ""}>${s}</option>`).join("")}</select></div><div class="field"><label>Situação</label><select class="control" id="fin-status"><option value="">Todas</option>${["Concluído", "Em aberto", "Pendente", "Recebido", "Pago", "Valor excedente — revisar"].map((s) => `<option ${s === state.finStatus ? "selected" : ""}>${s}</option>`).join("")}</select></div><div class="field"><label>Centro de custo</label><select class="control" id="fin-cost"><option value="">Todos</option>${costs.map((s) => `<option value="${esc(s)}" ${s === state.finCost ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div><div class="field"><label>Conta Bancária</label><select class="control" id="fin-bank"><option value="">Todas</option>${banks.map((s) => `<option value="${esc(s)}" ${s === state.finBank ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div><div class="field fin-partner-field"><label>Parceiro / referência</label><div class="search-control"><svg><use href="#i-search"></use></svg><input id="fin-search" value="${esc(state.pesquisa)}" placeholder="Buscar parceiro ou referência..."></div></div><button type="button" class="btn primary fin-filter-btn" id="fin-apply"><svg><use href="#i-search"></use></svg>Filtrar</button><button type="button" class="btn fin-clear-btn" id="fin-clear"><svg><use href="#i-history"></use></svg>Limpar</button></div>`;
+    // Valor da linha = valor do lançamento (previsto na receita; recebido na
+    // entrada; saída na despesa). O rodapé NÃO soma tudo: separa caixa e pendência.
     const rowValue = (r) => {
-      const tp = finTipo(r);
-      return tp === "Saída"
-        ? money(r.saida)
-        : money(r.recebido) || money(r.previsto);
+      const kind = finKind(r);
+      if (kind === "saida") return money(r.saida);
+      if (kind === "entrada_por_fora") return money(r.recebido);
+      return money(r.previsto);
     };
-    const periodTotal = rows.reduce((sum, r) => sum + rowValue(r), 0);
+    const periodBreak = rows.reduce(
+      (acc, r) => {
+        const kind = finKind(r);
+        if (kind === "saida") {
+          acc.saidas += money(r.saida);
+        } else {
+          const recebido = money(r.recebido);
+          acc.recebido += recebido;
+          if (kind === "receita")
+            acc.aReceber += Math.max(0, money(r.previsto) - recebido);
+        }
+        return acc;
+      },
+      { recebido: 0, saidas: 0, aReceber: 0 },
+    );
+    const periodSaldo = periodBreak.recebido - periodBreak.saidas;
+    const periodFootLabel = `${rows.length} lançamento${rows.length === 1 ? "" : "s"}`;
+    const periodFootHtml = rows.length
+      ? `<div class="fin-period-break">
+          <span class="fin-period-count">${periodFootLabel}</span>
+          <span>Recebido <b>${fmt(periodBreak.recebido)}</b></span>
+          <span>Saídas <b class="neg">${fmt(periodBreak.saidas)}</b></span>
+          <span>A receber <b>${fmt(periodBreak.aReceber)}</b></span>
+          <span class="fin-period-saldo">Saldo do filtro <b class="${periodSaldo < 0 ? "neg" : ""}">${fmt(periodSaldo)}</b></span>
+        </div>`
+      : "";
     const tableRows = shown
       .map((r) => {
         const tp = finTipo(r),
           st = finStatus(r),
           v = rowValue(r);
         const origin = state.finSelectionLabel ? financeAuditOrigin(r) : "";
-        return `<tr><td class="nowrap">${dateBR(r.data)}${origin ? `<small class="fin-origin-tag ${origin === "Do mês" ? "is-month" : "is-prior"}">${esc(origin)}</small>` : ""}${r.dataRecebida ? `<small class="received-date">Recebida: ${dateBR(r.dataRecebida)}</small>` : ""}</td><td><b>${esc(r.sub || "—")}</b></td><td>${esc(r.parceiro || "—")}${r.observacao ? `<div class="muted">${esc(r.observacao)}</div>` : ""}</td><td>${esc(r.centro || "—")}</td><td>${esc(r.contaBancaria || "—")}</td><td class="description-cell">${esc(r.empresaDepositante || "—")}</td><td><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${icon(tp === "Saída" ? "arrow" : "down")}${tp}</span></td><td class="amount nowrap"><b>${n2(v)}</b></td><td>${finStatusHTML(r)}</td><td>${fileCell(r.anexos, "fin:" + r.id)}</td><td class="action-cell"><div class="row-actions">${(r.anexos || []).length ? `<button type="button" class="row-icon" data-view-files="fin:${esc(r.id)}" title="Visualizar">${icon("eye")}</button>` : ""}<button type="button" class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")} Editar</button>${canDeleteFinance() ? `<button type="button" class="edit-action danger" data-delete-fin="${esc(r.id)}">${icon("trash")} Excluir</button>` : ""}</div></td></tr>`;
+        const kind = finKind(r);
+        const recebido = money(r.recebido);
+        const valorHint =
+          kind === "receita" && money(r.previsto) > 0
+            ? `<small class="received-date">Recebido: ${fmt(recebido)}${recebido + 0.009 < money(r.previsto) ? ` · falta ${fmt(money(r.previsto) - recebido)}` : ""}</small>`
+            : "";
+        return `<tr><td class="nowrap">${dateBR(r.data)}${origin ? `<small class="fin-origin-tag ${origin === "Do mês" ? "is-month" : "is-prior"}">${esc(origin)}</small>` : ""}${r.dataRecebida ? `<small class="received-date">Recebida: ${dateBR(r.dataRecebida)}</small>` : ""}</td><td><b>${esc(r.sub || "—")}</b></td><td>${esc(r.parceiro || "—")}${r.observacao ? `<div class="muted">${esc(r.observacao)}</div>` : ""}</td><td>${esc(r.centro || "—")}</td><td>${esc(r.contaBancaria || "—")}</td><td class="description-cell">${esc(r.empresaDepositante || "—")}</td><td><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${icon(tp === "Saída" ? "arrow" : "down")}${tp}</span></td><td class="amount nowrap"><b>${n2(v)}</b>${valorHint}</td><td>${finStatusHTML(r)}</td><td>${fileCell(r.anexos, "fin:" + r.id)}</td><td class="action-cell"><div class="row-actions">${(r.anexos || []).length ? `<button type="button" class="row-icon" data-view-files="fin:${esc(r.id)}" title="Visualizar">${icon("eye")}</button>` : ""}<button type="button" class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")} Editar</button>${canDeleteFinance() ? `<button type="button" class="edit-action danger" data-delete-fin="${esc(r.id)}">${icon("trash")} Excluir</button>` : ""}</div></td></tr>`;
       })
       .join("");
     const financeFoot = rows.length
-      ? `<tfoot><tr><td colspan="7">Valor total (${rows.length} lançamento${rows.length === 1 ? "" : "s"})</td><td class="amount nowrap"><b>${n2(periodTotal)}</b></td><td colspan="3"></td></tr></tfoot>`
+      ? `<tfoot><tr><td colspan="11">${periodFootHtml}</td></tr></tfoot>`
       : "";
     $("#finance-table").innerHTML =
       state.finView === "detail"
@@ -969,7 +1002,7 @@
               })
               .join("") ||
             `<div class="fin-empty">Nenhum lançamento encontrado para os filtros selecionados.</div>`
-          }${rows.length ? `<div class="fin-detail-total"><span>Valor total (${rows.length} lançamento${rows.length === 1 ? "" : "s"})</span><strong>${n2(periodTotal)}</strong></div>` : ""}</div>`
+          }${periodFootHtml ? `<div class="fin-detail-total fin-detail-break">${periodFootHtml}</div>` : ""}</div>`
         : `<table class="fin-table"><thead><tr><th>Data</th><th>Empresa</th><th>Parceiro</th><th>Centro de Custo</th><th>Conta Bancária</th><th>Empresa depositante</th><th>Tipo</th><th class="num">Valor (R$)</th><th>Situação</th><th>Comprovante</th><th class="action-cell">Ações</th></tr></thead><tbody>${tableRows || noRows("Nenhum lançamento encontrado para os filtros selecionados.", 11)}</tbody>${financeFoot}</table>`;
     $("#finance-pager").innerHTML =
       `<span>Mostrando ${rows.length ? (state.finPage - 1) * pageSize + 1 : 0} a ${Math.min(state.finPage * pageSize, rows.length)} de ${rows.length} registros</span><div class="fin-page-buttons"><button type="button" id="fin-first" ${state.finPage === 1 ? "disabled" : ""}>«</button><button type="button" id="fin-prev" ${state.finPage === 1 ? "disabled" : ""}>‹</button><span>${state.finPage}</span><button type="button" id="fin-next" ${state.finPage === pages ? "disabled" : ""}>›</button><button type="button" id="fin-last" ${state.finPage === pages ? "disabled" : ""}>»</button></div>`;
