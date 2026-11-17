@@ -167,6 +167,15 @@
     taskQuery: "",
     role: "admin",
     taskMonth: "",
+    accountPeriod: "month",
+    accountMonth: new Date().toLocaleDateString("en-CA").slice(0, 7),
+    accountYear: new Date().toLocaleDateString("en-CA").slice(0, 4),
+    accountWeek: new Date().toLocaleDateString("en-CA"),
+    accountFrom: "",
+    accountTo: "",
+    accountCompany: "",
+    accountFiles: "all",
+    accountQuery: "",
   };
   if (state.empresa === "__ref__") state.empresa = "";
   if (state.finHistCompany === "__ref__") state.finHistCompany = "";
@@ -523,38 +532,84 @@
       ),
       { prev: 0, rec: 0, recReceita: 0, recExtra: 0, sai: 0 },
     );
-  function metrics(container, rows) {
-    const a = totals(rows),
-      pct = a.prev ? Math.round((a.recReceita / a.prev) * 100) : 0,
-      saldo = a.rec - a.sai;
-    const items = [
+  function financeMetricScope() {
+    return db.finance.filter(
+      (record) =>
+        (!state.empresa || record.sub === state.empresa) &&
+        (!state.finReconcileIds || state.finReconcileIds.has(record.id)) &&
+        (!state.finType || finTipo(record) === state.finType) &&
+        (!state.finStatus || finStatus(record)[0] === state.finStatus) &&
+        (!state.finCost || record.centro === state.finCost) &&
+        (!state.pesquisa ||
+          [record.parceiro, record.centro, record.empresaDepositante, record.demanda, record.sub]
+            .join(" ")
+            .toLocaleLowerCase("pt-BR")
+            .includes(state.pesquisa.toLocaleLowerCase("pt-BR"))),
+    );
+  }
+  function financeMonthTitle(reference) {
+    return compLabel(reference).split(" / ")[0];
+  }
+  function metrics(container) {
+    const scope = financeMetricScope();
+    const stats = dashboardPeriodStats(scope, state.mes);
+    const cash = cashSnapshot(scope, state.mes);
+    const selectedMonth = /^\d{4}-\d{2}$/.test(state.mes);
+    const priorLabel = selectedMonth
+      ? `Ficou em ${financeMonthTitle(previousMonth(state.mes))}`
+      : "";
+    const periodLabel = selectedMonth
+      ? financeMonthTitle(state.mes)
+      : "Todo o período";
+    const items = [];
+    if (selectedMonth)
+      items.push([
+        "carry",
+        "history",
+        priorLabel,
+        fmt(cash.prior),
+        `Saldo transportado para ${periodLabel}`,
+      ]);
+    items.push(
       [
         "in",
         "down",
-        "A Receber (Previsto)",
-        fmt(a.prev),
-        `${rows.length} lançamento(s)`,
+        selectedMonth ? `A Receber em ${periodLabel}` : "A Receber",
+        fmt(stats.pending),
+        selectedMonth
+          ? `${fmt(stats.pendingMonth)} referente aos lançamentos de ${periodLabel}`
+          : "Valores previstos ainda não recebidos",
       ],
       [
         "ok",
         "check",
-        "Recebido",
-        fmt(a.rec),
-        `<span class="pos">${pct}% do previsto${a.recExtra ? ` · ${fmt(a.recExtra)} por fora` : ""}</span><div class="meter"><i style="width:${Math.min(100, pct)}%"></i></div>`,
+        selectedMonth ? `Recebido em ${periodLabel}` : "Recebido",
+        fmt(cash.entries),
+        "Dinheiro efetivamente recebido no período",
       ],
       [
         "out",
         "arrow",
-        "Despesas / Saídas",
-        fmt(a.sai),
-        `${rows.length} lançamento(s)`,
+        selectedMonth ? `Saídas em ${periodLabel}` : "Saídas",
+        fmt(cash.exits),
+        "Pagamentos e despesas do período",
       ],
-      ["bal", "database", "Saldo Líquido", fmt(saldo), "Recebido – Saídas"],
-    ];
-    $(container).innerHTML = items
+      [
+        "bal",
+        "database",
+        selectedMonth ? `Total em ${periodLabel}` : "Saldo Total",
+        fmt(cash.final),
+        selectedMonth
+          ? "Saldo anterior mais recebimentos menos saídas"
+          : "Recebimentos menos saídas",
+      ],
+    );
+    const root = $(container);
+    root.classList.toggle("is-month", selectedMonth);
+    root.innerHTML = items
       .map(
         (x) =>
-          `<article class="kpi ${x[0]}"><span class="kpi-ico">${icon(x[1])}</span><div class="kpi-body"><div class="label">${x[2]}</div><strong class="${x[0] === "bal" && saldo < 0 ? "neg" : ""}" title="${x[3]}">${x[3]}</strong><small>${x[4]}</small></div></article>`,
+          `<article class="kpi ${x[0]}"><span class="kpi-ico">${icon(x[1])}</span><div class="kpi-body"><div class="label">${x[2]}</div><strong class="${x[0] === "bal" && cash.final < 0 ? "neg" : ""}" title="${x[3]}">${x[3]}</strong><small>${x[4]}</small></div></article>`,
       )
       .join("");
   }
@@ -632,7 +687,7 @@
       if (byDate) return byDate * direction;
       return String(a.id || "").localeCompare(String(b.id || "")) * direction;
     });
-    metrics("#finance-metrics", rows);
+    metrics("#finance-metrics");
     const pageSize = state.finPageSize || 5,
       pages = Math.max(1, Math.ceil(rows.length / pageSize));
     state.finPage = Math.min(Math.max(1, state.finPage || 1), pages);
@@ -642,7 +697,7 @@
     );
     $("#finance-count").textContent = `Exibindo ${rows.length} registro(s)`;
     $("#fin-reconcile-banner").innerHTML = state.finReconcileIds
-      ? `<div class="fin-reconcile-banner">${icon("info")}<span>Filtrando ${state.finReconcileIds.size} movimentação(ões) sem data efetiva que aguardam conciliação.</span><button type="button" id="fin-reconcile-clear">Limpar filtro</button></div>`
+      ? `<div class="fin-reconcile-banner">${icon("info")}<span>${state.finReconcileIds.size} ${state.finReconcileIds.size === 1 ? "registro selecionado" : "registros selecionados"} sem data financeira.</span><button type="button" id="fin-reconcile-clear">Limpar filtro</button></div>`
       : "";
     const costs = [
       ...new Set(db.finance.map((r) => r.centro).filter(Boolean)),
@@ -1223,6 +1278,243 @@
     $("#tasks-history-table").innerHTML =
       `<table><thead><tr><th>Tarefa</th><th>Nome</th><th>Responsável</th><th>Origem de pagamento</th><th>Prazo</th><th>Situação</th><th>Anexos</th><th></th></tr></thead><tbody>${rows.map((t) => `<tr><td><b>${esc(t.titulo)}</b></td><td>${esc(t.nome || "—")}</td><td>${esc(t.responsavel)}</td><td>${esc(t.origemPagamento || "—")}</td><td>${dateBR(t.prazo)}</td><td>${statusPill(t.status)}</td><td>${fileCell(t.anexos, "task:" + t.id)}</td><td><button class="edit-action" data-edit-task="${esc(t.id)}">${icon("list")} Editar</button></td></tr>`).join("") || noRows("Sem tarefas registradas.", 8)}</tbody></table>`;
   }
+
+  function accountabilityRange() {
+    const mode = state.accountPeriod || "month";
+    if (mode === "all") return { start: "", end: "", label: "Todo o período" };
+    if (mode === "year") {
+      const year = /^\d{4}$/.test(state.accountYear) ? state.accountYear : todayISO().slice(0, 4);
+      return { start: `${year}-01-01`, end: `${year}-12-31`, label: `Ano de ${year}` };
+    }
+    if (mode === "custom") {
+      const start = state.accountFrom || "";
+      const end = state.accountTo || "";
+      return {
+        start,
+        end,
+        label: start && end ? `${dateBR(start)} a ${dateBR(end)}` : "Período personalizado",
+      };
+    }
+    if (mode === "week") {
+      const base = /^\d{4}-\d{2}-\d{2}$/.test(state.accountWeek) ? state.accountWeek : todayISO();
+      const date = new Date(base + "T12:00:00");
+      const day = date.getDay() || 7;
+      date.setDate(date.getDate() - day + 1);
+      const start = date.toLocaleDateString("en-CA");
+      date.setDate(date.getDate() + 6);
+      const end = date.toLocaleDateString("en-CA");
+      return { start, end, label: `${dateBR(start)} a ${dateBR(end)}` };
+    }
+    const selected = /^\d{4}-\d{2}$/.test(state.accountMonth) ? state.accountMonth : todayISO().slice(0, 7);
+    const bounds = monthBounds(selected);
+    const endDate = new Date(bounds.end + "T12:00:00");
+    endDate.setDate(endDate.getDate() - 1);
+    return {
+      start: bounds.start,
+      end: endDate.toLocaleDateString("en-CA"),
+      label: compLabel(selected),
+    };
+  }
+
+  const inAccountRange = (value, range) =>
+    isFinancialDate(value) && (!range.start || value >= range.start) && (!range.end || value <= range.end);
+
+  function accountScopeRows(company = state.accountCompany) {
+    return db.finance.filter((record) => !company || record.sub === company);
+  }
+
+  function accountReportRows(scope, range) {
+    const query = String(state.accountQuery || "").trim().toLocaleLowerCase("pt-BR");
+    return scope
+      .filter((record) => {
+        const launchInRange = inAccountRange(record.data, range);
+        const receiptInRange = receiptCashEvents(record).some((event) => inAccountRange(event.data, range));
+        if (!launchInRange && !receiptInRange) return false;
+        const files = (record.anexos || []).length;
+        if (state.accountFiles === "with" && !files) return false;
+        if (state.accountFiles === "without" && files) return false;
+        if (query) {
+          const haystack = [record.sub, record.parceiro, record.centro, record.empresaDepositante, record.observacao, record.origem]
+            .join(" ")
+            .toLocaleLowerCase("pt-BR");
+          if (!haystack.includes(query)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => String(a.data || "").localeCompare(String(b.data || "")) || String(a.sub || "").localeCompare(String(b.sub || ""), "pt-BR"));
+  }
+
+  function accountCashSummary(scope, range) {
+    const ledger = cashLedger(scope);
+    const entries = ledger.entries.filter((event) => inAccountRange(event.data, range));
+    const exits = ledger.exits.filter((event) => inAccountRange(event.data, range));
+    const beforeEntries = range.start
+      ? ledger.entries.filter((event) => event.data && event.data < range.start)
+      : [];
+    const beforeExits = range.start
+      ? ledger.exits.filter((event) => event.data && event.data < range.start)
+      : [];
+    const sum = (items) => items.reduce((total, item) => total + money(item.value), 0);
+    const prior = range.start ? sum(beforeEntries) - sum(beforeExits) : null;
+    const received = sum(entries);
+    const outputs = sum(exits);
+    return {
+      prior,
+      received,
+      outputs,
+      final: (prior || 0) + received - outputs,
+      unknown: ledger.entries.filter((event) => !event.data).length + ledger.exits.filter((event) => !event.data).length,
+    };
+  }
+
+  function accountReceivable(scope, range) {
+    const cutoff = range.end || "9999-12-31";
+    return scope
+      .filter(
+        (record) =>
+          finKind(record) === "receita" &&
+          isFinancialDate(record.data) &&
+          record.data <= cutoff,
+      )
+      .reduce((total, record) => {
+        const received = receiptCashEvents(record)
+          .filter((event) => event.data && event.data <= cutoff)
+          .reduce((sum, event) => sum + event.value, 0);
+        return total + Math.max(0, money(record.previsto) - received);
+      }, 0);
+  }
+
+  function accountCompanySummary(range) {
+    const list = state.accountCompany ? [state.accountCompany] : subdivisions;
+    return list.map((company) => {
+      const scope = accountScopeRows(company);
+      const reportRows = accountReportRows(scope, range);
+      const cash = accountCashSummary(scope, range);
+      return {
+        company,
+        records: reportRows.length,
+        expected: reportRows
+          .filter((record) => inAccountRange(record.data, range) && finKind(record) === "receita")
+          .reduce((total, record) => total + money(record.previsto), 0),
+        files: reportRows.reduce((total, record) => total + (record.anexos || []).length, 0),
+        ...cash,
+      };
+    });
+  }
+
+  function accountAttachmentHTML(record, file, fileIndex, sequence) {
+    const image = String(file.type || "").startsWith("image/");
+    return `<article class="account-proof-card"><div class="account-proof-meta"><span>Comprovante ${sequence}</span><strong>${esc(record.sub || "Empresa não identificada")}</strong><small>${dateBR(record.data)}  ${esc(record.parceiro || "Sem favorecido")}</small><small>${esc(file.name || "Arquivo")}</small></div><div class="account-proof-preview">${image ? `<img data-account-proof="${esc(record.id)}:${fileIndex}" alt="${esc(file.name || "Comprovante")}">` : `${icon("file")}<strong>Documento PDF</strong><span>${esc(file.name || "Comprovante")}</span>`}</div><button type="button" class="account-proof-open no-print" data-view-files="fin:${esc(record.id)}" data-file-index="${fileIndex}">Visualizar comprovante</button></article>`;
+  }
+
+  function accountReportHTML(rows, range, cash, companies, receivable) {
+    const companyLabel = state.accountCompany || "Consolidado";
+    const expected = rows
+      .filter((record) => inAccountRange(record.data, range) && finKind(record) === "receita")
+      .reduce((total, record) => total + money(record.previsto), 0);
+    const attachments = rows.flatMap((record) => (record.anexos || []).map((file, fileIndex) => ({ record, file, fileIndex })));
+    let proofNumber = 0;
+    const detailRows = rows.map((record, index) => {
+      const received = receiptCashEvents(record)
+        .filter((event) => inAccountRange(event.data, range))
+        .reduce((total, event) => total + event.value, 0);
+      const output = finKind(record) === "saida" && inAccountRange(record.data, range) ? money(record.saida) : 0;
+      const launchExpected = finKind(record) === "receita" && inAccountRange(record.data, range) ? money(record.previsto) : 0;
+      const files = (record.anexos || []).length;
+      return `<tr><td>${index + 1}</td><td class="nowrap">${dateBR(record.data)}</td><td><strong>${esc(record.sub || "Não identificada")}</strong></td><td>${esc(finTipo(record))}</td><td>${esc(record.parceiro || "Não informado")}</td><td>${esc(record.centro || "Não informado")}</td><td class="num">${fmt(launchExpected)}</td><td class="num">${fmt(received)}</td><td class="num">${fmt(output)}</td><td>${files ? `${files} arquivo${files === 1 ? "" : "s"}` : "Não anexado"}</td></tr>`;
+    }).join("");
+    const companyRows = companies.map((item) => `<tr><td><strong>${esc(item.company)}</strong></td><td class="num">${item.records}</td><td class="num">${fmt(item.expected)}</td><td class="num">${fmt(item.received)}</td><td class="num">${fmt(item.outputs)}</td><td class="num">${fmt(item.final)}</td><td class="num">${item.files}</td></tr>`).join("");
+    const totals = companies.reduce((total, item) => ({
+      records: total.records + item.records,
+      expected: total.expected + item.expected,
+      received: total.received + item.received,
+      outputs: total.outputs + item.outputs,
+      final: total.final + item.final,
+      files: total.files + item.files,
+    }), { records: 0, expected: 0, received: 0, outputs: 0, final: 0, files: 0 });
+    const generatedAt = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+    const isMonthly = state.accountPeriod === "month" && /^\d{4}-\d{2}$/.test(state.accountMonth);
+    const selectedMonthLabel = isMonthly ? financeMonthTitle(state.accountMonth) : "";
+    const previousMonthLabel = isMonthly ? financeMonthTitle(previousMonth(state.accountMonth)) : "";
+    return `<div class="account-report-cover"><div class="account-brand"><strong>ASSESSORIA MB</strong><span>Prestação de contas</span></div><div class="account-document-meta"><div><span>Emissão</span><strong>${generatedAt}</strong></div><div><span>Empresa</span><strong>${esc(companyLabel)}</strong></div><div><span>Período</span><strong>${esc(range.label)}</strong></div><div><span>Lançamentos</span><strong>${rows.length.toLocaleString("pt-BR")}</strong></div></div></div>
+      <section class="account-report-section"><div class="account-section-title"><span>01</span><div><h3>Resumo financeiro</h3><p>Posição apurada para o período selecionado</p></div></div><div class="account-summary-grid account-summary-primary"><article><span>${isMonthly ? `Ficou em ${esc(previousMonthLabel)}` : "Saldo anterior"}</span><strong>${cash.prior == null ? "Não aplicável" : fmt(cash.prior)}</strong></article><article><span>${isMonthly ? `A Receber em ${esc(selectedMonthLabel)}` : "A Receber"}</span><strong>${fmt(receivable)}</strong></article><article><span>${isMonthly ? `Recebido em ${esc(selectedMonthLabel)}` : "Recebimentos"}</span><strong>${fmt(cash.received)}</strong></article><article><span>${isMonthly ? `Saídas em ${esc(selectedMonthLabel)}` : "Saídas"}</span><strong>${fmt(cash.outputs)}</strong></article><article class="account-summary-final"><span>${isMonthly ? `Total em ${esc(selectedMonthLabel)}` : "Saldo final"}</span><strong>${fmt(cash.final)}</strong></article></div><div class="account-summary-grid account-summary-secondary"><article><span>Valor previsto</span><strong>${fmt(expected)}</strong></article><article><span>Lançamentos</span><strong>${rows.length.toLocaleString("pt-BR")}</strong></article><article><span>Empresas</span><strong>${companies.length}</strong></article><article><span>Comprovantes</span><strong>${attachments.length}</strong></article></div></section>
+      <section class="account-report-section"><div class="account-section-title"><span>02</span><div><h3>Consolidação por empresa</h3><p>Composição financeira e documental</p></div></div><div class="account-sheet-table"><table><thead><tr><th>Empresa</th><th class="num">Registros</th><th class="num">Previsto</th><th class="num">Recebido</th><th class="num">Saídas</th><th class="num">Saldo final</th><th class="num">Anexos</th></tr></thead><tbody>${companyRows || `<tr><td colspan="7" class="account-empty">Nenhuma movimentação encontrada</td></tr>`}</tbody><tfoot><tr><th>Total consolidado</th><th class="num">${totals.records}</th><th class="num">${fmt(totals.expected)}</th><th class="num">${fmt(totals.received)}</th><th class="num">${fmt(totals.outputs)}</th><th class="num">${fmt(totals.final)}</th><th class="num">${totals.files}</th></tr></tfoot></table></div></section>
+      <section class="account-report-section account-detail-section"><div class="account-section-title"><span>03</span><div><h3>Relação analítica dos lançamentos</h3><p>Dados financeiros registrados no sistema</p></div></div><div class="account-sheet-table account-detail-table"><table><thead><tr><th>Nº</th><th>Data</th><th>Empresa</th><th>Tipo</th><th>Parceiro</th><th>Centro</th><th class="num">Previsto</th><th class="num">Recebido</th><th class="num">Saída</th><th>Comprovante</th></tr></thead><tbody>${detailRows || `<tr><td colspan="10" class="account-empty">Nenhum lançamento atende aos filtros selecionados</td></tr>`}</tbody></table></div></section>
+      ${attachments.length ? `<section class="account-report-section account-proof-section"><div class="account-section-title"><span>04</span><div><h3>Anexos comprobatórios</h3><p>Documentos vinculados aos lançamentos apresentados</p></div></div><div class="account-proof-grid">${attachments.map(({ record, file, fileIndex }) => accountAttachmentHTML(record, file, fileIndex, ++proofNumber)).join("")}</div></section>` : ""}
+      <footer class="account-report-footer"><span>Assessoria MB</span><span>Emitido em ${generatedAt}</span><span>Prestação de contas dos lançamentos</span></footer>`;
+  }
+
+  async function hydrateAccountProofs() {
+    const images = $$('[data-account-proof]');
+    await Promise.all(images.map(async (image) => {
+      const [recordId, indexText] = image.dataset.accountProof.split(":");
+      const record = db.finance.find((item) => String(item.id) === recordId);
+      const file = record && (record.anexos || [])[Number(indexText)];
+      if (!file) return;
+      const blob = await resolveAnexoBlob(file);
+      if (!blob || !String(blob.type || file.type).startsWith("image/")) return;
+      image.src = URL.createObjectURL(blob);
+    }));
+  }
+
+  function exportAccountCSV(rows, range) {
+    const columns = ["Data", "Empresa", "Tipo", "Parceiro", "Centro de custo", "Previsto", "Recebido no período", "Saída", "Comprovantes"];
+    const lines = rows.map((record) => {
+      const received = receiptCashEvents(record).filter((event) => inAccountRange(event.data, range)).reduce((total, event) => total + event.value, 0);
+      const values = [record.data || "", record.sub || "", finTipo(record), record.parceiro || "", record.centro || "", money(record.previsto).toFixed(2), received.toFixed(2), money(record.saida).toFixed(2), (record.anexos || []).length];
+      return values.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(";");
+    });
+    const blob = new Blob(["\ufeff" + [columns.join(";"), ...lines].join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `prestacao-contas-${range.start || "completo"}-${range.end || "atual"}.csv`;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function drawAccountability() {
+    const filters = $("#account-filters");
+    const report = $("#account-report");
+    if (!filters || !report) return;
+    const mode = state.accountPeriod || "month";
+    filters.innerHTML = `<div class="field"><label>Periodicidade</label><select class="control" id="account-period"><option value="week" ${mode === "week" ? "selected" : ""}>Semanal</option><option value="month" ${mode === "month" ? "selected" : ""}>Mensal</option><option value="year" ${mode === "year" ? "selected" : ""}>Anual</option><option value="custom" ${mode === "custom" ? "selected" : ""}>Período personalizado</option><option value="all" ${mode === "all" ? "selected" : ""}>Todo o período</option></select></div><div class="field account-mode account-mode-week" ${mode === "week" ? "" : "hidden"}><label>Semana de referência</label><input type="date" class="control" id="account-week" value="${esc(state.accountWeek)}"></div><div class="field account-mode account-mode-month" ${mode === "month" ? "" : "hidden"}><label>Mês</label><input type="month" class="control" id="account-month" value="${esc(state.accountMonth)}"></div><div class="field account-mode account-mode-year" ${mode === "year" ? "" : "hidden"}><label>Ano</label><input type="number" min="2000" max="2100" class="control" id="account-year" value="${esc(state.accountYear)}"></div><div class="field account-mode account-mode-custom" ${mode === "custom" ? "" : "hidden"}><label>Data inicial</label><input type="date" class="control" id="account-from" value="${esc(state.accountFrom)}"></div><div class="field account-mode account-mode-custom" ${mode === "custom" ? "" : "hidden"}><label>Data final</label><input type="date" class="control" id="account-to" value="${esc(state.accountTo)}"></div><div class="field"><label>Empresa</label><select class="control" id="account-company"><option value="">Consolidado</option>${subdivisions.map((company) => `<option value="${esc(company)}" ${state.accountCompany === company ? "selected" : ""}>${esc(company)}</option>`).join("")}</select></div><div class="field"><label>Comprovantes</label><select class="control" id="account-files"><option value="all" ${state.accountFiles === "all" ? "selected" : ""}>Todos os lançamentos</option><option value="with" ${state.accountFiles === "with" ? "selected" : ""}>Com comprovante</option><option value="without" ${state.accountFiles === "without" ? "selected" : ""}>Sem comprovante</option></select></div><div class="field account-search"><label>Localizar lançamento</label><input type="search" class="control" id="account-query" value="${esc(state.accountQuery)}" placeholder="Empresa, parceiro, centro ou observação"></div>`;
+    const redraw = (key, value) => {
+      state[key] = value;
+      drawAccountability();
+    };
+    const links = [["account-period", "accountPeriod"], ["account-week", "accountWeek"], ["account-month", "accountMonth"], ["account-year", "accountYear"], ["account-from", "accountFrom"], ["account-to", "accountTo"], ["account-company", "accountCompany"], ["account-files", "accountFiles"], ["account-query", "accountQuery"]];
+    links.forEach(([id, key]) => {
+      const element = $("#" + id);
+      if (element) element.onchange = (event) => redraw(key, event.target.value);
+    });
+    const range = accountabilityRange();
+    const scope = accountScopeRows();
+    const rows = accountReportRows(scope, range);
+    const cash = accountCashSummary(scope, range);
+    const receivable = accountReceivable(scope, range);
+    const companies = accountCompanySummary(range);
+    report.innerHTML = accountReportHTML(rows, range, cash, companies, receivable);
+    $("#account-result-count").textContent = `${rows.length} lançamento${rows.length === 1 ? "" : "s"} no relatório`;
+    $("#account-clear").onclick = () => {
+      Object.assign(state, { accountPeriod: "month", accountMonth: todayISO().slice(0, 7), accountYear: todayISO().slice(0, 4), accountWeek: todayISO(), accountFrom: "", accountTo: "", accountCompany: "", accountFiles: "all", accountQuery: "" });
+      drawAccountability();
+    };
+    $("#account-export-csv").onclick = () => exportAccountCSV(rows, range);
+    $("#account-print").onclick = async () => {
+      const button = $("#account-print");
+      button.disabled = true;
+      button.innerHTML = `${icon("clock")}Preparando relatório`;
+      await hydrateAccountProofs();
+      document.body.classList.add("printing-accountability");
+      window.print();
+      setTimeout(() => {
+        document.body.classList.remove("printing-accountability");
+        button.disabled = false;
+        button.innerHTML = `${icon("file")}Gerar relatório A4`;
+      }, 500);
+    };
+  }
   function drawAnexos() {
     const all = [
       ...db.finance.map((r) => ({
@@ -1334,12 +1626,10 @@
     drawReceber();
     drawPagar();
     drawDeadlines();
-    drawSpend();
     drawFinance();
     drawTasks();
     drawFinancialHistory();
-    drawHistory();
-    drawTaskHistory();
+    drawAccountability();
     drawAnexos();
     drawAudit();
     drawSettings();
@@ -3295,11 +3585,14 @@
       .join("");
   }
   function drawDashboardKpis(rows) {
+    const root = $("#dash-metrics");
     if (!state.mes) {
+      root.classList.remove("is-month");
       kpis("#dash-metrics", rows);
       return;
     }
     const snapshot = cashSnapshot(rows, state.mes);
+    const stats = dashboardPeriodStats(rows, state.mes);
     const selectedLabel = compLabel(state.mes).split(" /")[0];
     const previous = previousMonth(state.mes);
     const previousParts = previous.split("-");
@@ -3307,8 +3600,6 @@
       previousParts[0] === state.mes.split("-")[0]
         ? MESES[Number(previousParts[1]) - 1]
         : compLabel(previous);
-    const pendingReconcile =
-      snapshot.unknownEntries.length + snapshot.unknownExits.length;
     const entryLines = [
       `${fmt(snapshot.entriesFromMonth)} de lançamentos de ${selectedLabel.toLowerCase()}`,
       `${fmt(snapshot.entriesFromPrior)} de lançamentos de meses anteriores`,
@@ -3317,25 +3608,32 @@
       entryLines.push(`${fmt(snapshot.entriesFromOther)} de outros lançamentos`);
     const items = [
       [
+        "carry",
+        "history",
+        `Ficou em ${previousLabel}`,
+        fmt(snapshot.prior),
+        esc(`Saldo transportado para ${selectedLabel}`),
+      ],
+      [
         "in",
         "down",
-        `Saldo ${previousLabel}`,
-        fmt(snapshot.prior),
-        esc(`Quanto ficou no fim de ${previousLabel}`),
+        `A Receber em ${selectedLabel}`,
+        fmt(stats.pending),
+        esc(`${fmt(stats.pendingMonth)} referente aos lançamentos de ${selectedLabel}`),
       ],
       [
         "cash-in",
         "arrow",
-        `Entrou em ${selectedLabel}`,
+        `Recebido em ${selectedLabel}`,
         fmt(snapshot.entries),
-        `${esc("Total geral que entrou no mês")}${entryLines
+        `${esc("Dinheiro efetivamente recebido no mês")}${entryLines
           .map((line) => `<span class="kpi-break">${esc(line)}</span>`)
           .join("")}`,
       ],
       [
         "out",
         "arrow",
-        `Saiu em ${selectedLabel}`,
+        `Saídas em ${selectedLabel}`,
         fmt(snapshot.exits),
         esc(
           snapshot.exitCount
@@ -3346,14 +3644,13 @@
       [
         "bal",
         "database",
-        `Saldo ${selectedLabel}${pendingReconcile ? " (provisório)" : ""}`,
+        `Total em ${selectedLabel}`,
         fmt(snapshot.final),
-        pendingReconcile
-          ? `${esc("Saldo anterior + entradas − saídas")}<span class="kpi-break">${esc(`${pendingReconcile} movimentação(ões) sem data aguardam conciliação`)}</span>`
-          : esc("Saldo anterior + entradas − saídas"),
+        esc("Saldo anterior mais recebimentos menos saídas"),
       ],
     ];
-    $("#dash-metrics").innerHTML = items
+    root.classList.add("is-month");
+    root.innerHTML = items
       .map(
         (item) =>
           `<article class="kpi ${item[0]}"><span class="kpi-ico">${icon(item[1])}</span><div class="kpi-body"><div class="label">${esc(item[2])}</div><strong class="${item[0] === "bal" && snapshot.final < 0 ? "neg" : ""}" title="${esc(item[3])}">${item[3]}</strong><small>${item[4]}</small></div></article>`,
@@ -3391,7 +3688,7 @@
     }
     const note =
       unknownEntries || unknownExits
-        ? `<div class="cash-reconcile-note">${icon("info")}<span>${unknownEntries + unknownExits} movimentação(ões) sem data efetiva aguardam conciliação e não foram atribuídas ao fluxo mensal.</span></div>`
+        ? `<div class="cash-reconcile-note">${icon("info")}<span>${unknownEntries + unknownExits} ${unknownEntries + unknownExits === 1 ? "registro sem data financeira" : "registros sem data financeira"}. Revisar em Lançamentos.</span></div>`
         : "";
     return `<table class="sum-table data-table cash-summary-table"><thead><tr><th>Empresa</th><th class="num">Saldo Anterior</th><th class="num">Entradas</th><th class="num">Saídas</th><th class="num">Saldo Final</th></tr></thead><tbody>${rows
       .map(
@@ -3573,7 +3870,7 @@
           .join("")}</div>
       </div></div>
       <div class="mchart-legend"><span><i class="p"></i>Previsto</span><span><i class="r"></i>Recebido</span><span><i class="s"></i>Saídas</span></div>
-      ${unknownCount ? `<button type="button" class="mchart-alert mchart-reconcile" data-reconcile-go="${esc(unknownIds.join(","))}" title="Ver estes lançamentos em Lançamentos">${icon("info")}<span>${unknownCount} movimentação(ões) aguardam conciliação de data</span></button>` : ""}
+      ${unknownCount ? `<button type="button" class="mchart-alert mchart-reconcile" data-reconcile-go="${esc(unknownIds.join(","))}" title="Ver em Lançamentos">${icon("info")}<span>${unknownCount} ${unknownCount === 1 ? "registro sem data financeira" : "registros sem data financeira"}</span></button>` : ""}
       <p class="mchart-help">Passe o mouse ou toque nas barras para ver os valores detalhados.</p>
     </div>`;
   }
