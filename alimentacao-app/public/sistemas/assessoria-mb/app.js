@@ -1891,6 +1891,38 @@
     </tr>`;
   }
 
+  function accountDetailTotalHTML(records, range) {
+    const totals = records.reduce(
+      (total, record) => {
+        const received = receiptCashEvents(record)
+          .filter((event) => inAccountRange(event.data, range))
+          .reduce((sum, event) => sum + event.value, 0);
+        const output =
+          finKind(record) === "saida" && inAccountRange(record.data, range)
+            ? money(record.saida)
+            : 0;
+        const expected =
+          finKind(record) === "receita" && inAccountRange(record.data, range)
+            ? money(record.previsto)
+            : 0;
+        return {
+          expected: total.expected + expected,
+          received: total.received + received,
+          output: total.output + output,
+          files: total.files + (record.anexos || []).length,
+        };
+      },
+      { expected: 0, received: 0, output: 0, files: 0 },
+    );
+    return `<tr class="row-total account-detail-total">
+      <td colspan="6" class="text-right">Total</td>
+      <td class="text-right tabular-nums col-previsto ${accountMoneyClass(totals.expected)}">${fmt(totals.expected)}</td>
+      <td class="text-right tabular-nums col-recebido ${accountMoneyClass(totals.received, "in")}">${fmt(totals.received)}</td>
+      <td class="text-right tabular-nums ${accountMoneyClass(totals.output, "out")}">${fmt(totals.output)}</td>
+      <td class="text-center col-comprov">${totals.files}</td>
+    </tr>`;
+  }
+
   function accountReportHTML(rows, range, cash, companies) {
     const companyLabel = state.accountCompany || "Consolidado";
     const attachments = rows.flatMap((record) =>
@@ -2023,11 +2055,11 @@
         <h3 class="account-section-title">3. Entradas</h3>
         <div class="account-sub-banner">PROGRAMAÇÃO</div>
         <div class="account-sheet-table account-detail-table" style="margin-bottom:12px">
-          <table class="erp-table tabular-nums">${detailHead}<tbody>${programacaoRows || emptyDetail("Nenhuma entrada de programação no período.")}</tbody></table>
+          <table class="erp-table tabular-nums">${detailHead}<tbody>${programacaoRows || emptyDetail("Nenhuma entrada de programação no período.")}${accountDetailTotalHTML(programacaoRecords, range)}</tbody></table>
         </div>
         <div class="account-sub-banner">POR FORA</div>
         <div class="account-sheet-table account-detail-table">
-          <table class="erp-table tabular-nums">${detailHead}<tbody>${porForaRows || emptyDetail("Nenhuma entrada por fora no período.")}</tbody></table>
+          <table class="erp-table tabular-nums">${detailHead}<tbody>${porForaRows || emptyDetail("Nenhuma entrada por fora no período.")}${accountDetailTotalHTML(porForaRecords, range)}</tbody></table>
         </div>
       </section>
       <section class="account-report-section account-detail-section account-saidas-section">
