@@ -5475,6 +5475,11 @@ body {
   body.printing-accountability .erp-table th,
   body.printing-accountability .erp-table td {
     padding: 3px 5px;
+    border: 1px solid #707070 !important;
+  }
+
+  body.printing-accountability .account-sub-banner {
+    border-color: #707070 !important;
   }
 
   body.printing-accountability .erp-table thead {
