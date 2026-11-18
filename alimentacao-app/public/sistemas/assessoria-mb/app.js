@@ -1877,14 +1877,21 @@
     const attachments = rows.flatMap((record) => (record.anexos || []).map((file, fileIndex) => ({ record, file, fileIndex })));
     let proofNumber = 0;
     const entryRecords = rows.filter((record) => finKind(record) !== "saida");
+    const programacaoRecords = entryRecords.filter((record) => !isPorForaRecord(record));
+    const porForaRecords = entryRecords.filter((record) => isPorForaRecord(record));
     const exitRecords = rows.filter((record) => finKind(record) === "saida");
-    const entryRows = entryRecords
+    const programacaoRows = programacaoRecords
+      .map((record, index) => accountDetailRowHTML(record, index + 1, range))
+      .join("");
+    const porForaRows = porForaRecords
       .map((record, index) => accountDetailRowHTML(record, index + 1, range))
       .join("");
     const exitRows = exitRecords
       .map((record, index) => accountDetailRowHTML(record, index + 1, range))
       .join("");
     const detailHead = `<thead><tr><th>Nº</th><th>Data</th><th>Empresa</th><th>Tipo</th><th>Parceiro</th><th>Centro</th><th class="num">Previsto</th><th class="num">Recebido</th><th class="num">Saída</th><th>Comprov.</th></tr></thead>`;
+    const emptyDetail = (label) =>
+      `<tr><td colspan="10" class="account-empty">${label}</td></tr>`;
     const companyRows = companies.map((item) => `<tr><td>${esc(item.company)}</td><td class="num">${item.records}</td><td class="num">${fmt(item.expected)}</td><td class="num">${fmt(item.received)}</td><td class="num">${fmt(item.outputs)}</td><td class="num">${fmt(item.final)}</td><td class="num">${item.files}</td></tr>`).join("");
     const totals = companies.reduce((total, item) => ({
       records: total.records + item.records,
@@ -1912,10 +1919,13 @@
     const programacaoValue = fmt(cash.programacao || 0);
     const porForaValue = fmt(cash.porFora || 0);
     return `<header class="account-report-cover"><h2>Prestação de Contas — Assessoria MB</h2><p><b>Empresa:</b> ${esc(companyLabel)} &nbsp;&nbsp; <b>Período:</b> ${esc(range.label)} &nbsp;&nbsp; <b>Emitido em:</b> ${generatedAt}</p></header>
-      <section class="account-report-section"><h3 class="account-section-title">1. Resumo</h3><table class="account-ledger"><tbody><tr><td>${priorLabel}</td><td class="num">${cash.prior == null ? "—" : fmt(cash.prior)}</td></tr><tr><td>${entradaLabel}</td><td class="num">${programacaoValue}</td></tr><tr><td>${porForaLabel}</td><td class="num">${porForaValue}</td></tr><tr><td>${saidaLabel}</td><td class="num">${fmt(cash.outputs)}</td></tr><tr class="account-ledger-total"><td>(=) ${finalLabel}</td><td class="num">${fmt(cash.final)}</td></tr></tbody></table></section>
-      <section class="account-report-section"><h3 class="account-section-title">2. Por empresa</h3><div class="account-sheet-table"><table><thead><tr><th>Empresa</th><th class="num">Lanç.</th><th class="num">Previsto</th><th class="num">Recebido</th><th class="num">Saídas</th><th class="num">Saldo</th><th class="num">Anexos</th></tr></thead><tbody>${companyRows || `<tr><td colspan="7" class="account-empty">Sem movimentação no período.</td></tr>`}</tbody><tfoot><tr><th>Total</th><th class="num">${totals.records}</th><th class="num">${fmt(totals.expected)}</th><th class="num">${fmt(totals.received)}</th><th class="num">${fmt(totals.outputs)}</th><th class="num">${fmt(totals.final)}</th><th class="num">${totals.files}</th></tr></tfoot></table></div></section>
-      <section class="account-report-section account-detail-section"><h3 class="account-section-title">3. Entradas</h3><div class="account-sheet-table account-detail-table"><table>${detailHead}<tbody>${entryRows || `<tr><td colspan="10" class="account-empty">Nenhuma entrada no período.</td></tr>`}</tbody></table></div></section>
-      <section class="account-report-section account-detail-section"><h3 class="account-section-title">4. Saídas</h3><div class="account-sheet-table account-detail-table"><table>${detailHead}<tbody>${exitRows || `<tr><td colspan="10" class="account-empty">Nenhuma saída no período.</td></tr>`}</tbody></table></div></section>
+      <section class="account-report-section"><h3 class="account-section-title">1. Resumo</h3><table class="account-ledger"><tbody><tr class="is-prior"><td>${priorLabel}</td><td class="num">${cash.prior == null ? "—" : fmt(cash.prior)}</td></tr><tr class="is-programacao"><td>${entradaLabel}</td><td class="num">${programacaoValue}</td></tr><tr class="is-por-fora"><td>${porForaLabel}</td><td class="num">${porForaValue}</td></tr><tr class="is-saida"><td>${saidaLabel}</td><td class="num">${fmt(cash.outputs)}</td></tr><tr class="account-ledger-total"><td>(=) ${finalLabel}</td><td class="num">${fmt(cash.final)}</td></tr></tbody></table></section>
+      <section class="account-report-section"><h3 class="account-section-title">2. Por empresa</h3><div class="account-sheet-table account-company-table"><table><thead><tr><th>Empresa</th><th class="num">Lanç.</th><th class="num">Previsto</th><th class="num">Recebido</th><th class="num">Saídas</th><th class="num">Saldo</th><th class="num">Anexos</th></tr></thead><tbody>${companyRows || `<tr><td colspan="7" class="account-empty">Sem movimentação no período.</td></tr>`}</tbody><tfoot><tr><th>Total</th><th class="num">${totals.records}</th><th class="num">${fmt(totals.expected)}</th><th class="num">${fmt(totals.received)}</th><th class="num">${fmt(totals.outputs)}</th><th class="num">${fmt(totals.final)}</th><th class="num">${totals.files}</th></tr></tfoot></table></div></section>
+      <section class="account-report-section account-detail-section"><h3 class="account-section-title">3. Entradas</h3>
+        <div class="account-subblock is-programacao"><h4 class="account-subtitle">PROGRAMAÇÃO</h4><div class="account-sheet-table account-detail-table"><table>${detailHead}<tbody>${programacaoRows || emptyDetail("Nenhuma entrada de programação no período.")}</tbody></table></div></div>
+        <div class="account-subblock is-por-fora"><h4 class="account-subtitle">POR FORA</h4><div class="account-sheet-table account-detail-table"><table>${detailHead}<tbody>${porForaRows || emptyDetail("Nenhuma entrada por fora no período.")}</tbody></table></div></div>
+      </section>
+      <section class="account-report-section account-detail-section"><h3 class="account-section-title">4. Saídas</h3><div class="account-subblock is-saida"><div class="account-sheet-table account-detail-table"><table>${detailHead}<tbody>${exitRows || emptyDetail("Nenhuma saída no período.")}</tbody></table></div></div></section>
       ${attachments.length ? `<section class="account-report-section account-proof-section"><h3 class="account-section-title">5. Comprovantes</h3><div class="account-proof-grid">${attachments.map(({ record, file, fileIndex }) => accountAttachmentHTML(record, file, fileIndex, ++proofNumber)).join("")}</div></section>` : ""}`;
   }
 

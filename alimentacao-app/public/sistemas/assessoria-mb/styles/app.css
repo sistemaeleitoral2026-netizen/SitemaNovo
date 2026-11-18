@@ -5126,7 +5126,7 @@ body {
   padding: 28px 34px 30px;
   color: #1f1f1f;
   background: #fff;
-  border: 1px solid #cfcfcf;
+  border: 1px solid #d0d5dd;
   font-size: 12.5px;
   line-height: 1.45;
 }
@@ -5134,19 +5134,19 @@ body {
 .account-report-cover {
   padding-bottom: 10px;
   margin-bottom: 18px;
-  border-bottom: 2px solid #333;
+  border-bottom: 2px solid #4a5568;
 }
 
 .account-report-cover h2 {
   margin: 0 0 6px;
-  color: #111;
+  color: #1a202c;
   font-size: 19px;
   font-weight: 700;
 }
 
 .account-report-cover p {
   margin: 0;
-  color: #333;
+  color: #4a5568;
 }
 
 .account-report-section {
@@ -5155,11 +5155,30 @@ body {
 
 .account-section-title {
   margin: 0 0 8px;
-  padding-bottom: 3px;
-  color: #111;
+  padding-bottom: 4px;
+  color: #1a202c;
   font-size: 14px;
   font-weight: 700;
-  border-bottom: 1px solid #999;
+  border-bottom: 1px solid #cbd5e0;
+}
+
+.account-subblock {
+  margin-bottom: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.account-subtitle {
+  margin: 0 0 6px;
+  color: #2d3748;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.account-subblock.is-por-fora .account-subtitle {
+  color: #4a5568;
 }
 
 .account-ledger {
@@ -5169,8 +5188,27 @@ body {
 }
 
 .account-ledger td {
-  padding: 5px 2px;
-  border-bottom: 1px dotted #b5b5b5;
+  padding: 6px 4px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.account-ledger tr.is-prior td {
+  background: transparent;
+}
+
+.account-ledger tr.is-programacao td {
+  background: #f7fafc;
+  font-weight: 650;
+}
+
+.account-ledger tr.is-por-fora td {
+  background: #fafafa;
+  font-weight: 650;
+}
+
+.account-ledger tr.is-saida td {
+  background: #fafafa;
+  font-weight: 650;
 }
 
 .account-ledger .num,
@@ -5182,8 +5220,9 @@ body {
 
 .account-ledger-total td {
   font-weight: 700;
-  border-top: 1px solid #333;
-  border-bottom: 3px double #333;
+  background: #edf2f7;
+  border-top: 1px solid #4a5568;
+  border-bottom: 3px double #4a5568;
 }
 
 .account-note {
@@ -5201,25 +5240,30 @@ body {
   width: 100%;
   border-collapse: collapse;
   font-size: 11.5px;
+  background: #fff;
 }
 
 .account-sheet-table th,
 .account-sheet-table td {
-  padding: 4px 6px;
-  border: 1px solid #bdbdbd;
+  padding: 5px 7px;
+  border: 1px solid #cbd5e0;
   text-align: left;
   vertical-align: top;
 }
 
 .account-sheet-table thead th {
-  color: #111;
-  background: #ececec;
+  color: #1a202c;
+  background: #edf2f7;
   font-weight: 700;
 }
 
+.account-sheet-table tbody tr:nth-child(even) td {
+  background: #f8fafc;
+}
+
 .account-sheet-table tfoot th {
-  color: #111;
-  background: #f4f4f4;
+  color: #1a202c;
+  background: #eef2f6;
   font-weight: 700;
 }
 
@@ -5231,6 +5275,7 @@ body {
   padding: 14px !important;
   color: #666;
   text-align: center !important;
+  background: #fafafa !important;
 }
 
 .account-proof-grid {
