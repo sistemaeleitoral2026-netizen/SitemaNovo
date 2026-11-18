@@ -5123,112 +5123,158 @@ body {
   width: 100%;
   max-width: 1100px;
   margin: 0 auto;
-  padding: 28px 34px 30px;
-  color: #1f1f1f;
+  padding: 18px 22px 24px;
+  color: #111827;
   background: #fff;
-  border: 1px solid #d0d5dd;
-  font-size: 12.5px;
-  line-height: 1.45;
+  border: 1px solid #bfbfbf;
+  font-family: Arial, Helvetica, "Segoe UI", sans-serif;
+  font-size: 10.5px;
+  line-height: 1.3;
 }
 
-.account-report-cover {
-  padding-bottom: 10px;
-  margin-bottom: 18px;
-  border-bottom: 2px solid #4a5568;
+.account-doc-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 8px 10px;
+  background: #f2f4f7;
+  border: 1px solid #c6c6c6;
+  border-bottom: 2px solid #1b365d;
 }
 
-.account-report-cover h2 {
-  margin: 0 0 6px;
-  color: #1a202c;
-  font-size: 19px;
+.account-doc-header h2 {
+  margin: 0;
+  color: #1b365d;
+  font-size: 14px;
   font-weight: 700;
 }
 
-.account-report-cover p {
-  margin: 0;
-  color: #4a5568;
+.account-doc-meta {
+  margin-top: 2px;
+  color: #333;
+  font-size: 10.5px;
+}
+
+.account-doc-emitted {
+  color: #4b5563;
+  font-size: 10px;
 }
 
 .account-report-section {
-  margin-bottom: 22px;
+  margin-bottom: 16px;
 }
 
 .account-section-title {
-  margin: 0 0 8px;
-  padding-bottom: 4px;
-  color: #1a202c;
-  font-size: 14px;
-  font-weight: 700;
-  border-bottom: 1px solid #cbd5e0;
-}
-
-.account-subblock {
-  margin-bottom: 14px;
+  margin: 0 0 4px;
   padding: 0;
+  color: #1b365d;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
   border: 0;
   background: transparent;
 }
 
-.account-subtitle {
-  margin: 0 0 6px;
-  color: #2d3748;
-  font-size: 12px;
+.account-sub-banner {
+  background: #d9e1f2;
+  color: #1b365d;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  padding: 4px 6px;
+  border: 1px solid #c6c6c6;
+  border-bottom: 0;
 }
 
-.account-subblock.is-por-fora .account-subtitle {
-  color: #4a5568;
+.account-resumo-table {
+  max-width: 340px;
 }
 
-.account-ledger {
+.erp-table {
   width: 100%;
-  max-width: 520px;
   border-collapse: collapse;
+  font-size: 10px;
+  line-height: 1.25;
+  background: #fff;
 }
 
-.account-ledger td {
-  padding: 6px 4px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.account-ledger tr.is-prior td {
-  background: transparent;
-}
-
-.account-ledger tr.is-programacao td {
-  background: #f7fafc;
-  font-weight: 650;
-}
-
-.account-ledger tr.is-por-fora td {
-  background: #fafafa;
-  font-weight: 650;
-}
-
-.account-ledger tr.is-saida td {
-  background: #fafafa;
-  font-weight: 650;
-}
-
-.account-ledger .num,
-.account-sheet-table .num {
-  text-align: right;
+.erp-table th {
+  background: #1b365d;
+  color: #fff;
+  font-weight: 700;
+  padding: 4px 6px;
+  border: 1px solid #1b365d;
   white-space: nowrap;
+}
+
+.erp-table td {
+  padding: 3.5px 6px;
+  border: 1px solid #c6c6c6;
+  color: #111827;
+  vertical-align: top;
+}
+
+.erp-table tbody tr:nth-child(even) {
+  background: #f9fafb;
+}
+
+.erp-table tbody tr:nth-child(odd) {
+  background: #fff;
+}
+
+.erp-table .row-total {
+  background: #d9e1f2 !important;
+  color: #1b365d;
+  font-weight: 700;
+}
+
+.erp-table .row-saldo {
+  background: #e8eef5 !important;
+  font-weight: 700;
+  color: #1b365d;
+}
+
+.erp-table .font-bold {
+  font-weight: 700;
+  color: #111827;
+}
+
+.erp-table .text-left {
+  text-align: left;
+}
+
+.erp-table .text-right {
+  text-align: right;
+}
+
+.erp-table .text-center {
+  text-align: center;
+}
+
+.erp-table .tabular-nums,
+.account-report-sheet .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
 
-.account-ledger-total td {
-  font-weight: 700;
-  background: #edf2f7;
-  border-top: 1px solid #4a5568;
-  border-bottom: 3px double #4a5568;
+.erp-table .val-positivo {
+  color: #136535 !important;
+}
+
+.erp-table .val-negativo {
+  color: #a61c1c !important;
+}
+
+.erp-table .val-zero {
+  color: #8c8c8c !important;
 }
 
 .account-note {
   margin: 8px 0 0;
   color: #555;
-  font-size: 11.5px;
+  font-size: 11px;
 }
 
 .account-sheet-table {
@@ -5236,43 +5282,12 @@ body {
   overflow-x: auto;
 }
 
-.account-sheet-table table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 11.5px;
-  background: #fff;
-}
-
-.account-sheet-table th,
-.account-sheet-table td {
-  padding: 5px 7px;
-  border: 1px solid #cbd5e0;
-  text-align: left;
-  vertical-align: top;
-}
-
-.account-sheet-table thead th {
-  color: #1a202c;
-  background: #edf2f7;
-  font-weight: 700;
-}
-
-.account-sheet-table tbody tr:nth-child(even) td {
-  background: #f8fafc;
-}
-
-.account-sheet-table tfoot th {
-  color: #1a202c;
-  background: #eef2f6;
-  font-weight: 700;
-}
-
-.account-detail-table table {
-  min-width: 980px;
+.account-detail-table .erp-table {
+  min-width: 760px;
 }
 
 .account-empty {
-  padding: 14px !important;
+  padding: 12px !important;
   color: #666;
   text-align: center !important;
   background: #fafafa !important;
@@ -5394,14 +5409,21 @@ body {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 14mm 12mm;
+    margin: 10mm;
   }
 
   body.printing-accountability {
-    color: #000;
+    color: #111827;
     background: #fff !important;
-    print-color-adjust: exact;
-    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  body.printing-accountability *,
+  body.printing-accountability *::before,
+  body.printing-accountability *::after {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
   }
 
   body.printing-accountability .sidebar,
@@ -5434,8 +5456,10 @@ body {
   body.printing-accountability .account-report-sheet {
     width: 100% !important;
     max-width: none !important;
-    padding: 0;
-    border: 0;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
     font-size: 10.5px;
   }
 
@@ -5443,24 +5467,43 @@ body {
     overflow: visible;
   }
 
-  body.printing-accountability .account-sheet-table table,
-  body.printing-accountability .account-detail-table table {
-    min-width: 0;
-    font-size: 8px;
+  body.printing-accountability .erp-table {
+    font-size: 9.5px;
+    min-width: 0 !important;
   }
 
-  body.printing-accountability .account-sheet-table th,
-  body.printing-accountability .account-sheet-table td {
-    padding: 3px 4px;
+  body.printing-accountability .erp-table th,
+  body.printing-accountability .erp-table td {
+    padding: 3px 5px;
   }
 
-  body.printing-accountability .account-sheet-table tr,
+  body.printing-accountability .erp-table thead {
+    display: table-header-group;
+  }
+
+  body.printing-accountability .erp-table tr,
   body.printing-accountability .account-proof-card {
     break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Saídas: nova página + ocultar colunas irrelevantes na impressão */
+  body.printing-accountability .account-saidas-section {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  body.printing-accountability .account-saidas-table .col-empresa,
+  body.printing-accountability .account-saidas-table .col-centro,
+  body.printing-accountability .account-saidas-table .col-previsto,
+  body.printing-accountability .account-saidas-table .col-recebido,
+  body.printing-accountability .account-saidas-table .col-comprov {
+    display: none !important;
   }
 
   body.printing-accountability .account-proof-section {
     break-before: page;
+    page-break-before: always;
   }
 
   body.printing-accountability .account-proof-preview img {
