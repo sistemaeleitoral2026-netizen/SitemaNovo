@@ -2065,7 +2065,7 @@
       <section class="account-report-section account-detail-section account-saidas-section">
         <h3 class="account-section-title">4. Saídas</h3>
         <div class="account-sheet-table account-detail-table">
-          <table class="erp-table tabular-nums account-saidas-table">${detailHead}<tbody>${exitRows || emptyDetail("Nenhuma saída no período.")}</tbody></table>
+          <table class="erp-table tabular-nums account-saidas-table">${detailHead}<tbody>${exitRows || emptyDetail("Nenhuma saída no período.")}${accountDetailTotalHTML(exitRecords, range)}</tbody></table>
         </div>
       </section>
       ${
