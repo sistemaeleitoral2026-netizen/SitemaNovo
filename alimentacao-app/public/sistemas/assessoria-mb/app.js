@@ -1853,6 +1853,14 @@
     return `<article class="account-proof-card"><p class="account-proof-meta"><b>Comprovante ${sequence}</b> — ${esc(record.sub || "sem empresa")}, ${dateBR(record.data)}, ${esc(record.parceiro || "sem favorecido")}<br><span>${esc(file.name || "arquivo")}</span></p><div class="account-proof-preview">${image ? `<img data-account-proof="${esc(record.id)}:${fileIndex}" alt="${esc(file.name || "Comprovante")}">` : `<span>Arquivo PDF: ${esc(file.name || "comprovante")}</span>`}</div><button type="button" class="account-proof-open no-print" data-view-files="fin:${esc(record.id)}" data-file-index="${fileIndex}">abrir arquivo</button></article>`;
   }
 
+  function accountMoneyClass(amount, mode) {
+    const value = money(amount);
+    if (Math.abs(value) < 0.005) return "val-zero";
+    if (mode === "in") return "val-positivo";
+    if (mode === "out" || value < 0) return "val-negativo";
+    return "";
+  }
+
   function accountDetailRowHTML(record, index, range) {
     const received = receiptCashEvents(record)
       .filter((event) => inAccountRange(event.data, range))
@@ -1867,19 +1875,46 @@
         : 0;
     const files = (record.anexos || []).length;
     const centroLabel = isPorForaRecord(record)
-      ? record.centro || "Por Fora"
-      : record.centro || "—";
-    return `<tr><td>${index}</td><td class="nowrap">${dateBR(record.data)}</td><td>${esc(record.sub || "—")}</td><td>${esc(finTipo(record))}</td><td>${esc(record.parceiro || "—")}</td><td>${esc(centroLabel)}</td><td class="num">${fmt(launchExpected)}</td><td class="num">${fmt(received)}</td><td class="num">${fmt(output)}</td><td class="num">${files || "—"}</td></tr>`;
+      ? String(record.centro || "POR FORA").toLocaleUpperCase("pt-BR")
+      : record.centro || "";
+    return `<tr>
+      <td class="text-center">${index}</td>
+      <td class="text-center nowrap">${dateBR(record.data)}</td>
+      <td class="col-empresa">${esc(record.sub || "")}</td>
+      <td>${esc(finTipo(record))}</td>
+      <td>${esc(record.parceiro || "")}</td>
+      <td class="text-center col-centro">${esc(centroLabel)}</td>
+      <td class="text-right tabular-nums col-previsto ${accountMoneyClass(launchExpected)}">${fmt(launchExpected)}</td>
+      <td class="text-right tabular-nums col-recebido ${accountMoneyClass(received, "in")}">${fmt(received)}</td>
+      <td class="text-right tabular-nums ${accountMoneyClass(output, "out")}">${fmt(output)}</td>
+      <td class="text-center col-comprov">${files || ""}</td>
+    </tr>`;
   }
 
   function accountReportHTML(rows, range, cash, companies) {
     const companyLabel = state.accountCompany || "Consolidado";
-    const attachments = rows.flatMap((record) => (record.anexos || []).map((file, fileIndex) => ({ record, file, fileIndex })));
+    const attachments = rows.flatMap((record) =>
+      (record.anexos || []).map((file, fileIndex) => ({ record, file, fileIndex })),
+    );
     let proofNumber = 0;
     const entryRecords = rows.filter((record) => finKind(record) !== "saida");
     const programacaoRecords = entryRecords.filter((record) => !isPorForaRecord(record));
     const porForaRecords = entryRecords.filter((record) => isPorForaRecord(record));
     const exitRecords = rows.filter((record) => finKind(record) === "saida");
+    const detailHead = `<thead><tr>
+      <th class="text-center">N°</th>
+      <th class="text-center">Data</th>
+      <th class="text-left col-empresa">Empresa</th>
+      <th class="text-left">Tipo</th>
+      <th class="text-left">Parceiro</th>
+      <th class="text-center col-centro">Centro</th>
+      <th class="text-right col-previsto">Previsto</th>
+      <th class="text-right col-recebido">Recebido</th>
+      <th class="text-right">Saída</th>
+      <th class="text-center col-comprov">Comprov.</th>
+    </tr></thead>`;
+    const emptyDetail = (label, cols = 10) =>
+      `<tr><td colspan="${cols}" class="account-empty">${label}</td></tr>`;
     const programacaoRows = programacaoRecords
       .map((record, index) => accountDetailRowHTML(record, index + 1, range))
       .join("");
@@ -1889,44 +1924,123 @@
     const exitRows = exitRecords
       .map((record, index) => accountDetailRowHTML(record, index + 1, range))
       .join("");
-    const detailHead = `<thead><tr><th>Nº</th><th>Data</th><th>Empresa</th><th>Tipo</th><th>Parceiro</th><th>Centro</th><th class="num">Previsto</th><th class="num">Recebido</th><th class="num">Saída</th><th>Comprov.</th></tr></thead>`;
-    const emptyDetail = (label) =>
-      `<tr><td colspan="10" class="account-empty">${label}</td></tr>`;
-    const companyRows = companies.map((item) => `<tr><td>${esc(item.company)}</td><td class="num">${item.records}</td><td class="num">${fmt(item.expected)}</td><td class="num">${fmt(item.received)}</td><td class="num">${fmt(item.outputs)}</td><td class="num">${fmt(item.final)}</td><td class="num">${item.files}</td></tr>`).join("");
-    const totals = companies.reduce((total, item) => ({
-      records: total.records + item.records,
-      expected: total.expected + item.expected,
-      received: total.received + item.received,
-      outputs: total.outputs + item.outputs,
-      final: total.final + item.final,
-      files: total.files + item.files,
-    }), { records: 0, expected: 0, received: 0, outputs: 0, final: 0, files: 0 });
-    const generatedAt = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
-    const isMonthly = state.accountPeriod === "month" && /^\d{4}-\d{2}$/.test(state.accountMonth);
-    const selectedMonthLabel = isMonthly ? financeMonthTitle(state.accountMonth) : "";
-    const previousMonthLabel = isMonthly ? financeMonthTitle(previousMonth(state.accountMonth)) : "";
+    const companyRows = companies
+      .map(
+        (item) => `<tr>
+        <td>${esc(item.company)}</td>
+        <td class="text-center">${item.records}</td>
+        <td class="text-right tabular-nums">${fmt(item.expected)}</td>
+        <td class="text-right tabular-nums ${accountMoneyClass(item.received, "in")}">${fmt(item.received)}</td>
+        <td class="text-right tabular-nums ${accountMoneyClass(item.outputs, "out")}">${fmt(item.outputs)}</td>
+        <td class="text-right tabular-nums ${accountMoneyClass(item.final)}">${fmt(item.final)}</td>
+        <td class="text-center">${item.files}</td>
+      </tr>`,
+      )
+      .join("");
+    const totals = companies.reduce(
+      (total, item) => ({
+        records: total.records + item.records,
+        expected: total.expected + item.expected,
+        received: total.received + item.received,
+        outputs: total.outputs + item.outputs,
+        final: total.final + item.final,
+        files: total.files + item.files,
+      }),
+      { records: 0, expected: 0, received: 0, outputs: 0, final: 0, files: 0 },
+    );
+    const generatedAt = new Date().toLocaleString("pt-BR", {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+    const isMonthly =
+      state.accountPeriod === "month" && /^\d{4}-\d{2}$/.test(state.accountMonth);
+    const selectedMonthLabel = isMonthly
+      ? financeMonthTitle(state.accountMonth)
+      : "";
+    const previousMonthLabel = isMonthly
+      ? financeMonthTitle(previousMonth(state.accountMonth))
+      : "";
     const priorLabel = isMonthly
       ? `FICOU EM ${esc(String(previousMonthLabel || "").toLocaleUpperCase("pt-BR"))}`
       : "SALDO ANTERIOR";
-    const entradaLabel = "PROGRAMAÇÃO";
-    const porForaLabel = "POR FORA";
     const saidaLabel = isMonthly
       ? `SAÍDA ${esc(String(selectedMonthLabel || "").toLocaleUpperCase("pt-BR"))}`
       : "SAÍDAS";
     const finalLabel = isMonthly
-      ? `SALDO DE ${esc(String(selectedMonthLabel || "").toLocaleUpperCase("pt-BR"))}`
-      : "SALDO FINAL";
-    const programacaoValue = fmt(cash.programacao || 0);
-    const porForaValue = fmt(cash.porFora || 0);
-    return `<header class="account-report-cover"><h2>Prestação de Contas — Assessoria MB</h2><p><b>Empresa:</b> ${esc(companyLabel)} &nbsp;&nbsp; <b>Período:</b> ${esc(range.label)} &nbsp;&nbsp; <b>Emitido em:</b> ${generatedAt}</p></header>
-      <section class="account-report-section"><h3 class="account-section-title">1. Resumo</h3><table class="account-ledger"><tbody><tr class="is-prior"><td>${priorLabel}</td><td class="num">${cash.prior == null ? "—" : fmt(cash.prior)}</td></tr><tr class="is-programacao"><td>${entradaLabel}</td><td class="num">${programacaoValue}</td></tr><tr class="is-por-fora"><td>${porForaLabel}</td><td class="num">${porForaValue}</td></tr><tr class="is-saida"><td>${saidaLabel}</td><td class="num">${fmt(cash.outputs)}</td></tr><tr class="account-ledger-total"><td>(=) ${finalLabel}</td><td class="num">${fmt(cash.final)}</td></tr></tbody></table></section>
-      <section class="account-report-section"><h3 class="account-section-title">2. Por empresa</h3><div class="account-sheet-table account-company-table"><table><thead><tr><th>Empresa</th><th class="num">Lanç.</th><th class="num">Previsto</th><th class="num">Recebido</th><th class="num">Saídas</th><th class="num">Saldo</th><th class="num">Anexos</th></tr></thead><tbody>${companyRows || `<tr><td colspan="7" class="account-empty">Sem movimentação no período.</td></tr>`}</tbody><tfoot><tr><th>Total</th><th class="num">${totals.records}</th><th class="num">${fmt(totals.expected)}</th><th class="num">${fmt(totals.received)}</th><th class="num">${fmt(totals.outputs)}</th><th class="num">${fmt(totals.final)}</th><th class="num">${totals.files}</th></tr></tfoot></table></div></section>
-      <section class="account-report-section account-detail-section"><h3 class="account-section-title">3. Entradas</h3>
-        <div class="account-subblock is-programacao"><h4 class="account-subtitle">PROGRAMAÇÃO</h4><div class="account-sheet-table account-detail-table"><table>${detailHead}<tbody>${programacaoRows || emptyDetail("Nenhuma entrada de programação no período.")}</tbody></table></div></div>
-        <div class="account-subblock is-por-fora"><h4 class="account-subtitle">POR FORA</h4><div class="account-sheet-table account-detail-table"><table>${detailHead}<tbody>${porForaRows || emptyDetail("Nenhuma entrada por fora no período.")}</tbody></table></div></div>
+      ? `(=) SALDO DE ${esc(String(selectedMonthLabel || "").toLocaleUpperCase("pt-BR"))}`
+      : "(=) SALDO FINAL";
+    const priorValue = cash.prior == null ? "—" : fmt(cash.prior);
+    const priorClass = cash.prior == null ? "" : accountMoneyClass(cash.prior);
+    return `<header class="account-doc-header">
+        <div>
+          <h2>Prestação de Contas - Assessoria MB</h2>
+          <div class="account-doc-meta"><strong>Empresa:</strong> ${esc(companyLabel)} &nbsp;|&nbsp; <strong>Período:</strong> ${esc(range.label)}</div>
+        </div>
+        <div class="account-doc-emitted tabular-nums">Emitido em: ${generatedAt}</div>
+      </header>
+      <section class="account-report-section">
+        <h3 class="account-section-title">1. Resumo</h3>
+        <table class="erp-table tabular-nums account-resumo-table">
+          <thead><tr><th class="text-left">Descrição</th><th class="text-right">Valor</th></tr></thead>
+          <tbody>
+            <tr><td class="font-bold">${priorLabel}</td><td class="text-right font-bold ${priorClass}">${priorValue}</td></tr>
+            <tr><td class="font-bold">PROGRAMAÇÃO</td><td class="text-right">${fmt(cash.programacao || 0)}</td></tr>
+            <tr><td class="font-bold">POR FORA</td><td class="text-right">${fmt(cash.porFora || 0)}</td></tr>
+            <tr><td class="font-bold">${saidaLabel}</td><td class="text-right">${fmt(cash.outputs)}</td></tr>
+            <tr class="row-saldo"><td>${finalLabel}</td><td class="text-right ${accountMoneyClass(cash.final)}">${fmt(cash.final)}</td></tr>
+          </tbody>
+        </table>
       </section>
-      <section class="account-report-section account-detail-section"><h3 class="account-section-title">4. Saídas</h3><div class="account-subblock is-saida"><div class="account-sheet-table account-detail-table"><table>${detailHead}<tbody>${exitRows || emptyDetail("Nenhuma saída no período.")}</tbody></table></div></div></section>
-      ${attachments.length ? `<section class="account-report-section account-proof-section"><h3 class="account-section-title">5. Comprovantes</h3><div class="account-proof-grid">${attachments.map(({ record, file, fileIndex }) => accountAttachmentHTML(record, file, fileIndex, ++proofNumber)).join("")}</div></section>` : ""}`;
+      <section class="account-report-section">
+        <h3 class="account-section-title">2. Por empresa</h3>
+        <div class="account-sheet-table">
+          <table class="erp-table tabular-nums">
+            <thead><tr>
+              <th class="text-left">Empresa</th>
+              <th class="text-center">Lanç.</th>
+              <th class="text-right">Previsto</th>
+              <th class="text-right">Recebido</th>
+              <th class="text-right">Saídas</th>
+              <th class="text-right">Saldo</th>
+              <th class="text-center">Anexos</th>
+            </tr></thead>
+            <tbody>
+              ${companyRows || emptyDetail("Sem movimentação no período.", 7)}
+              <tr class="row-total">
+                <td>Total</td>
+                <td class="text-center">${totals.records}</td>
+                <td class="text-right">${fmt(totals.expected)}</td>
+                <td class="text-right ${accountMoneyClass(totals.received, "in")}">${fmt(totals.received)}</td>
+                <td class="text-right ${accountMoneyClass(totals.outputs, "out")}">${fmt(totals.outputs)}</td>
+                <td class="text-right ${accountMoneyClass(totals.final)}">${fmt(totals.final)}</td>
+                <td class="text-center">${totals.files}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section class="account-report-section account-detail-section">
+        <h3 class="account-section-title">3. Entradas</h3>
+        <div class="account-sub-banner">PROGRAMAÇÃO</div>
+        <div class="account-sheet-table account-detail-table" style="margin-bottom:12px">
+          <table class="erp-table tabular-nums">${detailHead}<tbody>${programacaoRows || emptyDetail("Nenhuma entrada de programação no período.")}</tbody></table>
+        </div>
+        <div class="account-sub-banner">POR FORA</div>
+        <div class="account-sheet-table account-detail-table">
+          <table class="erp-table tabular-nums">${detailHead}<tbody>${porForaRows || emptyDetail("Nenhuma entrada por fora no período.")}</tbody></table>
+        </div>
+      </section>
+      <section class="account-report-section account-detail-section account-saidas-section">
+        <h3 class="account-section-title">4. Saídas</h3>
+        <div class="account-sheet-table account-detail-table">
+          <table class="erp-table tabular-nums account-saidas-table">${detailHead}<tbody>${exitRows || emptyDetail("Nenhuma saída no período.")}</tbody></table>
+        </div>
+      </section>
+      ${
+        attachments.length
+          ? `<section class="account-report-section account-proof-section"><h3 class="account-section-title">5. Comprovantes</h3><div class="account-proof-grid">${attachments.map(({ record, file, fileIndex }) => accountAttachmentHTML(record, file, fileIndex, ++proofNumber)).join("")}</div></section>`
+          : ""
+      }`;
   }
 
   async function hydrateAccountProofs() {
