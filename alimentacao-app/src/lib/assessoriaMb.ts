@@ -46,6 +46,8 @@ export type MbFinance = {
   criadoPorId?: string
   /** Horário de criação do lançamento (ISO). */
   criadoEm?: string
+  /** Tarefa à qual este lançamento foi vinculado (quita o valor dela). */
+  tarefaId?: string | null
 }
 
 type LegacyFinanceMeta = {
@@ -127,8 +129,6 @@ export type MbTask = {
   /** Quem marcou como concluída (nome) e quando. */
   concluidoPor?: string
   concluidoEm?: string
-  /** Lançamento financeiro gerado automaticamente ao concluir (evita duplicar). */
-  lancamentoId?: string | null
 }
 
 export type MbEquipeSistema = {
@@ -451,6 +451,7 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
       criadoPorId,
       criadoPor: criadoPorId ? nomePorId.get(criadoPorId) || '' : '',
       criadoEm: r.created_at ? String(r.created_at) : '',
+      tarefaId: (r.tarefa_id as string) || null,
     }
   })
 
@@ -477,7 +478,6 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
       recorrenteOrigemId: (r.recorrente_origem_id as string) || null,
       concluidoPor: (r.concluido_por as string) || '',
       concluidoEm: r.concluido_em ? String(r.concluido_em) : '',
-      lancamentoId: (r.lancamento_id as string) || null,
       criadoPorId,
       criadoPor: criadoPorId ? nomePorId.get(criadoPorId) || '' : '',
     }
@@ -781,6 +781,7 @@ export async function salvarEstadoAssessoria(
                 recebimentos,
                 origem: r.origem || 'Cadastro manual',
                 observacao: r.observacao || null,
+                tarefa_id: r.tarefaId || null,
                 updated_at: new Date().toISOString(),
                 updated_by: opts.userId,
                 // Preserva o autor original; só grava o usuário atual em registro novo.
@@ -878,7 +879,6 @@ export async function salvarEstadoAssessoria(
               recorrente_origem_id: r.recorrenteOrigemId || null,
               concluido_por: r.concluidoPor || null,
               concluido_em: r.concluidoEm || null,
-              lancamento_id: r.lancamentoId || null,
               updated_at: new Date().toISOString(),
               updated_by: opts.userId,
               created_by: taskCreatedBy.get(r.id) || (isUuid(String(r.criadoPorId || '')) ? r.criadoPorId : opts.userId),

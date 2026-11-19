@@ -1339,39 +1339,7 @@
       card("sem_anexo", "Sem comprovante", semAnexo, "pendentes", "")
     );
   }
-  /** Gera, se a tarefa tiver valor e ainda não tiver um, o lançamento de saída correspondente. */
-  function gerarLancamentoDaTarefa(t) {
-    const id = crypto.randomUUID();
-    const rec = {
-      id,
-      tipoLancamento: "saida",
-      parceiro: caps(t.nome || t.titulo || "Tarefa"),
-      centro: "",
-      data: todayISO(),
-      dataRecebida: "",
-      empresaDepositante: "",
-      contaBancaria: t.origemPagamento || "",
-      demanda: "Tarefa: " + (t.titulo || ""),
-      sub: t.sub || state.empresa || "",
-      previsto: 0,
-      recebido: 0,
-      saida: money(t.valor || 0),
-      recebimentos: [],
-      observacao:
-        'Gerado automaticamente ao concluir a tarefa "' +
-        (t.titulo || "") +
-        '".',
-      anexos: [],
-      origem: "Tarefa concluída",
-      criadoPor: MB.nome || "",
-      criadoPorId: MB.userId || "",
-      criadoEm: new Date().toISOString(),
-    };
-    db.finance.push(rec);
-    markMutation("financeUpserts", id);
-    return id;
-  }
-  /** Marca a tarefa como concluída (quem/quando) e gera o lançamento financeiro uma única vez. */
+  /** Marca a tarefa (sem valor) como concluída, sem nenhum vínculo financeiro. */
   function concluirTarefa(t, extras) {
     extras = extras || {};
     if (t.status === "Concluída") return "";
@@ -1380,18 +1348,71 @@
     t.concluidoEm = new Date().toISOString();
     if (extras.dataExecucao) t.dataExecucao = extras.dataExecucao;
     if (extras.observacao) t.observacao = extras.observacao;
-    let aviso = "";
-    if (!t.lancamentoId && money(t.valor) > 0) {
-      t.lancamentoId = gerarLancamentoDaTarefa(t);
-      aviso = " Lançamento gerado em Financeiro.";
-    }
     markMutation("taskUpserts", t.id);
     audit(
       "Tarefa concluída",
       t.titulo + " · responsável " + (t.responsavel || "—"),
     );
     save();
-    return aviso;
+    return "";
+  }
+  /** Lançamentos de saída ainda livres (ou já vinculados a esta tarefa) para selecionar. */
+  function lancamentosVinculaveis(t) {
+    return db.finance
+      .filter(
+        (f) =>
+          finKind(f) === "saida" && (!f.tarefaId || f.tarefaId === t.id),
+      )
+      .sort((a, b) =>
+        String(b.criadoEm || b.data || "").localeCompare(
+          String(a.criadoEm || a.data || ""),
+        ),
+      );
+  }
+  /** Total hoje vinculado a esta tarefa (soma das saídas já marcadas com tarefaId). */
+  function totalVinculadoTarefa(t) {
+    return db.finance
+      .filter((f) => f.tarefaId === t.id)
+      .reduce((s, f) => s + money(f.saida), 0);
+  }
+  /** Aplica a seleção de lançamentos da tarefa: vincula/desvincula e decide o status. */
+  function vincularLancamentosNaTarefa(t, idsSelecionados) {
+    const selecionados = new Set(idsSelecionados);
+    const candidatos = lancamentosVinculaveis(t);
+    let total = 0;
+    for (const f of candidatos) {
+      const deveVincular = selecionados.has(f.id);
+      if (deveVincular) {
+        f.tarefaId = t.id;
+        total += money(f.saida);
+        markMutation("financeUpserts", f.id);
+      } else if (f.tarefaId === t.id) {
+        f.tarefaId = null;
+        markMutation("financeUpserts", f.id);
+      }
+    }
+    const alvo = money(t.valor);
+    const diff = Math.round((total - alvo) * 100) / 100;
+    let msg;
+    if (Math.abs(diff) < 0.01) {
+      t.status = "Concluída";
+      t.concluidoPor = MB.nome || "";
+      t.concluidoEm = new Date().toISOString();
+      msg = "Tarefa concluída — o valor vinculado bateu certinho.";
+    } else if (diff < 0) {
+      t.status = "Em andamento";
+      msg = `Faltam ${fmt(-diff)} para bater com o valor da tarefa.`;
+    } else {
+      t.status = "Em andamento";
+      msg = `Passou ${fmt(diff)} do valor da tarefa — aguardando revisão do admin.`;
+    }
+    markMutation("taskUpserts", t.id);
+    audit(
+      "Lançamentos vinculados à tarefa",
+      t.titulo + " · total vinculado " + fmt(total),
+    );
+    save();
+    return msg;
   }
   function taskRowHTML(t, hoje) {
     const meta = taskDeadlineMeta(t, hoje);
@@ -1404,16 +1425,22 @@
       ? dateBR(String(t.concluidoEm).slice(0, 10))
       : "—";
     const concluidaBadge = `<span class='pill ok' title='Concluída por ${esc(t.concluidoPor || "—")} em ${quando}'>${icon("check")} Concluída</span>`;
-    const concluirBtn = `<button class='edit-action primary' data-conclude-task='${esc(t.id)}'>${icon("check")} Concluir</button>`;
+    const temValor = money(t.valor) > 0;
+    let primaryBtn = "";
+    if (!concluida) {
+      primaryBtn = temValor
+        ? `<button class='edit-action primary' data-realizar-task='${esc(t.id)}'>${icon("check")} ${t.status === "Em andamento" ? "Selecionar lançamentos" : "Realizar tarefa"}</button>`
+        : `<button class='edit-action primary' data-conclude-task='${esc(t.id)}'>${icon("check")} Concluir</button>`;
+    }
     let actions;
     if (MB.admin) {
       // Admin vê os controles completos e, se ainda não concluída, também o
-      // atalho de concluir (não precisa abrir o formulário inteiro).
-      actions = `${concluida ? concluidaBadge : concluirBtn}<button class='edit-action' data-edit-task='${esc(t.id)}'>${icon("list")} Editar</button>${canDeleteRec(t) ? deleteBtn("task", t.id) : ""}`;
+      // atalho rápido (não precisa abrir o formulário inteiro).
+      actions = `${concluida ? concluidaBadge : primaryBtn}<button class='edit-action' data-edit-task='${esc(t.id)}'>${icon("list")} Editar</button>${canDeleteRec(t) ? deleteBtn("task", t.id) : ""}`;
     } else if (concluida) {
       actions = concluidaBadge;
     } else if (isMine) {
-      actions = concluirBtn;
+      actions = primaryBtn;
     } else {
       actions = `<span class='muted'>—</span>`;
     }
@@ -2749,20 +2776,25 @@
     );
     $("#modal-layer").classList.add("open");
   }
+  const TASK_MODAL_KINDS = ["task", "conclude", "realizar", "vincular"];
   function openModal(kind, id = null) {
     typeModal = kind;
     editing = id;
     removedAttachments = new Set();
     const obj = id
-      ? (kind === "task" || kind === "conclude" ? db.tasks : db.finance).find(
+      ? (TASK_MODAL_KINDS.includes(kind) ? db.tasks : db.finance).find(
           (x) => x.id === id,
         )
       : null;
     $("#modal-title").textContent =
       kind === "conclude"
         ? "Concluir tarefa"
-        : (id ? "Editar " : "Novo ") +
-          (kind === "task" ? "tarefa" : "lançamento financeiro");
+        : kind === "realizar"
+          ? "Realizar tarefa"
+          : kind === "vincular"
+            ? "Selecionar lançamentos"
+            : (id ? "Editar " : "Novo ") +
+              (kind === "task" ? "tarefa" : "lançamento financeiro");
     let html = "";
     if (kind === "task") {
       html += `<div class="form-section">Atividade</div><div class="field"><label>Modelo de tarefa</label><select class="control" id="task-template"><option value="">Tarefa livre</option>${db.templates.map((x) => `<option>${esc(x)}</option>`).join("")}</select></div>`;
@@ -2823,6 +2855,24 @@
         "observacao",
         obj?.observacao || "",
       );
+    } else if (kind === "realizar") {
+      html += `<div class="form-section">Tarefa</div><div class="conclude-summary"><b>${esc(obj?.titulo || "")}</b><div class="muted">${esc(obj?.nome || "Favorecido não informado")}</div><div class="muted">Prazo: ${dateBR(obj?.prazo)} · Valor a bater: ${fmt(obj?.valor || 0)}</div></div>`;
+      html += `<p class="field-note wide">Vá em <b>Financeiro</b> e registre o pagamento desse compromisso (um ou mais lançamentos de saída). Quando terminar, clique abaixo para selecionar o(s) lançamento(s) que correspondem a essa tarefa.</p>`;
+      html += `<div class="field wide"><button type="button" class="btn" id="realizar-ir-financeiro">${icon("wallet")} Abrir Financeiro</button></div>`;
+    } else if (kind === "vincular") {
+      const candidatos = lancamentosVinculaveis(obj);
+      html += `<div class="form-section">Tarefa</div><div class="conclude-summary"><b>${esc(obj?.titulo || "")}</b><div class="muted">${esc(obj?.nome || "Favorecido não informado")}</div><div class="muted">Valor a bater: ${fmt(obj?.valor || 0)}</div></div>`;
+      html += `<div class="form-section">Lançamentos de saída recentes</div><p class="field-note wide">Marque o(s) lançamento(s) que correspondem a essa tarefa. Um lançamento já vinculado a outra tarefa não aparece aqui.</p>`;
+      html += `<div id="vincular-total" class="vincular-total"></div>`;
+      html += candidatos.length
+        ? `<div class="vincular-list" id="vincular-list">${candidatos
+            .map(
+              (f) =>
+                `<label class="vincular-row"><input type="checkbox" name="lanc" value="${esc(f.id)}" ${f.tarefaId === obj.id ? "checked" : ""}><span class="vincular-desc">${dateBR(f.data)} · ${esc(f.parceiro)}${f.sub ? " · " + esc(f.sub) : ""}</span><b class="num">${fmt(f.saida)}</b></label>`,
+            )
+            .join("")}</div>`
+        : `<p class="field-note wide">Nenhum lançamento de saída disponível ainda.</p>`;
+      html += `<div class="field wide"><button type="button" class="btn" id="realizar-ir-financeiro">${icon("wallet")} Lançar mais um pagamento</button></div>`;
     } else {
       const locked = !!obj;
       const selectedType = locked ? finKind(obj) : "receita";
@@ -2854,22 +2904,61 @@
         html += `<div data-fin-pane="historico" id="fin-hist-pane" class="hidden">${rxSheetHTML(obj, "data", "asc")}</div>`;
       }
     }
-    html += `<div class="form-section">Comprovantes</div><div class="field wide"><label>Anexar comprovante (foto ou PDF)</label><input class="control" name="anexo" type="file" accept="image/*,.pdf" multiple><div class="attachment-note">Os comprovantes são salvos na nuvem (Supabase) e podem ser visualizados em Comprovantes.</div>${attachmentsListHTML(obj?.anexos)}</div>`;
+    if (kind !== "realizar" && kind !== "vincular")
+      html += `<div class="form-section">Comprovantes</div><div class="field wide"><label>Anexar comprovante (foto ou PDF)</label><input class="control" name="anexo" type="file" accept="image/*,.pdf" multiple><div class="attachment-note">Os comprovantes são salvos na nuvem (Supabase) e podem ser visualizados em Comprovantes.</div>${attachmentsListHTML(obj?.anexos)}</div>`;
     $("#modal-body").innerHTML = html;
     $$(".money-input").forEach((el) =>
       el.addEventListener("input", () => maskBRL(el)),
     );
     $("#modal-layer").classList.add("open");
     const submitBtn = $("#modal-form button[type=submit]");
-    if (submitBtn)
+    if (submitBtn) {
       submitBtn.textContent =
-        kind === "conclude" ? "Marcar como concluída" : "Salvar";
+        kind === "conclude"
+          ? "Marcar como concluída"
+          : kind === "realizar"
+            ? "Já lancei — selecionar lançamentos"
+            : kind === "vincular"
+              ? "Vincular selecionados"
+              : "Salvar";
+      submitBtn.hidden =
+        kind === "vincular" && !lancamentosVinculaveis(obj).length;
+    }
     if (kind === "task") {
       const tpl = $("#task-template");
       tpl.onchange = () => {
         if (tpl.value && !$("#modal-body [name=titulo]").value)
           $("#modal-body [name=titulo]").value = tpl.value;
       };
+    }
+    $("#realizar-ir-financeiro")?.addEventListener("click", () => {
+      closeModal();
+      goto("financeiro");
+    });
+    if (kind === "vincular") {
+      const valoresPorId = new Map(
+        lancamentosVinculaveis(obj).map((f) => [f.id, money(f.saida)]),
+      );
+      const updateVincularTotal = () => {
+        const total = $$('#vincular-list input[name="lanc"]:checked').reduce(
+          (s, el) => s + (valoresPorId.get(el.value) || 0),
+          0,
+        );
+        const alvo = money(obj?.valor || 0);
+        const diff = Math.round((total - alvo) * 100) / 100;
+        const info =
+          Math.abs(diff) < 0.01
+            ? `<b class="ok-text">Bateu certinho!</b>`
+            : diff < 0
+              ? `Falta <b>${fmt(-diff)}</b> para bater`
+              : `Passou <b>${fmt(diff)}</b> do valor`;
+        $("#vincular-total").innerHTML =
+          `Selecionado: <b>${fmt(total)}</b> de ${fmt(alvo)} — ${info}`;
+      };
+      $$('#vincular-list input[name="lanc"]').forEach((el) =>
+        el.addEventListener("change", updateVincularTotal),
+      );
+      updateVincularTotal();
     }
     $("#modal-body input")?.focus();
     if (kind === "finance" && obj) {
@@ -2994,6 +3083,28 @@
       toast("Tarefa concluída." + aviso);
       return;
     }
+    if (typeModal === "realizar") {
+      const t = db.tasks.find((x) => x.id === editing);
+      if (!t) return;
+      if (t.status === "Pendente") {
+        t.status = "Em andamento";
+        markMutation("taskUpserts", t.id);
+        audit("Tarefa em andamento", t.titulo);
+        save();
+      }
+      openModal("vincular", t.id);
+      return;
+    }
+    if (typeModal === "vincular") {
+      const t = db.tasks.find((x) => x.id === editing);
+      if (!t) return;
+      const selecionados = f.getAll("lanc").map(String);
+      const msg = vincularLancamentosNaTarefa(t, selecionados);
+      closeModal();
+      render();
+      toast(msg);
+      return;
+    }
     let selectedFinanceType = "";
     if (typeModal === "finance") {
       selectedFinanceType = ["receita", "entrada_por_fora", "saida"].includes(
@@ -3066,7 +3177,6 @@
         criadoPorId: old?.criadoPorId || MB.userId || "",
         concluidoPor: old?.concluidoPor || "",
         concluidoEm: old?.concluidoEm || "",
-        lancamentoId: old?.lancamentoId || null,
       };
     } else {
       if (old) {
@@ -3251,7 +3361,6 @@
     } else {
       arr.push(rec);
     }
-    let lancamentoAviso = "";
     if (
       typeModal === "task" &&
       rec.status === "Concluída" &&
@@ -3259,10 +3368,6 @@
     ) {
       rec.concluidoPor = rec.concluidoPor || MB.nome || "";
       rec.concluidoEm = rec.concluidoEm || new Date().toISOString();
-      if (!rec.lancamentoId && money(rec.valor) > 0) {
-        rec.lancamentoId = gerarLancamentoDaTarefa(rec);
-        lancamentoAviso = " Lançamento gerado em Financeiro.";
-      }
     }
     markMutation(
       typeModal === "task" ? "taskUpserts" : "financeUpserts",
@@ -3284,7 +3389,7 @@
       kindAgain = typeModal;
     closeModal();
     render();
-    toast("Salvando na nuvem…" + lancamentoAviso);
+    toast("Salvando na nuvem…");
     if (again) openModal(kindAgain);
   };
   $$("[data-page]").forEach((b) => (b.onclick = () => goto(b.dataset.page)));
@@ -3319,6 +3424,18 @@
         return;
       }
       openModal("conclude", id);
+      return;
+    }
+    const realizarTask = e.target.closest("[data-realizar-task]");
+    if (realizarTask) {
+      const id = realizarTask.dataset.realizarTask;
+      const t = db.tasks.find((x) => x.id === id);
+      if (!t) return;
+      if (!samePerson(t.responsavel, MB.nome) && !MB.admin) {
+        toast("Essa tarefa não está atribuída a você.");
+        return;
+      }
+      openModal(t.status === "Em andamento" ? "vincular" : "realizar", id);
       return;
     }
     const delTask = e.target.closest("[data-delete-task]");
