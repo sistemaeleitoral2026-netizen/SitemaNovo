@@ -265,6 +265,17 @@
           ><button class="nav-btn" data-page="auditoria" data-group="Controle">
             <svg><use href="#i-shield"></use></svg>Auditoria
           </button>
+          <div class="nav-label">Correção</div>
+          <button
+            class="nav-btn"
+            data-page="sem-data-recebida"
+            data-group="Correção"
+          >
+            <svg><use href="#i-calendar"></use></svg>Sem Data Recebida<span
+              class="nav-count"
+              id="count-sem-data-recebida"
+            ></span>
+          </button>
           <div class="nav-label">Tarefas</div>
           <button class="nav-btn" data-page="demandas" data-group="Tarefas">
             <svg><use href="#i-list"></use></svg>Demandas e Tarefas<span
@@ -344,25 +355,18 @@
           </div>
           <section
             id="page-dashboard"
-            class="page-section active"
+            class="page-section active dash-v2"
             data-screen-label="Painel"
           >
             <div class="dash-head">
               <div class="dash-title">
-                <span class="dash-title-ico"
-                  ><svg><use href="#i-chart"></use></svg
-                ></span>
                 <div>
-                  <h1>Painel Financeiro</h1>
-                  <p>
-                    Visão consolidada por empresa, lançamentos, recebimentos e
-                    despesas.
-                  </p>
+                  <h1>Painel financeiro</h1>
+                  <p id="dash-sub">Consolidado · Todo o período</p>
                 </div>
               </div>
               <div class="dash-head-actions">
                 <label class="comp-picker"
-                  ><svg><use href="#i-calendar"></use></svg
                   ><span>Competência</span
                   ><select
                     class="control"
@@ -370,58 +374,60 @@
                     data-comp
                     aria-label="Competência"
                   ></select></label
-                ><button class="btn primary lg" data-open="finance">
-                  <svg><use href="#i-plus"></use></svg>Novo Lançamento
+                ><button class="btn primary" data-open="finance">
+                  <svg><use href="#i-plus"></use></svg>Novo lançamento
                 </button>
               </div>
             </div>
+            <div
+              class="dash-tabs"
+              id="company-picker-dashboard"
+              aria-label="Empresa"
+            ></div>
             <div class="kpi-grid" id="dash-metrics"></div>
-            <div class="card co-card">
-              <div class="card-head">
-                <h2>
-                  <svg><use href="#i-building"></use></svg>Empresas
-                </h2>
-                <button class="section-link" data-goto="empresas">
-                  Ver todas
-                </button>
-              </div>
-              <div
-                class="co-tiles"
-                id="company-picker-dashboard"
-                aria-label="Empresa"
-              ></div>
-            </div>
             <div class="dash-row">
-              <div class="card">
+              <div class="card dash-sum-card">
                 <div class="card-head">
-                  <h2>
-                    <svg><use href="#i-wallet"></use></svg>Movimentação do
-                    Período
-                  </h2>
-                </div>
-                <div
-                  id="dash-chart"
-                  style="flex: 1; display: flex; flex-direction: column"
-                ></div>
-              </div>
-              <div class="card">
-                <div class="card-head">
-                  <h2>
-                    <svg><use href="#i-list"></use></svg>Resumo por Empresa
-                    <span class="light" id="dash-sum-month"></span>
-                  </h2>
+                  <div class="dash-card-title">
+                    <h2>Resumo por empresa</h2>
+                    <small
+                      ><span id="dash-sum-month"></span> · clique em uma linha
+                      para filtrar</small
+                    >
+                  </div>
+                  <button class="section-link" data-goto="empresas">
+                    Ver empresas
+                  </button>
                 </div>
                 <div class="sum-wrap table-wrap" id="dash-summary"></div>
               </div>
+              <div class="card dash-mov-card">
+                <div class="card-head">
+                  <div class="dash-card-title with-ico">
+                    <svg><use href="#i-wallet"></use></svg>
+                    <div>
+                      <h2>Movimentação do período</h2>
+                      <small id="dash-mov-sub"></small>
+                    </div>
+                  </div>
+                </div>
+                <div id="dash-chart"></div>
+              </div>
             </div>
-            <div class="card" style="margin-top: 16px">
+            <div class="card dash-recent-card">
               <div class="card-head">
-                <h2>
-                  <svg><use href="#i-list"></use></svg>Lançamentos Recentes
-                </h2>
-                <button class="section-link" data-goto="financeiro">
-                  Ver todos
-                </button>
+                <div class="dash-card-title">
+                  <h2>Lançamentos recentes</h2>
+                  <small id="dash-recent-sub"
+                    >Últimos lançamentos de todas as empresas</small
+                  >
+                </div>
+                <div class="dash-recent-actions">
+                  <div class="dash-seg" id="dash-tipo"></div>
+                  <button class="section-link" data-goto="financeiro">
+                    Ver todos
+                  </button>
+                </div>
               </div>
               <div class="recent-wrap table-wrap" id="dash-fin-table"></div>
             </div>
@@ -518,9 +524,17 @@
                 </div>
               </div>
               <div class="actions fin-head-actions">
-                <button class="btn" id="csv-export" title="Exporta os lançamentos filtrados nesta tela">
+                <button
+                  class="btn"
+                  id="csv-export"
+                  title="Exporta os lançamentos filtrados nesta tela"
+                >
                   <svg><use href="#i-dl"></use></svg>Exportar</button
-                ><button class="btn" id="csv-export-all" title="Exporta todos os lançamentos, ignorando os filtros">
+                ><button
+                  class="btn"
+                  id="csv-export-all"
+                  title="Exporta todos os lançamentos, ignorando os filtros"
+                >
                   <svg><use href="#i-dl"></use></svg>Exportar tudo</button
                 ><button class="btn" data-goto="historico">
                   <svg><use href="#i-chart"></use></svg>Relatórios
@@ -649,11 +663,17 @@
                 <div>
                   <h2>Filtros</h2>
                 </div>
-                <button class="btn" type="button" id="account-clear">Limpar filtros</button>
+                <button class="btn" type="button" id="account-clear">
+                  Limpar filtros
+                </button>
               </div>
               <div class="accountability-filters" id="account-filters"></div>
             </div>
-            <div id="account-report" class="account-report-sheet" aria-live="polite"></div>
+            <div
+              id="account-report"
+              class="account-report-sheet"
+              aria-live="polite"
+            ></div>
             <div class="accountability-screen-footer">
               <span id="account-result-count"></span>
             </div>
@@ -827,6 +847,39 @@
                 id="audit-pager"
                 hidden
               ></div>
+            </div>
+          </section>
+          <section
+            id="page-sem-data-recebida"
+            class="page-section correction-page"
+            data-screen-label="Sem Data Recebida"
+          >
+            <div class="heading correction-heading">
+              <div>
+                <h1>Sem Data Recebida</h1>
+                <p>
+                  Lançamentos com valor recebido, mas sem a data financeira
+                  necessária para o fechamento correto do caixa.
+                </p>
+              </div>
+              <div class="correction-summary" id="correction-summary"></div>
+            </div>
+            <div class="info-strip correction-warning">
+              <svg><use href="#i-info"></use></svg>
+              <span
+                ><b>Atenção:</b> use Editar para informar a data recebida. A
+                exclusão é permanente, remove o lançamento da nuvem e não pode
+                ser desfeita. Administradores e editores podem excluir.</span
+              >
+            </div>
+            <div class="panel correction-ledger">
+              <div class="section-head panel-pad correction-ledger-head">
+                <div>
+                  <h2>Lançamentos para corrigir</h2>
+                  <span class="muted" id="correction-count"></span>
+                </div>
+              </div>
+              <div class="table-wrap" id="correction-table"></div>
             </div>
           </section>
           <section

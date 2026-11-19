@@ -2,7 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { hasRole } from '../../lib/roles'
-import { canAccessAssessoriaMb, isAdminNoSiteExterno, isSiteId, siteById, writeSite } from '../../lib/sites'
+import {
+  acessoExternoNivel,
+  canAccessAssessoriaMb,
+  isAdminNoSiteExterno,
+  isSiteId,
+  siteById,
+  writeSite,
+} from '../../lib/sites'
 import { Spinner } from '../../components/ui/Spinner'
 import {
   baixarAnexoAssessoria,
@@ -28,9 +35,11 @@ export function AssessoriaMbPage() {
   // Navegação cruzada pros outros sistemas a partir daqui: só admin do Nerites, como já era.
   const neritesAdmin = hasRole(profile, 'admin')
   const podeEditar = canAccessAssessoriaMb(profile)
+  const nivelAssessoria = acessoExternoNivel(profile, 'assessoria-mb')
   // Admin dentro deste painel (Configurações etc.): admin/diretoria do Nerites (como já era,
   // Configurações nunca teve essa trava antes) ou acesso "admin" cadastrado em /admin.
   const admin = hasRole(profile, ['admin', 'diretoria']) || isAdminNoSiteExterno(profile, 'assessoria-mb')
+  const editor = admin || nivelAssessoria === 'editor'
   const nome = profile?.nome || 'Usuário'
   const userId = profile?.id || ''
   const persistindo = useRef(false)
@@ -40,7 +49,7 @@ export function AssessoriaMbPage() {
   }
 
   function enviarUsuario() {
-    postar({ type: 'mb-user', nome, admin, userId })
+    postar({ type: 'mb-user', nome, admin, editor, userId })
   }
 
   async function hidratar() {
@@ -138,7 +147,7 @@ export function AssessoriaMbPage() {
     enviarUsuario()
     return () => window.removeEventListener('message', aoMensagem)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [admin, neritesAdmin, nome, navigate, signOut, podeEditar, userId])
+  }, [admin, editor, neritesAdmin, nome, navigate, signOut, podeEditar, userId])
 
   useEffect(() => {
     if (!pronto || !podeEditar || !userId) return
@@ -166,7 +175,7 @@ export function AssessoriaMbPage() {
     // As funções usam os mesmos valores listados abaixo; incluí-las faria o
     // efeito reiniciar a cada renderização.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pronto, podeEditar, userId, nome, admin])
+  }, [pronto, podeEditar, userId, nome, admin, editor])
 
   return (
     <div className="mr-demo">
@@ -186,7 +195,7 @@ export function AssessoriaMbPage() {
           ref={frameRef}
           className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
           title="Financeiro Corporativo"
-          src="/sistemas/assessoria-mb/index.html?v=modular-23"
+          src="/sistemas/assessoria-mb/index.html?v=modular-30"
           onLoad={() => window.setTimeout(() => setPronto(true), 4000)}
         />
       </div>
