@@ -1339,12 +1339,85 @@
       card("sem_anexo", "Sem comprovante", semAnexo, "pendentes", "")
     );
   }
+  /** Gera, se a tarefa tiver valor e ainda não tiver um, o lançamento de saída correspondente. */
+  function gerarLancamentoDaTarefa(t) {
+    const id = crypto.randomUUID();
+    const rec = {
+      id,
+      tipoLancamento: "saida",
+      parceiro: caps(t.nome || t.titulo || "Tarefa"),
+      centro: "",
+      data: todayISO(),
+      dataRecebida: "",
+      empresaDepositante: "",
+      contaBancaria: t.origemPagamento || "",
+      demanda: "Tarefa: " + (t.titulo || ""),
+      sub: t.sub || state.empresa || "",
+      previsto: 0,
+      recebido: 0,
+      saida: money(t.valor || 0),
+      recebimentos: [],
+      observacao:
+        'Gerado automaticamente ao concluir a tarefa "' +
+        (t.titulo || "") +
+        '".',
+      anexos: [],
+      origem: "Tarefa concluída",
+      criadoPor: MB.nome || "",
+      criadoPorId: MB.userId || "",
+      criadoEm: new Date().toISOString(),
+    };
+    db.finance.push(rec);
+    markMutation("financeUpserts", id);
+    return id;
+  }
+  /** Marca a tarefa como concluída (quem/quando) e gera o lançamento financeiro uma única vez. */
+  function concluirTarefa(t, extras) {
+    extras = extras || {};
+    if (t.status === "Concluída") return "";
+    t.status = "Concluída";
+    t.concluidoPor = MB.nome || "";
+    t.concluidoEm = new Date().toISOString();
+    if (extras.dataExecucao) t.dataExecucao = extras.dataExecucao;
+    if (extras.observacao) t.observacao = extras.observacao;
+    let aviso = "";
+    if (!t.lancamentoId && money(t.valor) > 0) {
+      t.lancamentoId = gerarLancamentoDaTarefa(t);
+      aviso = " Lançamento gerado em Financeiro.";
+    }
+    markMutation("taskUpserts", t.id);
+    audit(
+      "Tarefa concluída",
+      t.titulo + " · responsável " + (t.responsavel || "—"),
+    );
+    save();
+    return aviso;
+  }
   function taskRowHTML(t, hoje) {
     const meta = taskDeadlineMeta(t, hoje);
     const rec = t.recorrente
       ? `<span class='rec-badge' title='Tarefa recorrente (repete todo mês)'>🔁 Mensal</span>`
       : "";
-    return `<tr><td><div class='task-title-cell'><b>${esc(t.titulo)}</b>${rec}</div><div class='muted'>${esc(t.nome || "Favorecido não informado")}</div></td><td><div class='person-chip'><span class='avatar-sm'>${esc(taskInitials(t.responsavel))}</span>${esc(t.responsavel || "Sem responsável")}</div></td><td>${dateBR(t.prazo)}<div class='muted due-${meta.cls || "ok"}'>${esc(meta.label)}</div></td><td class='num'>${fmt(t.valor || 0)}</td><td>${statusPill(t.status)}</td><td>${fileCell(t.anexos, "task:" + t.id)}</td><td class='row-actions'><button class='edit-action' data-edit-task='${esc(t.id)}'>${icon("list")} Editar</button>${canDeleteRec(t) ? deleteBtn("task", t.id) : ""}</td></tr>`;
+    const isMine = !!MB.nome && samePerson(t.responsavel, MB.nome);
+    const concluida = t.status === "Concluída";
+    const quando = t.concluidoEm
+      ? dateBR(String(t.concluidoEm).slice(0, 10))
+      : "—";
+    const concluidaBadge = `<span class='pill ok' title='Concluída por ${esc(t.concluidoPor || "—")} em ${quando}'>${icon("check")} Concluída</span>`;
+    const concluirBtn = `<button class='edit-action primary' data-conclude-task='${esc(t.id)}'>${icon("check")} Concluir</button>`;
+    let actions;
+    if (MB.admin) {
+      // Admin vê os controles completos e, se ainda não concluída, também o
+      // atalho de concluir (não precisa abrir o formulário inteiro).
+      actions = `${concluida ? concluidaBadge : concluirBtn}<button class='edit-action' data-edit-task='${esc(t.id)}'>${icon("list")} Editar</button>${canDeleteRec(t) ? deleteBtn("task", t.id) : ""}`;
+    } else if (concluida) {
+      actions = concluidaBadge;
+    } else if (isMine) {
+      actions = concluirBtn;
+    } else {
+      actions = `<span class='muted'>—</span>`;
+    }
+    return `<tr><td><div class='task-title-cell'><b>${esc(t.titulo)}</b>${rec}</div><div class='muted'>${esc(t.nome || "Favorecido não informado")}</div></td><td><div class='person-chip'><span class='avatar-sm'>${esc(taskInitials(t.responsavel))}</span>${esc(t.responsavel || "Sem responsável")}</div></td><td>${dateBR(t.prazo)}<div class='muted due-${meta.cls || "ok"}'>${esc(meta.label)}</div></td><td class='num'>${fmt(t.valor || 0)}</td><td>${statusPill(t.status)}</td><td>${fileCell(t.anexos, "task:" + t.id)}</td><td class='row-actions'>${actions}</td></tr>`;
   }
   function renderTaskFilters() {
     const respList = [
@@ -2640,6 +2713,7 @@
     updateBell();
   }
   function goto(p) {
+    if (p === "demandas" && !MB.admin) p = "minhas";
     page = p;
     $$(".page-section").forEach((e) =>
       e.classList.toggle("active", e.id === "page-" + p),
@@ -2680,11 +2754,15 @@
     editing = id;
     removedAttachments = new Set();
     const obj = id
-      ? (kind === "task" ? db.tasks : db.finance).find((x) => x.id === id)
+      ? (kind === "task" || kind === "conclude" ? db.tasks : db.finance).find(
+          (x) => x.id === id,
+        )
       : null;
     $("#modal-title").textContent =
-      (id ? "Editar " : "Novo ") +
-      (kind === "task" ? "tarefa" : "lançamento financeiro");
+      kind === "conclude"
+        ? "Concluir tarefa"
+        : (id ? "Editar " : "Novo ") +
+          (kind === "task" ? "tarefa" : "lançamento financeiro");
     let html = "";
     if (kind === "task") {
       html += `<div class="form-section">Atividade</div><div class="field"><label>Modelo de tarefa</label><select class="control" id="task-template"><option value="">Tarefa livre</option>${db.templates.map((x) => `<option>${esc(x)}</option>`).join("")}</select></div>`;
@@ -2732,6 +2810,19 @@
       );
       html += `<div class="form-section">Andamento</div><div class="field"><label>Situação</label><select class="control" name="status">${["Pendente", "Em andamento", "Concluída"].map((s) => `<option ${obj?.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>`;
       html += `<div class="field wide"><label>Observações</label><textarea class="control" name="descricao">${esc(obj?.descricao || "")}</textarea></div>`;
+    } else if (kind === "conclude") {
+      html += `<div class="form-section">Tarefa</div><div class="conclude-summary"><b>${esc(obj?.titulo || "")}</b><div class="muted">${esc(obj?.nome || "Favorecido não informado")}</div><div class="muted">Prazo: ${dateBR(obj?.prazo)} · Valor: ${fmt(obj?.valor || 0)}</div></div>`;
+      html += field(
+        "Data de execução",
+        "dataExecucao",
+        obj?.dataExecucao || todayISO(),
+        "date",
+      );
+      html += field(
+        "Observação da prestação",
+        "observacao",
+        obj?.observacao || "",
+      );
     } else {
       const locked = !!obj;
       const selectedType = locked ? finKind(obj) : "receita";
@@ -2769,6 +2860,10 @@
       el.addEventListener("input", () => maskBRL(el)),
     );
     $("#modal-layer").classList.add("open");
+    const submitBtn = $("#modal-form button[type=submit]");
+    if (submitBtn)
+      submitBtn.textContent =
+        kind === "conclude" ? "Marcar como concluída" : "Salvar";
     if (kind === "task") {
       const tpl = $("#task-template");
       tpl.onchange = () => {
@@ -2886,6 +2981,19 @@
       toast("Registro histórico atualizado");
       return;
     }
+    if (typeModal === "conclude") {
+      const t = db.tasks.find((x) => x.id === editing);
+      if (!t) return;
+      t.anexos = collectAnexos(t.anexos, e.target);
+      const aviso = concluirTarefa(t, {
+        dataExecucao: String(f.get("dataExecucao") || ""),
+        observacao: String(f.get("observacao") || ""),
+      });
+      closeModal();
+      render();
+      toast("Tarefa concluída." + aviso);
+      return;
+    }
     let selectedFinanceType = "";
     if (typeModal === "finance") {
       selectedFinanceType = ["receita", "entrada_por_fora", "saida"].includes(
@@ -2956,6 +3064,9 @@
         anexos,
         criadoPor: old?.criadoPor || MB.nome || "",
         criadoPorId: old?.criadoPorId || MB.userId || "",
+        concluidoPor: old?.concluidoPor || "",
+        concluidoEm: old?.concluidoEm || "",
+        lancamentoId: old?.lancamentoId || null,
       };
     } else {
       if (old) {
@@ -3140,6 +3251,19 @@
     } else {
       arr.push(rec);
     }
+    let lancamentoAviso = "";
+    if (
+      typeModal === "task" &&
+      rec.status === "Concluída" &&
+      old?.status !== "Concluída"
+    ) {
+      rec.concluidoPor = rec.concluidoPor || MB.nome || "";
+      rec.concluidoEm = rec.concluidoEm || new Date().toISOString();
+      if (!rec.lancamentoId && money(rec.valor) > 0) {
+        rec.lancamentoId = gerarLancamentoDaTarefa(rec);
+        lancamentoAviso = " Lançamento gerado em Financeiro.";
+      }
+    }
     markMutation(
       typeModal === "task" ? "taskUpserts" : "financeUpserts",
       rec.id,
@@ -3160,7 +3284,7 @@
       kindAgain = typeModal;
     closeModal();
     render();
-    toast("Salvando na nuvem…");
+    toast("Salvando na nuvem…" + lancamentoAviso);
     if (again) openModal(kindAgain);
   };
   $$("[data-page]").forEach((b) => (b.onclick = () => goto(b.dataset.page)));
@@ -3183,6 +3307,18 @@
       state.dashMenuOpen = false;
       clearFinanceAuditFilter();
       render();
+      return;
+    }
+    const concludeTask = e.target.closest("[data-conclude-task]");
+    if (concludeTask) {
+      const id = concludeTask.dataset.concludeTask;
+      const t = db.tasks.find((x) => x.id === id);
+      if (!t) return;
+      if (!samePerson(t.responsavel, MB.nome) && !MB.admin) {
+        toast("Essa tarefa não está atribuída a você.");
+        return;
+      }
+      openModal("conclude", id);
       return;
     }
     const delTask = e.target.closest("[data-delete-task]");
@@ -5383,6 +5519,12 @@
     $("#um-links").innerHTML = h;
     $("#um-links").hidden = !h;
     $("#um-sair").hidden = !MB.embed;
+    // Quem não é admin só lança tarefa como responsável atribuída: sem
+    // criação de tarefas e sem a visão "Todas as demandas" (que mostraria
+    // edição/exclusão de tarefas de qualquer pessoa).
+    $$('[data-open="task"]').forEach((el) => (el.hidden = !MB.admin));
+    $$('[data-page="demandas"]').forEach((el) => (el.hidden = !MB.admin));
+    if (!MB.admin && page === "demandas") goto("minhas");
   }
   const userMenu = (open) => {
     const m = $("#user-menu");

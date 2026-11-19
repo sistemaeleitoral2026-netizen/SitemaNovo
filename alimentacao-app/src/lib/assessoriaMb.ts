@@ -124,6 +124,11 @@ export type MbTask = {
   recorrenteOrigemId?: string | null
   criadoPor?: string
   criadoPorId?: string
+  /** Quem marcou como concluída (nome) e quando. */
+  concluidoPor?: string
+  concluidoEm?: string
+  /** Lançamento financeiro gerado automaticamente ao concluir (evita duplicar). */
+  lancamentoId?: string | null
 }
 
 export type MbEquipeSistema = {
@@ -470,6 +475,9 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
       anexos: anexosFor(anexoRows, 'tarefa', r.id as string, signed),
       recorrente: Boolean(r.recorrente),
       recorrenteOrigemId: (r.recorrente_origem_id as string) || null,
+      concluidoPor: (r.concluido_por as string) || '',
+      concluidoEm: r.concluido_em ? String(r.concluido_em) : '',
+      lancamentoId: (r.lancamento_id as string) || null,
       criadoPorId,
       criadoPor: criadoPorId ? nomePorId.get(criadoPorId) || '' : '',
     }
@@ -868,6 +876,9 @@ export async function salvarEstadoAssessoria(
               empresa: r.sub || null,
               recorrente: Boolean(r.recorrente),
               recorrente_origem_id: r.recorrenteOrigemId || null,
+              concluido_por: r.concluidoPor || null,
+              concluido_em: r.concluidoEm || null,
+              lancamento_id: r.lancamentoId || null,
               updated_at: new Date().toISOString(),
               updated_by: opts.userId,
               created_by: taskCreatedBy.get(r.id) || (isUuid(String(r.criadoPorId || '')) ? r.criadoPorId : opts.userId),

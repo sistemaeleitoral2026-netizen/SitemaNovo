@@ -5374,6 +5374,21 @@ body {
 .edit-action.danger:hover {
   background: rgba(185, 28, 28, 0.08);
 }
+.edit-action.primary {
+  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.edit-action.primary:hover {
+  filter: brightness(1.08);
+}
+.conclude-summary {
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: #f8fafc;
+  margin: 0 0 4px;
+}
 
 .accountability-filter-panel {
   margin-bottom: 18px;
