@@ -2856,8 +2856,18 @@
         obj?.observacao || "",
       );
     } else if (kind === "realizar") {
+      const recentes = lancamentosVinculaveis(obj).slice(0, 10);
       html += `<div class="form-section">Tarefa</div><div class="conclude-summary"><b>${esc(obj?.titulo || "")}</b><div class="muted">${esc(obj?.nome || "Favorecido não informado")}</div><div class="muted">Prazo: ${dateBR(obj?.prazo)} · Valor a bater: ${fmt(obj?.valor || 0)}</div></div>`;
       html += `<p class="field-note wide">Vá em <b>Financeiro</b> e registre o pagamento desse compromisso (um ou mais lançamentos de saída). Quando terminar, clique abaixo para selecionar o(s) lançamento(s) que correspondem a essa tarefa.</p>`;
+      html += `<div class="form-section">Últimos lançamentos</div>`;
+      html += recentes.length
+        ? `<div class="vincular-list vincular-list-readonly">${recentes
+            .map(
+              (f) =>
+                `<div class="vincular-row"><span class="vincular-desc">${dateBR(f.data)} · ${esc(f.parceiro)}${f.sub ? " · " + esc(f.sub) : ""}</span><b class="num">${fmt(f.saida)}</b></div>`,
+            )
+            .join("")}</div>`
+        : `<p class="field-note wide">Nenhum lançamento de saída ainda.</p>`;
       html += `<div class="field wide"><button type="button" class="btn" id="realizar-ir-financeiro">${icon("wallet")} Abrir Financeiro</button></div>`;
     } else if (kind === "vincular") {
       const candidatos = lancamentosVinculaveis(obj);
