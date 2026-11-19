@@ -2898,7 +2898,7 @@
       html += `<div class="form-section">Identificação</div>`;
       html += `<div class="field"><label>Empresa *</label><select class="control" name="sub" required><option value="">Selecione</option>${subdivisions.map((s) => `<option value="${esc(s)}" ${(locked ? obj.sub : state.empresa) === s ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div>`;
       html += `<div class="field"><label id="fin-partner-label">Parceiro *</label><input class="control" name="parceiro" type="text" value="${esc(obj?.parceiro || "")}" required></div>`;
-      html += `<div class="field" data-fin-center><label>Centro de custo <span id="fin-center-required">*</span></label><select class="control" name="centro"><option value="">Não informado</option>${COST_CODES.map((code) => `<option value="${code}" ${(obj?.centro || "") === code ? "selected" : ""}>${code}${db.centers[code] ? " — " + esc(db.centers[code]) : ""}</option>`).join("")}</select></div>`;
+      html += `<div class="field" data-fin-center><label>Centro de custo</label><select class="control" name="centro"><option value="">Não informado</option>${COST_CODES.map((code) => `<option value="${code}" ${(obj?.centro || "") === code ? "selected" : ""}>${code}${db.centers[code] ? " — " + esc(db.centers[code]) : ""}</option>`).join("")}</select></div>`;
       html += field("Data *", "data", obj?.data || todayISO(), "date", true);
       html += `<div class="field" data-fin-types="receita entrada_por_fora"><label id="fin-received-date-label">Data recebida</label><input class="control" name="dataRecebida" type="date" value="${esc(obj?.dataRecebida || "")}"><small class="field-note">Obrigatória em novos lançamentos quando houver valor recebido.</small></div>`;
       html += `<div class="field" data-fin-types="receita entrada_por_fora"><label>Empresa que depositou o pagamento</label><input class="control" name="empresaDepositante" value="${esc(obj?.empresaDepositante || "")}"></div>`;
@@ -2998,10 +2998,6 @@
           control.disabled = !visible;
         });
       });
-      const center = body.querySelector('[name="centro"]');
-      if (center) center.required = type === "receita";
-      const required = body.querySelector("#fin-center-required");
-      if (required) required.hidden = type !== "receita";
       const partner = body.querySelector("#fin-partner-label");
       if (partner)
         partner.textContent =
@@ -3125,10 +3121,6 @@
       const previsto = money(f.get("previsto"));
       const recebido = money(f.get("recebido"));
       const saida = money(f.get("saida"));
-      if (selectedFinanceType === "receita" && !String(f.get("centro") || "")) {
-        toast("Selecione o centro de custo da receita.");
-        return;
-      }
       if (selectedFinanceType === "entrada_por_fora" && recebido <= 0) {
         toast("Informe um valor recebido maior que zero.");
         return;
