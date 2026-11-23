@@ -22,13 +22,22 @@ export type FpRec = {
   type: 'once' | 'monthly' | 'yearly'; every?: number; dayFrom?: number; dayTo?: number; month?: number
   dateFrom?: string; dateTo?: string
 }
+export type FpTaskKind = 'pagamento' | 'documentacao' | 'cobranca'
 export type FpTask = {
   id: string; title: string; payee: string; payeeKind: 'pessoa' | 'empresa'; category: string
+  kind?: FpTaskKind
+  /** Cobrança: quem será cobrado */
+  chargeTo?: string
+  /** Documentação: quem deve resolver */
+  docOwner?: string
+  /** Nome de quem cadastrou a programação */
+  createdByName?: string
   expected: number | null; account: string | null; rec: FpRec; start: string | null; end: string | null
   paused: boolean; notes: string; createdBy?: string | null
 }
+export type FpDoneStatus = 'paga' | 'dispensada' | 'concluida' | 'cobrada'
 export type FpDone = {
-  id: string; taskId: string; period: string; status: 'paga' | 'dispensada'; txId?: string | null
+  id: string; taskId: string; period: string; status: FpDoneStatus; txId?: string | null
   amount?: number | null; account?: string | null; date?: string | null; time?: string | null
   by?: string | null; payee?: string | null; receiptId?: string | null; note?: string | null
 }
@@ -61,6 +70,15 @@ function asError(e: unknown, padrao: string): Error {
   if (/conta_id/.test(msg) && /fp_investimentos|column/i.test(msg)) {
     return new Error('Falta rodar o SQL 20261124b_financeiro_pessoal_contas_editor.sql no Supabase (aplicação ligada à conta).')
   }
+  if (/(cobrado|responsavel_doc)/.test(msg) && /column|schema/i.test(msg)) {
+    return new Error('Falta rodar o SQL 20261125b_fp_programacao_campos.sql no Supabase (campos de documentação/cobrança).')
+  }
+  if (/emitido_por/.test(msg) && /column|schema/i.test(msg)) {
+    return new Error('Falta rodar o SQL 20261125c_fp_emitido_por.sql no Supabase (quem emitiu a programação).')
+  }
+  if (/tipo/.test(msg) && /fp_tarefas|column|check/i.test(msg)) {
+    return new Error('Falta rodar o SQL 20261125_fp_programacao_tipos.sql no Supabase (tipos de programação).')
+  }
   return new Error(msg || padrao)
 }
 
@@ -86,10 +104,20 @@ export function estadoParaLinhas(s: FpState): FpRows {
     })),
     fp_tarefas: s.tasks.map((t) => {
       const r = t.rec || ({} as FpRec)
+      const tipo = t.kind === 'documentacao' || t.kind === 'cobranca' ? t.kind : 'pagamento'
       const base = {
-        id: t.id, titulo: t.title, recebedor: t.payee || '', recebedor_tipo: t.payeeKind === 'pessoa' ? 'pessoa' : 'empresa',
-        categoria: t.category || 'Outros', valor_previsto: t.expected == null ? null : Number(t.expected),
-        conta_id: t.account && contas.has(t.account) ? t.account : null,
+        id: t.id,
+        titulo: t.title,
+        // Pagamento: quem recebe. Cobrança/Documentação não usam este campo.
+        recebedor: tipo === 'pagamento' ? (t.payee || '') : '',
+        recebedor_tipo: t.payeeKind === 'pessoa' ? 'pessoa' : 'empresa',
+        cobrado: tipo === 'cobranca' ? (t.chargeTo || t.payee || '') : '',
+        responsavel_doc: tipo === 'documentacao' ? (t.docOwner || '') : '',
+        emitido_por: t.createdByName || '',
+        categoria: tipo === 'pagamento' ? (t.category || 'Outros') : 'Outros',
+        tipo,
+        valor_previsto: tipo === 'documentacao' || t.expected == null ? null : Number(t.expected),
+        conta_id: tipo !== 'documentacao' && t.account && contas.has(t.account) ? t.account : null,
         pausada: !!t.paused, instrucoes: t.notes || '',
         recorrencia: 'mensal', a_cada_meses: 1, dia_inicio: null as number | null, dia_fim: null as number | null,
         mes_do_ano: null as number | null, data_inicio: null as string | null, data_fim: null as string | null,
@@ -165,11 +193,27 @@ export async function carregarFinanceiroPessoal(): Promise<{ estado: FpState; li
         : t.recorrencia === 'anual'
           ? { type: 'yearly', every: 12, month: Number(t.mes_do_ano), dayFrom: Number(t.dia_inicio), dayTo: Number(t.dia_fim) }
           : { type: 'monthly', every: Number(t.a_cada_meses) || 1, dayFrom: Number(t.dia_inicio), dayTo: Number(t.dia_fim) }
+      const kindRaw = String(t.tipo || 'pagamento')
+      const kind: FpTaskKind =
+        kindRaw === 'documentacao' || kindRaw === 'cobranca' ? kindRaw : 'pagamento'
       return {
-        id: String(t.id), title: String(t.titulo), payee: String(t.recebedor || ''), payeeKind: t.recebedor_tipo === 'pessoa' ? 'pessoa' : 'empresa',
-        category: String(t.categoria || 'Outros'), expected: num(t.valor_previsto), account: (t.conta_id as string) ?? null, rec,
-        start: rec.type === 'once' ? mes(t.data_inicio || t.data_fim) : mes(t.comeca_em), end: mes(t.termina_em),
-        paused: !!t.pausada, notes: String(t.instrucoes || ''), createdBy: (t.created_by as string) ?? null,
+        id: String(t.id),
+        title: String(t.titulo),
+        payee: String(t.recebedor || ''),
+        payeeKind: t.recebedor_tipo === 'pessoa' ? 'pessoa' : 'empresa',
+        chargeTo: String(t.cobrado || ''),
+        docOwner: String(t.responsavel_doc || ''),
+        createdByName: String(t.emitido_por || ''),
+        category: String(t.categoria || 'Outros'),
+        kind,
+        expected: num(t.valor_previsto),
+        account: (t.conta_id as string) ?? null,
+        rec,
+        start: rec.type === 'once' ? mes(t.data_inicio || t.data_fim) : mes(t.comeca_em),
+        end: mes(t.termina_em),
+        paused: !!t.pausada,
+        notes: String(t.instrucoes || ''),
+        createdBy: (t.created_by as string) ?? null,
       }
     }),
     txs: lancs.map((x) => ({
@@ -179,12 +223,17 @@ export async function carregarFinanceiroPessoal(): Promise<{ estado: FpState; li
       taskId: (x.tarefa_id as string) ?? null, period: (x.tarefa_periodo as string) ?? null,
       receiptId: anexoDe.get(String(x.id)) ?? null, note: (x.observacao as string) ?? null, createdBy: (x.created_by as string) ?? null,
     })),
-    taskDone: baixas.map((d) => ({
-      id: String(d.id), taskId: String(d.tarefa_id), period: String(d.periodo), status: d.status === 'dispensada' ? 'dispensada' : 'paga',
-      txId: (d.lancamento_id as string) ?? null, amount: num(d.valor), account: (d.conta_id as string) ?? null,
-      date: (d.data as string) ?? null, time: hhmm(d.hora), by: (d.responsavel as string) ?? null, payee: (d.recebedor as string) ?? null,
-      receiptId: d.lancamento_id ? anexoDe.get(String(d.lancamento_id)) ?? null : null, note: (d.observacao as string) ?? null,
-    })),
+    taskDone: baixas.map((d) => {
+      const st = String(d.status || 'paga')
+      const status: FpDoneStatus =
+        st === 'dispensada' || st === 'concluida' || st === 'cobrada' ? st : 'paga'
+      return {
+        id: String(d.id), taskId: String(d.tarefa_id), period: String(d.periodo), status,
+        txId: (d.lancamento_id as string) ?? null, amount: num(d.valor), account: (d.conta_id as string) ?? null,
+        date: (d.data as string) ?? null, time: hhmm(d.hora), by: (d.responsavel as string) ?? null, payee: (d.recebedor as string) ?? null,
+        receiptId: d.lancamento_id ? anexoDe.get(String(d.lancamento_id)) ?? null : null, note: (d.observacao as string) ?? null,
+      }
+    }),
     accChecks: confs.map((c) => ({
       id: String(c.id), accId: String(c.conta_id), date: String(c.data), time: hhmm(c.hora) || '00:00',
       balance: Number(c.saldo), by: String(c.responsavel || ''), createdBy: (c.created_by as string) ?? null,

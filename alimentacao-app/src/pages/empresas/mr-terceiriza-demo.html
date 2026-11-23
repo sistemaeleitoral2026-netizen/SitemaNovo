@@ -197,6 +197,7 @@ table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
 .bank-note{font-size:12px;color:#64748b;line-height:1.45;white-space:normal}
 .bank-actions{display:flex;gap:7px;justify-content:flex-end;flex-wrap:wrap}
 .bank-empty{padding:28px;border:1px dashed #c9d4e2;border-radius:10px;text-align:center;color:var(--muted);background:#fbfcfe}
+.cc-company-tools{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 6px}
 @media(max-width:760px){.bank-form-grid{grid-template-columns:1fr}.bank-item{grid-template-columns:1fr;gap:12px}.bank-actions{justify-content:flex-start}.bank-company-picker{grid-template-columns:1fr}}
 
 /* Planilha */
@@ -214,8 +215,17 @@ table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
 .thumbs{display:flex;gap:5px;align-items:center}
 .thumb{width:42px;height:42px;border:1px solid #cfd6df;border-radius:4px;object-fit:cover;cursor:zoom-in;background:#f5f7fa;display:grid;place-items:center;font-size:10px;font-weight:700;color:var(--red);padding:0}
 .lightbox{position:fixed;inset:0;background:#09121ecc;z-index:60;display:grid;place-items:center;padding:24px;cursor:zoom-out}
-.lightbox img{max-width:100%;max-height:100%;border-radius:6px;background:#fff}
-.lightbox-close{position:absolute;top:calc(12px + env(safe-area-inset-top));right:12px;width:40px;height:40px;border-radius:50%;border:0;background:#fff;font-size:22px;line-height:1}
+.lightbox img,.lightbox iframe{max-width:min(960px,100%);max-height:min(90vh,100%);width:100%;height:90vh;border:0;border-radius:6px;background:#fff}
+.lightbox img{height:auto;max-height:90vh;width:auto}
+.lightbox-close{position:absolute;top:calc(12px + env(safe-area-inset-top));right:12px;width:40px;height:40px;border-radius:50%;border:0;background:#fff;font-size:22px;line-height:1;cursor:pointer;z-index:2}
+.doc-preview-panel{display:grid;gap:12px}
+.doc-preview-list{display:flex;flex-wrap:wrap;gap:8px}
+.doc-chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff;font-size:12px;cursor:pointer;text-align:left;max-width:100%}
+.doc-chip:hover{border-color:#86a9e7;background:#f8fbff}
+.doc-chip b{display:block;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-chip small{color:var(--muted)}
+.doc-thumb{width:36px;height:36px;border-radius:6px;object-fit:cover;background:#eef2f7;display:grid;place-items:center;font-size:10px;font-weight:700;color:#475569;flex:none}
+.doc-thumb.pdf{background:#fee2e2;color:#b91c1c}
 
 /* Lançamentos */
 .mini-label{display:block;font-size:12px;color:#334155;margin-bottom:6px;font-weight:500}
@@ -464,7 +474,7 @@ table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
 </div>
 <nav class="bottom-nav" id="bottomNav"></nav>
 <div class="pop hidden" id="rowMenu"></div>
-<div class="lightbox hidden" id="lightbox" onclick="this.classList.add('hidden')"><button class="lightbox-close" aria-label="Fechar">×</button><img id="lightboxImg" alt=""></div>
+<div class="lightbox hidden" id="lightbox" onclick="closeDocPreview()"><button class="lightbox-close" type="button" aria-label="Fechar" onclick="event.stopPropagation();closeDocPreview()">×</button><img id="lightboxImg" class="hidden" alt=""><iframe id="lightboxFrame" class="hidden" title="Pré-visualização do documento"></iframe></div>
 <script>
 // Protótipo local sem backend. Os dados ficam apenas nesta aba.
 const ME=window.MR_USER||{nome:'Jurandy Santana',admin:true};
@@ -560,11 +570,11 @@ let bankAccounts=EMBED?[]:[
 ];
 let entries=EMBED?[]:seed.map(e=>({...e,files:e.id===8?[{name:'Comprovante.pdf',type:'application/pdf',size:182000}]:[],notes:'',created:'Jurandy Santana',createdAt:e.date+'T09:00:00-03:00'}));
 let audit=[];
-let contracts=EMBED?[]:[{id:'k-demo',company:'globo',name:'Contrato A',total:120000,cc:'Eventos',start:'2026-10',months:12,notes:'',createdById:''}];
+let contracts=EMBED?[]:[{id:'k-demo',company:'globo',name:'Contrato A',total:120000,cc:'Eventos',start:'2026-10',months:12,notes:'',createdById:'',files:[]}];
 let centros=EMBED?[]:['Eventos','Coleta','Obras'];
 let centroDescricoes=EMBED?{}:{Eventos:'Eventos e produções',Coleta:'Operações de coleta',Obras:'Custos relacionados às obras'};
 let centroEmpresas=EMBED?{}:{Eventos:ALL_COMPANIES.map(c=>c.id),Coleta:ALL_COMPANIES.map(c=>c.id),Obras:ALL_COMPANIES.map(c=>c.id)};
-let perms={},users=[],structOk=true,coTab='geral',contractId=null,contractEditing=null,accountEditing=null;
+let perms={},users=[],structOk=true,coTab='geral',contractId=null,contractEditing=null,accountEditing=null,centroEditing=null;
 const TODAY_ISO=new Date().toLocaleDateString('en-CA');
 const DEFAULT_FROM=TODAY_ISO.slice(0,7)+'-01';
 const DEFAULT_TO=new Date(Number(TODAY_ISO.slice(0,4)),Number(TODAY_ISO.slice(5,7)),0).toLocaleDateString('en-CA');
@@ -572,6 +582,9 @@ let page='dashboard',company='',filterFrom=DEFAULT_FROM,filterTo=DEFAULT_TO,draf
 let fileMem={},cloudTimer=null,cloudReq=0,cloudPending={},persistBusyRetries=0;
 
 const fmt=v=>(Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const parseBRL=s=>{const x=String(s??'').trim();if(!x)return 0;const n=Number(x.includes(',')?x.replace(/[^\d,-]/g,'').replace(/\./g,'').replace(',','.'):x.replace(/[^\d.-]/g,''));return Number.isFinite(n)?n:0};
+const inputBRL=n=>fmt(Number(n)||0);
+const maskBRL=el=>{el.value=fmt(Number(String(el.value||'').replace(/\D/g,'')||0)/100)};
 const short=d=>d?d.slice(0,10).split('-').reverse().join('/'):'';
 const entryTime=e=>{const raw=e?.createdAt;if(!raw)return '—';const d=new Date(raw);if(!Number.isNaN(d.getTime()))return d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});const m=String(raw).match(/(?:T|\s)(\d{2}:\d{2})/);return m?m[1]:'—'};
 const stamp=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`};
@@ -651,7 +664,35 @@ function renderDashboard(){
 }
 
 function thumbs(e){return e.files.length?`<div class="thumbs">${e.files.map((f,i)=>f.url&&f.type!=='application/pdf'?`<img class="thumb" src="${f.url}" alt="${esc(f.name)}" title="${esc(f.name)}" onclick="openFile('${e.id}',${i})">`:`<button class="thumb" title="${esc(f.name)}" onclick="openFile('${e.id}',${i})">${f.type==='application/pdf'?'PDF':'ARQ'}</button>`).join('')}</div>`:'<span class="muted">Sem anexo</span>'}
-function openFile(id,i){const f=entries.find(e=>e.id===id)?.files[i];if(!f?.url)return;if(f.type==='application/pdf')window.open(f.url,'_blank');else{document.getElementById('lightboxImg').src=f.url;document.getElementById('lightbox').classList.remove('hidden')}}
+function openFile(id,i){previewDoc(entries.find(e=>e.id===id)?.files[i])}
+function closeDocPreview(){
+  const box=document.getElementById('lightbox'),img=document.getElementById('lightboxImg'),frame=document.getElementById('lightboxFrame');
+  box.classList.add('hidden');img.classList.add('hidden');frame.classList.add('hidden');img.removeAttribute('src');frame.removeAttribute('src');
+}
+function previewDoc(f){
+  if(!f?.url){toast('Documento ainda sem pré-visualização. Salve e aguarde o upload.');return}
+  const box=document.getElementById('lightbox'),img=document.getElementById('lightboxImg'),frame=document.getElementById('lightboxFrame');
+  img.classList.add('hidden');frame.classList.add('hidden');
+  if(f.type==='application/pdf'||/\.pdf$/i.test(f.name||'')){frame.src=f.url;frame.classList.remove('hidden')}
+  else if(String(f.type||'').startsWith('image/')){img.src=f.url;img.classList.remove('hidden')}
+  else{window.open(f.url,'_blank');return}
+  box.classList.remove('hidden');
+}
+function contractDocs(k,stopBubble=false){
+  const files=k.files||[];
+  if(!files.length)return '<span class="muted">Sem documento</span>';
+  const stop=stopBubble?"event.stopPropagation();":'';
+  return `<div class="thumbs">${files.map((f,i)=>f.url&&f.type!=='application/pdf'?`<img class="thumb" src="${f.url}" alt="${esc(f.name)}" title="${esc(f.name)}" onclick="${stop}previewContractFile('${k.id}',${i})">`:`<button type="button" class="thumb" title="${esc(f.name)}" onclick="${stop}previewContractFile('${k.id}',${i})">${f.type==='application/pdf'?'PDF':'ARQ'}</button>`).join('')}</div>`;
+}
+function previewContractFile(id,i){const files=contractById(id)?.files||[];previewDoc(files[i])}
+function docChips(k){
+  const files=k.files||[];
+  if(!files.length)return '<div class="muted" style="font-size:13px">Nenhum documento anexado neste contrato.</div>';
+  return `<div class="doc-preview-list">${files.map((f,i)=>{
+    const thumb=f.url&&String(f.type||'').startsWith('image/')?`<img class="doc-thumb" src="${f.url}" alt="">`:`<span class="doc-thumb ${f.type==='application/pdf'?'pdf':''}">${f.type==='application/pdf'?'PDF':'ARQ'}</span>`;
+    return `<button type="button" class="doc-chip" onclick="previewContractFile('${k.id}',${i})">${thumb}<span><b title="${esc(f.name)}">${esc(f.name)}</b><small>${f.size?fileSize(f.size):'Pré-visualizar'}</small></span></button>`;
+  }).join('')}</div>`;
+}
 // Tabela no estilo planilha: letras de coluna, números de linha, grade e total no rodapé.
 function sheet(a,o={}){if(!a.length)return emptyBox('file','Nenhum lançamento encontrado','Ajuste a empresa ou o período.');a=a.slice().sort((x,y)=>y.date.localeCompare(x.date));const cols=[['Data',e=>short(e.date)],['Horário',entryTime],['Responsável',e=>esc(e.created||'—'),'wrap'],...(company?[]:[['Empresa',e=>esc(companyName(e.company))]]),...(o.type?[]:[['Tipo',e=>e.type==='entrada'?'Entrada':'Saída']]),['Descrição',e=>esc(e.desc),'wrap'],['Centro de custo',e=>esc(e.cc||'—'),'wrap'],['Conta',e=>esc(e.account)],['Forma de pagamento',e=>esc(e.method||'—')],['Valor',e=>`<span class="${e.type==='entrada'?'positive':'negative'}">${fmt(e.value)}</span>`,'num'],['Comprovantes',thumbs],...(o.edit?[['',editCell]]:[])];const s=sums(a),total=o.type?(o.type==='entrada'?s.in:s.out):s.in-s.out,vi=cols.findIndex(c=>c[0]==='Valor');return `<div class="sheet-hint">Deslize a tabela para o lado para ver todas as colunas</div><div class="sheet-wrap"><table class="sheet"><thead><tr class="cols"><th class="rn"></th>${cols.map((_,i)=>`<th>${String.fromCharCode(65+i)}</th>`).join('')}</tr><tr class="heads"><th class="rn">1</th>${cols.map(c=>`<th class="${c[2]||''}">${c[0]}</th>`).join('')}</tr></thead><tbody>${a.map((e,r)=>`<tr><td class="rn">${r+2}</td>${cols.map(c=>`<td class="${c[2]||''}">${c[1](e)}</td>`).join('')}</tr>`).join('')}</tbody><tfoot><tr><td class="rn">${a.length+2}</td>${cols.map((c,i)=>`<td class="${c[2]||''}">${i===0?(o.type?'Total':'Saldo'):i===vi?`<span class="${total<0||o.type==='saida'?'negative':'positive'}">${fmt(total)}</span>`:''}</td>`).join('')}</tr></tfoot></table></div>`}
 
@@ -675,22 +716,34 @@ function contractMonths(k){
   rows.forEach(r=>{const z=sums(a.filter(e=>e.date.slice(0,7)===r.ym));r.in=z.in;r.out=z.out});
   return rows;
 }
-function contractCard(k,showCo){
-  const st=contractStats(k),end=addMonth(k.start,Math.max(1,k.months)-1);
-  return `<div class="co-card k-card" role="button" tabindex="0" onclick="openContract('${k.id}')"><div class="k-title"><div><b>${esc(k.name)}</b><br><small>${showCo?esc(companyName(k.company))+' · ':''}${k.cc?'Centro de custo: '+esc(k.cc):'Sem centro de custo'}</small></div>${ico('chevron-right',2)}</div><div><div class="sumline"><span>Valor do contrato</span><b>${fmt(k.total)}</b></div><div class="sumline"><span>Recebido</span><b class="positive">${fmt(st.in)}</b></div><div class="sumline"><span>Saídas</span><b class="negative">${fmt(st.out)}</b></div><div class="sumline"><span>Falta receber</span><b class="${st.falta>0?'warn':''}">${fmt(st.falta)}</b></div></div><div class="k-bar"><i style="width:${st.pct.toFixed(1)}%"></i></div><div class="k-foot"><span>${ymLabel(k.start)} a ${ymLabel(end)} · ${k.months} ${k.months===1?'mês':'meses'}</span><span>${st.pct.toFixed(0)}% recebido</span></div></div>`;
+function contractsSheet(list,showCo){
+  if(!list.length)return '';
+  const cols=[
+    ...(showCo?[['Empresa',k=>esc(companyName(k.company)),'wrap']]:[]),
+    ['Contrato',k=>`<button type="button" class="link" onclick="openContract('${k.id}')">${esc(k.name)}</button>`,'wrap'],
+    ['Centro de custo',k=>esc(k.cc||'—'),'wrap'],
+    ['Início',k=>ymLabel(k.start)],
+    ['Meses',k=>String(k.months),'num'],
+    ['Valor',k=>fmt(k.total),'num'],
+    ['Recebido',k=>`<span class="positive">${fmt(contractStats(k).in)}</span>`,'num'],
+    ['Falta receber',k=>{const st=contractStats(k);return `<span class="${st.falta>0?'warn':''}">${fmt(st.falta)}</span>`},'num'],
+    ['Documentos',k=>contractDocs(k,true)],
+    ['',k=>`<button type="button" class="btn sm" onclick="openContract('${k.id}')">Abrir</button>`],
+  ];
+  return `<div class="sheet-hint">Deslize a tabela para o lado · clique no documento para pré-visualizar</div><div class="sheet-wrap"><table class="sheet"><thead><tr class="cols"><th class="rn"></th>${cols.map((_,i)=>`<th>${String.fromCharCode(65+i)}</th>`).join('')}</tr><tr class="heads"><th class="rn">1</th>${cols.map(c=>`<th class="${c[2]||''}">${c[0]}</th>`).join('')}</tr></thead><tbody>${list.map((k,r)=>`<tr><td class="rn">${r+2}</td>${cols.map(c=>`<td class="${c[2]||''}">${c[1](k)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 function contractsBlock(coId){
   const list=contracts.filter(k=>k.company===coId).sort((x,y)=>y.start.localeCompare(x.start)||x.name.localeCompare(y.name));
   return `<div class="k-head"><b>Contratos de ${esc(companyName(coId))}</b><button class="btn primary" onclick="showContractForm(null,'${coId}')">${ico('plus')} Novo contrato</button></div>`
-  +(list.length?`<div class="co-cards">${list.map(k=>contractCard(k,false)).join('')}</div>`:card('Contratos',emptyBox('file','Nenhum contrato cadastrado','Cadastre o primeiro contrato desta empresa para lançar entradas e saídas dentro dele.')));
+  +(list.length?contractsSheet(list,false):card('Contratos',emptyBox('file','Nenhum contrato cadastrado','Cadastre o primeiro contrato desta empresa para lançar entradas e saídas dentro dele.')));
 }
 function renderContractsPage(){
   if(!companies.length){noCompanies();return}
   const lic=licitCompanies(),sel=lic.some(c=>c.id===company)?company:'';
   const list=contracts.filter(k=>(!sel||k.company===sel)&&lic.some(c=>c.id===k.company)).sort((x,y)=>x.company.localeCompare(y.company)||y.start.localeCompare(x.start));
-  view().innerHTML=title('Contratos','Contratos das empresas licitadas: valor total, centro de custo, previsão mês a mês, entradas e saídas.',lic.length?`<button class="btn primary" onclick="showContractForm(null,'${sel}')">${ico('plus')} Novo contrato</button>`:'')
+  view().innerHTML=title('Contratos','Contratos das empresas licitadas: valor, centro de custo, documentos anexados e previsão mês a mês.',lic.length?`<button class="btn primary" onclick="showContractForm(null,'${sel}')">${ico('plus')} Novo contrato</button>`:'')
   +`<div class="filters"><select id="kCo" aria-label="Empresa"><option value="">Todas as empresas licitadas</option>${lic.map(c=>opt(c.id,c.nome,sel)).join('')}</select></div>`
-  +(list.length?`<div class="co-cards">${list.map(k=>contractCard(k,true)).join('')}</div>`:card('Contratos',emptyBox('file','Nenhum contrato cadastrado',lic.length?'Clique em Novo contrato para cadastrar.':'Nenhuma empresa licitada liberada para o seu usuário.')));
+  +(list.length?card(`Lista de contratos (${list.length})`,contractsSheet(list,true)):card('Contratos',emptyBox('file','Nenhum contrato cadastrado',lic.length?'Clique em Novo contrato para cadastrar.':'Nenhuma empresa licitada liberada para o seu usuário.')));
   const f=document.getElementById('kCo');if(f)f.onchange=e=>{company=e.target.value;render()};
 }
 function openContract(id){const k=contractById(id);if(!k)return;contractId=id;company=k.company;navigate('contrato')}
@@ -701,7 +754,7 @@ function renderContract(){
   const tools=`<button class="btn" onclick="navigate('contratos')">${ico('chevron-left',2)} Contratos</button>`
     +(canEditContract(k)?`<button class="btn" onclick="showContractForm('${k.id}')">Editar</button><button class="btn" style="color:var(--red)" onclick="removeContract('${k.id}')">Excluir</button>`:'')
     +`<button class="btn primary" onclick="showForm(null,'entrada','${k.id}')">${ico('plus')} Nova entrada</button><button class="btn primary" style="background:var(--red);border-color:var(--red)" onclick="showForm(null,'saida','${k.id}')">${ico('plus')} Nova saída</button>`;
-  const mm=`<div class="sheet-hint">Deslize a tabela para o lado para ver todas as colunas</div><div class="sheet-wrap"><table class="sheet"><thead><tr class="heads"><th class="rn">#</th><th>Mês</th><th class="num">Previsto</th><th class="num">Recebido</th><th class="num">Saídas</th><th class="num">Saldo do mês</th><th class="num">Recebido − previsto</th></tr></thead><tbody>${rows.map((r,i)=>{const d=r.in-r.prev;return `<tr class="${r.ym===cur?'cur':''}"><td class="rn">${i+1}</td><td>${ymLabel(r.ym)}${r.ym===cur?' <span class="muted">(mês atual)</span>':''}</td><td class="num">${fmt(r.prev)}</td><td class="num positive">${fmt(r.in)}</td><td class="num negative">${fmt(r.out)}</td><td class="num ${r.in-r.out<0?'negative':''}">${fmt(r.in-r.out)}</td><td class="num ${d<0?'negative':d>0?'positive':''}">${fmt(d)}</td></tr>`}).join('')}</tbody><tfoot><tr><td class="rn"></td><td>Total</td><td class="num">${fmt(tot.prev)}</td><td class="num positive">${fmt(tot.in)}</td><td class="num negative">${fmt(tot.out)}</td><td class="num ${tot.in-tot.out<0?'negative':''}">${fmt(tot.in-tot.out)}</td><td class="num ${tot.in-tot.prev<0?'negative':''}">${fmt(tot.in-tot.prev)}</td></tr></tfoot></table></div>`;
+  const mm=`<div class="sheet-hint">Deslize a tabela para o lado para ver todas as colunas</div><div class="sheet-wrap"><table class="sheet"><thead><tr class="cols"><th class="rn"></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th></tr><tr class="heads"><th class="rn">1</th><th>Mês</th><th class="num">Previsto</th><th class="num">Recebido</th><th class="num">Saídas</th><th class="num">Saldo do mês</th><th class="num">Recebido − previsto</th></tr></thead><tbody>${rows.map((r,i)=>{const d=r.in-r.prev;return `<tr class="${r.ym===cur?'cur':''}"><td class="rn">${i+2}</td><td>${ymLabel(r.ym)}${r.ym===cur?' <span class="muted">(mês atual)</span>':''}</td><td class="num">${fmt(r.prev)}</td><td class="num positive">${fmt(r.in)}</td><td class="num negative">${fmt(r.out)}</td><td class="num ${r.in-r.out<0?'negative':''}">${fmt(r.in-r.out)}</td><td class="num ${d<0?'negative':d>0?'positive':''}">${fmt(d)}</td></tr>`}).join('')}</tbody><tfoot><tr><td class="rn">${rows.length+2}</td><td>Total</td><td class="num">${fmt(tot.prev)}</td><td class="num positive">${fmt(tot.in)}</td><td class="num negative">${fmt(tot.out)}</td><td class="num ${tot.in-tot.out<0?'negative':''}">${fmt(tot.in-tot.out)}</td><td class="num ${tot.in-tot.prev<0?'negative':''}">${fmt(tot.in-tot.prev)}</td></tr></tfoot></table></div>`;
   view().innerHTML=title(esc(k.name),`${esc(companyName(k.company))} · ${k.cc?'Centro de custo: '+esc(k.cc):'Sem centro de custo'} · ${ymLabel(k.start)} a ${ymLabel(end)}`,tools)
   +`<div class="metric-grid">`
     +metric('file','mi-blue','Valor do contrato','Contrato',fmt(k.total),`${k.months} ${k.months===1?'mês':'meses'} · ${fmt(k.total/Math.max(1,k.months))}/mês`)
@@ -710,32 +763,43 @@ function renderContract(){
     +metric('building','mi-gray','Saldo do contrato','Saldo',fmt(st.saldo),'Recebido menos saídas')
     +metric('clock','mi-yellow','Falta receber','Falta',`<span class="${st.falta>0?'warn':''}">${fmt(st.falta)}</span>`,'Valor do contrato menos recebido')
   +`</div>`
+  +card('Documentos do contrato',`<div class="doc-preview-panel">${docChips(k)}<p class="muted" style="font-size:12px;margin:0">Clique em um arquivo para pré-visualizar (PDF ou imagem). Você pode anexar várias fichas na edição do contrato.</p></div>`)
+  +'<div style="height:14px"></div>'
   +card('Mês a mês',mm)+'<div style="height:14px"></div>'
   +card('Entradas e saídas do contrato',sheet(st.a,{edit:true}))
   +(k.notes?'<div style="height:14px"></div>'+card('Observações',`<div style="white-space:pre-wrap;font-size:13px">${esc(k.notes)}</div>`):'');
 }
 function showContractForm(id,presetCo=''){
   if(!structOk){toast('Contratos ainda não disponíveis: rode o SQL 20261117a_mr_contratos.sql no Supabase.');return}
-  const k=id?contractById(id):null;contractEditing=k?k.id:null;page='contratoForm';markNav('contratos');hideMenus();
+  const k=id?contractById(id):null;contractEditing=k?k.id:null;draftFiles=[];keptFiles=[...(k?.files||[])];page='contratoForm';markNav('contratos');hideMenus();
   const lic=licitCompanies(),co=k?.company||(lic.some(c=>c.id===presetCo)?presetCo:(lic.some(c=>c.id===company)?company:''));
   document.getElementById('topPage').textContent=k?'Editar contrato':'Novo contrato';
-  view().innerHTML=`<div class="page-heading"><div><h1>${k?'Editar contrato':'Novo contrato'}</h1><p class="sub">O valor total é dividido igualmente pelos meses do contrato para montar a previsão mês a mês.</p></div></div>`
+  view().innerHTML=`<div class="page-heading"><div><h1>${k?'Editar contrato':'Novo contrato'}</h1><p class="sub">O valor total é dividido igualmente pelos meses do contrato. Anexe o contrato e quantas fichas precisar.</p></div></div>`
   +`<form id="contractForm" class="form-layout k-form"><div class="form-main">${fsec('file','Dados do contrato',`<div class="form-grid">
     <label class="field">${req('Empresa')}<select name="company" id="kCompany" required>${co?'':'<option value="">Selecione a empresa</option>'}${lic.map(c=>opt(c.id,`${c.nome} - ${c.tipo}`,co)).join('')}</select></label>
     <label class="field">${req('Nome do contrato')}<input name="name" required maxlength="120" placeholder="Ex.: Contrato A" value="${esc(k?.name||'')}"></label>
-    <label class="field">${req('Valor total do contrato (R$)')}<input name="total" id="kTotal" required type="number" min="0" step="0.01" placeholder="0,00" value="${k?.total??''}"></label>
+    <label class="field">${req('Valor total do contrato (R$)')}<input name="total" id="kTotal" required type="text" inputmode="numeric" autocomplete="off" placeholder="R$ 0,00" value="${k?inputBRL(k.total):''}"></label>
     <div class="field">Centro de custo<span class="cc-row"><select name="cc" id="kCc" aria-label="Centro de custo"></select><button type="button" class="btn outline" id="ccNewBtn" onclick="toggleCcNew(true)">${ico('plus')} Novo centro</button></span><span class="cc-row hidden" id="ccNew"><input id="ccNewName" maxlength="80" placeholder="Nome do novo centro de custo" aria-label="Nome do novo centro de custo"><button type="button" class="btn primary" onclick="saveCcNew()">Adicionar</button><button type="button" class="btn" onclick="toggleCcNew(false)">Cancelar</button></span></div>
     <label class="field">${req('Mês de início')}<input name="start" id="kStart" required type="month" value="${esc(k?.start||thisYm())}"></label>
     <label class="field">${req('Quantidade de meses')}<input name="months" id="kMonths" required type="number" min="1" max="240" step="1" value="${k?.months??12}"></label>
     <div class="full k-calc" id="kCalc"></div>
     <label class="field full">Observações<textarea name="notes" maxlength="1000" placeholder="Informações adicionais sobre o contrato...">${esc(k?.notes||'')}</textarea></label>
   </div>`)}
+  ${fsec('paperclip','Documentos do contrato (fichas, PDF ou foto)',`<label class="dropzone" id="drop">${ico('cloud')}<span>Clique para selecionar arquivos ou arraste aqui</span><small>JPG, PNG ou PDF • até 10 MB por arquivo • vários arquivos</small><input id="files" type="file" accept="image/png,image/jpeg,application/pdf" multiple></label><div id="fileErr" class="field-err hidden"></div><div id="fileList"></div>`)}
   <div class="form-actions"><button type="submit" class="btn primary">${ico('save')} Salvar contrato</button><button type="button" class="btn" onclick="${k?`openContract('${k.id}')`:`navigate('contratos')`}">Cancelar</button></div></div></form>`;
   fillCentros(k?.cc||'',co);
   document.getElementById('kCompany').onchange=ev=>fillCentros('',ev.target.value);
   document.getElementById('ccNewName').onkeydown=ev=>{if(ev.key==='Enter'){ev.preventDefault();saveCcNew()}else if(ev.key==='Escape'){ev.preventDefault();toggleCcNew(false)}};
-  const calc=()=>{const t=Number(document.getElementById('kTotal').value)||0,m=Math.max(1,parseInt(document.getElementById('kMonths').value)||1),s=document.getElementById('kStart').value||thisYm();document.getElementById('kCalc').innerHTML=`Parcela mensal prevista: <b>${fmt(t/m)}</b> · de ${ymLabel(s)} a ${ymLabel(addMonth(s,m-1))}`};
-  ['kTotal','kMonths','kStart'].forEach(i=>document.getElementById(i).oninput=calc);calc();
+  const totalEl=document.getElementById('kTotal');
+  const calc=()=>{const t=parseBRL(totalEl.value),m=Math.max(1,parseInt(document.getElementById('kMonths').value)||1),s=document.getElementById('kStart').value||thisYm();document.getElementById('kCalc').innerHTML=`Parcela mensal prevista: <b>${fmt(t/m)}</b> · de ${ymLabel(s)} a ${ymLabel(addMonth(s,m-1))}`};
+  totalEl.oninput=()=>{maskBRL(totalEl);calc()};
+  ['kMonths','kStart'].forEach(i=>document.getElementById(i).oninput=calc);calc();
+  const drop=document.getElementById('drop');
+  document.getElementById('files').onchange=ev=>{addFiles(ev.target.files);ev.target.value=''};
+  drop.ondragover=ev=>{ev.preventDefault();drop.classList.add('over')};
+  drop.ondragleave=()=>drop.classList.remove('over');
+  drop.ondrop=ev=>{ev.preventDefault();drop.classList.remove('over');addFiles(ev.dataTransfer.files)};
+  renderFileList();
   document.getElementById('contractForm').onsubmit=submitContract;
   window.scrollTo(0,0);
 }
@@ -744,15 +808,27 @@ function fillCentros(sel,co=document.getElementById('kCompany')?.value||''){cons
 // No formulário de contrato o centro novo vai junto quando salvar o contrato
 // (salvar agora re-renderizaria a tela e apagaria o que já foi digitado).
 function toggleCcNew(on){document.getElementById('ccNew').classList.toggle('hidden',!on);document.getElementById('ccNewBtn').classList.toggle('hidden',on);const i=document.getElementById('ccNewName');i.value='';if(on)i.focus()}
-function saveCcNew(){const i=document.getElementById('ccNewName'),n=i.value.trim(),co=document.getElementById('kCompany')?.value;if(!n||!co){if(!n)i.focus();else toast('Selecione a empresa do contrato.');return}addCentro(n,'',[co]);toggleCcNew(false)}
-function addCentro(name,description='',empresas=[]){const n=String(name??'').trim().slice(0,80),d=String(description??'').trim().slice(0,240),allowed=[...new Set(empresas.filter(id=>companies.some(c=>c.id===id)))];if(!n||!allowed.length)return;if(!centros.includes(n))centros.push(n);centroEmpresas[n]=[...new Set([...(centroEmpresas[n]||[]),...allowed])];if(d)centroDescricoes[n]=d;if(page==='contratoForm'){fillCentros(n,allowed[0]);scheduleCloudSave();return}scheduleCloudSave();render()}
+function saveCcNew(){const i=document.getElementById('ccNewName'),n=i.value.trim(),co=document.getElementById('kCompany')?.value;if(!n||!co){if(!n)i.focus();else toast('Selecione a empresa do contrato.');return}addCentro(n,'',companies.map(c=>c.id),{merge:true});toggleCcNew(false)}
+function addCentro(name,description='',empresas=[],opts={}){
+  const n=String(name??'').trim().slice(0,80),d=String(description??'').trim().slice(0,240);
+  const allowed=[...new Set(empresas.filter(id=>companies.some(c=>c.id===id)))];
+  if(!n||!allowed.length)return;
+  if(!centros.includes(n))centros.push(n);
+  centroEmpresas[n]=opts.merge?[...new Set([...(centroEmpresas[n]||[]),...allowed])]:allowed.slice();
+  if(opts.replaceDesc||d)centroDescricoes[n]=d;
+  if(page==='contratoForm'){fillCentros(n,document.getElementById('kCompany')?.value||allowed[0]);scheduleCloudSave();return}
+  scheduleCloudSave();render();
+}
 function submitContract(ev){
   ev.preventDefault();
   const x=Object.fromEntries(new FormData(ev.target).entries()),old=contractById(contractEditing);
-  const k={id:old?.id||uuid(),company:x.company,name:String(x.name||'').trim(),total:Number(x.total)||0,cc:x.cc||'',start:x.start||thisYm(),months:Math.min(240,Math.max(1,parseInt(x.months)||1)),notes:x.notes||'',createdById:old?.createdById||ME.id||''};
+  const files=[...keptFiles,...draftFiles];
+  const total=parseBRL(x.total);if(total<=0){toast('Informe o valor total do contrato.');return}
+  const k={id:old?.id||uuid(),company:x.company,name:String(x.name||'').trim(),total,cc:x.cc||'',start:x.start||thisYm(),months:Math.min(240,Math.max(1,parseInt(x.months)||1)),notes:x.notes||'',createdById:old?.createdById||ME.id||'',files};
   if(old)contracts=contracts.map(c=>c.id===old.id?k:c);else contracts.unshift(k);
   audit.unshift({id:uuid(),date:stamp(),user:ME.nome,action:old?'Edição de contrato':'Criação de contrato',desc:`${k.name} · ${fmt(k.total)}`,company:k.company});
-  contractEditing=null;scheduleCloudSave();openContract(k.id);
+  if(draftFiles.length)audit.unshift({id:uuid(),date:stamp(),user:ME.nome,action:'Anexo de contrato',desc:`${draftFiles.length} documento(s) em ${k.name}`,company:k.company});
+  contractEditing=null;draftFiles=[];keptFiles=[];scheduleCloudSave();openContract(k.id);
 }
 function removeContract(id){
   const k=contractById(id);if(!k)return;const n=entries.filter(e=>e.contract===id).length;
@@ -945,22 +1021,91 @@ function togglePerm(uid,coId,on){
 }
 function renderConfig(){
   const list=centros.slice().sort((a,b)=>a.localeCompare(b,'pt-BR'));
-  const companyChecks=companies.map(c=>`<label class="bank-company-option"><input type="checkbox" name="empresas" value="${c.id}"><span>${esc(c.nome)}<br><small>${esc(c.tipo)}</small></span></label>`).join('');
+  const editing=centroEditing&&centros.includes(centroEditing)?centroEditing:null;
+  const selected=editing
+    ?(centroEmpresas[editing]||[]).filter(id=>companies.some(c=>c.id===id))
+    :companies.map(c=>c.id);
+  const companyChecks=companies.map(c=>`<label class="bank-company-option"><input type="checkbox" name="empresas" value="${c.id}" ${selected.includes(c.id)?'checked':''}><span>${esc(c.nome)}<br><small>${esc(c.tipo)}</small></span></label>`).join('');
+  const rows=list.map(n=>{
+    const linked=centroEmpresas[n]||[];
+    const all=ALL_COMPANIES.length&&ALL_COMPANIES.every(c=>linked.includes(c.id));
+    const links=all
+      ?`<span class="bank-company-tag">Todas as empresas</span>`
+      :(linked.map(id=>`<span class="bank-company-tag">${esc(companyName(id))}</span>`).join('')||'<span class="muted">Nenhuma empresa</span>');
+    const key=encodeURIComponent(n);
+    return `<article class="bank-item"><div class="bank-title"><span>${ico('settings')}</span><div><b>${esc(n)}</b><small>${esc(centroDescricoes[n]||'Sem descrição')}</small></div></div><div><div class="bank-links">${links}</div><div class="bank-note">${contracts.filter(k=>k.cc===n).length} contrato(s) · ${linked.length} empresa(s)</div></div><div class="bank-actions"><button class="btn sm" type="button" onclick="editCentro(decodeURIComponent('${key}'))">Editar</button><button class="btn sm danger" type="button" onclick="deleteCentro(decodeURIComponent('${key}'))">Excluir</button></div></article>`;
+  }).join('');
+  const form=`<form id="ccForm" class="form-grid" style="margin-top:${list.length?'18px':'0'}" onsubmit="saveCostCenter(event)">
+    <label class="field">${req('Nome do centro de custo')}<input name="nome" placeholder="Ex.: Operações, Obras, Eventos" required maxlength="80" value="${esc(editing||'')}"></label>
+    <label class="field">Descrição opcional<input name="descricao" placeholder="Explique a finalidade deste centro" maxlength="240" value="${esc(editing?centroDescricoes[editing]||'':'')}"></label>
+    <div class="field bank-company-field full">
+      <span>${req('Empresas vinculadas')}</span>
+      <small class="muted">Escolha uma empresa específica ou todas. Em cadastro novo, todas já vêm selecionadas.</small>
+      <div class="cc-company-tools"><button type="button" class="btn sm" onclick="ccSelectAll(true)">Todas</button><button type="button" class="btn sm" onclick="ccSelectAll(false)">Limpar</button></div>
+      <div class="bank-company-picker">${companyChecks||'<span class="muted">Nenhuma empresa liberada para você.</span>'}</div>
+    </div>
+    <div class="form-actions full">
+      <button class="btn primary" type="submit">${ico(editing?'save':'plus')} ${editing?'Salvar alterações':'Cadastrar centro de custo'}</button>
+      ${editing?`<button class="btn" type="button" onclick="cancelCentroEdit()">Cancelar</button>`:''}
+    </div>
+  </form>`;
   view().innerHTML=title('Configurações','Cadastros usados nos contratos e lançamentos.')
-  +card('Centros de custo',(list.length?list.map(n=>`<div class="sumline"><span><b>${esc(n)}</b>${centroDescricoes[n]?`<br><small class="muted">${esc(centroDescricoes[n])}</small>`:''}<br><span class="bank-links">${(centroEmpresas[n]||[]).map(id=>`<span class="bank-company-tag">${esc(companyName(id))}</span>`).join('')}</span></span><span class="muted">${contracts.filter(k=>k.cc===n).length} contrato(s)</span></div>`).join(''):'<div class="muted" style="font-size:13px">Nenhum centro de custo cadastrado ainda.</div>')+`<form class="form-grid" style="margin-top:16px" onsubmit="saveCostCenter(event)"><label class="field">${req('Nome do centro de custo')}<input name="nome" placeholder="Ex.: Operações, Obras, Eventos" required maxlength="80"></label><label class="field">Descrição opcional<input name="descricao" placeholder="Explique a finalidade deste centro" maxlength="240"></label><div class="field bank-company-field full"><span>${req('Empresas vinculadas')}</span><small class="muted">Você só pode escolher empresas liberadas para o seu usuário.</small><div class="bank-company-picker">${companyChecks}</div></div><div class="form-actions full"><button class="btn primary">${ico('plus')} Cadastrar centro de custo</button></div></form>`);
+  +card('Centros de custo',(list.length?`<div class="bank-list">${rows}</div>`:'<div class="bank-empty">Nenhum centro de custo cadastrado ainda.</div>')+form);
 }
-function saveCostCenter(ev){ev.preventDefault();const fd=new FormData(ev.target),empresas=fd.getAll('empresas').map(String).filter(id=>companies.some(c=>c.id===id));if(!empresas.length){toast('Selecione pelo menos uma empresa.');return}addCentro(fd.get('nome'),fd.get('descricao'),empresas);toast('Centro de custo cadastrado.');}
+function ccSelectAll(on){document.querySelectorAll('#ccForm input[name="empresas"]').forEach(el=>{el.checked=!!on})}
+function editCentro(nome){centroEditing=nome;renderConfig();window.scrollTo(0,0)}
+function cancelCentroEdit(){centroEditing=null;renderConfig()}
+function deleteCentro(nome){
+  if(!centros.includes(nome))return;
+  const nContracts=contracts.filter(k=>k.cc===nome).length,nEntries=entries.filter(e=>e.cc===nome).length;
+  if(!confirm(`Excluir o centro de custo "${nome}"?${nContracts||nEntries?`\n\n${nContracts} contrato(s) e ${nEntries} lançamento(s) perdem esse vínculo.`:''}`))return;
+  centros=centros.filter(n=>n!==nome);delete centroDescricoes[nome];delete centroEmpresas[nome];
+  contracts.forEach(k=>{if(k.cc===nome)k.cc=''});entries.forEach(e=>{if(e.cc===nome)e.cc=''});
+  if(centroEditing===nome)centroEditing=null;
+  scheduleCloudSave();renderConfig();toast('Centro de custo excluído.');
+}
+function saveCostCenter(ev){
+  ev.preventDefault();
+  const fd=new FormData(ev.target);
+  const nome=String(fd.get('nome')||'').trim().slice(0,80);
+  const descricao=String(fd.get('descricao')||'').trim().slice(0,240);
+  const empresas=fd.getAll('empresas').map(String).filter(id=>companies.some(c=>c.id===id));
+  if(!nome){toast('Informe o nome do centro de custo.');return}
+  if(!empresas.length){toast('Selecione pelo menos uma empresa (ou Todas).');return}
+  const old=centroEditing&&centros.includes(centroEditing)?centroEditing:null;
+  const mergeEmpresas=(prev=[])=>[...new Set([...prev.filter(id=>!companies.some(c=>c.id===id)),...empresas])];
+  if(old&&old!==nome){
+    if(centros.includes(nome)){toast('Já existe um centro de custo com esse nome.');return}
+    centros=centros.map(n=>n===old?nome:n);
+    centroDescricoes[nome]=descricao;delete centroDescricoes[old];
+    centroEmpresas[nome]=mergeEmpresas(centroEmpresas[old]);delete centroEmpresas[old];
+    contracts.forEach(k=>{if(k.cc===old)k.cc=nome});
+    entries.forEach(e=>{if(e.cc===old)e.cc=nome});
+  }else if(old){
+    centroDescricoes[nome]=descricao;
+    centroEmpresas[nome]=mergeEmpresas(centroEmpresas[nome]);
+  }else if(centros.includes(nome)){
+    centroEmpresas[nome]=mergeEmpresas(centroEmpresas[nome]);
+    if(descricao)centroDescricoes[nome]=descricao;
+  }else{
+    addCentro(nome,descricao,empresas,{replaceDesc:true});
+    centroEditing=null;toast('Centro de custo cadastrado.');return;
+  }
+  centroEditing=null;scheduleCloudSave();renderConfig();toast(old?'Centro de custo atualizado.':'Centro de custo cadastrado.');
+}
 
 // ====== Ponte com o React (Supabase): hidratação e salvamento na nuvem ======
 async function blobToB64(blob){const buf=await blob.arrayBuffer();const bytes=new Uint8Array(buf);let s='';for(let i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);return btoa(s)}
 async function collectPendingFiles(){
   const files={};
-  for(const e of entries)for(const f of e.files){
-    if(!f||!f.id||f.path)continue;
+  const push=async f=>{
+    if(!f||!f.id||f.path)return;
     const blob=fileMem[f.id];
-    if(!blob)continue;
+    if(!blob)return;
     files[f.id]={name:f.name||'arquivo',type:f.type||blob.type||'application/octet-stream',size:f.size||blob.size||0,dataBase64:await blobToB64(blob)};
-  }
+  };
+  for(const e of entries)for(const f of e.files||[])await push(f);
+  for(const k of contracts)for(const f of k.files||[])await push(f);
   return files;
 }
 function toServerSnapshot(){
@@ -969,7 +1114,7 @@ function toServerSnapshot(){
     contas:accounts,
     contasDetalhes:bankAccounts.map(a=>({id:a.id,nome:a.nome,descricao:a.descricao,observacoes:a.observacoes,empresas:a.empresas.slice()})),
     audit:audit.map(a=>({id:a.id,at:a.date,actor:a.user,action:a.action,detail:a.desc,empresa:a.company})),
-    contratos:contracts.map(k=>({id:k.id,empresa:k.company,nome:k.name,valorTotal:k.total,centroCusto:k.cc,inicio:k.start,meses:k.months,observacoes:k.notes,criadoPorId:k.createdById})),
+    contratos:contracts.map(k=>({id:k.id,empresa:k.company,nome:k.name,valorTotal:k.total,centroCusto:k.cc,inicio:k.start,meses:k.months,observacoes:k.notes,criadoPorId:k.createdById,anexos:(k.files||[]).map(f=>({id:f.id,name:f.name,type:f.type,size:f.size,path:f.path}))})),
     centrosCusto:centros.slice(),
     centrosCustoDetalhes:centros.map(nome=>({nome,descricao:centroDescricoes[nome]||'',empresas:(centroEmpresas[nome]||[]).slice()})),
     ...(ME.admin?{permissoes:perms}:{}),
@@ -1003,7 +1148,7 @@ function applyCloudDb(payload){
   }
   syncAccountsMap();
   audit=Array.isArray(payload.audit)?payload.audit.map(a=>({id:a.id,date:a.at,user:a.actor,action:a.action,desc:a.detail||'',company:a.empresa||''})):[];
-  contracts=Array.isArray(payload.contratos)?payload.contratos.map(k=>({id:k.id,company:k.empresa,name:k.nome||'',total:Number(k.valorTotal)||0,cc:k.centroCusto||'',start:k.inicio||thisYm(),months:Math.max(1,Number(k.meses)||1),notes:k.observacoes||'',createdById:k.criadoPorId||''})):[];
+  contracts=Array.isArray(payload.contratos)?payload.contratos.map(k=>({id:k.id,company:k.empresa,name:k.nome||'',total:Number(k.valorTotal)||0,cc:k.centroCusto||'',start:k.inicio||thisYm(),months:Math.max(1,Number(k.meses)||1),notes:k.observacoes||'',createdById:k.criadoPorId||'',files:(k.anexos||[]).map(a=>({id:a.id,name:a.name,type:a.type,size:a.size,path:a.path,url:a.signedUrl}))})):[];
   if(Array.isArray(payload.centrosCusto))centros=payload.centrosCusto.slice();
   if(Array.isArray(payload.centrosCustoDetalhes)){centroDescricoes={};centroEmpresas={};payload.centrosCustoDetalhes.forEach(c=>{if(c?.nome){centroDescricoes[c.nome]=c.descricao||'';centroEmpresas[c.nome]=Array.isArray(c.empresas)?c.empresas.slice():[]}})}
   if(payload.permissoes&&typeof payload.permissoes==='object')perms=JSON.parse(JSON.stringify(payload.permissoes));

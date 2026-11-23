@@ -80,7 +80,7 @@
     <nav class="nav" id="sideNav">
       <button data-view="overview" class="active"><svg class="i"><use href="#i-layout-dashboard"/></svg>Visão geral</button>
       <button data-view="transactions"><svg class="i"><use href="#i-arrow-left-right"/></svg>Movimentações</button>
-      <button data-view="tasks"><svg class="i"><use href="#i-list-checks"/></svg>Tarefas<span class="nav-badge" data-task-badge hidden></span></button>
+      <button data-view="tasks"><svg class="i"><use href="#i-list-checks"/></svg>Programação<span class="nav-badge" data-task-badge hidden></span></button>
       <div class="nav-group">Patrimônio</div>
       <button data-view="accounts"><svg class="i"><use href="#i-landmark"/></svg>Contas</button>
       <button data-view="investments"><svg class="i"><use href="#i-piggy-bank"/></svg>Investimentos</button>
@@ -116,7 +116,7 @@
 
       <!-- ============ VISÃO GERAL ============ -->
       <section class="view active" id="view-overview">
-        <div class="block kpis">
+        <div class="block kpis" id="overviewKpis">
           <div class="kpi">
             <div class="kpi-label">Saldo em contas</div>
             <div class="kpi-value num" id="kBalance">—</div>
@@ -169,8 +169,8 @@
         <div class="row row-wide-1-2">
         <div class="block">
           <div class="block-head">
-            <div><div class="block-title">Pagamentos pendentes</div><div class="block-meta" id="pendingMeta"></div></div>
-            <button class="link" data-go="tasks">Ver tarefas</button>
+            <div><div class="block-title">Pendências da programação</div><div class="block-meta" id="pendingMeta"></div></div>
+            <button class="link" data-go="tasks">Ver programação</button>
           </div>
           <div class="task-list" id="pendingList"></div>
         </div>
@@ -210,20 +210,36 @@
       <!-- ============ MOVIMENTAÇÕES ============ -->
       <section class="view" id="view-tasks">
         <div class="block kpis" id="taskKpis"></div>
+        <div id="taskDueBanner" class="due-banners" hidden></div>
         <div class="block">
           <div class="block-head">
-            <div class="seg-tabs" id="taskTabs" role="tablist" aria-label="Filtrar tarefas">
-              <button type="button" data-ttab="pending" class="on">Pendentes</button>
-              <button type="button" data-ttab="paid">Pagas</button>
-              <button type="button" data-ttab="all">Todas</button>
-              <button type="button" data-ttab="models" data-admin-only>Modelos</button>
+            <div class="seg-tabs" id="taskTabs" role="tablist" aria-label="Filtrar programação">
+              <button type="button" data-ttab="all" class="on">Cadastradas</button>
+              <button type="button" data-ttab="pending">Pendentes</button>
+              <button type="button" data-ttab="paid">Concluídas</button>
             </div>
-            <button class="btn btn-primary btn-sm" data-open="task" data-admin-only><svg class="i i-sm"><use href="#i-plus"/></svg>Nova tarefa</button>
+            <button class="btn btn-primary btn-sm" data-open="task" data-admin-only><svg class="i i-sm"><use href="#i-plus"/></svg>Nova programação</button>
+          </div>
+          <div class="toolbar task-filters">
+            <div class="search"><svg class="i"><use href="#i-search"/></svg>
+              <input class="input" id="tq" placeholder="Buscar título, pessoa ou conta" aria-label="Buscar programação"></div>
+            <select class="select" id="tfKind" aria-label="Tipo da programação">
+              <option value="all">Todos os tipos</option>
+              <option value="pagamento">Pagamento</option>
+              <option value="documentacao">Documentação</option>
+              <option value="cobranca">Cobrança</option>
+            </select>
+            <select class="select" id="tfValor" aria-label="Tipo de valor">
+              <option value="all">Qualquer valor</option>
+              <option value="fixo">Valor fixo</option>
+              <option value="variavel">Valor variável</option>
+              <option value="sem">Sem valor (doc.)</option>
+            </select>
           </div>
           <div id="taskBody"></div>
         </div>
         <div class="note" id="taskEditorNote" hidden><svg class="i"><use href="#i-info"/></svg>
-          <span>Você pode dar baixa nas tarefas (valor pago, conta e comprovante). Criar, editar ou dispensar tarefas é só para admin.</span></div>
+          <span>Você pode lançar cada item (pagamento, documentação ou cobrança). Criar, editar ou dispensar é só para admin.</span></div>
       </section>
 
       <section class="view" id="view-transactions">
@@ -318,25 +334,28 @@
 
       <!-- ============ RELATÓRIOS ============ -->
       <section class="view" id="view-reports">
-        <div class="block kpis" id="reportKpis"></div>
-        <div class="row row-2-1">
-          <div class="block">
-            <div class="block-head"><div class="block-title">Todas as categorias de despesa</div><div class="block-meta" id="reportPeriod"></div></div>
-            <div class="block-body"><div class="cat-list" id="catAll"></div></div>
-          </div>
-          <div class="block">
-            <div class="block-head"><div class="block-title">Por conta</div></div>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Conta</th><th class="t-right">Entradas</th><th class="t-right">Saídas</th></tr></thead>
-                <tbody id="byAccount"></tbody>
-              </table>
+        <div class="block">
+          <div class="block-head">
+            <div class="seg-tabs" id="reportTabs" role="tablist" aria-label="Tipo de relatório">
+              <button type="button" data-rtab="programacao" class="on">Programação</button>
+              <button type="button" data-rtab="movimentacoes">Movimentações</button>
+              <button type="button" data-rtab="contas">Contas</button>
+              <button type="button" data-rtab="investimentos">Investimentos</button>
             </div>
+            <button type="button" class="btn btn-primary btn-sm" id="reportPdfBtn"><svg class="i i-sm"><use href="#i-download"/></svg>Salvar PDF A4</button>
+          </div>
+          <div class="toolbar report-toolbar">
+            <div class="block-meta" id="reportPeriodLabel">Pré-visualização da folha A4 · escolha o mês no topo</div>
+          </div>
+          <div class="report-preview-wrap">
+            <div class="report-preview-label">Pré-visualização do PDF</div>
+            <div id="reportPreview" class="report-a4" aria-label="Pré-visualização do relatório em A4"></div>
           </div>
         </div>
         <div class="note"><svg class="i"><use href="#i-info"/></svg>
-          <span>Cada lançamento registra data, conta, valor, categoria e descrição. Este protótipo não movimenta dinheiro nem se conecta a bancos; o acesso a dados bancários reais deve ser autorizado pela própria instituição.</span></div>
+          <span>Abaixo está como o PDF fica na folha A4. Em “Salvar PDF A4”, escolha “Salvar como PDF” na impressão — sem precisar liberar pop-up.</span></div>
       </section>
+<iframe id="reportPrintFrame" title="Impressão do relatório" aria-hidden="true"></iframe>
 
     </div>
   </main>
@@ -345,7 +364,7 @@
 <nav class="tabbar" id="tabbar">
   <button data-view="overview" class="active"><svg class="i"><use href="#i-layout-dashboard"/></svg>Início</button>
   <button data-view="transactions"><svg class="i"><use href="#i-arrow-left-right"/></svg>Lançamentos</button>
-  <button data-view="tasks"><svg class="i"><use href="#i-list-checks"/></svg>Tarefas<span class="nav-badge" data-task-badge hidden></span></button>
+  <button data-view="tasks"><svg class="i"><use href="#i-list-checks"/></svg>Programação<span class="nav-badge" data-task-badge hidden></span></button>
   <button data-view="accounts"><svg class="i"><use href="#i-landmark"/></svg>Contas</button>
   <button data-view="investments"><svg class="i"><use href="#i-piggy-bank"/></svg>Investir</button>
   <button data-view="reports"><svg class="i"><use href="#i-chart-column"/></svg>Relatórios</button>
@@ -440,24 +459,44 @@
     <div class="modal-foot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary">Registrar</button></div>
   </form>
 </div>
-<!-- Tarefa (admin) -->
+<!-- Programação (admin) -->
 <div class="modal-backdrop" id="modal-task">
   <form class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="tkTitle" id="taskForm">
-    <div class="modal-head"><h2 id="tkTitle">Nova tarefa</h2>
+    <div class="modal-head"><h2 id="tkTitle">Nova programação</h2>
       <button type="button" class="icon-btn" data-close aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button></div>
     <div class="modal-body">
       <input type="hidden" id="tkId">
-      <div class="field full"><label for="tkName">O que precisa ser pago</label><input class="input" id="tkName" required maxlength="60" placeholder="Ex.: Netflix, aluguel, escola, IPVA"></div>
-      <div class="field full">
-        <label for="tkPayee">Quem recebe</label>
-        <input class="input" id="tkPayee" required maxlength="60" list="payeeList" placeholder="Nome de quem recebe o pagamento (pessoa ou empresa)">
+      <div class="field full"><label for="tkKind">Tipo</label>
+        <select class="select" id="tkKind">
+          <option value="pagamento">Pagamento</option>
+          <option value="documentacao">Documentação</option>
+          <option value="cobranca">Cobrança</option>
+        </select>
       </div>
-      <div class="field"><label for="tkCat">Categoria</label><select class="select" id="tkCat"></select></div>
-      <div class="field"><label for="tkAcc">Conta sugerida</label><select class="select" id="tkAcc"></select></div>
-      <div class="field"><label for="tkAmount">Valor previsto (R$)</label><input class="input num money" id="tkAmount" type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div>
-      <div class="field field-check"><label class="check"><input type="checkbox" id="tkVaries"> Valor varia todo mês</label></div>
+      <div class="field full"><label for="tkName" id="tkNameLabel">O que precisa ser pago</label><input class="input" id="tkName" required maxlength="80" placeholder="Ex.: Netflix, Aluguel, Conta de luz"></div>
 
+      <!-- Pessoa: rótulo muda por tipo (recebe / responsável / cobrado) -->
       <div class="field full">
+        <label for="tkPerson" id="tkPersonLabel">Quem recebe</label>
+        <input class="input" id="tkPerson" maxlength="60" list="payeeList" placeholder="Nome de quem recebe o pagamento" required autocomplete="off">
+        <p class="field-hint" id="tkPersonHint" hidden>Pode escolher o nome de quem está logado na lista ou digitar outro.</p>
+      </div>
+
+      <!-- Pagamento -->
+      <div class="field" data-tk-kind="pagamento"><label for="tkCat">Categoria</label><select class="select" id="tkCat"></select></div>
+      <div class="field" data-tk-kind="pagamento"><label for="tkAcc">Conta sugerida</label><select class="select" id="tkAcc"></select></div>
+      <div class="field" data-tk-kind="pagamento"><label for="tkAmount">Valor previsto (R$)</label><input class="input num money" id="tkAmount" type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div>
+      <div class="field field-check" data-tk-kind="pagamento"><label class="check"><input type="checkbox" id="tkVaries"> Valor varia todo mês</label></div>
+
+      <!-- Documentação -->
+      <div class="field" data-tk-kind="documentacao"><label for="tkDocCreated">Data do cadastro</label><input class="input" id="tkDocCreated" type="date" readonly tabindex="-1" title="Preenchida automaticamente"></div>
+
+      <!-- Cobrança -->
+      <div class="field" data-tk-kind="cobranca"><label for="tkChargeAmount">Valor a receber (R$)</label><input class="input num money" id="tkChargeAmount" type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div>
+      <div class="field" data-tk-kind="cobranca"><label for="tkChargeAcc">Conta que vai receber</label><select class="select" id="tkChargeAcc"></select></div>
+
+      <!-- Quando: oculto em documentação (sempre prazo único) -->
+      <div class="field full" data-tk-when>
         <label>Quando</label>
         <div class="seg">
           <input type="radio" name="tkType" id="tkTypeR" value="rec" checked><label for="tkTypeR">Recorrente</label>
@@ -470,42 +509,53 @@
           <option value="m6">A cada 6 meses</option><option value="y">Uma vez por ano</option>
         </select></div>
       <div class="field" data-tk="year"><label for="tkMonth">Mês do ano</label><select class="select" id="tkMonth"></select></div>
-      <div class="field" data-tk="rec"><label>Dia do pagamento</label>
+      <div class="field" data-tk="rec"><label id="tkDayLabel">Dia do pagamento</label>
         <div class="seg seg-sm">
           <input type="radio" name="tkDayMode" id="tkDayFixed" value="fixed"><label for="tkDayFixed">Dia fixo</label>
           <input type="radio" name="tkDayMode" id="tkDayRange" value="range" checked><label for="tkDayRange">Entre os dias</label>
         </div>
         <div class="range"><input class="input num" id="tkDayFrom" type="number" min="1" max="31" value="10" aria-label="Dia"><span data-range-part>e</span><input class="input num" id="tkDayTo" type="number" min="1" max="31" value="15" aria-label="Até o dia" data-range-part></div></div>
-      <div class="field" data-tk="rec"><label for="tkStart">Começa em</label><input class="input" id="tkStart" type="month"></div>
-      <div class="field" data-tk="rec"><label for="tkEnd">Termina em <span class="opt">(opcional)</span></label><input class="input" id="tkEnd" type="month"></div>
-      <div class="field" data-tk="once"><label for="tkDateFrom">Pagar a partir de</label><input class="input" id="tkDateFrom" type="date"></div>
-      <div class="field" data-tk="once"><label for="tkDateTo">Até (vencimento)</label><input class="input" id="tkDateTo" type="date"></div>
+      <div class="field" data-tk="rec"><label for="tkStart">Começa em</label><select class="select" id="tkStart"></select></div>
+      <div class="field" data-tk="rec"><label for="tkEnd">Termina em <span class="opt">(opcional)</span></label><select class="select" id="tkEnd"></select></div>
+      <div class="field" data-tk="once"><label for="tkDateFrom" id="tkDateFromLabel">Pagar a partir de</label><input class="input" id="tkDateFrom" type="date"></div>
+      <div class="field" data-tk="once"><label for="tkDateTo" id="tkDateToLabel">Até (vencimento)</label><input class="input" id="tkDateTo" type="date"></div>
 
-      <div class="field full"><label for="tkNotes">Instruções para quem vai pagar <span class="opt">(opcional)</span></label><textarea class="input textarea" id="tkNotes" maxlength="300" rows="2" placeholder="Ex.: pagar via Pix para a chave do CNPJ; pedir nota fiscal"></textarea></div>
+      <div class="field full"><label for="tkNotes" id="tkNotesLabel">Instruções para quem vai pagar <span class="opt">(opcional)</span></label><textarea class="input textarea" id="tkNotes" maxlength="300" rows="2" placeholder="Detalhes para quem for executar"></textarea></div>
       <div class="field full"><div class="summary" id="tkSummary"></div></div>
     </div>
-    <div class="modal-foot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary" id="tkSubmit">Criar tarefa</button></div>
+    <div class="modal-foot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary" id="tkSubmit">Criar programação</button></div>
   </form>
 </div>
 
-<!-- Dar baixa -->
+<!-- Lançar pagamento / documentação / cobrança -->
 <div class="modal-backdrop" id="modal-pay">
   <form class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="pyTitle" id="payForm">
     <div class="modal-head"><h2 id="pyTitle">Dar baixa no pagamento</h2>
       <button type="button" class="icon-btn" data-close aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button></div>
     <div class="pay-head" id="payHead"></div>
     <div class="modal-body">
-      <input type="hidden" id="pyTask"><input type="hidden" id="pyPeriod">
-      <div class="field"><label for="pyAmount">Valor pago (R$)</label><input class="input num money" id="pyAmount" required type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div>
-      <div class="field"><label for="pyAcc">Conta de onde saiu</label><select class="select" id="pyAcc" required></select></div>
-      <div class="field"><label for="pyDate">Data do pagamento</label><input class="input" id="pyDate" type="date" required></div>
-      <div class="field"><label for="pyTime">Hora</label><input class="input" id="pyTime" type="time" required></div>
-      <div class="field"><label for="pyPayee">Quem recebeu</label><input class="input" id="pyPayee" required maxlength="60" list="payeeList"></div>
-      <div class="field"><label for="pyBy">Pago por</label><input class="input" id="pyBy" required maxlength="40" list="peopleList" placeholder="Seu nome"></div>
-      <div class="field full"><label>Comprovante bancário <span class="opt">(se tiver)</span></label><div class="upload" data-upload="pay"></div></div>
-      <div class="field full"><label for="pyNote">Observação <span class="opt">(opcional)</span></label><input class="input" id="pyNote" maxlength="200" placeholder="Ex.: pago com juros de atraso"></div>
+      <input type="hidden" id="pyTask"><input type="hidden" id="pyPeriod"><input type="hidden" id="pyMode" value="pagamento">
+
+      <!-- Pagamento -->
+      <div class="field" data-py="pagamento"><label for="pyAmount">Valor pago (R$)</label><input class="input num money" id="pyAmount" type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div>
+      <div class="field" data-py="pagamento"><label for="pyAcc">Conta de onde saiu</label><select class="select" id="pyAcc"></select></div>
+      <div class="field" data-py="pagamento"><label for="pyPayee">Quem recebeu</label><input class="input" id="pyPayee" maxlength="60" list="payeeList"></div>
+      <div class="field" data-py="pagamento"><label for="pyTime">Hora</label><input class="input" id="pyTime" type="time"></div>
+      <div class="field full" data-py="pagamento"><label>Comprovante bancário <span class="opt">(se tiver)</span></label><div class="upload" data-upload="pay"></div></div>
+
+      <!-- Cobrança (campos próprios) -->
+      <div class="field" data-py="cobranca"><label for="pyChargeAmount">Valor recebido (R$)</label><input class="input num money" id="pyChargeAmount" type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div>
+      <div class="field" data-py="cobranca"><label for="pyChargeAcc">Conta que recebeu</label><select class="select" id="pyChargeAcc"></select></div>
+      <div class="field" data-py="cobranca"><label for="pyChargeTo">Quem foi cobrado</label><input class="input" id="pyChargeTo" maxlength="60" list="payeeList"></div>
+      <div class="field" data-py="cobranca"><label for="pyChargeTime">Hora</label><input class="input" id="pyChargeTime" type="time"></div>
+      <div class="field full" data-py="cobranca"><label>Comprovante <span class="opt">(se tiver)</span></label><div class="upload" data-upload="charge"></div></div>
+
+      <!-- Comum -->
+      <div class="field"><label for="pyDate" id="pyDateLabel">Data</label><input class="input" id="pyDate" type="date" required></div>
+      <div class="field"><label for="pyBy" id="pyByLabel">Pago por</label><input class="input" id="pyBy" required maxlength="40" readonly tabindex="-1" autocomplete="off"></div>
+      <div class="field full"><label for="pyNote">Observação <span class="opt">(opcional)</span></label><input class="input" id="pyNote" maxlength="200" placeholder="Detalhe opcional"></div>
     </div>
-    <div class="modal-foot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary"><svg class="i i-sm"><use href="#i-check"/></svg>Confirmar pagamento</button></div>
+    <div class="modal-foot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary" id="pySubmit"><svg class="i i-sm"><use href="#i-check"/></svg>Confirmar</button></div>
   </form>
 </div>
 
