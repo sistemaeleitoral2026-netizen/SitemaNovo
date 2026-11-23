@@ -20,6 +20,7 @@ export type MrLancamento = {
   descricao: string
   valor: number
   conta?: string
+  centroCusto?: string
   formaPagamento?: string
   observacoes?: string
   anexos?: MrAnexoMeta[]
@@ -78,7 +79,7 @@ export type MrDbPayload = {
   audit: MrAudit[]
   contratos: MrContrato[]
   centrosCusto: string[]
-  centrosCustoDetalhes?: Array<{ nome: string; descricao?: string }>
+  centrosCustoDetalhes?: Array<{ nome: string; descricao?: string; empresas?: string[] }>
   /** userId -> empresas liberadas. Admin recebe de todos; editor só o dele. */
   permissoes?: Record<string, string[]>
   /** Só vem pro admin (tela Usuários). */
@@ -254,6 +255,7 @@ export async function carregarEstadoMrTerceriza(sessao: MrSessao): Promise<MrDbP
       descricao: (r.descricao as string) || '',
       valor: money(r.valor),
       conta: (r.conta as string) || '',
+      centroCusto: (r.centro_custo as string) || '',
       formaPagamento: (r.forma_pagamento as string) || '',
       observacoes: (r.observacoes as string) || '',
       anexos: anexosFor(anexoRows, r.id as string, signed),
@@ -307,11 +309,21 @@ export async function carregarEstadoMrTerceriza(sessao: MrSessao): Promise<MrDbP
       criadoPorId: (r.created_by as string) || '',
     }))
 
-  const centrosCusto = (centrosRows.data || []).map((r) => r.nome as string)
-  const centrosCustoDetalhes = (centrosRows.data || []).map((r) => ({
-    nome: r.nome as string,
-    descricao: (r.descricao as string) || '',
-  }))
+  const centrosPorNome = new Map<string, { nome: string; descricao: string; empresas: string[] }>()
+  for (const row of centrosRows.data || []) {
+    const nome = String(row.nome || '').trim()
+    const empresa = String(row.empresa || '')
+    if (!nome || (empresa && !pode(empresa))) continue
+    const key = nome.toLocaleLowerCase('pt-BR')
+    let detalhe = centrosPorNome.get(key)
+    if (!detalhe) {
+      detalhe = { nome, descricao: (row.descricao as string) || '', empresas: [] }
+      centrosPorNome.set(key, detalhe)
+    }
+    if (empresa && !detalhe.empresas.includes(empresa)) detalhe.empresas.push(empresa)
+  }
+  const centrosCustoDetalhes = [...centrosPorNome.values()]
+  const centrosCusto = centrosCustoDetalhes.map((r) => r.nome)
 
   const usuarios: MrUsuario[] | undefined = sessao.admin
     ? ((usuariosRes.data as { id: string; nome: string; nivel: string; pode_abrir?: boolean }[] | null) || []).map(
@@ -431,23 +443,28 @@ export async function salvarEstadoMrTerceriza(
     const temEstruturaNova = !contrList.faltando
     const remoteContr = (contrList.data || []) as { id: string; empresa: string; created_by: string | null }[]
 
-    // ---- centros de custo: cadastro com descrição opcional ----
-    const centrosWanted = [...new Set((payload.centrosCusto || []).map((n) => n.trim()).filter(Boolean))]
-    if (temEstruturaNova && centrosWanted.length) {
-      const { data: jaTem, error } = await supabase.from('mr_centros_custo').select('nome')
-      if (error) throw asError(error)
-      const vistos = new Set((jaTem || []).map((r) => r.nome as string))
-      const detalhes = new Map((payload.centrosCustoDetalhes || []).map((c) => [c.nome.trim(), (c.descricao || '').trim()]))
-      const estruturaDescricao = await opcional(supabase.from('mr_centros_custo').select('descricao').limit(1), [])
-      if (estruturaDescricao.error) throw asError(estruturaDescricao.error)
-      const novos = centrosWanted.filter((n) => !vistos.has(n)).map((nome) => ({
-        nome,
-        ...(estruturaDescricao.faltando ? {} : { descricao: detalhes.get(nome) || null }),
-        created_by: opts.userId,
+    // ---- centros de custo: editor só cadastra nas empresas liberadas ----
+    const centrosDetalhes = (payload.centrosCustoDetalhes || [])
+      .map((c) => ({
+        nome: (c.nome || '').trim(),
+        descricao: (c.descricao || '').trim(),
+        empresas: [...new Set((c.empresas || []).filter((empresa) => pode(empresa)))],
       }))
-      if (novos.length) {
-        const { error: insErr } = await supabase.from('mr_centros_custo').insert(novos)
-        if (insErr) throw asError(insErr, 'Falha ao gravar centro de custo.')
+      .filter((c) => c.nome && c.empresas.length)
+    if (temEstruturaNova && centrosDetalhes.length) {
+      const estruturaEmpresa = await opcional(supabase.from('mr_centros_custo').select('empresa').limit(1), [])
+      if (estruturaEmpresa.error) throw asError(estruturaEmpresa.error)
+      if (!estruturaEmpresa.faltando) {
+        const { data: jaTem, error } = await supabase.from('mr_centros_custo').select('nome,empresa')
+        if (error) throw asError(error)
+        const vistos = new Set((jaTem || []).map((r) => `${String(r.empresa)}\u0000${String(r.nome).trim().toLocaleLowerCase('pt-BR')}`))
+        const novos = centrosDetalhes.flatMap((c) => c.empresas
+          .filter((empresa) => !vistos.has(`${empresa}\u0000${c.nome.toLocaleLowerCase('pt-BR')}`))
+          .map((empresa) => ({ nome: c.nome, descricao: c.descricao || null, empresa, created_by: opts.userId })))
+        if (novos.length) {
+          const { error: insErr } = await supabase.from('mr_centros_custo').insert(novos)
+          if (insErr) throw asError(insErr, 'Falha ao gravar centro de custo.')
+        }
       }
     }
 
@@ -600,6 +617,7 @@ export async function salvarEstadoMrTerceriza(
         descricao: r.descricao || '',
         valor: money(r.valor),
         conta: r.conta || null,
+        centro_custo: r.centroCusto || null,
         forma_pagamento: r.formaPagamento || null,
         observacoes: r.observacoes || null,
         ...(temEstruturaNova ? { contrato_id: r.contratoId } : {}),

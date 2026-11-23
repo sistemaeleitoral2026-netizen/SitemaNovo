@@ -5,10 +5,8 @@ import { hasRole } from '../../lib/roles'
 import {
   acessoExternoNivel,
   canAccessAssessoriaMb,
+  clearSite,
   isAdminNoSiteExterno,
-  isSiteId,
-  siteById,
-  writeSite,
 } from '../../lib/sites'
 import { Spinner } from '../../components/ui/Spinner'
 import {
@@ -32,8 +30,6 @@ export function AssessoriaMbPage() {
   const frameRef = useRef<HTMLIFrameElement>(null)
   const [pronto, setPronto] = useState(false)
   const [erroSync, setErroSync] = useState('')
-  // Navegação cruzada pros outros sistemas a partir daqui: só admin do Nerites, como já era.
-  const neritesAdmin = hasRole(profile, 'admin')
   const podeEditar = canAccessAssessoriaMb(profile)
   const nivelAssessoria = acessoExternoNivel(profile, 'assessoria-mb')
   // Admin dentro deste painel (Configurações etc.): admin/diretoria do Nerites (como já era,
@@ -81,9 +77,9 @@ export function AssessoriaMbPage() {
         void signOut()
         return
       }
-      if (dados.type === 'mb-nav' && neritesAdmin && isSiteId(dados.site) && dados.site !== 'assessoria-mb') {
-        writeSite(dados.site)
-        navigate(siteById(dados.site)?.home ?? '/')
+      if (dados.type === 'mb-trocar-sistema') {
+        clearSite()
+        navigate('/login')
         return
       }
       if (dados.type === 'mb-persist' && dados.payload) {
@@ -147,7 +143,7 @@ export function AssessoriaMbPage() {
     enviarUsuario()
     return () => window.removeEventListener('message', aoMensagem)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [admin, editor, neritesAdmin, nome, navigate, signOut, podeEditar, userId])
+  }, [admin, editor, nome, navigate, signOut, podeEditar, userId])
 
   useEffect(() => {
     if (!pronto || !podeEditar || !userId) return
@@ -195,7 +191,7 @@ export function AssessoriaMbPage() {
           ref={frameRef}
           className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
           title="Financeiro Corporativo"
-          src="/sistemas/assessoria-mb/index.html?v=modular-33"
+          src="/sistemas/assessoria-mb/index.html?v=modular-34"
           onLoad={() => window.setTimeout(() => setPronto(true), 4000)}
         />
       </div>

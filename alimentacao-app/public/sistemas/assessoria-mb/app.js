@@ -5931,19 +5931,12 @@
     ).toUpperCase();
     $("#user-ini").textContent = ini;
     $("#user-name").textContent = MB.nome;
-    const links = MB.admin
-      ? [
-          ["nerites", "Sistema Nerites"],
-          ["mr-terceiriza", "Empresas"],
-          ["painel-do-mandato", "Painel do Mandato"],
-        ]
-      : [];
-    const h = links
-      .map(([id, n]) => `<button type="button" data-site="${id}">${n}</button>`)
-      .join("");
-    $("#site-links").innerHTML = h;
-    $("#um-links").innerHTML = h;
-    $("#um-links").hidden = !h;
+    const trocar = MB.embed
+      ? `<button type="button" data-trocar-sistema>Trocar sistema</button>`
+      : "";
+    $("#site-links").innerHTML = trocar;
+    $("#um-links").innerHTML = trocar;
+    $("#um-links").hidden = !trocar;
     $("#um-sair").hidden = !MB.embed;
     // Quem não é admin só lança tarefa como responsável atribuída: sem
     // criação de tarefas e sem a visão "Todas as demandas" (que mostraria
@@ -6057,10 +6050,9 @@
       if (s) setTimeout(() => s.focus(), 80);
       return;
     }
-    const st = e.target.closest("[data-site]");
-    if (st) {
+    if (e.target.closest("[data-trocar-sistema]")) {
       userMenu(false);
-      toParent({ type: "mb-nav", site: st.dataset.site });
+      toParent({ type: "mb-trocar-sistema" });
       return;
     }
     if (e.target.closest("#user-btn")) {

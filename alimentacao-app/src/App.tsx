@@ -258,7 +258,7 @@ function AppRoutes() {
   return (
     <Suspense fallback={<RouteFallback />}>
     <Routes>
-      <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
+      <Route path="/login" element={<LoginPage />} />
       <Route path="/esqueci-senha" element={<PublicOnly><ForgotPasswordPage /></PublicOnly>} />
       <Route path="/tv" element={<TvDashboardPage />} />
       <Route path="/mr-terceiriza" element={<DemoSiteRoute site="mr-terceiriza"><MrTerceirizaPage /></DemoSiteRoute>} />

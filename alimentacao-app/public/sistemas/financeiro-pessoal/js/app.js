@@ -1501,7 +1501,6 @@
       $('#userName').textContent = nome;
       $('#userAvatar').textContent = nome.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase();
       $('#userBox').hidden = false;
-      $('#btnNerites').hidden = !d.neritesAdmin;
       const mudou = isAdmin !== !!d.admin || userName !== nome;
       isAdmin = !!d.admin;
       userName = nome;
@@ -1510,7 +1509,7 @@
     }
   });
   $('#btnSair').addEventListener('click', () => avisarPai({ type: 'fp-sair' }));
-  $('#btnNerites').addEventListener('click', () => avisarPai({ type: 'fp-nerites' }));
+  $('#btnTrocarSistema').addEventListener('click', () => avisarPai({ type: 'fp-trocar-sistema' }));
 
   /* Comprovantes no modo banco: upload/download pela página React (bucket fp-comprovantes) */
   const fileWaiters = new Map();
