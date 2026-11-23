@@ -5,10 +5,28 @@ Banco: **mesmo do Sistema Nerites**
 
 SQL: `alimentacao-app/supabase/migrations/20261124_financeiro_pessoal.sql`
 
-> **Situação:** as tabelas existem no banco depois de rodar o SQL, mas a tela
-> (`public/sistemas/financeiro-pessoal/`) **ainda salva no navegador**
-> (localStorage + IndexedDB). Ligar a tela ao banco é o próximo passo
-> (ponte React ↔ iframe, igual à Assessoria MB).
+> **Situação:** dentro do sistema (`/financeiro-pessoal`) a tela salva **no banco**.
+> Sem rodar o SQL, a tela abre vazia e mostra o aviso "As tabelas do Controle
+> Financeiro Pessoal ainda não existem no banco".
+>
+> Aberto direto (`/sistemas/financeiro-pessoal/index.html`, sem `?remote=1`), o
+> arquivo continua no modo demonstração: localStorage + dados de exemplo.
+
+## Como a tela fala com o banco
+
+- `src/pages/financeiro-pessoal/FinanceiroPessoalPage.tsx` carrega o iframe com
+  `?remote=1` e faz a ponte por `postMessage`:
+  - iframe → página: `fp-pronto`, `fp-persist` (estado inteiro), `fp-file-put`, `fp-file-get`, `fp-sair`, `fp-nerites`
+  - página → iframe: `fp-user` (nome, admin, userId), `fp-hydrate` (dados do banco), `fp-persist-ok|erro`, `fp-file-ok|data|erro`
+- `src/lib/financeiroPessoal.ts` converte estado ↔ linhas e, a cada salvamento,
+  grava **só a diferença** em relação ao último estado sincronizado (insere,
+  altera e exclui na ordem das chaves estrangeiras) e registra em `fp_auditoria`.
+  Se o banco recusar algo (ex.: RLS), mostra o aviso e recarrega do banco.
+- Ao voltar para a aba, a página recarrega do banco (pega o que outras pessoas lançaram),
+  sem atropelar alteração ainda não salva.
+- Comprovantes: enviados para `fp-comprovantes/lancamento/<id do lançamento>/…` e
+  registrados em `fp_anexos`; excluir o lançamento apaga o arquivo.
+- Teste da sincronização: `src/lib/financeiroPessoal.test.ts` (vitest).
 
 ## Como aplicar
 
