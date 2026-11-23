@@ -276,7 +276,7 @@
 
   function flowChart(k) {
     const svg = $('#chart');
-    const W = svg.clientWidth || 600, H = 230, pad = { l: 52, r: 12, t: 18, b: 26 };
+    const W = svg.clientWidth || 600, H = Math.round(Math.min(340, Math.max(230, W * 0.3))), pad = { l: 52, r: 12, t: 18, b: 26 };
     const keys = []; let c = k; for (let i = 0; i < 6; i++) { keys.unshift(c); c = prevMonth(c); }
     const data = keys.map(key => { const l = inMonth(key); return { key, inc: sum(l, 'income'), exp: sum(l, 'expense') }; });
     const { y, out: grid } = axes(svg, W, H, pad, 0, Math.max(1000, ...data.map(d => Math.max(d.inc, d.exp))));
@@ -320,7 +320,7 @@
     const svg = $('#investChart');
     const dates = [...new Set(state.snapshots.map(s => s.date))].sort().slice(-20);
     if (!dates.length) { svg.innerHTML = ''; svg.style.height = '0'; svg.insertAdjacentHTML('afterend', ''); return; }
-    const W = svg.clientWidth || 600, H = 220, pad = { l: 56, r: 14, t: 16, b: 26 };
+    const W = svg.clientWidth || 600, H = Math.round(Math.min(320, Math.max(220, W * 0.3))), pad = { l: 56, r: 14, t: 16, b: 26 };
     // Total do dia = soma do último saldo conhecido de cada aplicação até aquele dia
     const data = dates.map(d => ({
       d, v: state.investments.reduce((s, inv) => {

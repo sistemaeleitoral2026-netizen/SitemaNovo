@@ -91,7 +91,7 @@ button { cursor: pointer; }
 .storage-note .i { margin-top: 2px; color: #8fa6c9; }
 
 .main { min-width: 0; }
-.content { max-width: 1180px; margin: 0 auto; padding: 28px 36px 64px; }
+.content { max-width: 1760px; margin: 0 auto; padding: clamp(22px, 2.2vw, 40px) clamp(20px, 2.8vw, 56px) 64px; }
 
 /* ---------- Cabeçalho da página ---------- */
 .page-head {

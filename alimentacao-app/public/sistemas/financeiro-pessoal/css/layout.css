@@ -1,0 +1,81 @@
+/* ==========================================================================
+   Layout fluido: o conteúdo ocupa a largura disponível e cada tela
+   reorganiza os blocos conforme o espaço (notebook, monitor, tela larga).
+   ========================================================================== */
+
+/* Linhas que só ficam lado a lado em telas largas */
+.row-wide-1-2 { grid-template-columns: 1fr; }
+.row-wide-1-2 > .block { min-width: 0; }
+.row > .block { margin-top: 0; }
+
+/* Blocos dentro de linhas ocupam a mesma altura */
+.row { align-items: stretch; }
+.row > .block { display: flex; flex-direction: column; }
+.row > .block > .block-body, .row > .block > .table-wrap, .row > .block > .task-list, .row > .block > .acc-list { flex: 1; }
+
+/* Pagamentos pendentes: lista com rolagem quando dividir espaço */
+.row-wide-1-2 #pendingList { max-height: 460px; overflow-y: auto; }
+
+/* Linha de tarefa se adapta à largura do bloco onde está (não da tela) */
+.task-list, #taskBody { container-type: inline-size; }
+@container (max-width: 700px) {
+  .task { grid-template-columns: 34px minmax(0, 1fr) auto !important; gap: 8px 12px; padding: 13px 18px !important; }
+  .task-ico { width: 34px !important; height: 34px !important; }
+  .task-value { grid-column: 3; grid-row: 1; }
+  .task-actions { grid-column: 2 / -1; justify-content: flex-start; }
+}
+@container (max-width: 420px) {
+  .task { grid-template-columns: 34px minmax(0, 1fr) !important; }
+  .task-value { grid-column: 2; grid-row: auto; text-align: left; display: flex; gap: 8px; align-items: baseline; }
+  .task-value strong { display: inline; }
+}
+
+/* Contas: cartões em grade em vez de lista esticada */
+#accFull { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+#accFull .acc-row { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 20px;
+  display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; grid-template-areas: "ico info del" "bal bal bal"; gap: 14px 12px; align-items: center; }
+#accFull .acc-ico { grid-area: ico; width: 36px; height: 36px; }
+#accFull .acc-info { grid-area: info; }
+#accFull .acc-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#accFull .acc-bal { grid-area: bal; font-size: 24px; font-weight: 600; letter-spacing: -.02em; }
+#accFull .icon-btn { grid-area: del; }
+#accFull .acc-total { grid-column: 1 / -1; }
+#accFull .empty { grid-column: 1 / -1; }
+
+/* ---------- Notebook grande / monitor (≥ 1280px) ---------- */
+@media (min-width: 1280px) {
+  .kpi { padding: 18px 22px; }
+  .kpi-value { font-size: 24px; }
+  .block-head { padding: 15px 20px; }
+  .block-body { padding: 20px; }
+  th, td { padding-left: 20px; padding-right: 20px; }
+  .task { padding: 14px 20px; }
+  .task-group { padding-left: 20px; padding-right: 20px; }
+}
+
+/* ---------- Monitor largo (≥ 1500px) ---------- */
+@media (min-width: 1500px) {
+  .row { gap: 20px; }
+  .block + .block, .row + .block, .block + .row, .row + .row { margin-top: 20px; }
+  .row-wide-1-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1.55fr); }
+  .row-2-1 { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  .kpi { padding: 20px 26px; }
+  .kpi-value { font-size: 27px; }
+  .kpi-label { font-size: 12.5px; }
+  h1 { font-size: 25px; }
+  .page-head { padding-bottom: 22px; margin-bottom: 26px; }
+  /* Movimentações e tarefas: linhas mais confortáveis */
+  td { padding-top: 13px; padding-bottom: 13px; }
+  .task { grid-template-columns: 38px minmax(0, 1fr) 160px auto; padding: 15px 22px; }
+  .task-ico { width: 38px; height: 38px; }
+  /* Modelos: tabela respira melhor */
+  #taskBody .table-wrap td { padding-top: 14px; padding-bottom: 14px; }
+}
+
+/* ---------- Tela muito larga (≥ 1800px) ---------- */
+@media (min-width: 1800px) {
+  .kpi-value { font-size: 30px; }
+  .block-head { padding: 17px 24px; }
+  .block-body { padding: 24px; }
+  th, td { padding-left: 24px; padding-right: 24px; }
+}
