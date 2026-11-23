@@ -226,6 +226,14 @@ table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
 .doc-chip small{color:var(--muted)}
 .doc-thumb{width:36px;height:36px;border-radius:6px;object-fit:cover;background:#eef2f7;display:grid;place-items:center;font-size:10px;font-weight:700;color:#475569;flex:none}
 .doc-thumb.pdf{background:#fee2e2;color:#b91c1c}
+.modal-back{position:fixed;inset:0;background:#09121ecc;z-index:55;display:grid;place-items:center;padding:18px;overflow:auto}
+.modal-back.hidden{display:none}
+.modal-card{width:min(520px,100%);background:#fff;border-radius:12px;border:1px solid var(--line);box-shadow:0 18px 50px #0f1b2d33;padding:18px 18px 16px}
+.modal-card h2{margin:0 0 4px;font-size:18px}
+.modal-card .sub{margin:0 0 14px;font-size:13px;color:var(--muted)}
+.modal-card .form-grid{grid-template-columns:1fr}
+.modal-card .dropzone{padding:14px}
+.modal-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
 
 /* Lançamentos */
 .mini-label{display:block;font-size:12px;color:#334155;margin-bottom:6px;font-weight:500}
@@ -475,6 +483,7 @@ table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
 <nav class="bottom-nav" id="bottomNav"></nav>
 <div class="pop hidden" id="rowMenu"></div>
 <div class="lightbox hidden" id="lightbox" onclick="closeDocPreview()"><button class="lightbox-close" type="button" aria-label="Fechar" onclick="event.stopPropagation();closeDocPreview()">×</button><img id="lightboxImg" class="hidden" alt=""><iframe id="lightboxFrame" class="hidden" title="Pré-visualização do documento"></iframe></div>
+<div class="modal-back hidden" id="contractEntryModal" onclick="if(event.target===this)closeContractEntryModal()"></div>
 <script>
 // Protótipo local sem backend. Os dados ficam apenas nesta aba.
 const ME=window.MR_USER||{nome:'Jurandy Santana',admin:true};
@@ -747,26 +756,115 @@ function renderContractsPage(){
   const f=document.getElementById('kCo');if(f)f.onchange=e=>{company=e.target.value;render()};
 }
 function openContract(id){const k=contractById(id);if(!k)return;contractId=id;company=k.company;navigate('contrato')}
+function contractMoveSheet(list,type){
+  const entradas=type==='entrada';
+  const cols=[
+    ['Data',e=>short(e.date)],
+    ['Horário',entryTime],
+    ['Responsável',e=>esc(e.created||'—'),'wrap'],
+    ['Descrição',e=>esc(e.desc||'—'),'wrap'],
+    ['Conta',e=>esc(e.account||'—'),'wrap'],
+    ['Valor',e=>`<span class="${entradas?'positive':'negative'}">${fmt(e.value)}</span>`,'num'],
+    ['Comprovante',thumbs],
+    ['',e=>`<button type="button" class="btn sm" onclick="openContractEntryModal('${type}','${e.id}')">Editar</button>`],
+  ];
+  if(!list.length)return emptyBox(entradas?'arrow-down':'arrow-up',entradas?'Nenhuma entrada neste contrato':'Nenhuma saída neste contrato',entradas?'Use Nova entrada para registrar um valor recebido.':'Use Nova saída para registrar um pagamento.');
+  const total=sums(list)[entradas?'in':'out'];
+  const vi=cols.findIndex(c=>c[0]==='Valor');
+  return `<div class="sheet-hint">Deslize a tabela para o lado para ver todas as colunas</div><div class="sheet-wrap"><table class="sheet"><thead><tr class="cols"><th class="rn"></th>${cols.map((_,i)=>`<th>${String.fromCharCode(65+i)}</th>`).join('')}</tr><tr class="heads"><th class="rn">1</th>${cols.map(c=>`<th class="${c[2]||''}">${c[0]}</th>`).join('')}</tr></thead><tbody>${list.map((e,r)=>`<tr><td class="rn">${r+2}</td>${cols.map(c=>`<td class="${c[2]||''}">${c[1](e)}</td>`).join('')}</tr>`).join('')}</tbody><tfoot><tr><td class="rn">${list.length+2}</td>${cols.map((c,i)=>`<td class="${c[2]||''}">${i===0?'Total':i===vi?`<span class="${entradas?'positive':'negative'}">${fmt(total)}</span>`:''}</td>`).join('')}</tr></tfoot></table></div>`;
+}
+function closeContractEntryModal(){
+  const box=document.getElementById('contractEntryModal');
+  if(box){box.classList.add('hidden');box.innerHTML=''}
+  draftFiles=[];keptFiles=[];
+}
+function openContractEntryModal(type,entryId=''){
+  const k=contractById(contractId);if(!k)return;
+  const entrada=type==='entrada';
+  const old=entryId?entries.find(e=>e.id===entryId&&e.contract===k.id):null;
+  draftFiles=[];keptFiles=[...(old?.files||[])];
+  const titleTxt=old?(entrada?'Editar entrada':'Editar saída'):(entrada?'Nova entrada':'Nova saída');
+  const valorLabel=entrada?'Valor recebido (R$)':'Valor da saída (R$)';
+  const contas=accounts[k.company]||[];
+  const box=document.getElementById('contractEntryModal');
+  box.innerHTML=`<div class="modal-card" role="dialog" aria-modal="true" aria-label="${esc(titleTxt)}" onclick="event.stopPropagation()">
+    <h2>${esc(titleTxt)}</h2>
+    <p class="sub">${esc(k.name)} · ${esc(companyName(k.company))}</p>
+    <form id="contractEntryForm" class="form-grid">
+      <label class="field">${req(valorLabel)}<input name="value" id="ceValue" required type="text" inputmode="numeric" autocomplete="off" placeholder="R$ 0,00" value="${old?inputBRL(old.value):''}"></label>
+      <label class="field">${req('Data')}<input name="date" id="ceDate" required type="date" value="${esc(old?.date||new Date().toLocaleDateString('en-CA'))}"></label>
+      <label class="field">Descrição <small class="muted">(opcional)</small><input name="desc" id="ceDesc" maxlength="200" placeholder="${entrada?'Ex.: Parcela recebida':'Ex.: Pagamento de despesa'}" value="${esc(old?.desc||'')}"></label>
+      <label class="field">Conta bancária <small class="muted">(opcional)</small><select name="account" id="ceAccount"><option value="">Sem conta</option>${contas.map(n=>opt(n,n,old?.account||'')).join('')}</select></label>
+      <div class="field full"><span>Comprovante <small class="muted">(opcional)</small></span>
+        <label class="dropzone" id="ceDrop">${ico('cloud')}<span>Clique ou arraste JPG, PNG ou PDF</span><small>Até 10 MB por arquivo</small><input id="ceFiles" type="file" accept="image/png,image/jpeg,application/pdf" multiple></label>
+        <div id="fileErr" class="field-err hidden"></div><div id="fileList"></div>
+      </div>
+      <div class="modal-actions full">
+        <button type="submit" class="btn primary">${ico('save')} Salvar</button>
+        <button type="button" class="btn" onclick="closeContractEntryModal()">Cancelar</button>
+      </div>
+    </form>
+  </div>`;
+  box.classList.remove('hidden');
+  const val=document.getElementById('ceValue');val.oninput=()=>maskBRL(val);
+  const drop=document.getElementById('ceDrop');
+  document.getElementById('ceFiles').onchange=ev=>{addFiles(ev.target.files);ev.target.value=''};
+  drop.ondragover=ev=>{ev.preventDefault();drop.classList.add('over')};
+  drop.ondragleave=()=>drop.classList.remove('over');
+  drop.ondrop=ev=>{ev.preventDefault();drop.classList.remove('over');addFiles(ev.dataTransfer.files)};
+  renderFileList();
+  document.getElementById('contractEntryForm').onsubmit=ev=>submitContractEntry(ev,type,old?.id||'');
+  setTimeout(()=>val.focus(),30);
+}
+function submitContractEntry(ev,type,entryId){
+  ev.preventDefault();
+  const k=contractById(contractId);if(!k)return;
+  const fd=new FormData(ev.target);
+  const value=parseBRL(fd.get('value'));
+  if(value<=0){toast(type==='entrada'?'Informe o valor recebido.':'Informe o valor da saída.');return}
+  const date=String(fd.get('date')||'').slice(0,10)||new Date().toLocaleDateString('en-CA');
+  const account=String(fd.get('account')||'').trim();
+  if(account&&!(accounts[k.company]||[]).includes(account)){toast('Escolha uma conta vinculada à empresa.');return}
+  const desc=String(fd.get('desc')||'').trim()||(type==='entrada'?`Recebimento · ${k.name}`:`Saída · ${k.name}`);
+  const files=[...keptFiles,...draftFiles];
+  const old=entryId?entries.find(e=>e.id===entryId):null;
+  const record={
+    id:old?.id||uuid(),company:k.company,type,date,desc,value,account,cc:k.cc||'',
+    method:old?.method||'',notes:old?.notes||'',contract:k.id,
+    created:old?.created||ME.nome,createdAt:old?.createdAt||new Date().toISOString(),files
+  };
+  if(old)entries=entries.map(e=>e.id===old.id?record:e);else entries.unshift(record);
+  audit.unshift({id:uuid(),date:stamp(),user:ME.nome,action:old?'Edição':'Criação',desc,company:k.company});
+  if(draftFiles.length)audit.unshift({id:uuid(),date:stamp(),user:ME.nome,action:'Anexo',desc:`${draftFiles.length} comprovante(s) em ${desc}`,company:k.company});
+  closeContractEntryModal();
+  scheduleCloudSave();
+  renderContract();
+  toast(type==='entrada'?(old?'Entrada atualizada.':'Entrada registrada.'):(old?'Saída atualizada.':'Saída registrada.'));
+}
 function renderContract(){
   const k=contractById(contractId);if(!k){page='contratos';renderContractsPage();return}
   const st=contractStats(k),rows=contractMonths(k),cur=thisYm(),end=addMonth(k.start,Math.max(1,k.months)-1);
+  const entradas=st.a.filter(e=>e.type==='entrada').slice().sort((a,b)=>b.date.localeCompare(a.date));
+  const saidas=st.a.filter(e=>e.type==='saida').slice().sort((a,b)=>b.date.localeCompare(a.date));
   const tot=rows.reduce((t,r)=>({prev:t.prev+r.prev,in:t.in+r.in,out:t.out+r.out}),{prev:0,in:0,out:0});
   const tools=`<button class="btn" onclick="navigate('contratos')">${ico('chevron-left',2)} Contratos</button>`
     +(canEditContract(k)?`<button class="btn" onclick="showContractForm('${k.id}')">Editar</button><button class="btn" style="color:var(--red)" onclick="removeContract('${k.id}')">Excluir</button>`:'')
-    +`<button class="btn primary" onclick="showForm(null,'entrada','${k.id}')">${ico('plus')} Nova entrada</button><button class="btn primary" style="background:var(--red);border-color:var(--red)" onclick="showForm(null,'saida','${k.id}')">${ico('plus')} Nova saída</button>`;
+    +`<button class="btn primary" onclick="openContractEntryModal('entrada')">${ico('plus')} Nova entrada</button><button class="btn primary" style="background:var(--red);border-color:var(--red)" onclick="openContractEntryModal('saida')">${ico('plus')} Nova saída</button>`;
   const mm=`<div class="sheet-hint">Deslize a tabela para o lado para ver todas as colunas</div><div class="sheet-wrap"><table class="sheet"><thead><tr class="cols"><th class="rn"></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th></tr><tr class="heads"><th class="rn">1</th><th>Mês</th><th class="num">Previsto</th><th class="num">Recebido</th><th class="num">Saídas</th><th class="num">Saldo do mês</th><th class="num">Recebido − previsto</th></tr></thead><tbody>${rows.map((r,i)=>{const d=r.in-r.prev;return `<tr class="${r.ym===cur?'cur':''}"><td class="rn">${i+2}</td><td>${ymLabel(r.ym)}${r.ym===cur?' <span class="muted">(mês atual)</span>':''}</td><td class="num">${fmt(r.prev)}</td><td class="num positive">${fmt(r.in)}</td><td class="num negative">${fmt(r.out)}</td><td class="num ${r.in-r.out<0?'negative':''}">${fmt(r.in-r.out)}</td><td class="num ${d<0?'negative':d>0?'positive':''}">${fmt(d)}</td></tr>`}).join('')}</tbody><tfoot><tr><td class="rn">${rows.length+2}</td><td>Total</td><td class="num">${fmt(tot.prev)}</td><td class="num positive">${fmt(tot.in)}</td><td class="num negative">${fmt(tot.out)}</td><td class="num ${tot.in-tot.out<0?'negative':''}">${fmt(tot.in-tot.out)}</td><td class="num ${tot.in-tot.prev<0?'negative':''}">${fmt(tot.in-tot.prev)}</td></tr></tfoot></table></div>`;
   view().innerHTML=title(esc(k.name),`${esc(companyName(k.company))} · ${k.cc?'Centro de custo: '+esc(k.cc):'Sem centro de custo'} · ${ymLabel(k.start)} a ${ymLabel(end)}`,tools)
   +`<div class="metric-grid">`
     +metric('file','mi-blue','Valor do contrato','Contrato',fmt(k.total),`${k.months} ${k.months===1?'mês':'meses'} · ${fmt(k.total/Math.max(1,k.months))}/mês`)
     +metric('arrow-down','mi-green','Recebido','Recebido',`<span class="positive">${fmt(st.in)}</span>`,`${st.pct.toFixed(0)}% do contrato`)
-    +metric('arrow-up','mi-red','Saídas','Saídas',`<span class="negative">${fmt(st.out)}</span>`,`${st.a.filter(e=>e.type==='saida').length} lançamento(s)`)
+    +metric('arrow-up','mi-red','Saídas','Saídas',`<span class="negative">${fmt(st.out)}</span>`,`${saidas.length} lançamento(s)`)
     +metric('building','mi-gray','Saldo do contrato','Saldo',fmt(st.saldo),'Recebido menos saídas')
     +metric('clock','mi-yellow','Falta receber','Falta',`<span class="${st.falta>0?'warn':''}">${fmt(st.falta)}</span>`,'Valor do contrato menos recebido')
   +`</div>`
   +card('Documentos do contrato',`<div class="doc-preview-panel">${docChips(k)}<p class="muted" style="font-size:12px;margin:0">Clique em um arquivo para pré-visualizar (PDF ou imagem). Você pode anexar várias fichas na edição do contrato.</p></div>`)
   +'<div style="height:14px"></div>'
   +card('Mês a mês',mm)+'<div style="height:14px"></div>'
-  +card('Entradas e saídas do contrato',sheet(st.a,{edit:true}))
+  +card(`Entradas (${entradas.length})`,contractMoveSheet(entradas,'entrada'))
+  +'<div style="height:14px"></div>'
+  +card(`Saídas (${saidas.length})`,contractMoveSheet(saidas,'saida'))
   +(k.notes?'<div style="height:14px"></div>'+card('Observações',`<div style="white-space:pre-wrap;font-size:13px">${esc(k.notes)}</div>`):'');
 }
 function showContractForm(id,presetCo=''){
@@ -1226,7 +1324,7 @@ const titles={dashboard:'Painel',contratos:'Contratos',contrato:'Contrato',contr
 const bottomItems=[['dashboard','Painel','home'],['lancamentos','Lançamentos','list'],['comprovantes','Comprovantes','file'],['relatorios','Relatórios','chart'],['mais','Mais','dots']];
 function markNav(p){document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===p||(b.dataset.page==='mais'&&!bottomItems.some(i=>i[0]===p))))}
 function closeDrawer(){document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('show')}
-function navigate(p){if(p==='entradas'||p==='saidas')p='lancamentos';if(p!==page)lf.page=1;page=p;closeDrawer();render();window.scrollTo(0,0)}
+function navigate(p){closeContractEntryModal();if(p==='entradas'||p==='saidas')p='lancamentos';if(p!==page)lf.page=1;page=p;closeDrawer();render();window.scrollTo(0,0)}
 function render(){
   if(page==='contratoForm')page='contratos';
   markNav(page==='contrato'?'contratos':page);document.getElementById('topPage').textContent=titles[page]||'Painel';
