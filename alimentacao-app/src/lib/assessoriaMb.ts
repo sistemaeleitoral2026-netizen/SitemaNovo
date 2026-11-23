@@ -355,6 +355,9 @@ async function gerarTarefasRecorrentes(tasks: MbTask[], userId: string): Promise
   return geradas.length ? [...tasks, ...geradas] : tasks
 }
 
+/** Mesmo texto usado no painel (app.js → DUP_IGNORE_ACTION). */
+const MB_DUP_IGNORE_ACTION = 'Lançamentos marcados como não duplicados'
+
 export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
   // auth.getUser() só é usado mais abaixo (gerarTarefasRecorrentes) — não
   // precisa esperar ele pra disparar as outras consultas, que não dependem
@@ -369,6 +372,7 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
     lancamentos,
     tarefas,
     auditoria,
+    auditoriaDuplicados,
     anexos,
     equipeSistema,
   ] = await Promise.all([
@@ -381,6 +385,8 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
     supabase.from('mb_lancamentos').select('*').order('data', { ascending: false }),
     supabase.from('mb_tarefas').select('*').order('created_at', { ascending: false }),
     supabase.from('mb_auditoria').select('*').order('at', { ascending: false }).limit(500),
+    // Marcações "não é duplicado" (menu temporário) não podem cair fora do limite acima.
+    supabase.from('mb_auditoria').select('*').eq('action', MB_DUP_IGNORE_ACTION).limit(2000),
     listAnexos(),
     listarEquipeSistema(),
   ])
@@ -491,7 +497,12 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
   const staffCatalogo = (equipe.data || []).map((e) => e.nome as string)
   const staff = [...new Set([...nomesEquipeSistema, ...staffCatalogo])]
 
-  const audit: MbAudit[] = (auditoria.data || []).map((r) => ({
+  const auditRows = [...(auditoria.data || [])]
+  const auditIds = new Set(auditRows.map((r) => r.id))
+  for (const r of auditoriaDuplicados.error ? [] : auditoriaDuplicados.data || []) {
+    if (!auditIds.has(r.id)) auditRows.push(r)
+  }
+  const audit: MbAudit[] = auditRows.map((r) => ({
     id: r.id as string,
     at: r.at as string,
     actor: (r.actor_nome as string) || '',
