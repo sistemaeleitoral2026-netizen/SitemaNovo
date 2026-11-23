@@ -46,14 +46,14 @@ alimentacao-sistema/
 | Painel do Mandato (fichas/lideranças) | Lê Nerites |
 | Painel do Mandato (financeiro) | Supabase **Gabinete** (`GABINETE_*` só no servidor) |
 | Assessoria MB | **Nerites** — tabelas `mb_*` + Storage `mb-comprovantes` (bridge React ↔ iframe) |
-| Controle Financeiro Pessoal | **Nenhum por enquanto** — dados no navegador (localStorage do iframe, chave `meu-financeiro:v2`; comprovantes no IndexedDB `fp-comprovantes`) |
+| Controle Financeiro Pessoal | **Nerites** — tabelas `fp_*` + Storage `fp-comprovantes` (migration `20261124_financeiro_pessoal.sql`, ver `docs/LEIA-ME-FINANCEIRO-PESSOAL.md`). A tela **ainda** salva no navegador (localStorage `meu-financeiro:v2` + IndexedDB) até a ponte React ↔ iframe ser feita |
 | Empresas (MR Terceriza) | **Nerites** — tabelas `mr_*` + Storage `mr-comprovantes` (mesmo padrão de bridge React ↔ iframe da Assessoria MB) |
 
 ## Administração (/admin)
 
 - Só quem é `admin` no Nerites acessa. Não entra no seletor de login (`SITES` em `lib/sites.ts`).
 - Lista os `profiles` do Nerites (referência) e deixa marcar, por usuário, um nível (`admin` ou
-  `editor`) para cada um dos outros 3 sistemas — grava em `profiles.acessos_externos` (jsonb).
+  `editor`) para cada um dos outros sistemas — grava em `profiles.acessos_externos` (jsonb).
 - Também cadastra login novo com `role = 'externo'`: só serve pra entrar nos outros sistemas,
   sem nenhum cargo/hierarquia do Nerites. Precisa rodar
   `alimentacao-app/supabase/migrations/20261116b_acessos_externos.sql` no Supabase antes de usar
@@ -68,4 +68,5 @@ alimentacao-sistema/
 - `FinanceiroPage` em **nerites** = financeiro de coordenação/liderança do sistema eleitoral.
 - Financeiro do **Painel do Mandato** = folha/VIEP/equipe do vereador (Gabinete).
 - Financeiro da **Assessoria MB** = tabelas `mb_*` no Nerites (não misturar com `financeiro_*` nem com `fin_*` do Gabinete). Ver `docs/LEIA-ME-ASSESSORIA-MB.md`.
+- **Controle Financeiro Pessoal** = tabelas `fp_*` no Nerites (contas, conferências de saldo, lançamentos, tarefas e baixas, investimentos). Não misturar com `mb_*`, `mr_*`, `fin_*` nem `financeiro_*`.
 - Lançamentos de **Empresas** = tabelas `mr_*` no Nerites (migration `20261116f_mr_terceriza.sql`). As 7 empresas (MR, RE FASHION, IRON, GLOBO, MCC, LIMPOCAR SEMINOVOS, TIPS GRÁF) continuam fixas no código do painel (`mr-terceiriza-demo.html`) — só lançamentos, contas, anexos e auditoria viram banco de verdade.
