@@ -110,6 +110,7 @@
     "tarefas-historico": "Prestação de contas",
     dashboard: "Painel",
     financeiro: "Lançamentos",
+    pendentes: "Pendentes",
     demandas: "Demandas e tarefas",
     minhas: "Minhas tarefas",
     anexos: "Comprovantes",
@@ -2918,6 +2919,8 @@
       drawFinance();
     } else if (page === "empresas") {
       drawEmpresas();
+    } else if (page === "pendentes") {
+      drawPendentes();
     } else if (page === "receber") {
       drawReceber();
     } else if (page === "pagar") {
@@ -3648,6 +3651,11 @@
       openModal(t.status === "Em andamento" ? "vincular" : "realizar", id);
       return;
     }
+    const lancarPend = e.target.closest("[data-lancar-pendente]");
+    if (lancarPend) {
+      lancarPendente(lancarPend.dataset.lancarPendente);
+      return;
+    }
     const dupIgnore = e.target.closest("[data-dup-ignore]");
     if (dupIgnore) {
       const ids = String(dupIgnore.dataset.dupIgnore || "")
@@ -3951,6 +3959,12 @@
             .trim()
             .toLowerCase(),
       ).length || "";
+    const pendCount = $("#count-pendentes");
+    if (pendCount) {
+      const total = pendingRecords().length;
+      pendCount.textContent = total || "";
+      pendCount.title = total ? `${total} lançamento(s) com valor pendente` : "";
+    }
     const missingDateCount = $("#count-sem-data-recebida");
     if (missingDateCount) {
       const total = recordsWithoutReceivedDate().length;
@@ -5798,6 +5812,51 @@
       )
       .sort((a, b) => String(b.data).localeCompare(String(a.data)));
   };
+  function pendingRecords() {
+    return db.finance.filter(
+      (r) => r && finKind(r) === "receita" && finFalta(r) > 0.009,
+    );
+  }
+  function drawPendentes() {
+    const el = $("#pend-table");
+    if (!el) return;
+    contasFilters("#pend-filters");
+    const ids = new Set(pendingRecords().map((r) => r.id));
+    const rows = contasRows()
+      .filter((r) => ids.has(r.id))
+      .sort((a, b) => String(a.data).localeCompare(String(b.data)));
+    const prev = rows.reduce((n, r) => n + money(r.previsto), 0),
+      rec = rows.reduce((n, r) => n + money(r.recebido), 0);
+    $("#pend-summary").innerHTML =
+      hs("Lançamentos pendentes", rows.length) +
+      hs("A receber", fmt(prev)) +
+      hs("Já recebido", fmt(rec)) +
+      hs("Falta receber", fmt(prev - rec));
+    el.innerHTML = `<table class="pend-table"><thead><tr><th>Data</th><th>Empresa</th><th>Parceiro / descrição</th><th>Centro de custo</th><th>Conta bancária</th><th class="num">A receber (R$)</th><th class="num">Recebido (R$)</th><th class="num">Falta receber (R$)</th><th>Situação</th><th>Quem lançou</th><th>Comprovante</th><th class="action-cell">Ações</th></tr></thead><tbody>${
+      rows
+        .map((r) => {
+          const st = finStatus(r);
+          return `<tr><td data-label="Data" class="nowrap">${dateBR(r.data)}</td><td data-label="Empresa"><b>${esc(r.sub || "—")}</b></td><td data-label="Parceiro / descrição">${esc(r.parceiro || "—")}${r.observacao ? `<div class="muted">${esc(r.observacao)}</div>` : ""}</td><td data-label="Centro de custo">${esc(r.centro || "—")}</td><td data-label="Conta bancária">${esc(r.contaBancaria || "—")}</td><td data-label="A receber (R$)" class="amount">${fmt(r.previsto)}</td><td data-label="Recebido (R$)" class="amount">${fmt(r.recebido)}</td><td data-label="Falta receber (R$)" class="amount"><b>${fmt(finFalta(r))}</b></td><td data-label="Situação"><span class="pill ${st[1]}">${st[0]}</span></td><td data-label="Quem lançou">${esc(r.criadoPor || "—")}</td><td data-label="Comprovante">${fileCell(r.anexos, "fin:" + r.id)}</td><td data-label="Ações" class="action-cell"><div class="row-actions pend-actions"><button type="button" class="btn primary pend-launch" data-lancar-pendente="${esc(r.id)}">${icon("plus")}Lançar recebimento</button><button type="button" class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")}Editar</button></div></td></tr>`;
+        })
+        .join("") || noRows("Nenhum valor pendente para os filtros selecionados.", 12)
+    }</tbody></table>`;
+  }
+  /** Abre o lançamento já no bloco "Registrar recebimento", com o valor que falta. */
+  function lancarPendente(id) {
+    const r = db.finance.find((x) => x.id === id);
+    if (!r) return;
+    openModal("finance", id);
+    const valor = $("#modal-body [name=novaBaixaValor]");
+    if (!valor) return;
+    valor.value = fmt(finFalta(r));
+    const data = $("#modal-body [name=novaBaixaData]");
+    if (data && !data.value) data.value = todayISO();
+    valor.closest(".fin-receipt-register")?.scrollIntoView({ block: "center" });
+    setTimeout(() => {
+      valor.focus();
+      valor.select?.();
+    }, 50);
+  }
   function drawReceber() {
     const el = $("#rec-table");
     if (!el) return;

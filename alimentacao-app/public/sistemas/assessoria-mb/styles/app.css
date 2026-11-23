@@ -7047,3 +7047,31 @@ body {
   margin-left: 6px;
   font-size: 12px;
 }
+
+/* Pendentes */
+.pend-table th,
+.pend-table td {
+  vertical-align: middle;
+}
+.pend-table td.action-cell {
+  min-width: 270px;
+}
+.pend-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.pend-launch {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.pend-launch svg {
+  width: 14px;
+  height: 14px;
+}
