@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { hasRole } from '../../lib/roles'
 import { Spinner } from '../../components/ui/Spinner'
 import {
   garantirCargaFinanceiro,
@@ -34,7 +33,7 @@ import {
   type LiderPainel,
   type ResumoFichas,
 } from '../../lib/mandatoResumo'
-import { canAccessAssessoriaMb, writeSite } from '../../lib/sites'
+import { clearSite } from '../../lib/sites'
 
 const fmt = new Intl.NumberFormat('pt-BR')
 const CHAVE_ATENDIDOS = 'alimentacao_mandato_atendidos'
@@ -176,9 +175,8 @@ function montarFeed(resumo: ResumoFichas, proposicoes: ProposicaoMandato[], lide
 }
 
 export function PainelMandatoPage() {
-  const { profile, signOut } = useAuth()
-  const admin = hasRole(profile, 'admin')
-  const assessoriaOk = canAccessAssessoriaMb(profile)
+  const { signOut } = useAuth()
+  const navigate = useNavigate()
   const frame = useRef<HTMLIFrameElement>(null)
   const feed = useRef<Feed | null>(null)
   const limpouDemo = useRef(false)
@@ -429,15 +427,15 @@ export function PainelMandatoPage() {
       <header className="mr-demo-bar">
         <span>Painel do Mandato</span>
         <div className="mr-demo-actions">
-          {admin ? (
-            <>
-              <Link to="/" onClick={() => writeSite('nerites')}>Sistema Nerites</Link>
-              <Link to="/mr-terceiriza" onClick={() => writeSite('mr-terceiriza')}>Empresas</Link>
-            </>
-          ) : null}
-          {assessoriaOk ? (
-            <Link to="/assessoria-mb" onClick={() => writeSite('assessoria-mb')}>Assessoria MB</Link>
-          ) : null}
+          <button
+            type="button"
+            onClick={() => {
+              clearSite()
+              navigate('/login')
+            }}
+          >
+            Trocar sistema
+          </button>
           <button type="button" onClick={() => void signOut()}>Sair</button>
         </div>
       </header>

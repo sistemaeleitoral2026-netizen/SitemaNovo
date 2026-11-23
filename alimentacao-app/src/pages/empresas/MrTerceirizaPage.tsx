@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { hasRole } from '../../lib/roles'
-import { isAdminNoSiteExterno, writeSite } from '../../lib/sites'
+import { clearSite, isAdminNoSiteExterno } from '../../lib/sites'
 import { Spinner } from '../../components/ui/Spinner'
 import {
   carregarEstadoMrTerceriza,
@@ -75,9 +75,9 @@ export function MrTerceirizaPage() {
         void signOut()
         return
       }
-      if (dados.type === 'mr-nerites' && neritesAdmin) {
-        writeSite('nerites')
-        navigate('/')
+      if (dados.type === 'mr-trocar-sistema') {
+        clearSite()
+        navigate('/login')
         return
       }
       if (dados.type === 'mr-persist' && dados.payload) {

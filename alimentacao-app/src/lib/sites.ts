@@ -86,3 +86,30 @@ export function clearSite() {
 export function siteById(id: SiteId | null | undefined): SiteDef | null {
   return SITES.find((s) => s.id === id) ?? null
 }
+
+/** Sistemas que o perfil pode abrir na tela de seleção (já autenticado). */
+export function sitesForProfile(
+  profile: Pick<Profile, 'role' | 'extra_roles' | 'acessos_externos'> | null | undefined,
+): SiteDef[] {
+  if (!profile) return []
+  if (hasRole(profile, 'admin')) return [...SITES]
+
+  const soExterno =
+    hasRole(profile, 'externo') &&
+    !hasRole(profile, ['diretoria', 'coordenador', 'auxiliar', 'operador', 'mobilizador', 'administrativo'])
+
+  if (soExterno) {
+    return SITES.filter((s) => {
+      if (s.id === 'nerites') return false
+      if (s.id === 'assessoria-mb') return canAccessAssessoriaMb(profile)
+      if (s.id === 'financeiro-pessoal') return canAccessFinanceiroPessoal(profile)
+      return canAccessSiteExterno(profile, s.id)
+    })
+  }
+
+  return SITES.filter((s) => {
+    if (s.id === 'assessoria-mb') return canAccessAssessoriaMb(profile)
+    if (s.id === 'financeiro-pessoal') return canAccessFinanceiroPessoal(profile)
+    return true
+  })
+}

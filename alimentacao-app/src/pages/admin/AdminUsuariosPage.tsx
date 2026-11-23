@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Search, UserPlus } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { Card } from '../../components/ui/Card'
@@ -12,7 +12,7 @@ import { Modal } from '../../components/ui/Modal'
 import { Pagination } from '../../components/ui/Pagination'
 import { supabase } from '../../lib/supabase'
 import { labelRole } from '../../lib/roles'
-import { SITES } from '../../lib/sites'
+import { clearSite, SITES } from '../../lib/sites'
 import type { Profile, UserRole } from '../../types'
 
 const PAGE_SIZE = 15
@@ -71,6 +71,7 @@ function initials(nome: string) {
 
 export function AdminUsuariosPage() {
   const { signOut, criarUsuarioExterno, editarUsuarioExterno, excluirUsuarioExterno } = useAuth()
+  const navigate = useNavigate()
 
   const [users, setUsers] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
@@ -241,7 +242,15 @@ export function AdminUsuariosPage() {
       <header className="mr-demo-bar">
         <span>Administração · Acessos</span>
         <div className="mr-demo-actions">
-          <Link to="/">Painel</Link>
+          <button
+            type="button"
+            onClick={() => {
+              clearSite()
+              navigate('/login')
+            }}
+          >
+            Trocar sistema
+          </button>
           <button type="button" onClick={() => void signOut()}>Sair</button>
         </div>
       </header>

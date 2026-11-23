@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { hasRole } from '../../lib/roles'
-import { isAdminNoSiteExterno, writeSite } from '../../lib/sites'
+import { clearSite, isAdminNoSiteExterno } from '../../lib/sites'
 import { Spinner } from '../../components/ui/Spinner'
 import {
   baixarComprovante,
@@ -31,7 +31,7 @@ function mensagemDe(e: unknown, padrao: string) {
 /**
  * Controle Financeiro Pessoal — UI em public/sistemas/financeiro-pessoal/ carregada em iframe
  * (modo banco: ?remote=1). Os dados ficam nas tabelas fp_* do Nerites; esta página faz a ponte:
- *   iframe → fp-pronto / fp-persist / fp-file-put / fp-file-get / fp-sair / fp-nerites
+ *   iframe → fp-pronto / fp-persist / fp-file-put / fp-file-get / fp-sair / fp-trocar-sistema
  *   página → fp-user / fp-hydrate / fp-persist-ok|erro / fp-file-ok|data|erro
  */
 export function FinanceiroPessoalPage() {
@@ -123,9 +123,9 @@ export function FinanceiroPessoalPage() {
         void signOut()
         return
       }
-      if (dados.type === 'fp-nerites' && neritesAdmin) {
-        writeSite('nerites')
-        navigate('/')
+      if (dados.type === 'fp-trocar-sistema') {
+        clearSite()
+        navigate('/login')
         return
       }
       if (dados.type === 'fp-persist' && dados.payload) {
@@ -210,7 +210,7 @@ export function FinanceiroPessoalPage() {
           ref={frameRef}
           className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
           title="Controle Financeiro Pessoal"
-          src="/sistemas/financeiro-pessoal/index.html?v=7&remote=1"
+          src="/sistemas/financeiro-pessoal/index.html?v=8&remote=1"
           onLoad={() => window.setTimeout(() => setPronto(true), 8000)}
         />
       </div>
