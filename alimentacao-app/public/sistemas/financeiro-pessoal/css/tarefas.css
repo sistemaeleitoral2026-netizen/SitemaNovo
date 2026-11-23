@@ -147,3 +147,9 @@ a.btn { text-decoration: none; }
   #taskKpis .kpi:nth-child(n+3) { border-top: 1px solid var(--line) !important; }
   #taskKpis .kpi-value { font-size: 20px; }
 }
+
+/* Status do salvamento no banco */
+.sync-status { display: block; margin-top: 4px; font-weight: 500; }
+.sync-status.saving { color: #f5c26b; }
+.sync-status.ok { color: #7fd6a4; }
+.sync-status.err { color: #ff9b94; }

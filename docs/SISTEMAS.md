@@ -46,7 +46,7 @@ alimentacao-sistema/
 | Painel do Mandato (fichas/lideranças) | Lê Nerites |
 | Painel do Mandato (financeiro) | Supabase **Gabinete** (`GABINETE_*` só no servidor) |
 | Assessoria MB | **Nerites** — tabelas `mb_*` + Storage `mb-comprovantes` (bridge React ↔ iframe) |
-| Controle Financeiro Pessoal | **Nerites** — tabelas `fp_*` + Storage `fp-comprovantes` (migration `20261124_financeiro_pessoal.sql`, ver `docs/LEIA-ME-FINANCEIRO-PESSOAL.md`). A tela **ainda** salva no navegador (localStorage `meu-financeiro:v2` + IndexedDB) até a ponte React ↔ iframe ser feita |
+| Controle Financeiro Pessoal | **Nerites** — tabelas `fp_*` + Storage `fp-comprovantes` (migration `20261124_financeiro_pessoal.sql`, ver `docs/LEIA-ME-FINANCEIRO-PESSOAL.md`). Bridge React ↔ iframe em `lib/financeiroPessoal.ts` (só grava a diferença) |
 | Empresas (MR Terceriza) | **Nerites** — tabelas `mr_*` + Storage `mr-comprovantes` (mesmo padrão de bridge React ↔ iframe da Assessoria MB) |
 
 ## Administração (/admin)

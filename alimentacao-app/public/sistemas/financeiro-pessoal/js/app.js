@@ -56,7 +56,10 @@
   const fullDate = d => { const [y, m, day] = d.split('-'); return `${day}/${m}/${y}`; };
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const icon = (name, cls = '') => `<svg class="i ${cls}"><use href="#i-${name}"/></svg>`;
-  const uid = () => Math.random().toString(36).slice(2, 10);
+  // Ids em formato UUID (o banco usa uuid)
+  const uid = () => (window.crypto && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
   const localNow = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString(); };
   const todayISO = () => localNow().slice(0, 10);
   const nowTime = () => localNow().slice(11, 16);
@@ -169,19 +172,51 @@
   }
 
   /* ---------- Estado ---------- */
-  let state;
-  try {
-    state = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (!state) { const old = JSON.parse(localStorage.getItem(OLD_KEY)); state = old ? migrate(old) : seed(); }
-  } catch { state = seed(); }
-  state.snapshots ||= []; state.people ||= [];
-  state.tasks ||= []; state.taskDone ||= []; state.payees ||= []; state.accChecks ||= [];
-  const save = () => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { alert('Não foi possível salvar neste navegador (armazenamento cheio ou bloqueado).'); } };
-
   // Permissão: dentro do sistema, o React informa se é admin (mensagem fp-user). Aberto direto, é admin.
   const embedded = window.parent !== window;
+  // Modo banco: aberto pelo sistema com ?remote=1 → dados nas tabelas fp_* (via página React).
+  // Fora disso (arquivo aberto direto), continua no localStorage com dados de exemplo.
+  const REMOTE = embedded && new URLSearchParams(location.search).has('remote');
   let isAdmin = !embedded;
   let userName = '';
+  let userId = '';
+
+  const emptyState = () => ({ accounts: [], txs: [], investments: [], snapshots: [], goal: 15000, people: [], tasks: [], taskDone: [], payees: [], accChecks: [] });
+  let state;
+  if (REMOTE) state = emptyState();
+  else {
+    try {
+      state = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (!state) { const old = JSON.parse(localStorage.getItem(OLD_KEY)); state = old ? migrate(old) : seed(); }
+    } catch { state = seed(); }
+  }
+  state.snapshots ||= []; state.people ||= [];
+  state.tasks ||= []; state.taskDone ||= []; state.payees ||= []; state.accChecks ||= [];
+
+  // Salvar: no modo banco, manda o estado para a página React gravar (com pequena espera
+  // para juntar alterações seguidas); fora dele, grava no localStorage.
+  let dirty = false, persistTimer = null, persistSeq = 0;
+  const syncStatus = (txt, cls = '') => {
+    const el = document.getElementById('syncStatus');
+    if (el) { el.textContent = txt; el.className = 'sync-status ' + cls; }
+  };
+  const save = () => {
+    if (!REMOTE) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { alert('Não foi possível salvar neste navegador (armazenamento cheio ou bloqueado).'); }
+      return;
+    }
+    dirty = true;
+    syncStatus('Salvando…', 'saving');
+    clearTimeout(persistTimer);
+    persistTimer = setTimeout(() => {
+      const { accounts, accChecks, txs, tasks, taskDone, investments, snapshots, goal } = state;
+      window.parent.postMessage({ type: 'fp-persist', requestId: String(++persistSeq),
+        payload: JSON.parse(JSON.stringify({ accounts, accChecks, txs, tasks, taskDone, investments, snapshots, goal })) }, location.origin);
+    }, 250);
+  };
+  // Quem pode excluir no modo banco: admin, ou quem criou o registro
+  const canDelete = item => !REMOTE || isAdmin || !item?.createdBy || item.createdBy === userId;
+  const stamp_ = () => (REMOTE && userId ? { createdBy: userId } : {});
 
   let period = null;
   let view = 'overview';
@@ -727,7 +762,7 @@
     };
     const id = $('#tkId').value;
     if (id) Object.assign(taskById(id), data, { updatedAt: new Date().toISOString(), updatedBy: userName || 'Admin' });
-    else state.tasks.push({ id: 'tk' + uid(), ...data, paused: false, createdBy: userName || 'Admin', createdAt: new Date().toISOString() });
+    else state.tasks.push({ id: uid(), ...data, paused: false, createdBy: userId || null, createdAt: new Date().toISOString() });
     rememberPayee(data.payee);
     save(); closeModals(); refresh();
   }
@@ -775,11 +810,11 @@
     try {
       let receiptId = null;
       const file = uploads.pay.file;
-      if (file) receiptId = await FPComprovantes.put(file);
+      const txId = uid();
+      if (file) receiptId = await FPComprovantes.put(file, txId);
       const date = $('#pyDate').value, time = $('#pyTime').value, account = $('#pyAcc').value;
       const by = $('#pyBy').value.trim(), payee = $('#pyPayee').value.trim(), note = $('#pyNote').value.trim();
-      const txId = uid();
-      state.txs.push({ id: txId, date, time, amount, kind: 'expense', description: t.title, category: t.category, account, payee, by, taskId, period: k, receiptId, note });
+      state.txs.push({ ...stamp_(), id: txId, date, time, amount, kind: 'expense', description: t.title, category: t.category, account, payee, by, taskId, period: k, receiptId, note });
       state.taskDone.push({ id: uid(), taskId, period: k, status: 'paga', txId, amount, account, date, time, by, payee, receiptId, note });
       rememberPerson(by); rememberPayee(payee);
       save(); closeModals(); refresh();
@@ -1096,7 +1131,8 @@
 
   function fillPeriod() {
     const ms = months();
-    if (!period || !ms.includes(period)) period = ms.find(m => inMonth(m).length) || ms[0];
+    // Padrão: último mês com lançamentos até hoje; sem lançamentos, o mês atual
+    if (!period || !ms.includes(period)) period = ms.find(m => m <= ym(todayISO()) && inMonth(m).length) || ym(todayISO());
     $('#period').innerHTML = ms.map(m => `<option value="${m}" ${m === period ? 'selected' : ''}>${monthLabel(m)}</option>`).join('');
   }
 
@@ -1226,6 +1262,7 @@
     else if (b.dataset.editTask) openModal('task', b);
     else if (b.dataset.editAcc) openModal('account', b);
     else if (b.dataset.delCheck) {
+      if (!canDelete(state.accChecks.find(c => c.id === b.dataset.delCheck))) { alert('Só admin ou quem criou este registro pode excluir.'); return; }
       if (confirm('Excluir esta conferência de saldo? O saldo da conta volta a ser calculado sem ela.')) {
         state.accChecks = state.accChecks.filter(c => c.id !== b.dataset.delCheck); save(); refresh();
       }
@@ -1244,6 +1281,7 @@
     } else if (b.dataset.delTx) {
       const tx = state.txs.find(x => x.id === b.dataset.delTx);
       if (!tx) return;
+      if (!canDelete(tx)) { alert('Só admin ou quem criou este registro pode excluir.'); return; }
       const d = tx.taskId ? state.taskDone.find(x => x.txId === tx.id) : null;
       const msg = d ? `Excluir este lançamento? A tarefa “${tx.description}” volta a ficar pendente${tx.receiptId ? ' e o comprovante será apagado' : ''}.`
         : `Excluir este lançamento?${tx.receiptId ? ' O comprovante também será apagado.' : ''}`;
@@ -1253,6 +1291,7 @@
       FPComprovantes.del(tx.receiptId);
       save(); refresh();
     } else if (b.dataset.delAcc) {
+      if (REMOTE && !isAdmin) { alert('Só admin pode excluir contas.'); return; }
       const a = state.accounts.find(x => x.id === b.dataset.delAcc);
       const n = state.txs.filter(x => x.account === a.id).length;
       if (n) { alert(`"${a.name}" tem ${n} lançamento(s). Exclua-os antes de remover a conta.`); return; }
@@ -1263,6 +1302,7 @@
         save(); refresh();
       }
     } else if (b.dataset.delInv) {
+      if (REMOTE && !isAdmin) { alert('Só admin pode excluir aplicações.'); return; }
       const n = snapsOf(b.dataset.delInv).length;
       if (confirm(`Excluir esta aplicação${n ? ` e seus ${n} registros de saldo` : ''}?`)) {
         state.investments = state.investments.filter(x => x.id !== b.dataset.delInv);
@@ -1270,12 +1310,14 @@
         save(); refresh();
       }
     } else if (b.dataset.delSnap) {
+      if (!canDelete(state.snapshots.find(x => x.id === b.dataset.delSnap))) { alert('Só admin ou quem criou este registro pode excluir.'); return; }
       if (confirm('Excluir este registro de saldo?')) { state.snapshots = state.snapshots.filter(s => s.id !== b.dataset.delSnap); save(); refresh(); }
     }
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModals(); });
 
-  $('#period').addEventListener('change', e => { period = e.target.value; render(); });
+  let periodManual = false; // a pessoa escolheu um mês: não troca sozinho ao recarregar do banco
+  $('#period').addEventListener('change', e => { period = e.target.value; periodManual = true; render(); });
   ['#q', '#fKind', '#fAccount'].forEach(s => $(s).addEventListener(s === '#q' ? 'input' : 'change', render));
   $('#fInv').addEventListener('change', renderInvestments);
   $('#snapInv').addEventListener('change', updateSnapPrev);
@@ -1287,11 +1329,12 @@
     if (!(amount > 0)) return;
     const date = $('#txDate').value;
     let receiptId = null;
-    try { if (uploads.tx.file) receiptId = await FPComprovantes.put(uploads.tx.file); }
+    const newTxId = uid();
+    try { if (uploads.tx.file) receiptId = await FPComprovantes.put(uploads.tx.file, newTxId); }
     catch (err) { alert(err instanceof Error ? err.message : 'Não foi possível salvar o comprovante.'); return; }
     const payee = $('#txPayee').value.trim();
     state.txs.push({
-      id: uid(), date, amount, time: nowTime(),
+      ...stamp_(), id: newTxId, date, amount, time: nowTime(),
       description: $('#txDesc').value.trim(),
       kind: $('input[name="kind"]:checked').value,
       category: $('#txCat').value,
@@ -1315,7 +1358,7 @@
     const data = { name: $('#accName').value.trim(), type: $('#accType').value, initial: Math.round((moneyVal('#accInitial') || 0) * 100) / 100 };
     const id = $('#accId').value;
     if (id) Object.assign(state.accounts.find(a => a.id === id), data);
-    else state.accounts.push({ id: uid(), ...data });
+    else state.accounts.push({ ...stamp_(), id: uid(), ...data });
     save(); closeModals(); refresh();
   });
 
@@ -1327,7 +1370,7 @@
     const dup = state.accChecks.find(c => c.accId === accId && c.date === date && c.time === time);
     if (dup && !confirm(`Já existe um saldo de ${accName(accId)} em ${fullDate(date)} às ${time}. Substituir?`)) return;
     if (dup) state.accChecks = state.accChecks.filter(c => c !== dup);
-    state.accChecks.push({ id: uid(), accId, date, time, balance, by });
+    state.accChecks.push({ ...stamp_(), id: uid(), accId, date, time, balance, by });
     rememberPerson(by);
     save(); closeModals(); refresh();
   });
@@ -1340,7 +1383,7 @@
     if (!(amount >= 0)) return;
     const id = uid(), by = $('#invBy').value.trim();
     state.investments.push({ id, name: $('#invName').value.trim(), type: $('#invType').value, institution: $('#invInst').value.trim() });
-    state.snapshots.push({ id: uid(), invId: id, date: todayISO(), time: nowTime(), balance: amount, by });
+    state.snapshots.push({ ...stamp_(), id: uid(), invId: id, date: todayISO(), time: nowTime(), balance: amount, by });
     rememberPerson(by);
     save(); closeModals(); refresh();
   });
@@ -1353,7 +1396,7 @@
     const dup = state.snapshots.find(s => s.invId === invId && s.date === date && s.time === time);
     if (dup && !confirm(`Já existe um registro de ${invName(invId)} em ${fullDate(date)} às ${time}. Substituir?`)) return;
     if (dup) state.snapshots = state.snapshots.filter(s => s !== dup);
-    state.snapshots.push({ id: uid(), invId, date, time, balance, by });
+    state.snapshots.push({ ...stamp_(), id: uid(), invId, date, time, balance, by });
     rememberPerson(by);
     save(); closeModals(); refresh();
   });
@@ -1368,6 +1411,34 @@
   window.addEventListener('message', ev => {
     if (ev.origin !== window.location.origin || ev.source !== window.parent) return;
     const d = ev.data || {};
+    if (d.type === 'fp-hydrate' && d.payload) {
+      if (dirty) return; // há alteração local ainda não salva: não sobrescreve
+      const p = d.payload;
+      Object.assign(state, {
+        accounts: p.accounts || [], accChecks: p.accChecks || [], txs: p.txs || [], tasks: p.tasks || [],
+        taskDone: p.taskDone || [], investments: p.investments || [], snapshots: p.snapshots || [],
+        goal: Number(p.goal) || 15000,
+      });
+      if (Array.isArray(p.people)) state.people = [...new Set([...state.people, ...p.people])].slice(0, 10);
+      if (!periodManual) period = null;
+      refresh();
+      syncStatus('Dados do banco atualizados', 'ok');
+      return;
+    }
+    if (d.type === 'fp-persist-ok') {
+      if (d.requestId === String(persistSeq)) { dirty = false; syncStatus('Salvo no banco', 'ok'); }
+      return;
+    }
+    if (d.type === 'fp-persist-erro') {
+      dirty = false; // a página recarrega do banco em seguida
+      syncStatus('Erro ao salvar: ' + (d.erro || 'tente de novo'), 'err');
+      return;
+    }
+    if (d.type === 'fp-file-ok' || d.type === 'fp-file-data' || d.type === 'fp-file-erro') {
+      const cb = fileWaiters.get(d.requestId);
+      if (cb) { fileWaiters.delete(d.requestId); cb(d); }
+      return;
+    }
     if (d.type === 'fp-user') {
       const nome = String(d.nome || 'Usuário');
       $('#userName').textContent = nome;
@@ -1377,11 +1448,49 @@
       const mudou = isAdmin !== !!d.admin || userName !== nome;
       isAdmin = !!d.admin;
       userName = nome;
+      userId = String(d.userId || '');
       if (mudou) render();
     }
   });
   $('#btnSair').addEventListener('click', () => avisarPai({ type: 'fp-sair' }));
   $('#btnNerites').addEventListener('click', () => avisarPai({ type: 'fp-nerites' }));
+
+  /* Comprovantes no modo banco: upload/download pela página React (bucket fp-comprovantes) */
+  const fileWaiters = new Map();
+  let fileSeq = 0;
+  const pedirArquivo = msg => new Promise((resolve, reject) => {
+    const requestId = 'f' + (++fileSeq);
+    const timer = setTimeout(() => { fileWaiters.delete(requestId); reject(new Error('Tempo esgotado ao transferir o comprovante.')); }, 120000);
+    fileWaiters.set(requestId, d => { clearTimeout(timer); d.type === 'fp-file-erro' ? reject(new Error(d.erro)) : resolve(d); });
+    window.parent.postMessage({ ...msg, requestId }, location.origin);
+  });
+  if (REMOTE) {
+    const remoteUrls = new Map();
+    const get = async id => {
+      const d = await pedirArquivo({ type: 'fp-file-get', id });
+      return { id, name: d.name, type: d.mime || d.blob.type, size: d.size || d.blob.size, blob: d.blob };
+    };
+    Object.assign(FPComprovantes, {
+      put: async (file, entidadeId) => {
+        const erro = FPComprovantes.validar(file);
+        if (erro) throw new Error(erro);
+        const d = await pedirArquivo({ type: 'fp-file-put', file, name: file.name, entidadeId });
+        return d.id;
+      },
+      get: async id => { try { return await get(id); } catch { return null; } },
+      del: async () => { /* o salvamento apaga o comprovante junto com o lançamento */ },
+      url: async id => {
+        if (remoteUrls.has(id)) return remoteUrls.get(id);
+        const rec = await get(id);
+        const u = URL.createObjectURL(rec.blob);
+        remoteUrls.set(id, u);
+        return u;
+      },
+    });
+    const note = document.querySelector('.storage-note span');
+    if (note) note.innerHTML = 'Dados salvos no banco do sistema. <span id="syncStatus" class="sync-status"></span>';
+    document.querySelector('#taskEditorNote span')?.insertAdjacentText('beforeend', '');
+  }
 
   /* ---------- Início ---------- */
   $('#today').textContent = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
