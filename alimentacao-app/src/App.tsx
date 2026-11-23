@@ -10,12 +10,13 @@ import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage'
 import { MrTerceirizaPage } from './pages/empresas/MrTerceirizaPage'
 import { AssessoriaMbPage } from './pages/assessoria/AssessoriaMbPage'
 import { PainelMandatoPage } from './pages/mandato/PainelMandatoPage'
+import { FinanceiroPessoalPage } from './pages/financeiro-pessoal/FinanceiroPessoalPage'
 import { VotacaoLancarPage } from './pages/nerites/VotacaoLancarPage'
 import { VotacaoProgressoPage } from './pages/nerites/VotacaoProgressoPage'
 import { VotacaoHistoricoPage } from './pages/nerites/VotacaoHistoricoPage'
 import { canSeeFormigasWhatsapp } from './lib/formigasWhatsapp'
 import { hasRole } from './lib/roles'
-import { canAccessAssessoriaMb, canAccessSiteExterno, readSite, siteById, writeSite, type SiteId } from './lib/sites'
+import { canAccessAssessoriaMb, canAccessFinanceiroPessoal, canAccessSiteExterno, readSite, siteById, writeSite, type SiteId } from './lib/sites'
 import type { Profile } from './types'
 
 // Telas de gestão (mapa/Leaflet, gráficos/Recharts, PDF/Excel) em chunks
@@ -54,6 +55,8 @@ function homeForProfile(profile: Profile | null | undefined) {
   // Assessoria MB só para admin/diretoria; demais cargos voltam ao fluxo normal do Nerites.
   if (site === 'assessoria-mb' && !canAccessAssessoriaMb(profile)) {
     writeSite('nerites')
+  } else if (site === 'financeiro-pessoal' && !canAccessFinanceiroPessoal(profile)) {
+    writeSite('nerites')
   } else {
     const siteHome = siteById(site)?.home
     if (siteHome && siteHome !== '/') return siteHome
@@ -66,7 +69,7 @@ function homeForProfile(profile: Profile | null | undefined) {
   if (hasRole(profile, 'administrativo')) return '/demandas/lancar'
   // Sem cargo no Nerites (login cadastrado em /admin): manda pro primeiro sistema liberado.
   if (hasRole(profile, 'externo')) {
-    const liberado = (['assessoria-mb', 'painel-do-mandato', 'mr-terceiriza'] as const)
+    const liberado = (['assessoria-mb', 'painel-do-mandato', 'mr-terceiriza', 'financeiro-pessoal'] as const)
       .find((s) => canAccessSiteExterno(profile, s))
     if (liberado) return siteById(liberado)?.home ?? '/login'
   }
@@ -78,6 +81,16 @@ function AssessoriaMbRoute({ children }: { children: React.ReactNode }) {
   if (loading) return <Spinner />
   if (!session || !profile || !profile.ativo) return <Navigate to="/login" replace />
   if (!canAccessAssessoriaMb(profile)) {
+    return <Navigate to={homeForProfile(profile)} replace />
+  }
+  return children
+}
+
+function FinanceiroPessoalRoute({ children }: { children: React.ReactNode }) {
+  const { session, profile, loading } = useAuth()
+  if (loading) return <Spinner />
+  if (!session || !profile || !profile.ativo) return <Navigate to="/login" replace />
+  if (!canAccessFinanceiroPessoal(profile)) {
     return <Navigate to={homeForProfile(profile)} replace />
   }
   return children
@@ -251,7 +264,8 @@ function AppRoutes() {
       <Route path="/mr-terceiriza" element={<DemoSiteRoute site="mr-terceiriza"><MrTerceirizaPage /></DemoSiteRoute>} />
       <Route path="/assessoria-mb" element={<AssessoriaMbRoute><AssessoriaMbPage /></AssessoriaMbRoute>} />
       <Route path="/painel-do-mandato" element={<DemoSiteRoute site="painel-do-mandato"><PainelMandatoPage /></DemoSiteRoute>} />
-      <Route path="/admin" element={<AdminUsuariosRoute><AdminUsuariosPage /></AdminUsuariosRoute>} />
+      <Route path="/financeiro-pessoal" element={<FinanceiroPessoalRoute><FinanceiroPessoalPage /></FinanceiroPessoalRoute>} />
+      <Route path="/admin"element={<AdminUsuariosRoute><AdminUsuariosPage /></AdminUsuariosRoute>} />
 
       <Route element={<AppShell />}>
         <Route index element={<HomeRedirect />} />
