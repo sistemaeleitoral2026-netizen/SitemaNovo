@@ -112,9 +112,9 @@
       .reduce((s, x) => s + (x.kind === 'income' ? x.amount : -x.amount), 0)).toFixed(2);
 
     const investments = [
-      { id: 'res', name: 'Reserva de emergência', type: 'Poupança', institution: 'Banco do Brasil' },
-      { id: 'cdb', name: 'CDB liquidez diária', type: 'Renda fixa', institution: 'Nubank' },
-      { id: 'selic', name: 'Tesouro Selic 2029', type: 'Tesouro Direto', institution: 'Tesouro Nacional' },
+      { id: 'res', name: 'Reserva de emergência', type: 'Poupança', institution: 'Banco do Brasil', account: 'bb' },
+      { id: 'cdb', name: 'CDB liquidez diária', type: 'CDB', institution: 'Nubank', account: 'nu' },
+      { id: 'selic', name: 'Tesouro Selic 2029', type: 'Tesouro Direto', institution: 'Itaú', account: 'itau' },
     ];
     // Verificações diárias de 10 a 23/11 (dias úteis), com o saldo final do layout original
     const days = ['10', '11', '12', '13', '14', '17', '18', '19', '20', '21', '23'];
@@ -215,7 +215,8 @@
     }, 250);
   };
   // Quem pode excluir no modo banco: admin, ou quem criou o registro
-  const canDelete = item => !REMOTE || isAdmin || !item?.createdBy || item.createdBy === userId;
+  // Fora de Tarefas, qualquer pessoa com acesso exclui. Lançamento de tarefa (desfazer baixa) só admin.
+  const canDelete = item => !REMOTE || isAdmin || !item?.taskId;
   const stamp_ = () => (REMOTE && userId ? { createdBy: userId } : {});
 
   let period = null;
@@ -226,6 +227,7 @@
 
   const accName = id => state.accounts.find(a => a.id === id)?.name ?? '—';
   const invName = id => state.investments.find(a => a.id === id)?.name ?? '—';
+  const invAccName = i => (i && state.accounts.find(a => a.id === i.account)?.name) || i?.institution || 'Sem conta';
   const value = x => (x.kind === 'income' ? x.amount : -x.amount);
   const sum = (list, kind) => list.filter(x => !kind || x.kind === kind).reduce((s, x) => s + (kind ? x.amount : value(x)), 0);
   const inMonth = k => state.txs.filter(x => ym(x.date) === k);
@@ -547,7 +549,7 @@
   }
 
   const statusTag = s => `<span class="tag st-${s}">${STATUS_LABEL[s]}</span>`;
-  const payeeIcon = t => icon(t.payeeKind === 'pessoa' ? 'user-round' : 'building-2');
+  const payeeIcon = () => icon('user-round');
 
   function taskRow(o) {
     const t = o.task, d = o.done;
@@ -674,6 +676,9 @@
     $$('[data-tk="rec"]').forEach(el => { el.hidden = type !== 'rec'; });
     $$('[data-tk="once"]').forEach(el => { el.hidden = type !== 'once'; });
     $$('[data-tk="year"]').forEach(el => { el.hidden = !(type === 'rec' && freq === 'y'); });
+    const fixedDay = $('input[name="tkDayMode"]:checked').value === 'fixed';
+    $$('[data-range-part]').forEach(el => { el.hidden = fixedDay; });
+    $('#tkDayFrom').setAttribute('aria-label', fixedDay ? 'Dia fixo' : 'Do dia');
     const varies = $('#tkVaries').checked;
     $('#tkAmount').disabled = varies;
     $('#tkAmount').required = !varies;
@@ -686,7 +691,8 @@
       const a = $('#tkDateFrom').value, b = $('#tkDateTo').value;
       txt = b ? `Pagamento único${a && a !== b ? `, entre ${fullDate(a)} e ${fullDate(b)}` : `, até ${fullDate(b)}`}.` : 'Pagamento único: informe a data de vencimento.';
     } else {
-      const df = +$('#tkDayFrom').value || 1, dt = +$('#tkDayTo').value || df;
+      const fixed = $('input[name="tkDayMode"]:checked').value === 'fixed';
+      const df = +$('#tkDayFrom').value || 1, dt = fixed ? df : (+$('#tkDayTo').value || df);
       const freqTxt = { m1: 'todo mês', m2: 'a cada 2 meses', m3: 'a cada 3 meses', m6: 'a cada 6 meses', y: `todo ano em ${MONTHS_FULL[+$('#tkMonth').value - 1]?.toLowerCase()}` }[freq];
       const win = df === dt ? `no dia ${df}` : `entre os dias ${Math.min(df, dt)} e ${Math.max(df, dt)}`;
       const st = $('#tkStart').value, en = $('#tkEnd').value;
@@ -708,7 +714,6 @@
     $('#tkId').value = t?.id || '';
     $('#tkName').value = t?.title || '';
     $('#tkPayee').value = t?.payee || '';
-    $(t?.payeeKind === 'pessoa' ? '#tkKindP' : '#tkKindE').checked = true;
     $('#tkCat').value = t?.category || 'Outros';
     $('#tkAcc').value = t?.account || state.accounts[0]?.id || '';
     $('#tkVaries').checked = !!t && t.expected == null;
@@ -718,6 +723,7 @@
     $('#tkMonth').value = r.month || (+currentMonth().slice(5));
     $('#tkDayFrom').value = r.dayFrom || 10;
     $('#tkDayTo').value = r.dayTo || r.dayFrom || 15;
+    $(t && r.type !== 'once' && r.dayFrom === r.dayTo ? '#tkDayFixed' : '#tkDayRange').checked = true;
     $('#tkStart').value = t?.start || currentMonth();
     $('#tkEnd').value = t?.end || '';
     $('#tkDateFrom').value = r.dateFrom || todayISO();
@@ -741,7 +747,8 @@
       rec = { type: 'once', dateFrom: a, dateTo: b };
       start = ym(a);
     } else {
-      let df = Math.min(Math.max(+$('#tkDayFrom').value || 1, 1), 31), dt = Math.min(Math.max(+$('#tkDayTo').value || df, 1), 31);
+      const fixed = $('input[name="tkDayMode"]:checked').value === 'fixed';
+      let df = Math.min(Math.max(+$('#tkDayFrom').value || 1, 1), 31), dt = fixed ? df : Math.min(Math.max(+$('#tkDayTo').value || df, 1), 31);
       if (df > dt) [df, dt] = [dt, df];
       start = $('#tkStart').value || currentMonth();
       rec = freq === 'y'
@@ -753,7 +760,7 @@
     const data = {
       title: $('#tkName').value.trim(),
       payee: $('#tkPayee').value.trim(),
-      payeeKind: $('input[name="tkKind"]:checked').value,
+      payeeKind: 'empresa',
       category: $('#tkCat').value,
       account: $('#tkAcc').value,
       expected, rec, start,
@@ -1019,7 +1026,7 @@
         <div class="acc-ico">${icon('piggy-bank', 'i-sm')}</div>
         <div class="acc-info">
           <div class="acc-name">${esc(i.name)}</div>
-          <div class="acc-type">${esc(i.institution)}${cur ? ` · ${icon('clock', 'i-xs')} ${fullDate(cur.date)} às ${cur.time}` : ' · sem atualização'}</div>
+          <div class="acc-type">${esc(invAccName(i))}${cur ? ` · ${icon('clock', 'i-xs')} ${fullDate(cur.date)} às ${cur.time}` : ' · sem atualização'}</div>
         </div>
         <div class="inv-val"><strong class="num">${money(v)}</strong>${cur && before ? chip(cur.balance - before.balance) : ''}</div>
       </div>`;
@@ -1096,21 +1103,51 @@
     $('#goalBox2').innerHTML = goalBox();
     if (view === 'investments') investChart();
 
-    $('#investRows').innerHTML = state.investments.map(i => {
-      const l = snapsOf(i.id), cur = l.at(-1), before = l.at(-2);
-      return `<tr>
-        <td><div class="t-desc"><span class="t-ico">${icon('piggy-bank', 'i-sm')}</span><div>${esc(i.name)}<div class="acc-type">${esc(i.type)}</div></div></div></td>
-        <td class="t-muted">${esc(i.institution)}</td>
-        <td class="t-right num amount">${cur ? money(cur.balance) : '—'}</td>
-        <td class="t-right">${cur ? chip(before ? cur.balance - before.balance : null, before?.balance) : ''}</td>
-        <td style="white-space:normal;min-width:170px">${cur ? `<span class="checked">${icon('clock', 'i-sm')}${fullDate(cur.date)} às ${cur.time} · ${esc(cur.by)}</span>` : '<span class="t-muted">sem verificação</span>'}</td>
-        <td class="t-right" style="white-space:nowrap">
-          <button class="btn btn-sm" data-open="snap" data-inv="${i.id}">${icon('pencil-line', 'i-sm')}Registrar saldo</button>
-          <button class="icon-btn" data-del-inv="${i.id}" aria-label="Excluir aplicação">${icon('trash-2', 'i-sm')}</button>
-        </td></tr>`;
-    }).join('') || '<tr><td colspan="6" class="empty">Nenhuma aplicação cadastrada.</td></tr>';
-    $('#investRows').insertAdjacentHTML('beforeend', state.investments.length
-      ? `<tr><td colspan="2"><strong>Total</strong></td><td class="t-right num"><strong>${money(invTotal())}</strong></td><td colspan="3"></td></tr>` : '');
+    // Indicadores
+    const total = invTotal();
+    const lc = lastCheck();
+    const p = state.goal ? Math.min(total / state.goal, 1) : 0;
+    $('#invKpis').innerHTML = `
+      <div class="kpi"><div class="kpi-label">Total investido</div><div class="kpi-value num">${money(total)}</div><div class="kpi-foot">${state.investments.length} aplicaç${state.investments.length === 1 ? 'ão' : 'ões'}</div></div>
+      <div class="kpi"><div class="kpi-label">Meta de reserva</div><div class="kpi-value num">${pct(p)}</div><div class="kpi-foot">de ${money(state.goal)}</div></div>
+      <div class="kpi"><div class="kpi-label">Falta para a meta</div><div class="kpi-value num">${money(Math.max(state.goal - total, 0))}</div><div class="kpi-foot">&nbsp;</div></div>
+      <div class="kpi"><div class="kpi-label">Última atualização</div><div class="kpi-value num" style="font-size:18px">${lc ? `${fullDate(lc.date)} às ${lc.time}` : '—'}</div><div class="kpi-foot">${lc ? `${esc(invName(lc.invId))} · ${esc(lc.by)}` : 'nenhum saldo ainda'}</div></div>`;
+
+    // Aplicações separadas pela conta onde estão
+    const grupos = new Map();
+    state.investments.forEach(i => {
+      const key = state.accounts.some(a => a.id === i.account) ? i.account : '__sem';
+      if (!grupos.has(key)) grupos.set(key, []);
+      grupos.get(key).push(i);
+    });
+    const ordem = [...state.accounts.map(a => a.id).filter(id => grupos.has(id)), ...(grupos.has('__sem') ? ['__sem'] : [])];
+    $('#invGroups').innerHTML = ordem.map(key => {
+      const lista = grupos.get(key);
+      const conta = state.accounts.find(a => a.id === key);
+      const soma = lista.reduce((t, i) => t + invValue(i.id), 0);
+      return `<div class="inv-group">
+        <div class="inv-group-head">
+          <div class="acc-ico">${icon('landmark', 'i-sm')}</div>
+          <div class="acc-info"><div class="acc-name">${conta ? esc(conta.name) : 'Sem conta'}</div><div class="acc-type">${lista.length} aplicaç${lista.length === 1 ? 'ão' : 'ões'}</div></div>
+          <div class="inv-group-total num">${money(soma)}</div>
+        </div>
+        ${lista.map(i => {
+          const l = snapsOf(i.id), cur = l.at(-1), before = l.at(-2);
+          return `<div class="inv-item">
+            <div class="inv-item-main">
+              <div class="inv-item-name">${esc(i.name)} <span class="tag rec">${esc(i.type)}</span></div>
+              <div class="inv-item-sub">${cur ? `${icon('clock', 'i-xs')} Atualizado em ${fullDate(cur.date)} às ${cur.time} · ${esc(cur.by)}` : 'Saldo ainda não informado'}</div>
+            </div>
+            <div class="inv-item-val"><strong class="num">${cur ? money(cur.balance) : '—'}</strong>${cur && before ? chip(cur.balance - before.balance, before.balance) : ''}</div>
+            <div class="inv-item-actions">
+              <button class="btn btn-sm" data-open="snap" data-inv="${i.id}">${icon('pencil-line', 'i-sm')}Atualizar saldo</button>
+              <button class="icon-btn edit" data-edit-inv="${i.id}" title="Editar aplicação" aria-label="Editar aplicação">${icon('pencil-line', 'i-sm')}</button>
+              <button class="icon-btn" data-del-inv="${i.id}" title="Excluir aplicação" aria-label="Excluir aplicação">${icon('trash-2', 'i-sm')}</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }).join('') || `<div class="inv-empty">${icon('piggy-bank')}<strong>Nenhuma aplicação ainda</strong><span>${state.accounts.length ? 'Clique em “Nova aplicação”, escolha a conta e informe o saldo.' : 'Cadastre uma conta em “Contas” e depois adicione a aplicação aqui.'}</span></div>`;
 
     const fi = $('#fInv').value || 'all';
     const hist = state.snapshots.filter(s => fi === 'all' || s.invId === fi)
@@ -1121,12 +1158,13 @@
         <td class="num">${fullDate(s.date)}</td>
         <td class="num t-muted">${s.time}</td>
         <td>${esc(invName(s.invId))}</td>
+        <td class="t-muted">${esc(invAccName(state.investments.find(i => i.id === s.invId)))}</td>
         <td class="t-right num amount">${money(s.balance)}</td>
         <td class="t-right">${chip(p ? s.balance - p.balance : null, p?.balance)}</td>
         <td><span class="checked">${icon('user-round', 'i-sm')}${esc(s.by)}</span></td>
         <td class="t-right" style="width:44px"><button class="icon-btn" data-del-snap="${s.id}" aria-label="Excluir registro">${icon('trash-2', 'i-sm')}</button></td>
       </tr>`;
-    }).join('') || '<tr><td colspan="7" class="empty">Nenhuma verificação registrada ainda.</td></tr>';
+    }).join('') || '<tr><td colspan="8" class="empty">Nenhum saldo registrado ainda.</td></tr>';
   }
 
   function fillPeriod() {
@@ -1154,7 +1192,8 @@
     const cur = $('#fInv').value;
     $('#fInv').innerHTML = '<option value="all">Todas as aplicações</option>' + inv;
     if (cur && $(`#fInv option[value="${cur}"]`)) $('#fInv').value = cur;
-    $('#snapInv').innerHTML = inv;
+    $('#snapInv').innerHTML = state.investments.map(i => `<option value="${i.id}">${esc(i.name)} — ${esc(invAccName(i))}</option>`).join('');
+    $('#invAcc').innerHTML = opts;
     $('#peopleList').innerHTML = state.people.map(p => `<option value="${esc(p)}">`).join('');
   }
 
@@ -1177,6 +1216,8 @@
     $('#pageTitle').textContent = TITLES[v];
     document.title = `${TITLES[v]} · Matheus do Beiju`;
     window.scrollTo({ top: 0 });
+    // Telas com ação própria (contas, aplicações, tarefas) não mostram o botão Lançamento, para não confundir
+    $('#headTxBtn').hidden = ['investments', 'accounts', 'tasks'].includes(v);
     if (v === 'overview') flowChart(period);
     if (v === 'investments') investChart();
   }
@@ -1202,7 +1243,19 @@
       $('#snapBy').value = state.people[0] || '';
       updateSnapPrev();
     }
-    if (name === 'invest') $('#invBy').value = state.people[0] || '';
+    if (name === 'invest') {
+      if (!state.accounts.length) { m.classList.remove('open'); alert('Cadastre uma conta em “Contas” antes de adicionar a aplicação.'); return; }
+      const inv = btn?.dataset.editInv ? state.investments.find(i => i.id === btn.dataset.editInv) : null;
+      $('#iTitle').textContent = inv ? 'Editar aplicação' : 'Nova aplicação';
+      $('#invSubmit').textContent = inv ? 'Salvar alterações' : 'Adicionar';
+      $('#invId').value = inv?.id || '';
+      $('#invAcc').value = inv?.account && state.accounts.some(a => a.id === inv.account) ? inv.account : state.accounts[0].id;
+      $('#invName').value = inv?.name || '';
+      $('#invType').value = inv?.type || 'CDB';
+      $$('[data-inv-new]').forEach(el => { el.hidden = !!inv; });
+      $('#invAmount').required = !inv; $('#invBy').required = !inv;
+      $('#invBy').value = state.people[0] || userName || '';
+    }
     if (name === 'task') fillTaskForm(btn?.dataset.editTask);
     if (name === 'account') {
       const a = btn?.dataset.editAcc ? state.accounts.find(x => x.id === btn.dataset.editAcc) : null;
@@ -1261,8 +1314,8 @@
     else if (b.dataset.receipt) openReceipt(b.dataset.receipt, b.dataset.rtx);
     else if (b.dataset.editTask) openModal('task', b);
     else if (b.dataset.editAcc) openModal('account', b);
+    else if (b.dataset.editInv) openModal('invest', b);
     else if (b.dataset.delCheck) {
-      if (!canDelete(state.accChecks.find(c => c.id === b.dataset.delCheck))) { alert('Só admin ou quem criou este registro pode excluir.'); return; }
       if (confirm('Excluir esta conferência de saldo? O saldo da conta volta a ser calculado sem ela.')) {
         state.accChecks = state.accChecks.filter(c => c.id !== b.dataset.delCheck); save(); refresh();
       }
@@ -1281,7 +1334,7 @@
     } else if (b.dataset.delTx) {
       const tx = state.txs.find(x => x.id === b.dataset.delTx);
       if (!tx) return;
-      if (!canDelete(tx)) { alert('Só admin ou quem criou este registro pode excluir.'); return; }
+      if (!canDelete(tx)) { alert('Este lançamento veio de uma tarefa. Só admin pode desfazer a baixa.'); return; }
       const d = tx.taskId ? state.taskDone.find(x => x.txId === tx.id) : null;
       const msg = d ? `Excluir este lançamento? A tarefa “${tx.description}” volta a ficar pendente${tx.receiptId ? ' e o comprovante será apagado' : ''}.`
         : `Excluir este lançamento?${tx.receiptId ? ' O comprovante também será apagado.' : ''}`;
@@ -1291,7 +1344,6 @@
       FPComprovantes.del(tx.receiptId);
       save(); refresh();
     } else if (b.dataset.delAcc) {
-      if (REMOTE && !isAdmin) { alert('Só admin pode excluir contas.'); return; }
       const a = state.accounts.find(x => x.id === b.dataset.delAcc);
       const n = state.txs.filter(x => x.account === a.id).length;
       if (n) { alert(`"${a.name}" tem ${n} lançamento(s). Exclua-os antes de remover a conta.`); return; }
@@ -1302,7 +1354,6 @@
         save(); refresh();
       }
     } else if (b.dataset.delInv) {
-      if (REMOTE && !isAdmin) { alert('Só admin pode excluir aplicações.'); return; }
       const n = snapsOf(b.dataset.delInv).length;
       if (confirm(`Excluir esta aplicação${n ? ` e seus ${n} registros de saldo` : ''}?`)) {
         state.investments = state.investments.filter(x => x.id !== b.dataset.delInv);
@@ -1310,7 +1361,6 @@
         save(); refresh();
       }
     } else if (b.dataset.delSnap) {
-      if (!canDelete(state.snapshots.find(x => x.id === b.dataset.delSnap))) { alert('Só admin ou quem criou este registro pode excluir.'); return; }
       if (confirm('Excluir este registro de saldo?')) { state.snapshots = state.snapshots.filter(s => s.id !== b.dataset.delSnap); save(); refresh(); }
     }
   });
@@ -1379,12 +1429,19 @@
 
   $('#invForm').addEventListener('submit', e => {
     e.preventDefault();
-    const amount = Math.round(moneyVal('#invAmount') * 100) / 100;
-    if (!(amount >= 0)) return;
-    const id = uid(), by = $('#invBy').value.trim();
-    state.investments.push({ id, name: $('#invName').value.trim(), type: $('#invType').value, institution: $('#invInst').value.trim() });
-    state.snapshots.push({ ...stamp_(), id: uid(), invId: id, date: todayISO(), time: nowTime(), balance: amount, by });
-    rememberPerson(by);
+    const account = $('#invAcc').value;
+    const data = { name: $('#invName').value.trim(), type: $('#invType').value, account, institution: accName(account) };
+    const editId = $('#invId').value;
+    if (editId) {
+      Object.assign(state.investments.find(i => i.id === editId), data);
+    } else {
+      const amount = Math.round(moneyVal('#invAmount') * 100) / 100;
+      if (!(amount >= 0)) { alert('Informe o saldo atual da aplicação.'); return; }
+      const id = uid(), by = $('#invBy').value.trim();
+      state.investments.push({ id, ...data });
+      state.snapshots.push({ ...stamp_(), id: uid(), invId: id, date: todayISO(), time: nowTime(), balance: amount, by });
+      rememberPerson(by);
+    }
     save(); closeModals(); refresh();
   });
 

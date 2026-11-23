@@ -107,3 +107,28 @@
   .block-body { padding: 24px; }
   th, td { padding-left: 24px; padding-right: 24px; }
 }
+
+/* ---------- Investimentos agrupados por conta ---------- */
+.inv-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; padding: 18px; }
+.inv-group { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.inv-group-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.inv-group-head .acc-ico { width: 34px; height: 34px; }
+.inv-group-head .acc-info { flex: 1; min-width: 0; }
+.inv-group-head .acc-name { font-weight: 600; font-size: 14px; }
+.inv-group-total { font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+.inv-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main val" "act act"; gap: 10px 14px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.inv-item:last-child { border-bottom: 0; }
+.inv-item-main { grid-area: main; min-width: 0; }
+.inv-item-name { font-weight: 500; font-size: 13.5px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.inv-item-sub { font-size: 12px; color: var(--muted); margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+.inv-item-val { grid-area: val; text-align: right; display: grid; justify-items: end; gap: 4px; }
+.inv-item-val strong { font-size: 17px; font-weight: 600; }
+.inv-item-actions { grid-area: act; display: flex; align-items: center; gap: 4px; }
+.inv-item-actions .icon-btn.edit:hover { background: #eef2f8; color: var(--ink); }
+.inv-empty { grid-column: 1 / -1; display: grid; justify-items: center; gap: 6px; padding: 36px 16px; text-align: center; color: var(--muted); font-size: 13px; }
+.inv-empty .i { width: 28px; height: 28px; color: var(--accent); }
+.inv-empty strong { color: var(--ink); font-size: 14px; }
+[data-inv-new][hidden], [data-range-part][hidden] { display: none !important; }
+#tkDayFrom:only-child { max-width: 120px; }
+@media (max-width: 520px) { .inv-groups { grid-template-columns: 1fr; padding: 12px; } }
+.btn[hidden] { display: none !important; }
