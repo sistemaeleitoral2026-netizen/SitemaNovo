@@ -244,6 +244,15 @@
             data-group="Financeiro"
           >
             <svg><use href="#i-card"></use></svg>Lançamentos</button
+          ><button
+            class="nav-btn"
+            data-page="pendentes"
+            data-group="Financeiro"
+          >
+            <svg><use href="#i-clock"></use></svg>Pendentes<span
+              class="nav-count"
+              id="count-pendentes"
+            ></span></button
           ><button class="nav-btn" data-page="empresas" data-group="Financeiro">
             <svg><use href="#i-building"></use></svg>Empresas</button
           ><button
@@ -467,6 +476,32 @@
             <div class="filters" id="emp-filters"></div>
             <div class="panel">
               <div class="table-wrap" id="emp-table"></div>
+            </div>
+          </section>
+          <section
+            id="page-pendentes"
+            class="page-section"
+            data-screen-label="Pendentes"
+          >
+            <div class="heading">
+              <div>
+                <h1>Pendentes</h1>
+                <p>
+                  Receitas com valor a receber que ainda não foi recebido por
+                  completo. Use <b>Lançar recebimento</b> para registrar o que
+                  entrou.
+                </p>
+              </div>
+              <div class="actions">
+                <button class="btn primary" data-open="finance">
+                  <svg><use href="#i-plus"></use></svg>Novo lançamento
+                </button>
+              </div>
+            </div>
+            <div class="filters" id="pend-filters"></div>
+            <div class="history-summary" id="pend-summary"></div>
+            <div class="panel">
+              <div class="table-wrap" id="pend-table"></div>
             </div>
           </section>
           <section
