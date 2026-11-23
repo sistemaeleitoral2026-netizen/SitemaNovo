@@ -31,16 +31,44 @@
 }
 
 /* Contas: cartões em grade em vez de lista esticada */
-#accFull { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-#accFull .acc-row { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 20px;
-  display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; grid-template-areas: "ico info del" "bal bal bal"; gap: 14px 12px; align-items: center; }
-#accFull .acc-ico { grid-area: ico; width: 36px; height: 36px; }
-#accFull .acc-info { grid-area: info; }
-#accFull .acc-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#accFull .acc-bal { grid-area: bal; font-size: 24px; font-weight: 600; letter-spacing: -.02em; }
-#accFull .icon-btn { grid-area: del; }
-#accFull .acc-total { grid-column: 1 / -1; }
-#accFull .empty { grid-column: 1 / -1; }
+.acc-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; padding: 18px; }
+.acc-cards .empty { grid-column: 1 / -1; }
+.acc-card { border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; background: var(--surface); }
+.acc-card:hover { border-color: var(--line-strong); }
+.acc-card-head { display: flex; align-items: center; gap: 10px; }
+.acc-card-head .acc-ico { width: 36px; height: 36px; }
+.acc-card-head .acc-info { flex: 1; min-width: 0; }
+.acc-card-head .acc-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acc-card-head .icon-btn.edit:hover { background: #eef2f8; color: var(--ink); }
+.acc-card-bal { font-size: 26px; font-weight: 600; letter-spacing: -.02em; margin-top: 16px; }
+.acc-card-cap { font-size: 12px; color: var(--muted); }
+.acc-lines { margin: 14px 0 16px; padding-top: 12px; border-top: 1px dashed var(--line); display: grid; gap: 8px; flex: 1; align-content: start; }
+.acc-lines > div { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 12.5px; }
+.acc-lines dt { color: var(--muted); }
+.acc-lines dd { margin: 0; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
+.acc-lines .acc-when { justify-content: flex-end; color: var(--muted); font-size: 11.5px; gap: 4px; margin-top: -4px; }
+.acc-lines .acc-when .i { width: 12px; height: 12px; }
+.acc-card-btn { justify-content: center; width: 100%; }
+
+/* Visão geral: principais investimentos */
+.inv-top { display: flex; flex-direction: column; flex: 1; }
+.inv-row { display: flex; align-items: center; gap: 12px; padding: 13px 18px; border-bottom: 1px solid var(--line); }
+.inv-row .acc-info { flex: 1; min-width: 0; }
+.inv-row .acc-name { font-size: 13.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inv-row .acc-type { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.inv-val { text-align: right; display: grid; justify-items: end; gap: 3px; }
+.inv-val strong { font-weight: 600; font-size: 14px; }
+.inv-goal { margin-top: auto; padding: 14px 18px 16px; }
+.inv-goal .progress { margin: 0 0 8px; }
+.i-xs { width: 12px; height: 12px; }
+
+/* Caixa de cálculo no modal de saldo */
+.calc-box { display: flex; gap: 8px; padding: 10px 12px; background: var(--accent-soft); color: #1a4aa3; border-radius: var(--radius-sm); font-size: 12.5px; line-height: 1.5; }
+.calc-box:empty { display: none; }
+.calc-box .i { margin-top: 2px; flex: none; }
+.calc-box .delta-pos { color: var(--pos); }
+.calc-box .delta-neg { color: var(--neg); }
+.money { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* ---------- Notebook grande / monitor (≥ 1280px) ---------- */
 @media (min-width: 1280px) {

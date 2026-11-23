@@ -24,6 +24,28 @@
   const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
   const money = n => brl.format(n);
   const signed = n => (n >= 0 ? '+ ' : '− ') + brl.format(Math.abs(n));
+
+  /* Campos de valor: máscara brasileira enquanto digita (1.234,56) */
+  const fmtMoneyInput = n => (n < 0 ? '-' : '') + Math.abs(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const parseMoney = el => {
+    const v = (el?.value || '').trim();
+    const d = v.replace(/\D/g, '');
+    if (!d) return NaN;
+    return (v.includes('-') ? -1 : 1) * Number(d) / 100;
+  };
+  const moneyVal = sel => parseMoney(document.querySelector(sel));
+  const setMoney = (sel, n) => {
+    const el = typeof sel === 'string' ? document.querySelector(sel) : sel;
+    el.value = n == null || n === '' || Number.isNaN(Number(n)) ? '' : fmtMoneyInput(Number(n));
+  };
+  document.addEventListener('input', e => {
+    const el = e.target;
+    if (!el.matches || !el.matches('[data-money]')) return;
+    const neg = el.hasAttribute('data-negative') && el.value.includes('-');
+    const d = el.value.replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 13);
+    if (!d || /^0+$/.test(d)) { el.value = neg ? '-' : (d ? '0,00' : ''); return; }
+    el.value = (neg ? '-' : '') + (Number(d) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  });
   const pct = n => (n * 100).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + '%';
   const pct2 = n => (n * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
   const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -78,15 +100,18 @@
       t('2026-11-03', 'Academia', 'Saúde', 'expense', 120, 'itau'),
       t('2026-11-15', 'Cinema', 'Lazer', 'expense', 90, 'nu'),
     );
-    const target = { nu: 5420.5, itau: 4220, bb: 3200 };
-    accounts.forEach(a => {
-      const net = txs.filter(x => x.account === a.id).reduce((s, x) => s + (x.kind === 'income' ? x.amount : -x.amount), 0);
-      a.initial = +(target[a.id] - net).toFixed(2);
-    });
+    // Saldo inicial de cada conta em 01/06/2026 (antes do primeiro lançamento de exemplo)
+    const initial = { nu: 4000, itau: 1500, bb: 9000 };
+    accounts.forEach(a => { a.initial = initial[a.id]; });
+    // Saldo que a conta teria num momento (para as conferências de exemplo baterem)
+    const saldoEm = (accId, stamp) => +(initial[accId] + txs
+      .filter(x => x.account === accId && `${x.date}T${x.time || '00:00'}` <= stamp)
+      .reduce((s, x) => s + (x.kind === 'income' ? x.amount : -x.amount), 0)).toFixed(2);
 
     const investments = [
       { id: 'res', name: 'Reserva de emergência', type: 'Poupança', institution: 'Banco do Brasil' },
       { id: 'cdb', name: 'CDB liquidez diária', type: 'Renda fixa', institution: 'Nubank' },
+      { id: 'selic', name: 'Tesouro Selic 2029', type: 'Tesouro Direto', institution: 'Tesouro Nacional' },
     ];
     // Verificações diárias de 10 a 23/11 (dias úteis), com o saldo final do layout original
     const days = ['10', '11', '12', '13', '14', '17', '18', '19', '20', '21', '23'];
@@ -96,6 +121,7 @@
       const back = days.length - 1 - i;
       snapshots.push({ id: uid(), invId: 'res', date: `2026-11-${d}`, time: times[i], balance: +(5000 - back * 1.35).toFixed(2), by: 'Responsável' });
       snapshots.push({ id: uid(), invId: 'cdb', date: `2026-11-${d}`, time: times[i], balance: +(3500 - back * 1.62 + (i === 6 ? -2.1 : 0)).toFixed(2), by: 'Responsável' });
+      snapshots.push({ id: uid(), invId: 'selic', date: `2026-11-${d}`, time: times[i], balance: +(2150 - back * 0.98).toFixed(2), by: 'Responsável' });
     });
     // Tarefas de pagamento de exemplo
     const now = new Date().toISOString();
@@ -124,7 +150,12 @@
     ['06', '07', '08', '09', '10', '11'].forEach((m, i) => link('tk-aluguel', 'Aluguel', `2026-${m}-10`, `${String(9 + (i % 3)).padStart(2, '0')}:1${i}`, 'Proprietário do imóvel'));
     link('tk-energia', 'Energia elétrica', '2026-11-11', '09:40', 'Companhia de energia');
     link('tk-internet', 'Internet', '2026-11-11', '09:42', 'Provedor de internet');
-    return { accounts, txs, investments, snapshots, goal: 15000, people: ['Responsável'], tasks, taskDone, payees: [] };
+    const accChecks = [
+      { id: uid(), accId: 'nu', date: '2026-11-22', time: '18:00', balance: saldoEm('nu', '2026-11-22T18:00'), by: 'Responsável' },
+      { id: uid(), accId: 'itau', date: '2026-11-21', time: '18:05', balance: saldoEm('itau', '2026-11-21T18:05'), by: 'Responsável' },
+      { id: uid(), accId: 'bb', date: '2026-11-20', time: '17:40', balance: saldoEm('bb', '2026-11-20T17:40'), by: 'Responsável' },
+    ];
+    return { accounts, txs, investments, snapshots, goal: 15000, people: ['Responsável'], tasks, taskDone, payees: [], accChecks };
   }
 
   /* Converte dados salvos pela versão anterior (aplicações com valor fixo) */
@@ -144,7 +175,7 @@
     if (!state) { const old = JSON.parse(localStorage.getItem(OLD_KEY)); state = old ? migrate(old) : seed(); }
   } catch { state = seed(); }
   state.snapshots ||= []; state.people ||= [];
-  state.tasks ||= []; state.taskDone ||= []; state.payees ||= [];
+  state.tasks ||= []; state.taskDone ||= []; state.payees ||= []; state.accChecks ||= [];
   const save = () => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { alert('Não foi possível salvar neste navegador (armazenamento cheio ou bloqueado).'); } };
 
   // Permissão: dentro do sistema, o React informa se é admin (mensagem fp-user). Aberto direto, é admin.
@@ -164,7 +195,28 @@
   const sum = (list, kind) => list.filter(x => !kind || x.kind === kind).reduce((s, x) => s + (kind ? x.amount : value(x)), 0);
   const inMonth = k => state.txs.filter(x => ym(x.date) === k);
   const upTo = k => state.txs.filter(x => ym(x.date) <= k);
-  const accBalance = (a, k) => a.initial + sum(upTo(k).filter(x => x.account === a.id));
+  /* Saldo da conta: parte do último saldo informado (conferência) até o limite
+     e soma os lançamentos feitos depois dele. Sem conferência, parte do saldo inicial. */
+  const txStamp = x => `${x.date}T${x.time || '00:00'}`;
+  const chkStamp = c => `${c.date}T${c.time}`;
+  function balanceAt(a, limit, excludeId) {
+    let last = null;
+    for (const c of state.accChecks) {
+      if (c.accId !== a.id || c.id === excludeId || chkStamp(c) > limit) continue;
+      if (!last || chkStamp(c) > chkStamp(last)) last = c;
+    }
+    const from = last ? chkStamp(last) : '';
+    let b = last ? last.balance : a.initial;
+    for (const x of state.txs) {
+      if (x.account !== a.id) continue;
+      const st = txStamp(x);
+      if (st > from && st <= limit) b += value(x);
+    }
+    return Math.round(b * 100) / 100;
+  }
+  const accBalance = (a, k) => balanceAt(a, `${k}-31T23:59`);
+  const checksOf = id => state.accChecks.filter(c => c.accId === id).sort((a, b) => chkStamp(a).localeCompare(chkStamp(b)));
+  const checkDiff = c => { const a = state.accounts.find(x => x.id === c.accId); return a ? Math.round((c.balance - balanceAt(a, chkStamp(c), c.id)) * 100) / 100 : 0; };
   const totalBalance = k => state.accounts.reduce((s, a) => s + accBalance(a, k), 0);
   const prevMonth = k => { let [y, m] = k.split('-').map(Number); m -= 1; if (!m) { m = 12; y -= 1; } return `${y}-${String(m).padStart(2, '0')}`; };
   const byDateDesc = (a, b) => b.date.localeCompare(a.date);
@@ -593,7 +645,7 @@
     if (varies) $('#tkAmount').value = '';
     // Resumo
     const payee = $('#tkPayee').value.trim();
-    const amt = Number($('#tkAmount').value);
+    const amt = moneyVal('#tkAmount');
     let txt;
     if (type === 'once') {
       const a = $('#tkDateFrom').value, b = $('#tkDateTo').value;
@@ -625,7 +677,7 @@
     $('#tkCat').value = t?.category || 'Outros';
     $('#tkAcc').value = t?.account || state.accounts[0]?.id || '';
     $('#tkVaries').checked = !!t && t.expected == null;
-    $('#tkAmount').value = t?.expected ?? '';
+    setMoney('#tkAmount', t?.expected);
     $(r.type === 'once' ? '#tkTypeO' : '#tkTypeR').checked = true;
     $('#tkFreq').value = r.type === 'yearly' ? 'y' : `m${[1, 2, 3, 6].includes(r.every) ? r.every : 1}`;
     $('#tkMonth').value = r.month || (+currentMonth().slice(5));
@@ -643,7 +695,7 @@
     if (!isAdmin) return;
     const type = taskFormType(), freq = $('#tkFreq').value;
     const varies = $('#tkVaries').checked;
-    const expected = varies ? null : Math.round(Number($('#tkAmount').value) * 100) / 100;
+    const expected = varies ? null : Math.round(moneyVal('#tkAmount') * 100) / 100;
     if (!varies && !(expected > 0)) { alert('Informe o valor previsto ou marque “Valor varia todo mês”.'); return; }
     let rec, start;
     if (type === 'once') {
@@ -698,7 +750,7 @@
       ${t.notes ? `<div class="pay-head-notes">${icon('info', 'i-sm')}<span>${esc(t.notes)}</span></div>` : ''}`;
     $('#pyTask').value = taskId;
     $('#pyPeriod').value = k;
-    $('#pyAmount').value = t.expected ?? '';
+    setMoney('#pyAmount', t.expected);
     $('#pyAcc').value = state.accounts.some(a => a.id === t.account) ? t.account : state.accounts[0].id;
     $('#pyDate').value = todayISO();
     $('#pyTime').value = nowTime();
@@ -717,7 +769,7 @@
     const taskId = $('#pyTask').value, k = $('#pyPeriod').value, t = taskById(taskId);
     if (!t) return;
     if (doneOf(taskId, k)) { alert('Esta tarefa já teve baixa neste mês.'); return; }
-    const amount = Math.round(Number($('#pyAmount').value) * 100) / 100;
+    const amount = Math.round(moneyVal('#pyAmount') * 100) / 100;
     if (!(amount > 0)) return;
     salvandoBaixa = true;
     try {
@@ -841,6 +893,108 @@
     $('#modal-receipt').classList.add('open');
   }
 
+  /* ======================================================================
+     CONTAS — saldo inicial + conferências de saldo (saldo real do dia)
+     ====================================================================== */
+  function diffChip(d) {
+    if (Math.abs(d) < 0.005) return '<span class="chip pos">confere</span>';
+    return `<span class="chip ${d > 0 ? 'pos' : 'neg'} num">${signed(d)}</span>`;
+  }
+  const whenTxt = c => `${fullDate(c.date)} às ${c.time}`;
+
+  function renderAccounts(k) {
+    const total = totalBalance(k);
+    const initial = state.accounts.reduce((s, a) => s + (a.initial || 0), 0);
+    const last = state.accChecks.slice().sort((a, b) => chkStamp(b).localeCompare(chkStamp(a)))[0];
+    const varTotal = total - initial;
+    $('#accKpis').innerHTML = `
+      <div class="kpi"><div class="kpi-label">Saldo atual em contas</div><div class="kpi-value num">${money(total)}</div><div class="kpi-foot">${state.accounts.length} conta${state.accounts.length === 1 ? '' : 's'}</div></div>
+      <div class="kpi"><div class="kpi-label">Saldo inicial somado</div><div class="kpi-value num">${money(initial)}</div><div class="kpi-foot">antes do primeiro lançamento</div></div>
+      <div class="kpi"><div class="kpi-label">Variação desde o início</div><div class="kpi-value num ${varTotal >= 0 ? 'delta-pos' : 'delta-neg'}">${signed(varTotal)}</div><div class="kpi-foot">saldo atual − saldo inicial</div></div>
+      <div class="kpi"><div class="kpi-label">Última conferência</div><div class="kpi-value num" style="font-size:18px">${last ? whenTxt(last) : '—'}</div><div class="kpi-foot">${last ? `${esc(accName(last.accId))} · ${esc(last.by)}` : 'nenhum saldo informado ainda'}</div></div>`;
+
+    $('#accFull').innerHTML = state.accounts.map(a => {
+      const bal = accBalance(a, k);
+      const lc = checksOf(a.id).at(-1);
+      const after = lc ? Math.round((bal - lc.balance) * 100) / 100 : null;
+      return `<div class="acc-card">
+        <div class="acc-card-head">
+          <div class="acc-ico">${icon(a.type === 'Dinheiro em espécie' ? 'wallet' : 'landmark', 'i-sm')}</div>
+          <div class="acc-info"><div class="acc-name">${esc(a.name)}</div><div class="acc-type">${esc(a.type)}</div></div>
+          <button class="icon-btn edit" data-edit-acc="${a.id}" title="Editar conta" aria-label="Editar conta">${icon('pencil-line', 'i-sm')}</button>
+          <button class="icon-btn" data-del-acc="${a.id}" title="Excluir conta" aria-label="Excluir conta">${icon('trash-2', 'i-sm')}</button>
+        </div>
+        <div class="acc-card-bal num ${bal < 0 ? 'delta-neg' : ''}">${money(bal)}</div>
+        <div class="acc-card-cap">saldo atual</div>
+        <dl class="acc-lines">
+          <div><dt>Saldo inicial</dt><dd class="num">${money(a.initial || 0)}</dd></div>
+          <div><dt>Último saldo informado</dt><dd>${lc ? `<span class="num">${money(lc.balance)}</span> ${diffChip(checkDiff(lc))}` : '<span class="t-muted">nenhum ainda</span>'}</dd></div>
+          ${lc ? `<div class="acc-when">${icon('clock', 'i-sm')}${whenTxt(lc)} · ${esc(lc.by)}</div>` : ''}
+          ${lc ? `<div><dt>Lançamentos depois disso</dt><dd class="num ${after > 0 ? 'delta-pos' : after < 0 ? 'delta-neg' : 't-muted'}">${signed(after)}</dd></div>` : ''}
+        </dl>
+        <button class="btn btn-sm acc-card-btn" data-open="acccheck" data-acc="${a.id}">${icon('pencil-line', 'i-sm')}Informar saldo do dia</button>
+      </div>`;
+    }).join('') || '<div class="empty">Nenhuma conta cadastrada.</div>';
+
+    const fa = $('#fAccCheck').value || 'all';
+    const rows = state.accChecks.filter(c => fa === 'all' || c.accId === fa)
+      .sort((a, b) => chkStamp(b).localeCompare(chkStamp(a))).slice(0, 80);
+    $('#accCheckRows').innerHTML = rows.map(c => {
+      const a = state.accounts.find(x => x.id === c.accId);
+      const calc = a ? balanceAt(a, chkStamp(c), c.id) : 0;
+      return `<tr>
+        <td class="num">${fullDate(c.date)}</td>
+        <td class="num t-muted">${c.time}</td>
+        <td>${esc(accName(c.accId))}</td>
+        <td class="t-right num amount">${money(c.balance)}</td>
+        <td class="t-right num t-muted">${money(calc)}</td>
+        <td class="t-right">${diffChip(c.balance - calc)}</td>
+        <td><span class="checked">${icon('user-round', 'i-sm')}${esc(c.by)}</span></td>
+        <td class="t-right" style="width:44px"><button class="icon-btn" data-del-check="${c.id}" aria-label="Excluir conferência">${icon('trash-2', 'i-sm')}</button></td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="8" class="empty">Nenhum saldo informado ainda. Use “Informar saldo” para registrar o saldo real da conta.</td></tr>';
+  }
+
+  function updateAccCalc() {
+    const a = state.accounts.find(x => x.id === $('#acAcc').value);
+    const date = $('#acDate').value, time = $('#acTime').value;
+    if (!a || !date || !time) { $('#acCalc').innerHTML = ''; return; }
+    const calc = balanceAt(a, `${date}T${time}`);
+    const informed = moneyVal('#acBal');
+    let html = `${icon('info', 'i-sm')}<span>Pelo sistema, o saldo de <strong>${esc(a.name)}</strong> em ${fullDate(date)} às ${time} seria <strong class="num">${money(calc)}</strong>.`;
+    if (!Number.isNaN(informed)) {
+      const d = Math.round((informed - calc) * 100) / 100;
+      html += Math.abs(d) < 0.005 ? ' O valor informado <strong>confere</strong>.'
+        : ` Diferença de <strong class="num ${d > 0 ? 'delta-pos' : 'delta-neg'}">${signed(d)}</strong>: a partir daqui o sistema passa a usar o saldo informado.`;
+    }
+    $('#acCalc').innerHTML = html + '</span>';
+  }
+
+  /* ---------- Visão geral: principais investimentos ---------- */
+  function renderInvTop() {
+    const total = invTotal();
+    const list = state.investments.map(i => ({ i, v: invValue(i.id), l: snapsOf(i.id) }))
+      .sort((a, b) => b.v - a.v);
+    $('#invTopMeta').textContent = list.length ? `${money(total)} em ${list.length} aplicaç${list.length === 1 ? 'ão' : 'ões'}` : '';
+    if (!list.length) { $('#invTop').innerHTML = '<div class="empty">Nenhuma aplicação cadastrada.</div>'; return; }
+    const p = state.goal ? Math.min(total / state.goal, 1) : 0;
+    $('#invTop').innerHTML = list.slice(0, 3).map(({ i, v, l }) => {
+      const cur = l.at(-1), before = l.at(-2);
+      return `<div class="inv-row">
+        <div class="acc-ico">${icon('piggy-bank', 'i-sm')}</div>
+        <div class="acc-info">
+          <div class="acc-name">${esc(i.name)}</div>
+          <div class="acc-type">${esc(i.institution)}${cur ? ` · ${icon('clock', 'i-xs')} ${fullDate(cur.date)} às ${cur.time}` : ' · sem atualização'}</div>
+        </div>
+        <div class="inv-val"><strong class="num">${money(v)}</strong>${cur && before ? chip(cur.balance - before.balance) : ''}</div>
+      </div>`;
+    }).join('') + `
+      <div class="inv-goal">
+        <div class="progress"><span style="width:${p * 100}%"></span></div>
+        <div class="goal-foot"><span>${pct(p)} da meta de reserva</span><span class="num">meta ${money(state.goal)}</span></div>
+      </div>`;
+  }
+
   /* ---------- Render ---------- */
   function render() {
     const k = period;
@@ -866,7 +1020,7 @@
     $('#catTop').innerHTML = catBreakdown(list, 5);
     $('#recentRows').innerHTML = list.slice(0, 6).map(x => txRow(x)).join('') || '<tr><td colspan="5" class="empty">Nenhum lançamento neste mês.</td></tr>';
     $('#accSummary').innerHTML = accRows(k);
-    $('#goalBox').innerHTML = goalBox();
+    renderInvTop();
 
     // Movimentações
     const q = $('#q').value.trim().toLowerCase(), fk = $('#fKind').value, fa = $('#fAccount').value;
@@ -876,7 +1030,7 @@
     $('#allRows').innerHTML = filtered.map(x => txRow(x, true)).join('') || '<tr><td colspan="6" class="empty">Nenhum lançamento encontrado.</td></tr>';
 
     // Contas
-    $('#accFull').innerHTML = accRows(k, true);
+    renderAccounts(k);
 
     // Tarefas
     applyRole();
@@ -949,6 +1103,10 @@
   function fillSelects() {
     const opts = state.accounts.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
     $('#txAcc').innerHTML = opts;
+    $('#acAcc').innerHTML = opts;
+    const fc = $('#fAccCheck').value;
+    $('#fAccCheck').innerHTML = '<option value="all">Todas as contas</option>' + opts;
+    if (fc && $(`#fAccCheck option[value="${fc}"]`)) $('#fAccCheck').value = fc;
     $('#tkAcc').innerHTML = opts;
     $('#pyAcc').innerHTML = opts;
     const fa = $('#fAccount').value;
@@ -1010,6 +1168,23 @@
     }
     if (name === 'invest') $('#invBy').value = state.people[0] || '';
     if (name === 'task') fillTaskForm(btn?.dataset.editTask);
+    if (name === 'account') {
+      const a = btn?.dataset.editAcc ? state.accounts.find(x => x.id === btn.dataset.editAcc) : null;
+      $('#aTitle').textContent = a ? 'Editar conta' : 'Nova conta';
+      $('#accSubmit').textContent = a ? 'Salvar alterações' : 'Adicionar';
+      $('#accId').value = a?.id || '';
+      $('#accName').value = a?.name || '';
+      $('#accType').value = a?.type || 'Conta corrente';
+      setMoney('#accInitial', a ? a.initial || 0 : '');
+    }
+    if (name === 'acccheck') {
+      if (!state.accounts.length) { m.classList.remove('open'); alert('Cadastre uma conta antes de informar o saldo.'); return; }
+      if (btn?.dataset.acc) $('#acAcc').value = btn.dataset.acc;
+      $('#acDate').value = todayISO();
+      $('#acTime').value = nowTime();
+      $('#acBy').value = state.people[0] || userName || '';
+      updateAccCalc();
+    }
     setTimeout(() => {
       const target = name === 'snap' ? $('#snapBal') : $('input:not([type=radio])', m);
       target?.focus();
@@ -1049,6 +1224,12 @@
     else if (b.dataset.undo) undoOccurrence(b.dataset.undo);
     else if (b.dataset.receipt) openReceipt(b.dataset.receipt, b.dataset.rtx);
     else if (b.dataset.editTask) openModal('task', b);
+    else if (b.dataset.editAcc) openModal('account', b);
+    else if (b.dataset.delCheck) {
+      if (confirm('Excluir esta conferência de saldo? O saldo da conta volta a ser calculado sem ela.')) {
+        state.accChecks = state.accChecks.filter(c => c.id !== b.dataset.delCheck); save(); refresh();
+      }
+    }
     else if (b.dataset.pauseTask) {
       const t = taskById(b.dataset.pauseTask);
       if (!isAdmin || !t) return;
@@ -1075,7 +1256,12 @@
       const a = state.accounts.find(x => x.id === b.dataset.delAcc);
       const n = state.txs.filter(x => x.account === a.id).length;
       if (n) { alert(`"${a.name}" tem ${n} lançamento(s). Exclua-os antes de remover a conta.`); return; }
-      if (confirm(`Excluir a conta "${a.name}"?`)) { state.accounts = state.accounts.filter(x => x.id !== a.id); save(); refresh(); }
+      const nc = checksOf(a.id).length;
+      if (confirm(`Excluir a conta "${a.name}"${nc ? ` e suas ${nc} conferências de saldo` : ''}?`)) {
+        state.accounts = state.accounts.filter(x => x.id !== a.id);
+        state.accChecks = state.accChecks.filter(c => c.accId !== a.id);
+        save(); refresh();
+      }
     } else if (b.dataset.delInv) {
       const n = snapsOf(b.dataset.delInv).length;
       if (confirm(`Excluir esta aplicação${n ? ` e seus ${n} registros de saldo` : ''}?`)) {
@@ -1097,7 +1283,7 @@
 
   $('#txForm').addEventListener('submit', async e => {
     e.preventDefault();
-    const amount = Math.round(Number($('#txAmount').value) * 100) / 100;
+    const amount = Math.round(moneyVal('#txAmount') * 100) / 100;
     if (!(amount > 0)) return;
     const date = $('#txDate').value;
     let receiptId = null;
@@ -1126,13 +1312,31 @@
 
   $('#accForm').addEventListener('submit', e => {
     e.preventDefault();
-    state.accounts.push({ id: uid(), name: $('#accName').value.trim(), type: $('#accType').value, initial: Number($('#accInitial').value) || 0 });
+    const data = { name: $('#accName').value.trim(), type: $('#accType').value, initial: Math.round((moneyVal('#accInitial') || 0) * 100) / 100 };
+    const id = $('#accId').value;
+    if (id) Object.assign(state.accounts.find(a => a.id === id), data);
+    else state.accounts.push({ id: uid(), ...data });
     save(); closeModals(); refresh();
   });
 
+  $('#accCheckForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const balance = Math.round(moneyVal('#acBal') * 100) / 100;
+    if (Number.isNaN(balance)) { alert('Informe o saldo da conta.'); return; }
+    const accId = $('#acAcc').value, date = $('#acDate').value, time = $('#acTime').value, by = $('#acBy').value.trim();
+    const dup = state.accChecks.find(c => c.accId === accId && c.date === date && c.time === time);
+    if (dup && !confirm(`Já existe um saldo de ${accName(accId)} em ${fullDate(date)} às ${time}. Substituir?`)) return;
+    if (dup) state.accChecks = state.accChecks.filter(c => c !== dup);
+    state.accChecks.push({ id: uid(), accId, date, time, balance, by });
+    rememberPerson(by);
+    save(); closeModals(); refresh();
+  });
+  ['#acAcc', '#acDate', '#acTime', '#acBal'].forEach(s => $(s).addEventListener(s === '#acBal' ? 'input' : 'change', updateAccCalc));
+  $('#fAccCheck').addEventListener('change', render);
+
   $('#invForm').addEventListener('submit', e => {
     e.preventDefault();
-    const amount = Math.round(Number($('#invAmount').value) * 100) / 100;
+    const amount = Math.round(moneyVal('#invAmount') * 100) / 100;
     if (!(amount >= 0)) return;
     const id = uid(), by = $('#invBy').value.trim();
     state.investments.push({ id, name: $('#invName').value.trim(), type: $('#invType').value, institution: $('#invInst').value.trim() });
@@ -1143,7 +1347,7 @@
 
   $('#snapForm').addEventListener('submit', e => {
     e.preventDefault();
-    const balance = Math.round(Number($('#snapBal').value) * 100) / 100;
+    const balance = Math.round(moneyVal('#snapBal') * 100) / 100;
     if (!(balance >= 0)) return;
     const invId = $('#snapInv').value, date = $('#snapDate').value, time = $('#snapTime').value, by = $('#snapBy').value.trim();
     const dup = state.snapshots.find(s => s.invId === invId && s.date === date && s.time === time);

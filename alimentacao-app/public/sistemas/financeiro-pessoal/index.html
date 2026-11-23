@@ -199,10 +199,10 @@
           </div>
           <div class="block">
             <div class="block-head">
-              <div class="block-title">Reserva de emergência</div>
-              <button class="link" data-go="investments">Investimentos</button>
+              <div><div class="block-title">Investimentos</div><div class="block-meta" id="invTopMeta"></div></div>
+              <button class="link" data-go="investments">Ver todos</button>
             </div>
-            <div class="block-body" id="goalBox"></div>
+            <div class="inv-top" id="invTop"></div>
           </div>
         </div>
       </section>
@@ -249,12 +249,28 @@
 
       <!-- ============ CONTAS ============ -->
       <section class="view" id="view-accounts">
+        <div class="block kpis" id="accKpis"></div>
         <div class="block">
           <div class="block-head">
-            <div><div class="block-title">Contas cadastradas</div><div class="block-meta">Saldo calculado a partir dos lançamentos</div></div>
-            <button class="btn" data-open="account"><svg class="i"><use href="#i-plus"/></svg>Nova conta</button>
+            <div><div class="block-title">Contas cadastradas</div><div class="block-meta">Saldo atual = último saldo informado + lançamentos feitos depois dele</div></div>
+            <div class="head-right">
+              <button class="btn" data-open="account"><svg class="i"><use href="#i-plus"/></svg>Nova conta</button>
+              <button class="btn btn-primary" data-open="acccheck"><svg class="i"><use href="#i-pencil-line"/></svg>Informar saldo</button>
+            </div>
           </div>
-          <div class="acc-list" id="accFull"></div>
+          <div class="acc-cards" id="accFull"></div>
+        </div>
+        <div class="block">
+          <div class="block-head">
+            <div><div class="block-title">Conferências de saldo</div><div class="block-meta">Saldo informado, o que o sistema calculava naquele momento e a diferença</div></div>
+            <select class="select" id="fAccCheck" aria-label="Filtrar conta"></select>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Data</th><th>Hora</th><th>Conta</th><th class="t-right">Saldo informado</th><th class="t-right">Calculado pelo sistema</th><th class="t-right">Diferença</th><th>Responsável</th><th></th></tr></thead>
+              <tbody id="accCheckRows"></tbody>
+            </table>
+          </div>
         </div>
       </section>
 
@@ -347,7 +363,7 @@
         </div>
       </div>
       <div class="field full"><label for="txDesc">Descrição</label><input class="input" id="txDesc" required maxlength="60" placeholder="Ex.: Mercado, salário, aluguel"></div>
-      <div class="field"><label for="txAmount">Valor (R$)</label><input class="input num" id="txAmount" required type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00"></div>
+      <div class="field"><label for="txAmount">Valor (R$)</label><input class="input num money" id="txAmount" required type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div>
       <div class="field"><label for="txDate">Data</label><input class="input" id="txDate" type="date" required></div>
       <div class="field"><label for="txCat">Categoria</label><select class="select" id="txCat"></select></div>
       <div class="field"><label for="txAcc">Conta</label><select class="select" id="txAcc"></select></div>
@@ -363,12 +379,31 @@
     <div class="modal-head"><h2 id="aTitle">Nova conta</h2>
       <button type="button" class="icon-btn" data-close aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button></div>
     <div class="modal-body">
+      <input type="hidden" id="accId">
       <div class="field full"><label for="accName">Instituição</label><input class="input" id="accName" required maxlength="40" placeholder="Ex.: Inter, Caixa, carteira"></div>
       <div class="field"><label for="accType">Tipo</label>
         <select class="select" id="accType"><option>Conta corrente</option><option>Poupança</option><option>Conta digital</option><option>Dinheiro em espécie</option></select></div>
-      <div class="field"><label for="accInitial">Saldo inicial (R$)</label><input class="input num" id="accInitial" type="number" step="0.01" value="0"></div>
+      <div class="field"><label for="accInitial">Saldo inicial (R$) <span class="opt">— para negativo, digite -</span></label><input class="input num money" id="accInitial" type="text" inputmode="numeric" autocomplete="off" data-money data-negative placeholder="0,00"></div>
+      <div class="field full"><div class="checked">Saldo inicial é o valor que a conta tinha antes do primeiro lançamento. Depois, use “Informar saldo” para registrar o saldo real do dia.</div></div>
     </div>
-    <div class="modal-foot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary">Adicionar</button></div>
+    <div class="modal-foot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary" id="accSubmit">Adicionar</button></div>
+  </form>
+</div>
+
+<!-- Informar saldo da conta -->
+<div class="modal-backdrop" id="modal-acccheck">
+  <form class="modal" role="dialog" aria-modal="true" aria-labelledby="acTitle" id="accCheckForm">
+    <div class="modal-head"><h2 id="acTitle">Informar saldo da conta</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div class="modal-body">
+      <div class="field full"><label for="acAcc">Conta</label><select class="select" id="acAcc" required></select></div>
+      <div class="field"><label for="acDate">Data</label><input class="input" id="acDate" type="date" required></div>
+      <div class="field"><label for="acTime">Hora</label><input class="input" id="acTime" type="time" required></div>
+      <div class="field"><label for="acBal">Saldo no banco (R$) <span class="opt">— negativo: digite -</span></label><input class="input num money" id="acBal" required type="text" inputmode="numeric" autocomplete="off" data-money data-negative placeholder="0,00"></div>
+      <div class="field"><label for="acBy">Responsável</label><input class="input" id="acBy" required maxlength="40" list="peopleList" placeholder="Quem conferiu"></div>
+      <div class="field full"><div class="calc-box" id="acCalc"></div></div>
+    </div>
+    <div class="modal-foot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary">Registrar saldo</button></div>
   </form>
 </div>
 
@@ -381,7 +416,7 @@
       <div class="field"><label for="invType">Tipo</label>
         <select class="select" id="invType"><option>Renda fixa</option><option>Poupança</option><option>Tesouro Direto</option><option>Fundos</option><option>Ações</option></select></div>
       <div class="field"><label for="invInst">Instituição</label><input class="input" id="invInst" required maxlength="40"></div>
-      <div class="field"><label for="invAmount">Saldo atual (R$)</label><input class="input num" id="invAmount" required type="number" min="0" step="0.01"></div>
+      <div class="field"><label for="invAmount">Saldo atual (R$)</label><input class="input num money" id="invAmount" required type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div>
       <div class="field"><label for="invBy">Responsável</label><input class="input" id="invBy" required maxlength="40" list="peopleList"></div>
     </div>
     <div class="modal-foot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary">Adicionar</button></div>
@@ -396,7 +431,7 @@
       <div class="field full"><label for="snapInv">Aplicação</label><select class="select" id="snapInv" required></select></div>
       <div class="field"><label for="snapDate">Data da verificação</label><input class="input" id="snapDate" type="date" required></div>
       <div class="field"><label for="snapTime">Hora da verificação</label><input class="input" id="snapTime" type="time" required></div>
-      <div class="field"><label for="snapBal">Saldo verificado (R$)</label><input class="input num" id="snapBal" required type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>
+      <div class="field"><label for="snapBal">Saldo verificado (R$)</label><input class="input num money" id="snapBal" required type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div>
       <div class="field"><label for="snapBy">Responsável</label><input class="input" id="snapBy" required maxlength="40" list="peopleList" placeholder="Nome de quem verificou"></div>
       <div class="field full"><div class="checked" id="snapPrev"></div></div>
     </div>
@@ -423,7 +458,7 @@
       </div>
       <div class="field"><label for="tkCat">Categoria</label><select class="select" id="tkCat"></select></div>
       <div class="field"><label for="tkAcc">Conta sugerida</label><select class="select" id="tkAcc"></select></div>
-      <div class="field"><label for="tkAmount">Valor previsto (R$)</label><input class="input num" id="tkAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00"></div>
+      <div class="field"><label for="tkAmount">Valor previsto (R$)</label><input class="input num money" id="tkAmount" type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div>
       <div class="field field-check"><label class="check"><input type="checkbox" id="tkVaries"> Valor varia todo mês</label></div>
 
       <div class="field full">
@@ -461,7 +496,7 @@
     <div class="pay-head" id="payHead"></div>
     <div class="modal-body">
       <input type="hidden" id="pyTask"><input type="hidden" id="pyPeriod">
-      <div class="field"><label for="pyAmount">Valor pago (R$)</label><input class="input num" id="pyAmount" required type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00"></div>
+      <div class="field"><label for="pyAmount">Valor pago (R$)</label><input class="input num money" id="pyAmount" required type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div>
       <div class="field"><label for="pyAcc">Conta de onde saiu</label><select class="select" id="pyAcc" required></select></div>
       <div class="field"><label for="pyDate">Data do pagamento</label><input class="input" id="pyDate" type="date" required></div>
       <div class="field"><label for="pyTime">Hora</label><input class="input" id="pyTime" type="time" required></div>
