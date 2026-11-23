@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { hasRole } from '../../lib/roles'
-import { writeSite } from '../../lib/sites'
+import { isAdminNoSiteExterno, writeSite } from '../../lib/sites'
 import { Spinner } from '../../components/ui/Spinner'
 
 type FpMensagem = { type?: string }
@@ -17,10 +17,13 @@ export function FinanceiroPessoalPage() {
   const frameRef = useRef<HTMLIFrameElement>(null)
   const [pronto, setPronto] = useState(false)
   const neritesAdmin = hasRole(profile, 'admin')
+  // Admin aqui dentro (cria/edita/dispensa tarefas): admin do Nerites ou nível "admin" liberado em /admin.
+  // Nível "editor" só dá baixa nas tarefas.
+  const admin = neritesAdmin || isAdminNoSiteExterno(profile, 'financeiro-pessoal')
   const nome = profile?.nome || 'Usuário'
 
   function enviarUsuario() {
-    frameRef.current?.contentWindow?.postMessage({ type: 'fp-user', nome, neritesAdmin }, window.location.origin)
+    frameRef.current?.contentWindow?.postMessage({ type: 'fp-user', nome, neritesAdmin, admin }, window.location.origin)
   }
 
   useEffect(() => {
@@ -46,7 +49,7 @@ export function FinanceiroPessoalPage() {
     enviarUsuario()
     return () => window.removeEventListener('message', aoMensagem)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nome, neritesAdmin, navigate, signOut])
+  }, [nome, neritesAdmin, admin, navigate, signOut])
 
   return (
     <div className="mr-demo">
@@ -61,7 +64,7 @@ export function FinanceiroPessoalPage() {
           ref={frameRef}
           className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
           title="Controle Financeiro Pessoal"
-          src="/sistemas/financeiro-pessoal/index.html?v=2"
+          src="/sistemas/financeiro-pessoal/index.html?v=3"
           onLoad={() => window.setTimeout(() => setPronto(true), 4000)}
         />
       </div>

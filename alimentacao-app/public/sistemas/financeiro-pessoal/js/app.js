@@ -18,7 +18,7 @@
     'Lazer': 'gamepad-2', 'Compras': 'shopping-cart', 'Contas da casa': 'credit-card', 'Outros': 'ellipsis',
     'Salário': 'briefcase', 'Renda extra': 'circle-dollar-sign', 'Rendimentos': 'trending-up',
   };
-  const TITLES = { overview: 'Visão geral', transactions: 'Movimentações', accounts: 'Contas', investments: 'Investimentos', reports: 'Relatórios' };
+  const TITLES = { overview: 'Visão geral', transactions: 'Movimentações', tasks: 'Tarefas', accounts: 'Contas', investments: 'Investimentos', reports: 'Relatórios' };
 
   /* ---------- Formatação ---------- */
   const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -97,7 +97,34 @@
       snapshots.push({ id: uid(), invId: 'res', date: `2026-11-${d}`, time: times[i], balance: +(5000 - back * 1.35).toFixed(2), by: 'Responsável' });
       snapshots.push({ id: uid(), invId: 'cdb', date: `2026-11-${d}`, time: times[i], balance: +(3500 - back * 1.62 + (i === 6 ? -2.1 : 0)).toFixed(2), by: 'Responsável' });
     });
-    return { accounts, txs, investments, snapshots, goal: 15000, people: ['Responsável'] };
+    // Tarefas de pagamento de exemplo
+    const now = new Date().toISOString();
+    const base = { paused: false, end: null, createdBy: 'Admin', createdAt: now };
+    const tasks = [
+      { ...base, id: 'tk-netflix', title: 'Netflix', payee: 'Netflix', payeeKind: 'empresa', category: 'Lazer', expected: 55.9, account: 'nu',
+        rec: { type: 'monthly', every: 1, dayFrom: 10, dayTo: 15 }, start: '2026-11', notes: 'Cobrança no cartão Nubank. Conferir se o valor da assinatura mudou.' },
+      { ...base, id: 'tk-aluguel', title: 'Aluguel', payee: 'Proprietário do imóvel', payeeKind: 'pessoa', category: 'Moradia', expected: 1200, account: 'bb',
+        rec: { type: 'monthly', every: 1, dayFrom: 5, dayTo: 10 }, start: '2026-06', notes: 'Pix para a chave do proprietário. Pedir recibo assinado.' },
+      { ...base, id: 'tk-energia', title: 'Energia elétrica', payee: 'Companhia de energia', payeeKind: 'empresa', category: 'Contas da casa', expected: null, account: 'itau',
+        rec: { type: 'monthly', every: 1, dayFrom: 8, dayTo: 12 }, start: '2026-11', notes: 'Valor muda todo mês: conferir na fatura.' },
+      { ...base, id: 'tk-internet', title: 'Internet', payee: 'Provedor de internet', payeeKind: 'empresa', category: 'Contas da casa', expected: 119.9, account: 'itau',
+        rec: { type: 'monthly', every: 1, dayFrom: 11, dayTo: 11 }, start: '2026-11', notes: '' },
+      { ...base, id: 'tk-ipva', title: 'IPVA', payee: 'Detran', payeeKind: 'empresa', category: 'Transporte', expected: 980, account: 'itau',
+        rec: { type: 'yearly', every: 12, month: 1, dayFrom: 10, dayTo: 20 }, start: '2027-01', notes: 'Cota única com desconto até o dia 20.' },
+      { ...base, id: 'tk-revisao', title: 'Revisão do carro', payee: 'Oficina mecânica', payeeKind: 'empresa', category: 'Transporte', expected: 450, account: 'nu',
+        rec: { type: 'once', dateFrom: '2026-11-24', dateTo: '2026-11-30' }, start: '2026-11', notes: 'Revisão dos 30 mil km.' },
+    ];
+    const taskDone = [];
+    const link = (taskId, description, date, time, payee) => {
+      const tx = txs.find(x => x.description === description && x.date === date);
+      if (!tx) return;
+      Object.assign(tx, { taskId, period: ym(date), payee, time, by: 'Responsável' });
+      taskDone.push({ id: uid(), taskId, period: ym(date), status: 'paga', txId: tx.id, amount: tx.amount, account: tx.account, date, time, by: 'Responsável', payee, receiptId: null, note: '' });
+    };
+    ['06', '07', '08', '09', '10', '11'].forEach((m, i) => link('tk-aluguel', 'Aluguel', `2026-${m}-10`, `${String(9 + (i % 3)).padStart(2, '0')}:1${i}`, 'Proprietário do imóvel'));
+    link('tk-energia', 'Energia elétrica', '2026-11-11', '09:40', 'Companhia de energia');
+    link('tk-internet', 'Internet', '2026-11-11', '09:42', 'Provedor de internet');
+    return { accounts, txs, investments, snapshots, goal: 15000, people: ['Responsável'], tasks, taskDone, payees: [] };
   }
 
   /* Converte dados salvos pela versão anterior (aplicações com valor fixo) */
@@ -117,10 +144,17 @@
     if (!state) { const old = JSON.parse(localStorage.getItem(OLD_KEY)); state = old ? migrate(old) : seed(); }
   } catch { state = seed(); }
   state.snapshots ||= []; state.people ||= [];
-  const save = () => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* sem armazenamento */ } };
+  state.tasks ||= []; state.taskDone ||= []; state.payees ||= [];
+  const save = () => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { alert('Não foi possível salvar neste navegador (armazenamento cheio ou bloqueado).'); } };
+
+  // Permissão: dentro do sistema, o React informa se é admin (mensagem fp-user). Aberto direto, é admin.
+  const embedded = window.parent !== window;
+  let isAdmin = !embedded;
+  let userName = '';
 
   let period = null;
   let view = 'overview';
+  let taskTab = 'pending';
   let chartMode = 'line';
   try { chartMode = localStorage.getItem('mf:chart') || 'line'; } catch { /* */ }
 
@@ -147,16 +181,17 @@
   function months() {
     const set = new Set(state.txs.map(x => ym(x.date)));
     set.add(ym(todayISO()));
+    set.add(addMonths(ym(todayISO()), 1));
     return [...set].sort().reverse();
   }
 
   /* ---------- Componentes ---------- */
   function txRow(x, withDelete) {
     return `<tr>
-      <td><div class="t-desc"><span class="t-ico">${icon(CAT_ICON[x.category] || 'ellipsis', 'i-sm')}</span>${esc(x.description)}</div></td>
+      <td><div class="t-desc"><span class="t-ico">${icon(CAT_ICON[x.category] || 'ellipsis', 'i-sm')}</span><div>${esc(x.description)}${x.taskId ? '<span class="tag task-tag">Tarefa</span>' : ''}${x.receiptId ? `<button class="clip" data-receipt="${x.receiptId}" data-rtx="${x.id}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip')}</button>` : ''}${x.payee ? `<span class="t-payee">${esc(x.payee)}</span>` : ''}</div></div></td>
       <td>${esc(x.category)}</td>
       <td class="t-muted">${esc(accName(x.account))}</td>
-      <td class="t-muted num">${shortDate(x.date)}</td>
+      <td class="t-muted num">${shortDate(x.date)}${x.time ? ` · ${x.time}` : ''}</td>
       <td class="t-right num amount ${x.kind === 'income' ? 'in' : 'out'}">${signed(value(x))}</td>
       ${withDelete ? `<td class="t-right" style="width:44px"><button class="icon-btn" data-del-tx="${x.id}" aria-label="Excluir lançamento">${icon('trash-2', 'i-sm')}</button></td>` : ''}
     </tr>`;
@@ -321,6 +356,491 @@
     return `<span class="${good ? 'delta-pos' : 'delta-neg'}">${d >= 0 ? '↑' : '↓'} ${pct(Math.abs(d))}</span> vs. mês anterior`;
   }
 
+  /* ======================================================================
+     TAREFAS DE PAGAMENTO
+     Ocorrências são calculadas a partir do modelo (state.tasks); só a baixa
+     ou a dispensa de cada mês fica salva (state.taskDone).
+     ====================================================================== */
+  const pad2 = n => String(n).padStart(2, '0');
+  function addMonths(k, n) {
+    let [y, m] = k.split('-').map(Number);
+    m += n; y += Math.floor((m - 1) / 12); m = ((m - 1) % 12 + 12) % 12 + 1;
+    return `${y}-${pad2(m)}`;
+  }
+  const monthDiff = (a, b) => { const [ya, ma] = a.split('-').map(Number), [yb, mb] = b.split('-').map(Number); return (yb - ya) * 12 + (mb - ma); };
+  const daysIn = k => { const [y, m] = k.split('-').map(Number); return new Date(y, m, 0).getDate(); };
+  const dayIn = (k, d) => `${k}-${pad2(Math.min(Math.max(1, d || 1), daysIn(k)))}`;
+  const daysBetween = (a, b) => Math.round((Date.parse(b + 'T12:00') - Date.parse(a + 'T12:00')) / 86400000);
+  const addDays = (d, n) => { const x = new Date(d + 'T12:00'); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
+  const currentMonth = () => ym(todayISO());
+  const OPEN = ['atrasada', 'hoje', 'aberta'];
+  const STATUS_LABEL = { atrasada: 'Atrasada', hoje: 'Vence hoje', aberta: 'Em aberto', futura: 'Programada', paga: 'Paga', dispensada: 'Dispensada' };
+  const GROUP_LABEL = { atrasada: 'Atrasadas', hoje: 'Vencem hoje', aberta: 'Em aberto', futura: 'Programadas', paga: 'Pagas', dispensada: 'Dispensadas' };
+  const ORDER = ['atrasada', 'hoje', 'aberta', 'futura', 'paga', 'dispensada'];
+
+  const taskById = id => state.tasks.find(t => t.id === id);
+  const doneOf = (taskId, k) => state.taskDone.find(d => d.taskId === taskId && d.period === k);
+
+  function occursIn(t, k) {
+    const r = t.rec || {};
+    if (r.type === 'once') return ym(r.dateTo || r.dateFrom || '') === k;
+    if (t.start && k < t.start) return false;
+    if (t.end && k > t.end) return false;
+    if (r.type === 'yearly') return +k.slice(5) === +r.month;
+    return monthDiff(t.start || k, k) % (r.every || 1) === 0;
+  }
+
+  function occurrence(t, k) {
+    const r = t.rec || {};
+    let from, to;
+    if (r.type === 'once') { to = r.dateTo || r.dateFrom; from = r.dateFrom || to; }
+    else { from = dayIn(k, r.dayFrom); to = dayIn(k, Math.max(r.dayTo || r.dayFrom, r.dayFrom)); }
+    const done = doneOf(t.id, k);
+    const today = todayISO();
+    const status = done ? done.status : today > to ? 'atrasada' : today === to ? 'hoje' : today >= from ? 'aberta' : 'futura';
+    return { task: t, period: k, from, to, done, status, key: `${t.id}|${k}` };
+  }
+
+  function occurrencesIn(k) {
+    return state.tasks
+      .filter(t => occursIn(t, k) && (!t.paused || doneOf(t.id, k)))
+      .map(t => occurrence(t, k));
+  }
+
+  // Atrasadas de até 12 meses antes do mês k
+  function overdueBefore(k) {
+    const out = [];
+    for (let i = 12; i >= 1; i--) occurrencesIn(addMonths(k, -i)).forEach(o => { if (o.status === 'atrasada') out.push(o); });
+    return out;
+  }
+
+  // Tudo que precisa de ação hoje (atrasadas, vence hoje, em aberto)
+  function pendingNow() {
+    const k = currentMonth();
+    return [...overdueBefore(k), ...occurrencesIn(k)].filter(o => OPEN.includes(o.status))
+      .sort((a, b) => a.to.localeCompare(b.to));
+  }
+
+  function upcoming(days = 7) {
+    const k = currentMonth(), limit = addDays(todayISO(), days);
+    return [...occurrencesIn(k), ...occurrencesIn(addMonths(k, 1))].filter(o => o.status === 'futura' && o.from <= limit);
+  }
+
+  function nextDue(t) {
+    const k = currentMonth();
+    for (let i = -12; i <= 24; i++) {
+      const m = addMonths(k, i);
+      if (!occursIn(t, m)) continue;
+      const o = occurrence(t, m);
+      if (!o.done) return o;
+    }
+    return null;
+  }
+
+  function recLabel(t) {
+    const r = t.rec || {};
+    if (r.type === 'once') return 'Única';
+    if (r.type === 'yearly') return `Anual · ${MONTHS[(r.month || 1) - 1]}`;
+    return (r.every || 1) === 1 ? 'Mensal' : `A cada ${r.every} meses`;
+  }
+
+  function windowLabel(o) {
+    if (o.from === o.to) return `dia ${shortDate(o.to)}`;
+    if (ym(o.from) === ym(o.to)) return `${+o.from.slice(8)}–${shortDate(o.to)}`;
+    return `${shortDate(o.from)} – ${shortDate(o.to)}`;
+  }
+
+  function dueText(o) {
+    const today = todayISO();
+    if (o.status === 'atrasada') { const n = daysBetween(o.to, today); return `atrasada há ${n} dia${n > 1 ? 's' : ''}`; }
+    if (o.status === 'hoje') return 'vence hoje';
+    if (o.status === 'aberta') { const n = daysBetween(today, o.to); return `vence em ${n} dia${n > 1 ? 's' : ''}`; }
+    if (o.status === 'futura') { const n = daysBetween(today, o.from); return n <= 31 ? `abre em ${n} dia${n > 1 ? 's' : ''}` : `abre em ${fullDate(o.from)}`; }
+    return '';
+  }
+
+  const statusTag = s => `<span class="tag st-${s}">${STATUS_LABEL[s]}</span>`;
+  const payeeIcon = t => icon(t.payeeKind === 'pessoa' ? 'user-round' : 'building-2');
+
+  function taskRow(o) {
+    const t = o.task, d = o.done;
+    const val = d && d.status === 'paga' ? d.amount : t.expected;
+    const valNote = d && d.status === 'paga' ? 'pago' : t.expected != null ? 'previsto' : 'valor variável';
+    let info = '';
+    if (d && d.status === 'paga') {
+      info = `<div class="task-done-info">${icon('check')}Pago por ${esc(d.by || '—')} em ${fullDate(d.date)}${d.time ? ` às ${d.time}` : ''} · ${esc(accName(d.account))}${d.payee && d.payee !== t.payee ? ` · recebido por ${esc(d.payee)}` : ''}</div>`;
+    } else if (d && d.status === 'dispensada') {
+      info = `<div class="task-done-info" style="color:var(--muted)">${icon('ban')}Dispensada${d.by ? ` por ${esc(d.by)}` : ''}${d.date ? ` em ${fullDate(d.date)}` : ''}</div>`;
+    }
+    let actions = '';
+    if (!d) {
+      actions += `<button class="btn btn-sm btn-pay" data-pay="${o.key}">${icon('check', 'i-sm')}Dar baixa</button>`;
+      if (isAdmin) actions += `<button class="icon-btn" data-skip="${o.key}" title="Dispensar neste mês" aria-label="Dispensar neste mês">${icon('ban', 'i-sm')}</button>`;
+    } else if (d.status === 'paga') {
+      if (d.receiptId) actions += `<button class="btn btn-sm" data-receipt="${d.receiptId}" data-rtx="${d.txId}">${icon('paperclip', 'i-sm')}Comprovante</button>`;
+      if (isAdmin) actions += `<button class="icon-btn danger" data-undo="${o.key}" title="Desfazer baixa" aria-label="Desfazer baixa">${icon('undo-2', 'i-sm')}</button>`;
+    } else if (isAdmin) {
+      actions += `<button class="icon-btn" data-undo="${o.key}" title="Voltar a cobrar" aria-label="Voltar a cobrar">${icon('undo-2', 'i-sm')}</button>`;
+    }
+    if (isAdmin) actions += `<button class="icon-btn" data-edit-task="${t.id}" title="Editar tarefa" aria-label="Editar tarefa">${icon('pencil-line', 'i-sm')}</button>`;
+    const prevMonthTag = o.period !== period && OPEN.includes(o.status) ? `<span class="tag rec">${monthLabel(o.period)}</span>` : '';
+    return `<div class="task st-${o.status}">
+      <div class="task-ico">${icon(CAT_ICON[t.category] || 'list-checks')}</div>
+      <div class="task-main">
+        <div class="task-title">${esc(t.title)} ${statusTag(o.status)}<span class="tag rec">${icon('repeat')}${recLabel(t)}</span>${prevMonthTag}</div>
+        <div class="task-sub">
+          <span>${payeeIcon(t)}${esc(t.payee || '—')}</span>
+          <span>${icon('calendar-clock')}${windowLabel(o)}${d ? '' : ` · ${dueText(o)}`}</span>
+          ${t.account && !d ? `<span>${icon('landmark')}${esc(accName(t.account))}</span>` : ''}
+        </div>
+        ${info}
+      </div>
+      <div class="task-value"><strong class="num">${val != null ? money(val) : '—'}</strong><small>${valNote}</small></div>
+      <div class="task-actions">${actions}</div>
+    </div>`;
+  }
+
+  function groupedRows(list) {
+    const out = [];
+    ORDER.forEach(s => {
+      const g = list.filter(o => o.status === s).sort((a, b) => a.to.localeCompare(b.to));
+      if (!g.length) return;
+      out.push(`<div class="task-group g-${s}">${GROUP_LABEL[s]}<span class="count">${g.length}</span></div>`);
+      g.forEach(o => out.push(taskRow(o)));
+    });
+    return out.join('');
+  }
+
+  function modelsTable() {
+    if (!state.tasks.length) return `<div class="task-empty">${icon('list-checks')}Nenhuma tarefa cadastrada. Clique em “Nova tarefa”.</div>`;
+    const rows = state.tasks.slice().sort((a, b) => a.title.localeCompare(b.title, 'pt-BR')).map(t => {
+      const r = t.rec || {};
+      const nd = t.paused ? null : nextDue(t);
+      const when = r.type === 'once' ? `${fullDate(r.dateFrom || r.dateTo)} a ${fullDate(r.dateTo)}`
+        : r.dayFrom === r.dayTo ? `dia ${r.dayFrom}` : `dias ${r.dayFrom}–${r.dayTo}`;
+      return `<tr>
+        <td><div class="t-desc"><span class="t-ico">${icon(CAT_ICON[t.category] || 'list-checks', 'i-sm')}</span><div>${esc(t.title)}<span class="t-payee">${esc(t.payee)}</span></div></div></td>
+        <td><span class="tag rec">${icon('repeat')}${recLabel(t)}</span></td>
+        <td class="t-muted">${when}</td>
+        <td class="t-right num amount">${t.expected != null ? money(t.expected) : '<span class="t-muted">variável</span>'}</td>
+        <td class="t-muted">${t.paused ? '<span class="tag paused">Pausada</span>' : nd ? `${fullDate(nd.to)} ${statusTag(nd.status)}` : '—'}</td>
+        <td class="t-right" style="white-space:nowrap">
+          <button class="icon-btn" data-edit-task="${t.id}" title="Editar" aria-label="Editar">${icon('pencil-line', 'i-sm')}</button>
+          <button class="icon-btn" data-pause-task="${t.id}" title="${t.paused ? 'Retomar' : 'Pausar'}" aria-label="${t.paused ? 'Retomar' : 'Pausar'}">${icon(t.paused ? 'play' : 'pause', 'i-sm')}</button>
+          <button class="icon-btn danger" data-del-task="${t.id}" title="Excluir" aria-label="Excluir">${icon('trash-2', 'i-sm')}</button>
+        </td></tr>`;
+    }).join('');
+    return `<div class="table-wrap"><table><thead><tr><th>Tarefa</th><th>Frequência</th><th>Quando</th><th class="t-right">Valor</th><th>Próximo vencimento</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  function renderTasks() {
+    const k = period;
+    const carry = k === currentMonth() ? overdueBefore(k) : [];
+    const occs = [...carry, ...occurrencesIn(k)];
+    const late = occs.filter(o => o.status === 'atrasada');
+    const open = occs.filter(o => o.status === 'hoje' || o.status === 'aberta');
+    const soon = k === currentMonth() ? upcoming(7) : [];
+    const paid = occs.filter(o => o.status === 'paga');
+    const exp = l => l.reduce((s, o) => s + (o.task.expected || 0), 0);
+    $('#taskKpis').innerHTML = `
+      <div class="kpi"><div class="kpi-label">Atrasadas</div><div class="kpi-value num ${late.length ? 'delta-neg' : ''}">${late.length}</div><div class="kpi-foot">${late.length ? `${money(exp(late))} previstos` : 'nada atrasado'}</div></div>
+      <div class="kpi"><div class="kpi-label">Em aberto</div><div class="kpi-value num">${open.length}</div><div class="kpi-foot">${open.filter(o => o.status === 'hoje').length} vence(m) hoje</div></div>
+      <div class="kpi"><div class="kpi-label">Próximos 7 dias</div><div class="kpi-value num">${soon.length}</div><div class="kpi-foot">${soon.length ? `${money(exp(soon))} previstos` : '&nbsp;'}</div></div>
+      <div class="kpi"><div class="kpi-label">Pagas em ${monthLabel(k).split(' ')[0].toLowerCase()}</div><div class="kpi-value num delta-pos">${paid.length}</div><div class="kpi-foot num">${money(paid.reduce((s, o) => s + (o.done.amount || 0), 0))}</div></div>`;
+
+    if (taskTab === 'models' && !isAdmin) taskTab = 'pending';
+    $$('#taskTabs button').forEach(b => b.classList.toggle('on', b.dataset.ttab === taskTab));
+    let html;
+    if (taskTab === 'models') html = modelsTable();
+    else {
+      const filter = { pending: o => !o.done, paid: o => !!o.done, all: () => true }[taskTab];
+      const list = occs.filter(filter);
+      html = list.length ? `<div class="task-list">${groupedRows(list)}</div>`
+        : `<div class="task-empty">${icon('check')}${taskTab === 'pending' ? 'Nenhum pagamento pendente neste mês.' : taskTab === 'paid' ? 'Nenhuma tarefa paga neste mês ainda.' : 'Nenhuma tarefa neste mês.'}</div>`;
+    }
+    $('#taskBody').innerHTML = html;
+  }
+
+  function renderPending() {
+    const list = pendingNow();
+    const late = list.filter(o => o.status === 'atrasada').length;
+    $('#pendingMeta').textContent = list.length ? `${late} atrasada${late === 1 ? '' : 's'} · ${list.length - late} em aberto` : 'Tudo em dia';
+    $('#pendingList').innerHTML = list.length
+      ? groupedRows(list.slice(0, 5)) + (list.length > 5 ? `<div class="task-empty" style="padding:12px"><button class="link" data-go="tasks">Ver mais ${list.length - 5}</button></div>` : '')
+      : `<div class="task-empty">${icon('check')}Nenhum pagamento pendente. Tudo em dia.</div>`;
+    $$('[data-task-badge]').forEach(b => {
+      b.hidden = !list.length;
+      b.textContent = list.length;
+      b.classList.toggle('soft', !late);
+    });
+  }
+
+  function applyRole() {
+    $$('[data-admin-only]').forEach(el => el.classList.toggle('is-hidden', !isAdmin));
+    $('#taskEditorNote').hidden = isAdmin || !embedded;
+  }
+
+  /* ---------- Formulário de tarefa (admin) ---------- */
+  function taskFormType() { return $('input[name="tkType"]:checked').value; }
+  function updateTaskForm() {
+    const type = taskFormType(), freq = $('#tkFreq').value;
+    $$('[data-tk="rec"]').forEach(el => { el.hidden = type !== 'rec'; });
+    $$('[data-tk="once"]').forEach(el => { el.hidden = type !== 'once'; });
+    $$('[data-tk="year"]').forEach(el => { el.hidden = !(type === 'rec' && freq === 'y'); });
+    const varies = $('#tkVaries').checked;
+    $('#tkAmount').disabled = varies;
+    $('#tkAmount').required = !varies;
+    if (varies) $('#tkAmount').value = '';
+    // Resumo
+    const payee = $('#tkPayee').value.trim();
+    const amt = Number($('#tkAmount').value);
+    let txt;
+    if (type === 'once') {
+      const a = $('#tkDateFrom').value, b = $('#tkDateTo').value;
+      txt = b ? `Pagamento único${a && a !== b ? `, entre ${fullDate(a)} e ${fullDate(b)}` : `, até ${fullDate(b)}`}.` : 'Pagamento único: informe a data de vencimento.';
+    } else {
+      const df = +$('#tkDayFrom').value || 1, dt = +$('#tkDayTo').value || df;
+      const freqTxt = { m1: 'todo mês', m2: 'a cada 2 meses', m3: 'a cada 3 meses', m6: 'a cada 6 meses', y: `todo ano em ${MONTHS_FULL[+$('#tkMonth').value - 1]?.toLowerCase()}` }[freq];
+      const win = df === dt ? `no dia ${df}` : `entre os dias ${Math.min(df, dt)} e ${Math.max(df, dt)}`;
+      const st = $('#tkStart').value, en = $('#tkEnd').value;
+      txt = `Aparece ${freqTxt}, para pagar ${win}${st ? `, a partir de ${monthLabel(st).toLowerCase()}` : ''}${en ? ` até ${monthLabel(en).toLowerCase()}` : ''}.`;
+      if (df > 28 || dt > 28) txt += ' Em meses mais curtos, vale o último dia do mês.';
+    }
+    txt += amt > 0 && !varies ? ` Valor previsto: ${money(amt)}.` : ' O valor é informado na hora da baixa.';
+    if (payee) txt += ` Recebe: ${payee}.`;
+    $('#tkSummary').innerHTML = `${icon('info', 'i-sm')}<span>${esc(txt)}</span>`;
+  }
+
+  function fillTaskForm(id) {
+    const t = id ? taskById(id) : null;
+    $('#tkTitle').textContent = t ? 'Editar tarefa' : 'Nova tarefa';
+    $('#tkSubmit').textContent = t ? 'Salvar alterações' : 'Criar tarefa';
+    $('#tkCat').innerHTML = CATEGORIES.expense.map(c => `<option>${c}</option>`).join('');
+    $('#tkMonth').innerHTML = MONTHS_FULL.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
+    const r = t?.rec || {};
+    $('#tkId').value = t?.id || '';
+    $('#tkName').value = t?.title || '';
+    $('#tkPayee').value = t?.payee || '';
+    $(t?.payeeKind === 'pessoa' ? '#tkKindP' : '#tkKindE').checked = true;
+    $('#tkCat').value = t?.category || 'Outros';
+    $('#tkAcc').value = t?.account || state.accounts[0]?.id || '';
+    $('#tkVaries').checked = !!t && t.expected == null;
+    $('#tkAmount').value = t?.expected ?? '';
+    $(r.type === 'once' ? '#tkTypeO' : '#tkTypeR').checked = true;
+    $('#tkFreq').value = r.type === 'yearly' ? 'y' : `m${[1, 2, 3, 6].includes(r.every) ? r.every : 1}`;
+    $('#tkMonth').value = r.month || (+currentMonth().slice(5));
+    $('#tkDayFrom').value = r.dayFrom || 10;
+    $('#tkDayTo').value = r.dayTo || r.dayFrom || 15;
+    $('#tkStart').value = t?.start || currentMonth();
+    $('#tkEnd').value = t?.end || '';
+    $('#tkDateFrom').value = r.dateFrom || todayISO();
+    $('#tkDateTo').value = r.dateTo || addDays(todayISO(), 5);
+    $('#tkNotes').value = t?.notes || '';
+    updateTaskForm();
+  }
+
+  function saveTaskForm() {
+    if (!isAdmin) return;
+    const type = taskFormType(), freq = $('#tkFreq').value;
+    const varies = $('#tkVaries').checked;
+    const expected = varies ? null : Math.round(Number($('#tkAmount').value) * 100) / 100;
+    if (!varies && !(expected > 0)) { alert('Informe o valor previsto ou marque “Valor varia todo mês”.'); return; }
+    let rec, start;
+    if (type === 'once') {
+      let a = $('#tkDateFrom').value, b = $('#tkDateTo').value;
+      if (!b) { alert('Informe a data de vencimento.'); return; }
+      if (!a) a = b;
+      if (a > b) [a, b] = [b, a];
+      rec = { type: 'once', dateFrom: a, dateTo: b };
+      start = ym(a);
+    } else {
+      let df = Math.min(Math.max(+$('#tkDayFrom').value || 1, 1), 31), dt = Math.min(Math.max(+$('#tkDayTo').value || df, 1), 31);
+      if (df > dt) [df, dt] = [dt, df];
+      start = $('#tkStart').value || currentMonth();
+      rec = freq === 'y'
+        ? { type: 'yearly', every: 12, month: +$('#tkMonth').value, dayFrom: df, dayTo: dt }
+        : { type: 'monthly', every: +freq.slice(1), dayFrom: df, dayTo: dt };
+      const end = $('#tkEnd').value;
+      if (end && end < start) { alert('“Termina em” não pode ser antes de “Começa em”.'); return; }
+    }
+    const data = {
+      title: $('#tkName').value.trim(),
+      payee: $('#tkPayee').value.trim(),
+      payeeKind: $('input[name="tkKind"]:checked').value,
+      category: $('#tkCat').value,
+      account: $('#tkAcc').value,
+      expected, rec, start,
+      end: type === 'once' ? null : ($('#tkEnd').value || null),
+      notes: $('#tkNotes').value.trim(),
+    };
+    const id = $('#tkId').value;
+    if (id) Object.assign(taskById(id), data, { updatedAt: new Date().toISOString(), updatedBy: userName || 'Admin' });
+    else state.tasks.push({ id: 'tk' + uid(), ...data, paused: false, createdBy: userName || 'Admin', createdAt: new Date().toISOString() });
+    rememberPayee(data.payee);
+    save(); closeModals(); refresh();
+  }
+
+  /* ---------- Dar baixa ---------- */
+  function openPay(key) {
+    const [taskId, k] = key.split('|');
+    const t = taskById(taskId);
+    if (!t) return;
+    if (doneOf(taskId, k)) { alert('Esta tarefa já teve baixa neste mês.'); return; }
+    if (!state.accounts.length) { alert('Cadastre uma conta antes de dar baixa.'); return; }
+    const o = occurrence(t, k);
+    $('#payHead').innerHTML = `
+      <div class="pay-head-title">${esc(t.title)} ${statusTag(o.status)}<span class="tag rec">${icon('repeat')}${recLabel(t)}</span></div>
+      <div class="pay-head-sub">
+        <span>${payeeIcon(t)}${esc(t.payee)}</span>
+        <span>${icon('calendar-clock')}${windowLabel(o)} · ${dueText(o)}</span>
+        <span>${t.expected != null ? `Previsto: <strong class="num">${money(t.expected)}</strong>` : 'Valor variável'}</span>
+      </div>
+      ${t.notes ? `<div class="pay-head-notes">${icon('info', 'i-sm')}<span>${esc(t.notes)}</span></div>` : ''}`;
+    $('#pyTask').value = taskId;
+    $('#pyPeriod').value = k;
+    $('#pyAmount').value = t.expected ?? '';
+    $('#pyAcc').value = state.accounts.some(a => a.id === t.account) ? t.account : state.accounts[0].id;
+    $('#pyDate').value = todayISO();
+    $('#pyTime').value = nowTime();
+    $('#pyPayee').value = t.payee || '';
+    $('#pyBy').value = state.people[0] || userName || '';
+    $('#pyNote').value = '';
+    uploads.pay.reset();
+    lastFocus = document.activeElement;
+    $('#modal-pay').classList.add('open');
+    setTimeout(() => $('#pyAmount').focus(), 20);
+  }
+
+  let salvandoBaixa = false;
+  async function savePay() {
+    if (salvandoBaixa) return;
+    const taskId = $('#pyTask').value, k = $('#pyPeriod').value, t = taskById(taskId);
+    if (!t) return;
+    if (doneOf(taskId, k)) { alert('Esta tarefa já teve baixa neste mês.'); return; }
+    const amount = Math.round(Number($('#pyAmount').value) * 100) / 100;
+    if (!(amount > 0)) return;
+    salvandoBaixa = true;
+    try {
+      let receiptId = null;
+      const file = uploads.pay.file;
+      if (file) receiptId = await FPComprovantes.put(file);
+      const date = $('#pyDate').value, time = $('#pyTime').value, account = $('#pyAcc').value;
+      const by = $('#pyBy').value.trim(), payee = $('#pyPayee').value.trim(), note = $('#pyNote').value.trim();
+      const txId = uid();
+      state.txs.push({ id: txId, date, time, amount, kind: 'expense', description: t.title, category: t.category, account, payee, by, taskId, period: k, receiptId, note });
+      state.taskDone.push({ id: uid(), taskId, period: k, status: 'paga', txId, amount, account, date, time, by, payee, receiptId, note });
+      rememberPerson(by); rememberPayee(payee);
+      save(); closeModals(); refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Não foi possível salvar o comprovante.');
+    } finally {
+      salvandoBaixa = false;
+    }
+  }
+
+  function skipOccurrence(key) {
+    if (!isAdmin) return;
+    const [taskId, k] = key.split('|');
+    const t = taskById(taskId);
+    if (!t || doneOf(taskId, k)) return;
+    if (!confirm(`Dispensar “${t.title}” em ${monthLabel(k).toLowerCase()}? Não será cobrada neste mês.`)) return;
+    state.taskDone.push({ id: uid(), taskId, period: k, status: 'dispensada', date: todayISO(), time: nowTime(), by: userName || 'Admin' });
+    save(); refresh();
+  }
+
+  function undoOccurrence(key) {
+    if (!isAdmin) return;
+    const [taskId, k] = key.split('|');
+    const d = doneOf(taskId, k);
+    if (!d) return;
+    if (d.status === 'paga') {
+      if (!confirm(`Desfazer a baixa? A despesa de ${money(d.amount)} em Movimentações${d.receiptId ? ' e o comprovante' : ''} também serão excluídos.`)) return;
+      state.txs = state.txs.filter(x => x.id !== d.txId);
+      FPComprovantes.del(d.receiptId);
+    }
+    state.taskDone = state.taskDone.filter(x => x !== d);
+    save(); refresh();
+  }
+
+  function rememberPayee(name) {
+    if (!name) return;
+    state.payees = [name, ...state.payees.filter(p => p !== name)].slice(0, 40);
+  }
+
+  const fileSize = b => b < 1024 * 1024
+    ? `${Math.max(1, Math.round(b / 1024)).toLocaleString('pt-BR')} KB`
+    : `${(b / 1024 / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB`;
+
+  /* ---------- Upload de comprovante ---------- */
+  function mountUpload(el) {
+    const ctl = { file: null, preview: null, error: '' };
+    const draw = () => {
+      el.classList.toggle('has-file', !!ctl.file);
+      const f = ctl.file;
+      el.innerHTML = f
+        ? `<div class="upload-file">
+            ${ctl.preview ? `<img class="upload-thumb" src="${ctl.preview}" alt="">` : `<div class="upload-thumb">${icon('file-text')}</div>`}
+            <div class="upload-name">${esc(f.name)}<small>${fileSize(f.size)}</small></div>
+            <button type="button" class="icon-btn" data-up-clear aria-label="Remover arquivo">${icon('x', 'i-sm')}</button>
+          </div>`
+        : `<button type="button" class="upload-drop" data-up-pick>${icon('upload')}<div><strong>Clique para escolher ou arraste o comprovante aqui</strong><small>Imagem (PNG, JPG) ou PDF, até 10 MB</small></div></button>
+           ${ctl.error ? `<div class="upload-err">${esc(ctl.error)}</div>` : ''}`;
+    };
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = 'image/*,application/pdf'; input.hidden = true;
+    el.after(input);
+    const setFile = f => {
+      if (ctl.preview) URL.revokeObjectURL(ctl.preview);
+      ctl.preview = null; ctl.error = '';
+      const err = f ? FPComprovantes.validar(f) : '';
+      if (err) { ctl.file = null; ctl.error = err; }
+      else {
+        ctl.file = f || null;
+        if (f && f.type.startsWith('image/')) ctl.preview = URL.createObjectURL(f);
+      }
+      draw();
+    };
+    el.addEventListener('click', e => {
+      if (e.target.closest('[data-up-pick]')) input.click();
+      else if (e.target.closest('[data-up-clear]')) setFile(null);
+    });
+    input.addEventListener('change', () => { setFile(input.files[0]); input.value = ''; });
+    el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag'); });
+    el.addEventListener('dragleave', () => el.classList.remove('drag'));
+    el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('drag'); if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); });
+    ctl.reset = () => setFile(null);
+    draw();
+    return ctl;
+  }
+  const uploads = {};
+  $$('[data-upload]').forEach(el => { uploads[el.dataset.upload] = mountUpload(el); });
+
+  /* ---------- Visualizador de comprovante ---------- */
+  async function openReceipt(id, txId) {
+    let rec;
+    try { rec = await FPComprovantes.get(id); } catch { rec = null; }
+    if (!rec) { alert('Comprovante não encontrado neste navegador. Ele fica salvo só no computador onde foi anexado.'); return; }
+    const url = await FPComprovantes.url(id);
+    const tx = state.txs.find(x => x.id === txId);
+    $('#rcTitle').textContent = tx ? `Comprovante · ${tx.description}` : 'Comprovante';
+    $('#rcMeta').innerHTML = [
+      tx ? `<span><strong class="num">${money(tx.amount)}</strong></span>` : '',
+      tx ? `<span>${fullDate(tx.date)}${tx.time ? ` às ${tx.time}` : ''}</span>` : '',
+      tx ? `<span>${esc(accName(tx.account))}</span>` : '',
+      tx?.payee ? `<span>Recebeu: ${esc(tx.payee)}</span>` : '',
+      tx?.by ? `<span>Pago por: ${esc(tx.by)}</span>` : '',
+      `<span>${esc(rec.name)} · ${fileSize(rec.size)}</span>`,
+    ].join('');
+    $('#rcView').innerHTML = rec.type === 'application/pdf'
+      ? `<iframe src="${url}" title="Comprovante em PDF"></iframe>`
+      : `<img src="${url}" alt="Comprovante">`;
+    $('#rcOpen').href = url;
+    $('#rcDownload').href = url;
+    $('#rcDownload').download = rec.name;
+    lastFocus = document.activeElement;
+    $('#modal-receipt').classList.add('open');
+  }
+
   /* ---------- Render ---------- */
   function render() {
     const k = period;
@@ -352,11 +872,16 @@
     const q = $('#q').value.trim().toLowerCase(), fk = $('#fKind').value, fa = $('#fAccount').value;
     const filtered = list.filter(x =>
       (fk === 'all' || x.kind === fk) && (fa === 'all' || x.account === fa) &&
-      (!q || `${x.description} ${x.category} ${accName(x.account)}`.toLowerCase().includes(q)));
+      (!q || `${x.description} ${x.category} ${accName(x.account)} ${x.payee || ''} ${x.by || ''}`.toLowerCase().includes(q)));
     $('#allRows').innerHTML = filtered.map(x => txRow(x, true)).join('') || '<tr><td colspan="6" class="empty">Nenhum lançamento encontrado.</td></tr>';
 
     // Contas
     $('#accFull').innerHTML = accRows(k, true);
+
+    // Tarefas
+    applyRole();
+    renderTasks();
+    renderPending();
 
     // Investimentos
     renderInvestments();
@@ -424,7 +949,13 @@
   function fillSelects() {
     const opts = state.accounts.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
     $('#txAcc').innerHTML = opts;
+    $('#tkAcc').innerHTML = opts;
+    $('#pyAcc').innerHTML = opts;
+    const fa = $('#fAccount').value;
     $('#fAccount').innerHTML = '<option value="all">Todas as contas</option>' + opts;
+    if (fa && $(`#fAccount option[value="${fa}"]`)) $('#fAccount').value = fa;
+    const payees = [...new Set([...state.payees, ...state.tasks.map(t => t.payee), ...state.txs.map(x => x.payee)].filter(Boolean))];
+    $('#payeeList').innerHTML = payees.map(p => `<option value="${esc(p)}">`).join('');
     const inv = state.investments.map(i => `<option value="${i.id}">${esc(i.name)}</option>`).join('');
     const cur = $('#fInv').value;
     $('#fInv').innerHTML = '<option value="all">Todas as aplicações</option>' + inv;
@@ -461,6 +992,7 @@
   function openModal(name, btn) {
     if (name === 'tx' && !state.accounts.length) { alert('Cadastre uma conta antes de lançar.'); return; }
     if (name === 'snap' && !state.investments.length) { alert('Cadastre uma aplicação antes de registrar o saldo.'); return; }
+    if (name === 'task' && !isAdmin) { alert('Só admin pode criar ou editar tarefas.'); return; }
     lastFocus = document.activeElement;
     const m = $('#modal-' + name);
     m.classList.add('open');
@@ -477,6 +1009,7 @@
       updateSnapPrev();
     }
     if (name === 'invest') $('#invBy').value = state.people[0] || '';
+    if (name === 'task') fillTaskForm(btn?.dataset.editTask);
     setTimeout(() => {
       const target = name === 'snap' ? $('#snapBal') : $('input:not([type=radio])', m);
       target?.focus();
@@ -484,6 +1017,8 @@
   }
   function closeModals() {
     $$('.modal-backdrop.open').forEach(m => { m.classList.remove('open'); $('form', m)?.reset(); });
+    Object.values(uploads).forEach(u => u.reset());
+    $('#rcView').innerHTML = '';
     lastFocus?.focus?.();
   }
   function updateSnapPrev() {
@@ -508,8 +1043,34 @@
       flowChart(period);
     }
     else if ('close' in b.dataset) closeModals();
-    else if (b.dataset.delTx) {
-      if (confirm('Excluir este lançamento?')) { state.txs = state.txs.filter(x => x.id !== b.dataset.delTx); save(); refresh(); }
+    else if (b.dataset.ttab) { taskTab = b.dataset.ttab; renderTasks(); }
+    else if (b.dataset.pay) openPay(b.dataset.pay);
+    else if (b.dataset.skip) skipOccurrence(b.dataset.skip);
+    else if (b.dataset.undo) undoOccurrence(b.dataset.undo);
+    else if (b.dataset.receipt) openReceipt(b.dataset.receipt, b.dataset.rtx);
+    else if (b.dataset.editTask) openModal('task', b);
+    else if (b.dataset.pauseTask) {
+      const t = taskById(b.dataset.pauseTask);
+      if (!isAdmin || !t) return;
+      t.paused = !t.paused; save(); refresh();
+    } else if (b.dataset.delTask) {
+      const t = taskById(b.dataset.delTask);
+      if (!isAdmin || !t) return;
+      if (!confirm(`Excluir a tarefa “${t.title}”? Os pagamentos já feitos continuam em Movimentações.`)) return;
+      state.tasks = state.tasks.filter(x => x !== t);
+      state.taskDone = state.taskDone.filter(d => d.taskId !== t.id);
+      save(); refresh();
+    } else if (b.dataset.delTx) {
+      const tx = state.txs.find(x => x.id === b.dataset.delTx);
+      if (!tx) return;
+      const d = tx.taskId ? state.taskDone.find(x => x.txId === tx.id) : null;
+      const msg = d ? `Excluir este lançamento? A tarefa “${tx.description}” volta a ficar pendente${tx.receiptId ? ' e o comprovante será apagado' : ''}.`
+        : `Excluir este lançamento?${tx.receiptId ? ' O comprovante também será apagado.' : ''}`;
+      if (!confirm(msg)) return;
+      state.txs = state.txs.filter(x => x !== tx);
+      if (d) state.taskDone = state.taskDone.filter(x => x !== d);
+      FPComprovantes.del(tx.receiptId);
+      save(); refresh();
     } else if (b.dataset.delAcc) {
       const a = state.accounts.find(x => x.id === b.dataset.delAcc);
       const n = state.txs.filter(x => x.account === a.id).length;
@@ -534,21 +1095,34 @@
   $('#snapInv').addEventListener('change', updateSnapPrev);
   $$('input[name="kind"]').forEach(r => r.addEventListener('change', fillCategories));
 
-  $('#txForm').addEventListener('submit', e => {
+  $('#txForm').addEventListener('submit', async e => {
     e.preventDefault();
     const amount = Math.round(Number($('#txAmount').value) * 100) / 100;
     if (!(amount > 0)) return;
     const date = $('#txDate').value;
+    let receiptId = null;
+    try { if (uploads.tx.file) receiptId = await FPComprovantes.put(uploads.tx.file); }
+    catch (err) { alert(err instanceof Error ? err.message : 'Não foi possível salvar o comprovante.'); return; }
+    const payee = $('#txPayee').value.trim();
     state.txs.push({
-      id: uid(), date, amount,
+      id: uid(), date, amount, time: nowTime(),
       description: $('#txDesc').value.trim(),
       kind: $('input[name="kind"]:checked').value,
       category: $('#txCat').value,
       account: $('#txAcc').value,
+      payee: payee || undefined,
+      by: userName || undefined,
+      receiptId,
     });
+    rememberPayee(payee);
     period = ym(date);
     save(); closeModals(); refresh();
   });
+
+  $('#taskForm').addEventListener('submit', e => { e.preventDefault(); saveTaskForm(); });
+  $('#taskForm').addEventListener('input', updateTaskForm);
+  $('#taskForm').addEventListener('change', updateTaskForm);
+  $('#payForm').addEventListener('submit', e => { e.preventDefault(); savePay(); });
 
   $('#accForm').addEventListener('submit', e => {
     e.preventDefault();
@@ -586,8 +1160,7 @@
   });
 
   /* ---------- Ponte com o sistema (página React que carrega este iframe) ---------- */
-  const embutido = window.parent !== window;
-  const avisarPai = msg => { if (embutido) window.parent.postMessage(msg, window.location.origin); };
+  const avisarPai = msg => { if (embedded) window.parent.postMessage(msg, window.location.origin); };
   window.addEventListener('message', ev => {
     if (ev.origin !== window.location.origin || ev.source !== window.parent) return;
     const d = ev.data || {};
@@ -597,6 +1170,10 @@
       $('#userAvatar').textContent = nome.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase();
       $('#userBox').hidden = false;
       $('#btnNerites').hidden = !d.neritesAdmin;
+      const mudou = isAdmin !== !!d.admin || userName !== nome;
+      isAdmin = !!d.admin;
+      userName = nome;
+      if (mudou) render();
     }
   });
   $('#btnSair').addEventListener('click', () => avisarPai({ type: 'fp-sair' }));
