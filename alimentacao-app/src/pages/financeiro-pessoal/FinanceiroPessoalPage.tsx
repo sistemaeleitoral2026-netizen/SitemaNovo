@@ -64,7 +64,7 @@ export function FinanceiroPessoalPage() {
           ref={frameRef}
           className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
           title="Controle Financeiro Pessoal"
-          src="/sistemas/financeiro-pessoal/index.html?v=3"
+          src="/sistemas/financeiro-pessoal/index.html?v=4"
           onLoad={() => window.setTimeout(() => setPronto(true), 4000)}
         />
       </div>
