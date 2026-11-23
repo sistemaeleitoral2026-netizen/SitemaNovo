@@ -115,6 +115,7 @@
     anexos: "Comprovantes",
     auditoria: "Auditoria",
     "sem-data-recebida": "Sem Data Recebida",
+    duplicados: "Lançamentos duplicados",
     configuracoes: "Configurações",
   };
   let monthlyHistory = [];
@@ -2676,6 +2677,207 @@
         .join("") || noRows("Nenhum lançamento sem data recebida. O caixa está conciliado.", 10)
     }</tbody></table>`;
   }
+
+  /* ---------- TEMPORÁRIO: lançamentos duplicados ----------
+   * Suspeita de duplicidade = mesma empresa, mesmo tipo, mesmo valor,
+   * datas iguais ou até DUP_DAYS dias de distância, descrição igual/parecida
+   * e (quando as duas têm) a mesma conta bancária.
+   * "Não é duplicado" fica gravado na auditoria (ação DUP_IGNORE_ACTION, com
+   * os ids no detalhe), então vale para todo mundo e não precisa de tabela nova. */
+  const DUP_DAYS = 3;
+  const DUP_IGNORE_ACTION = "Lançamentos marcados como não duplicados";
+  const UUID_RE =
+    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+  function dupValor(r) {
+    if (finKind(r) === "saida") return money(r.saida);
+    return money(r.previsto) || money(r.recebido);
+  }
+  function dupText(v) {
+    return String(v || "")
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, " ")
+      .trim();
+  }
+  function dupDay(d) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || ""));
+    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000 : null;
+  }
+  function dupSimilarText(a, b) {
+    const x = dupText(a),
+      y = dupText(b);
+    if (!x || !y || x === y) return true;
+    if (Math.min(x.length, y.length) >= 4 && (x.includes(y) || y.includes(x)))
+      return true;
+    const tx = new Set(x.split(" ").filter((w) => w.length > 1)),
+      ty = new Set(y.split(" ").filter((w) => w.length > 1));
+    if (!tx.size || !ty.size) return false;
+    let common = 0;
+    tx.forEach((w) => ty.has(w) && common++);
+    return common / Math.min(tx.size, ty.size) >= 0.6;
+  }
+  /** Mesma empresa, tipo, valor e data igual/próxima (base da trava ao salvar). */
+  function dupSameCore(a, b) {
+    if (!a || !b || a.id === b.id) return false;
+    const va = dupValor(a);
+    if (va <= 0 || Math.abs(va - dupValor(b)) > 0.009) return false;
+    if (dupText(a.sub) !== dupText(b.sub)) return false;
+    if (finKind(a) !== finKind(b)) return false;
+    const da = dupDay(a.data),
+      dbDay = dupDay(b.data);
+    if (da == null || dbDay == null) return a.data === b.data;
+    return Math.abs(da - dbDay) <= DUP_DAYS;
+  }
+  function dupSuspect(a, b) {
+    if (!dupSameCore(a, b)) return false;
+    if (!dupSimilarText(a.parceiro, b.parceiro)) return false;
+    const ca = dupText(a.contaBancaria),
+      cb = dupText(b.contaBancaria);
+    return !ca || !cb || ca === cb;
+  }
+  function dupIgnoredSets() {
+    return (db.audit || [])
+      .filter((a) => a && a.action === DUP_IGNORE_ACTION)
+      .map(
+        (a) =>
+          new Set(
+            (String(a.detail || "").match(UUID_RE) || []).map((x) =>
+              x.toLowerCase(),
+            ),
+          ),
+      )
+      .filter((set) => set.size > 1);
+  }
+  function duplicateGroups() {
+    const ignored = dupIgnoredSets();
+    const isIgnored = (a, b) => {
+      const x = String(a.id).toLowerCase(),
+        y = String(b.id).toLowerCase();
+      return ignored.some((set) => set.has(x) && set.has(y));
+    };
+    const buckets = new Map();
+    for (const r of db.finance) {
+      if (!r || !r.id) continue;
+      const v = dupValor(r);
+      if (v <= 0) continue;
+      const key = dupText(r.sub) + "|" + finKind(r) + "|" + Math.round(v * 100);
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(r);
+    }
+    const parent = new Map();
+    const find = (id) => {
+      while (parent.get(id) !== id) {
+        parent.set(id, parent.get(parent.get(id)));
+        id = parent.get(id);
+      }
+      return id;
+    };
+    for (const list of buckets.values()) {
+      if (list.length < 2) continue;
+      for (let i = 0; i < list.length; i++)
+        for (let j = i + 1; j < list.length; j++) {
+          const a = list[i],
+            b = list[j];
+          if (!dupSuspect(a, b) || isIgnored(a, b)) continue;
+          if (!parent.has(a.id)) parent.set(a.id, a.id);
+          if (!parent.has(b.id)) parent.set(b.id, b.id);
+          parent.set(find(a.id), find(b.id));
+        }
+    }
+    const groups = new Map();
+    for (const r of db.finance) {
+      if (!r || !parent.has(r.id)) continue;
+      const root = find(r.id);
+      if (!groups.has(root)) groups.set(root, []);
+      groups.get(root).push(r);
+    }
+    const byCreated = (a, b) =>
+      String(a.criadoEm || "").localeCompare(String(b.criadoEm || "")) ||
+      String(a.data || "").localeCompare(String(b.data || ""));
+    return [...groups.values()]
+      .filter((g) => g.length > 1)
+      .map((g) => g.sort(byCreated))
+      .sort(
+        (a, b) =>
+          String(b[0].data || "").localeCompare(String(a[0].data || "")) ||
+          String(a[0].sub || "").localeCompare(String(b[0].sub || ""), "pt-BR"),
+      );
+  }
+  function dupWhen(iso) {
+    return launchedAt(iso) ? `${launchedDateBR(iso)} ${timeBR(iso)}` : "—";
+  }
+  function drawDuplicates() {
+    const wrap = $("#dup-groups");
+    if (!wrap) return;
+    const groups = duplicateGroups();
+    const extras = groups.reduce((n, g) => n + g.length - 1, 0);
+    const extraValue = groups.reduce(
+      (n, g) => n + dupValor(g[0]) * (g.length - 1),
+      0,
+    );
+    const summary = $("#dup-summary");
+    if (summary)
+      summary.innerHTML = `<span><small>Grupos</small><strong>${groups.length}</strong></span><span><small>Lançamentos a mais</small><strong>${extras}</strong></span><span><small>Valor repetido</small><strong>${fmt(extraValue)}</strong></span>`;
+    if (!groups.length) {
+      wrap.innerHTML = `<div class="panel panel-pad simple-empty"><h2>Nenhum lançamento duplicado</h2><p>Tudo certo por aqui. Este menu some sozinho quando não há duplicados.</p></div>`;
+      return;
+    }
+    wrap.innerHTML = groups
+      .map((g, gi) => {
+        const first = g[0];
+        const ids = g.map((r) => r.id).join(",");
+        const rows = g
+          .map((r, i) => {
+            const del = canDeleteRec(r)
+              ? `<button type="button" class="edit-action danger" data-delete-fin="${esc(r.id)}" data-delete-source="duplicate">${icon("trash")}Excluir</button>`
+              : `<span class="muted dup-nodel" title="Editor só exclui o que ele mesmo lançou">Só quem lançou ou admin</span>`;
+            return `<tr><td data-label="#">${i === 0 ? '<span class="pill ok">Mais antigo</span>' : `<span class="pill warn">Repetido ${i}</span>`}</td><td data-label="Data" class="nowrap">${dateBR(r.data)}</td><td data-label="Descrição"><b>${esc(r.parceiro || "—")}</b>${r.observacao ? `<div class="muted">${esc(r.observacao)}</div>` : ""}</td><td data-label="Valor" class="amount">${fmt(dupValor(r))}</td><td data-label="Empresa"><b>${esc(r.sub || "—")}</b></td><td data-label="Centro">${esc(r.centro || "—")}</td><td data-label="Conta / banco">${esc(r.contaBancaria || "—")}</td><td data-label="Quem lançou">${esc(r.criadoPor || "—")}</td><td data-label="Quando lançou" class="nowrap">${dupWhen(r.criadoEm)}</td><td data-label="Comprovante">${fileCell(r.anexos, "fin:" + r.id)}</td><td data-label="Ações" class="action-cell correction-actions"><button type="button" class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")}Editar</button>${del}</td></tr>`;
+          })
+          .join("");
+        return `<div class="panel correction-ledger dup-group"><div class="section-head panel-pad correction-ledger-head dup-group-head"><div><h2>Grupo ${gi + 1} · ${esc(first.sub || "Sem empresa")} · ${esc(finTipo(first))} · ${fmt(dupValor(first))}</h2><span class="muted">${g.length} lançamentos parecidos</span></div><button type="button" class="btn" data-dup-ignore="${esc(ids)}">${icon("check")}Não é duplicado</button></div><div class="table-wrap dup-table-wrap"><table class="correction-table dup-table"><thead><tr><th></th><th>Data</th><th>Descrição</th><th class="num">Valor</th><th>Empresa</th><th>Centro</th><th>Conta / banco</th><th>Quem lançou</th><th>Quando lançou</th><th>Comprovante</th><th class="action-cell">Ações</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+      })
+      .join("");
+  }
+  /** Trava ao salvar: devolve o lançamento parecido que já existe (ou null). */
+  function findExistingDuplicate(rec, old) {
+    if (!rec) return null;
+    if (
+      old &&
+      dupText(old.sub) === dupText(rec.sub) &&
+      finKind(old) === finKind(rec) &&
+      Math.abs(dupValor(old) - dupValor(rec)) < 0.01 &&
+      old.data === rec.data
+    )
+      return null; // edição que não mexeu em empresa/tipo/valor/data
+    const ids = new Set([rec.id, old?.id].filter(Boolean));
+    const matches = db.finance.filter(
+      (r) => r && !ids.has(r.id) && dupSameCore(rec, r),
+    );
+    if (!matches.length) return null;
+    const recDay = dupDay(rec.data) ?? 0;
+    matches.sort(
+      (a, b) =>
+        Number(dupSimilarText(b.parceiro, rec.parceiro)) -
+          Number(dupSimilarText(a.parceiro, rec.parceiro)) ||
+        Math.abs((dupDay(a.data) ?? 0) - recDay) -
+          Math.abs((dupDay(b.data) ?? 0) - recDay),
+    );
+    return { match: matches[0], total: matches.length };
+  }
+  function confirmDuplicateSave(rec, old) {
+    const found = findExistingDuplicate(rec, old);
+    if (!found) return true;
+    const r = found.match;
+    const d = r.data ? dateBR(r.data).slice(0, 5) : "—";
+    const more =
+      found.total > 1 ? `\n(e mais ${found.total - 1} parecido(s))` : "";
+    return confirm(
+      `Atenção: possível lançamento repetido!\n\nJá existe um lançamento de ${fmt(dupValor(r))} para a empresa ${r.sub || "—"} em ${d}: ${r.parceiro || "sem descrição"}` +
+        (r.criadoPor ? ` (lançado por ${r.criadoPor})` : "") +
+        `.${more}\n\nOK = salvar mesmo assim\nCancelar = voltar sem salvar`,
+    );
+  }
   function companyPicker(where) {
     $(where).innerHTML =
       `<div class="ctx-companies" aria-label="Empresa"><button type="button" class="co ${!state.empresa ? "selected" : ""}" data-select-company="">Todas as Empresas</button>${subdivisions.map((n) => `<button type="button" class="co ${state.empresa === n ? "selected" : ""}" data-select-company="${esc(n)}">${esc(n)}</button>`).join("")}</div>`;
@@ -2733,6 +2935,8 @@
       drawAudit();
     } else if (page === "sem-data-recebida") {
       drawCorrections();
+    } else if (page === "duplicados") {
+      drawDuplicates();
     } else if (page === "configuracoes") {
       drawSettings();
     }
@@ -3353,6 +3557,10 @@
         };
       }
     }
+    if (typeModal === "finance" && !confirmDuplicateSave(rec, old)) {
+      window.__mbFinAudit = null;
+      return;
+    }
     if (old) {
       if (typeModal !== "task") {
         rec.criadoEm = old.criadoEm || rec.criadoEm || "";
@@ -3440,6 +3648,28 @@
       openModal(t.status === "Em andamento" ? "vincular" : "realizar", id);
       return;
     }
+    const dupIgnore = e.target.closest("[data-dup-ignore]");
+    if (dupIgnore) {
+      const ids = String(dupIgnore.dataset.dupIgnore || "")
+        .split(",")
+        .filter(Boolean);
+      const rows = db.finance.filter((r) => ids.includes(r.id));
+      if (rows.length < 2) return;
+      if (
+        !confirm(
+          `Marcar estes ${rows.length} lançamentos como "não é duplicado"?\n\nO grupo sai desta lista (fica registrado na auditoria).`,
+        )
+      )
+        return;
+      const first = rows[0];
+      audit(
+        DUP_IGNORE_ACTION,
+        `${first.sub || "—"} · ${fmt(dupValor(first))} · ${first.parceiro || "—"} · ids: ${rows.map((r) => r.id).join(",")}`,
+      );
+      render();
+      toast("Grupo marcado como não duplicado.");
+      return;
+    }
     const delTask = e.target.closest("[data-delete-task]");
     if (delTask) {
       const id = delTask.dataset.deleteTask;
@@ -3470,10 +3700,15 @@
       const id = delFin.dataset.deleteFin;
       const r = db.finance.find((x) => x.id === id);
       const permanentCorrection =
-        delFin.dataset.deleteSource === "correction";
+        delFin.dataset.deleteSource === "correction" ||
+        delFin.dataset.deleteSource === "duplicate";
       if (!r) return;
       if (!canDeleteFinance()) {
         toast("Sem permissão para excluir lançamentos.");
+        return;
+      }
+      if (delFin.dataset.deleteSource === "duplicate" && !canDeleteRec(r)) {
+        toast("Você só pode excluir o que você mesmo lançou.");
         return;
       }
       if (
@@ -3724,6 +3959,19 @@
       missingDateCount.title = total
         ? `${total} lançamento(s) precisam de correção`
         : "Nenhum lançamento pendente";
+    }
+    const dupNav = $("#nav-duplicados");
+    if (dupNav) {
+      const groups = duplicateGroups();
+      const extras = groups.reduce((n, g) => n + g.length - 1, 0);
+      dupNav.hidden = !groups.length;
+      const dupCount = $("#count-duplicados");
+      if (dupCount) {
+        dupCount.textContent = extras || "";
+        dupCount.title = extras
+          ? `${groups.length} grupo(s), ${extras} lançamento(s) a mais`
+          : "";
+      }
     }
   }
   const closeNav = () => document.body.classList.remove("nav-open");
@@ -5660,6 +5908,7 @@
       MB.userId = String(d.userId || MB.userId || "");
       drawUser();
       if (page === "sem-data-recebida") drawCorrections();
+      if (page === "duplicados") drawDuplicates();
       updateCounts();
     }
     if (d.type === "mb-hydrate" && d.payload) {

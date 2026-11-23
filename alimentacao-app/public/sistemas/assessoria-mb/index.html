@@ -276,6 +276,19 @@
               id="count-sem-data-recebida"
             ></span>
           </button>
+          <!-- TEMPORÁRIO: some sozinho quando não houver mais duplicados. -->
+          <button
+            class="nav-btn"
+            data-page="duplicados"
+            data-group="Correção"
+            id="nav-duplicados"
+            hidden
+          >
+            <svg><use href="#i-copy"></use></svg>Lançamentos duplicados<span
+              class="nav-count alert"
+              id="count-duplicados"
+            ></span>
+          </button>
           <div class="nav-label">Tarefas</div>
           <button class="nav-btn" data-page="demandas" data-group="Tarefas">
             <svg><use href="#i-list"></use></svg>Demandas e Tarefas<span
@@ -883,6 +896,34 @@
               </div>
               <div class="table-wrap" id="correction-table"></div>
             </div>
+          </section>
+          <section
+            id="page-duplicados"
+            class="page-section correction-page"
+            data-screen-label="Lançamentos duplicados"
+          >
+            <div class="heading correction-heading">
+              <div>
+                <h1>Lançamentos duplicados</h1>
+                <p>
+                  Grupos de lançamentos parecidos: mesma empresa, mesmo tipo,
+                  mesmo valor, datas iguais ou próximas (até 3 dias) e
+                  descrição igual ou parecida.
+                </p>
+              </div>
+              <div class="correction-summary" id="dup-summary"></div>
+            </div>
+            <div class="info-strip correction-warning">
+              <svg><use href="#i-info"></use></svg>
+              <span
+                ><b>Como usar:</b> compare os lançamentos de cada grupo e
+                exclua os que sobraram (a exclusão é permanente e fica na
+                auditoria). Admin exclui qualquer um; editor só exclui o que
+                ele mesmo lançou. Se o grupo estiver certo, clique em
+                <b>Não é duplicado</b> para tirá-lo da lista.</span
+              >
+            </div>
+            <div id="dup-groups"></div>
           </section>
           <section
             id="page-configuracoes"

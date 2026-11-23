@@ -7013,3 +7013,37 @@ body {
     margin-top: 0;
   }
 }
+
+/* TEMPORÁRIO: lançamentos duplicados */
+.nav-btn[hidden] {
+  display: none !important;
+}
+.dup-group {
+  margin-bottom: 14px;
+}
+.dup-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.dup-group-head .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.dup-group-head .btn svg {
+  width: 15px;
+  height: 15px;
+}
+.dup-table-wrap {
+  overflow: auto;
+}
+.dup-table {
+  min-width: 1200px;
+}
+.dup-nodel {
+  margin-left: 6px;
+  font-size: 12px;
+}
