@@ -18,7 +18,9 @@
     'Lazer': 'gamepad-2', 'Compras': 'shopping-cart', 'Contas da casa': 'credit-card', 'Outros': 'ellipsis',
     'Salário': 'briefcase', 'Renda extra': 'circle-dollar-sign', 'Rendimentos': 'trending-up',
   };
-  const TITLES = { overview: 'Visão geral', transactions: 'Movimentações', tasks: 'Tarefas', accounts: 'Contas', investments: 'Investimentos', reports: 'Relatórios' };
+  const TITLES = { overview: 'Visão geral', transactions: 'Movimentações', tasks: 'Programação', accounts: 'Contas', investments: 'Investimentos', reports: 'Relatórios' };
+  const KIND_LABEL = { pagamento: 'Pagamento', documentacao: 'Documentação', cobranca: 'Cobrança' };
+  const taskKind = t => (t && (t.kind === 'documentacao' || t.kind === 'cobranca') ? t.kind : 'pagamento');
 
   /* ---------- Formatação ---------- */
   const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -126,9 +128,9 @@
       snapshots.push({ id: uid(), invId: 'cdb', date: `2026-11-${d}`, time: times[i], balance: +(3500 - back * 1.62 + (i === 6 ? -2.1 : 0)).toFixed(2), by: 'Responsável' });
       snapshots.push({ id: uid(), invId: 'selic', date: `2026-11-${d}`, time: times[i], balance: +(2150 - back * 0.98).toFixed(2), by: 'Responsável' });
     });
-    // Tarefas de pagamento de exemplo
+    // Programações de exemplo
     const now = new Date().toISOString();
-    const base = { paused: false, end: null, createdBy: 'Admin', createdAt: now };
+    const base = { kind: 'pagamento', paused: false, end: null, createdBy: 'Admin', createdByName: 'Admin', createdAt: now };
     const tasks = [
       { ...base, id: 'tk-netflix', title: 'Netflix', payee: 'Netflix', payeeKind: 'empresa', category: 'Lazer', expected: 55.9, account: 'nu',
         rec: { type: 'monthly', every: 1, dayFrom: 10, dayTo: 15 }, start: '2026-11', notes: 'Cobrança no cartão Nubank. Conferir se o valor da assinatura mudou.' },
@@ -142,6 +144,10 @@
         rec: { type: 'yearly', every: 12, month: 1, dayFrom: 10, dayTo: 20 }, start: '2027-01', notes: 'Cota única com desconto até o dia 20.' },
       { ...base, id: 'tk-revisao', title: 'Revisão do carro', payee: 'Oficina mecânica', payeeKind: 'empresa', category: 'Transporte', expected: 450, account: 'nu',
         rec: { type: 'once', dateFrom: '2026-11-24', dateTo: '2026-11-30' }, start: '2026-11', notes: 'Revisão dos 30 mil km.' },
+      { ...base, kind: 'documentacao', id: 'tk-docs', title: 'Resolver documentação', payee: '', payeeKind: 'empresa', category: 'Outros', expected: null, account: null, docOwner: 'Responsável', chargeTo: '',
+        rec: { type: 'once', dateFrom: '2026-12-01', dateTo: '2026-12-15' }, start: '2026-12', notes: 'Separar RG, CPF e comprovante de residência.' },
+      { ...base, kind: 'cobranca', id: 'tk-cob', title: 'Resolver cobrança', payee: '', payeeKind: 'pessoa', category: 'Outros', expected: 350, account: 'nu', chargeTo: 'Cliente exemplo', docOwner: '',
+        rec: { type: 'once', dateFrom: '2026-12-01', dateTo: '2026-12-10' }, start: '2026-12', notes: 'Cobrar o serviço prestado em novembro.' },
     ];
     const taskDone = [];
     const link = (taskId, description, date, time, payee) => {
@@ -221,7 +227,8 @@
 
   let period = null;
   let view = 'overview';
-  let taskTab = 'pending';
+  let taskTab = 'all';
+  let reportTab = 'programacao';
   let chartMode = 'line';
   try { chartMode = localStorage.getItem('mf:chart') || 'line'; } catch { /* */ }
 
@@ -269,15 +276,51 @@
 
   function months() {
     const set = new Set(state.txs.map(x => ym(x.date)));
-    set.add(ym(todayISO()));
-    set.add(addMonths(ym(todayISO()), 1));
+    const now = currentMonth();
+    set.add(now);
+    set.add(addMonths(now, 1));
+    for (let i = 0; i <= 12; i++) {
+      const k = addMonths(now, i);
+      if (state.tasks.some(t => occursIn(t, k))) set.add(k);
+    }
     return [...set].sort().reverse();
+  }
+
+  /** Só o mês seguinte, só programações de pagamento ainda pendentes. */
+  function futureExpenseCards() {
+    const k = addMonths(currentMonth(), 1);
+    const pending = occurrencesIn(k).filter(o =>
+      taskKind(o.task) === 'pagamento' && !['paga', 'dispensada', 'concluida', 'cobrada'].includes(o.status));
+    if (!pending.length) return [];
+    const total = pending.reduce((s, o) => s + (o.task.expected || 0), 0);
+    return [{
+      k,
+      monthName: MONTHS_FULL[+k.slice(5) - 1],
+      count: pending.length,
+      total,
+    }];
+  }
+
+  function renderFutureKpis() {
+    const root = $('#overviewKpis');
+    if (!root) return;
+    $$('#overviewKpis .kpi-future').forEach(el => el.remove());
+    if (view !== 'overview') return;
+    futureExpenseCards().forEach(c => {
+      const el = document.createElement('div');
+      el.className = 'kpi kpi-future';
+      el.innerHTML = `
+        <div class="kpi-label">Despesas futuras em ${c.monthName}</div>
+        <div class="kpi-value num delta-neg">${c.total ? money(c.total) : '—'}</div>
+        <div class="kpi-foot">${c.count} pagamento${c.count === 1 ? '' : 's'} programado${c.count === 1 ? '' : 's'}</div>`;
+      root.appendChild(el);
+    });
   }
 
   /* ---------- Componentes ---------- */
   function txRow(x, withDelete) {
     return `<tr>
-      <td><div class="t-desc"><span class="t-ico">${icon(CAT_ICON[x.category] || 'ellipsis', 'i-sm')}</span><div>${esc(x.description)}${x.taskId ? '<span class="tag task-tag">Tarefa</span>' : ''}${x.receiptId ? `<button class="clip" data-receipt="${x.receiptId}" data-rtx="${x.id}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip')}</button>` : ''}${x.payee ? `<span class="t-payee">${esc(x.payee)}</span>` : ''}</div></div></td>
+      <td><div class="t-desc"><span class="t-ico">${icon(CAT_ICON[x.category] || 'ellipsis', 'i-sm')}</span><div>${esc(x.description)}${x.taskId ? '<span class="tag task-tag">Programação</span>' : ''}${x.receiptId ? `<button class="clip" data-receipt="${x.receiptId}" data-rtx="${x.id}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip')}</button>` : ''}${x.payee ? `<span class="t-payee">${esc(x.payee)}</span>` : ''}</div></div></td>
       <td>${esc(x.category)}</td>
       <td class="t-muted">${esc(accName(x.account))}</td>
       <td class="t-muted num">${shortDate(x.date)}${x.time ? ` · ${x.time}` : ''}</td>
@@ -463,20 +506,32 @@
   const addDays = (d, n) => { const x = new Date(d + 'T12:00'); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
   const currentMonth = () => ym(todayISO());
   const OPEN = ['atrasada', 'hoje', 'aberta'];
-  const STATUS_LABEL = { atrasada: 'Atrasada', hoje: 'Vence hoje', aberta: 'Em aberto', futura: 'Programada', paga: 'Paga', dispensada: 'Dispensada' };
-  const GROUP_LABEL = { atrasada: 'Atrasadas', hoje: 'Vencem hoje', aberta: 'Em aberto', futura: 'Programadas', paga: 'Pagas', dispensada: 'Dispensadas' };
-  const ORDER = ['atrasada', 'hoje', 'aberta', 'futura', 'paga', 'dispensada'];
+  const STATUS_LABEL = {
+    atrasada: 'Atrasada', hoje: 'Vence hoje', aberta: 'Em aberto', futura: 'Programada',
+    paga: 'Paga', cobrada: 'Cobrada', concluida: 'Concluída', dispensada: 'Dispensada',
+  };
+  const GROUP_LABEL = {
+    atrasada: 'Atrasadas', hoje: 'Vencem hoje', aberta: 'Em aberto', futura: 'Programadas',
+    paga: 'Pagas', cobrada: 'Cobradas', concluida: 'Concluídas', dispensada: 'Dispensadas',
+  };
+  const ORDER = ['atrasada', 'hoje', 'aberta', 'futura', 'paga', 'cobrada', 'concluida', 'dispensada'];
+  const DONE_STATUSES = ['paga', 'cobrada', 'concluida', 'dispensada'];
 
   const taskById = id => state.tasks.find(t => t.id === id);
   const doneOf = (taskId, k) => state.taskDone.find(d => d.taskId === taskId && d.period === k);
 
+  /** Normaliza para YYYY-MM (evita "2026-11" < "2026-11-01" excluir o mês atual). */
+  const asMonth = v => (typeof v === 'string' && v.length >= 7 ? v.slice(0, 7) : null);
+
   function occursIn(t, k) {
     const r = t.rec || {};
-    if (r.type === 'once') return ym(r.dateTo || r.dateFrom || '') === k;
-    if (t.start && k < t.start) return false;
-    if (t.end && k > t.end) return false;
+    const start = asMonth(t.start);
+    const end = asMonth(t.end);
+    if (r.type === 'once') return asMonth(r.dateTo || r.dateFrom || '') === k;
+    if (start && k < start) return false;
+    if (end && k > end) return false;
     if (r.type === 'yearly') return +k.slice(5) === +r.month;
-    return monthDiff(t.start || k, k) % (r.every || 1) === 0;
+    return monthDiff(start || k, k) % (r.every || 1) === 0;
   }
 
   function occurrence(t, k) {
@@ -548,43 +603,149 @@
     return '';
   }
 
+  function dueActionWord(kind) {
+    return kind === 'cobranca' ? 'cobrança' : kind === 'documentacao' ? 'conclusão' : 'pagamento';
+  }
+
+  /** Cabeçalho: faltam X dias para o pagamento/cobrança… */
+  function dueHeadline(o) {
+    const kind = taskKind(o.task);
+    const word = dueActionWord(kind);
+    const today = todayISO();
+    if (o.status === 'atrasada') {
+      const n = daysBetween(o.to, today);
+      return `Atrasada há ${n} dia${n === 1 ? '' : 's'} — ${word} de “${o.task.title}”`;
+    }
+    if (o.status === 'hoje') return `Vence hoje — ${word} de “${o.task.title}”`;
+    if (o.status === 'aberta') {
+      const n = daysBetween(today, o.to);
+      if (n === 0) return `Vence hoje — ${word} de “${o.task.title}”`;
+      return `Faltam ${n} dia${n === 1 ? '' : 's'} para o ${word} de “${o.task.title}”`;
+    }
+    if (o.status === 'futura') {
+      const n = daysBetween(today, o.from);
+      return `Em ${n} dia${n === 1 ? '' : 's'} abre o prazo do ${word} de “${o.task.title}”`;
+    }
+    return '';
+  }
+
+  function lastPaidAmount(taskId) {
+    const list = state.taskDone
+      .filter(d => d.taskId === taskId && (d.status === 'paga' || d.status === 'cobrada') && d.amount != null)
+      .sort((a, b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`));
+    return list[0]?.amount ?? null;
+  }
+
+  function taskValorLabel(t) {
+    const kind = taskKind(t);
+    if (kind === 'documentacao') return '<span class="tag rec">Sem valor</span>';
+    if (t.expected == null) {
+      const last = lastPaidAmount(t.id);
+      return last != null
+        ? `<span class="tag var">Variável</span> <span class="t-muted">último ${money(last)}</span>`
+        : '<span class="tag var">Variável</span>';
+    }
+    return `<span class="num">${money(t.expected)}</span>`;
+  }
+
+  function taskMatchesFilters(t) {
+    const q = ($('#tq')?.value || '').trim().toLowerCase();
+    const fk = $('#tfKind')?.value || 'all';
+    const fv = $('#tfValor')?.value || 'all';
+    const kind = taskKind(t);
+    if (fk !== 'all' && kind !== fk) return false;
+    if (fv === 'fixo' && (kind === 'documentacao' || t.expected == null)) return false;
+    if (fv === 'variavel' && (kind === 'documentacao' || t.expected != null)) return false;
+    if (fv === 'sem' && kind !== 'documentacao') return false;
+    if (q) {
+      const blob = `${t.title} ${t.payee || ''} ${t.chargeTo || ''} ${t.docOwner || ''} ${t.category || ''} ${accName(t.account) || ''} ${KIND_LABEL[kind]}`.toLowerCase();
+      if (!blob.includes(q)) return false;
+    }
+    return true;
+  }
+
+  function occMatchesFilters(o) {
+    return taskMatchesFilters(o.task);
+  }
+
+  function renderDueBanner() {
+    const el = $('#taskDueBanner');
+    if (!el) return;
+    const list = [...pendingNow(), ...upcoming(7)]
+      .filter((o, i, arr) => arr.findIndex(x => x.key === o.key) === i)
+      .filter(o => OPEN.includes(o.status) || o.status === 'futura')
+      .sort((a, b) => a.to.localeCompare(b.to) || a.from.localeCompare(b.from))
+      .slice(0, 4);
+    if (!list.length) { el.hidden = true; el.innerHTML = ''; return; }
+    el.hidden = false;
+    el.innerHTML = list.map(o => {
+      const kind = taskKind(o.task);
+      const urgent = o.status === 'atrasada' || o.status === 'hoje';
+      const soon = o.status === 'aberta' && daysBetween(todayISO(), o.to) <= 3;
+      const cls = urgent ? 'due-banner is-late' : soon ? 'due-banner is-soon' : 'due-banner';
+      const valor = kind === 'documentacao' ? ''
+        : o.task.expected != null ? money(o.task.expected)
+        : (lastPaidAmount(o.task.id) != null ? `≈ último ${money(lastPaidAmount(o.task.id))}` : 'valor variável');
+      return `<div class="${cls}">
+        <div class="due-banner-main">
+          <strong>${esc(dueHeadline(o))}</strong>
+          <span class="due-banner-meta">${esc(KIND_LABEL[kind])}${valor ? ` · ${valor}` : ''} · ${windowLabel(o)}</span>
+        </div>
+        <div class="due-banner-actions">${launchBtn(o)}</div>
+      </div>`;
+    }).join('');
+  }
+
   const statusTag = s => `<span class="tag st-${s}">${STATUS_LABEL[s]}</span>`;
   const payeeIcon = () => icon('user-round');
 
   function taskRow(o) {
-    const t = o.task, d = o.done;
-    const val = d && d.status === 'paga' ? d.amount : t.expected;
-    const valNote = d && d.status === 'paga' ? 'pago' : t.expected != null ? 'previsto' : 'valor variável';
+    const t = o.task, d = o.done, kind = taskKind(t);
+    const moneyDone = d && (d.status === 'paga' || d.status === 'cobrada');
+    const val = moneyDone ? d.amount : t.expected;
+    const valNote = d?.status === 'paga' ? 'pago'
+      : d?.status === 'cobrada' ? 'cobrado'
+      : d?.status === 'concluida' ? 'concluído'
+      : kind === 'documentacao' ? 'sem valor'
+      : t.expected != null ? 'previsto' : 'valor variável';
     let info = '';
     if (d && d.status === 'paga') {
       info = `<div class="task-done-info">${icon('check')}Pago por ${esc(d.by || '—')} em ${fullDate(d.date)}${d.time ? ` às ${d.time}` : ''} · ${esc(accName(d.account))}${d.payee && d.payee !== t.payee ? ` · recebido por ${esc(d.payee)}` : ''}</div>`;
+    } else if (d && d.status === 'cobrada') {
+      info = `<div class="task-done-info">${icon('check')}Cobrado de ${esc(d.payee || t.chargeTo || '—')} por ${esc(d.by || '—')} em ${fullDate(d.date)}${d.time ? ` às ${d.time}` : ''} · ${esc(accName(d.account))}</div>`;
+    } else if (d && d.status === 'concluida') {
+      info = `<div class="task-done-info">${icon('check')}Concluído por ${esc(d.by || '—')}${d.date ? ` em ${fullDate(d.date)}` : ''}${d.note ? ` · ${esc(d.note)}` : ''}</div>`;
     } else if (d && d.status === 'dispensada') {
       info = `<div class="task-done-info" style="color:var(--muted)">${icon('ban')}Dispensada${d.by ? ` por ${esc(d.by)}` : ''}${d.date ? ` em ${fullDate(d.date)}` : ''}</div>`;
     }
     let actions = '';
     if (!d) {
-      actions += `<button class="btn btn-sm btn-pay" data-pay="${o.key}">${icon('check', 'i-sm')}Dar baixa</button>`;
+      actions += launchBtn(o);
       if (isAdmin) actions += `<button class="icon-btn" data-skip="${o.key}" title="Dispensar neste mês" aria-label="Dispensar neste mês">${icon('ban', 'i-sm')}</button>`;
-    } else if (d.status === 'paga') {
+    } else if (d.status === 'paga' || d.status === 'cobrada') {
       if (d.receiptId) actions += `<button class="btn btn-sm" data-receipt="${d.receiptId}" data-rtx="${d.txId}">${icon('paperclip', 'i-sm')}Comprovante</button>`;
-      if (isAdmin) actions += `<button class="icon-btn danger" data-undo="${o.key}" title="Desfazer baixa" aria-label="Desfazer baixa">${icon('undo-2', 'i-sm')}</button>`;
+      if (isAdmin) actions += `<button class="icon-btn danger" data-undo="${o.key}" title="Desfazer" aria-label="Desfazer">${icon('undo-2', 'i-sm')}</button>`;
     } else if (isAdmin) {
-      actions += `<button class="icon-btn" data-undo="${o.key}" title="Voltar a cobrar" aria-label="Voltar a cobrar">${icon('undo-2', 'i-sm')}</button>`;
+      actions += `<button class="icon-btn" data-undo="${o.key}" title="Reabrir" aria-label="Reabrir">${icon('undo-2', 'i-sm')}</button>`;
     }
-    if (isAdmin) actions += `<button class="icon-btn" data-edit-task="${t.id}" title="Editar tarefa" aria-label="Editar tarefa">${icon('pencil-line', 'i-sm')}</button>`;
+    if (isAdmin) actions += `<button class="icon-btn" data-edit-task="${t.id}" title="Editar" aria-label="Editar">${icon('pencil-line', 'i-sm')}</button>`;
     const prevMonthTag = o.period !== period && OPEN.includes(o.status) ? `<span class="tag rec">${monthLabel(o.period)}</span>` : '';
+    const kindTag = `<span class="tag rec">${KIND_LABEL[kind]}</span>`;
+    const hideValue = kind === 'documentacao' && !moneyDone;
     return `<div class="task st-${o.status}">
-      <div class="task-ico">${icon(CAT_ICON[t.category] || 'list-checks')}</div>
+      <div class="task-ico">${icon(kind === 'documentacao' ? 'briefcase' : kind === 'cobranca' ? 'circle-dollar-sign' : (CAT_ICON[t.category] || 'list-checks'))}</div>
       <div class="task-main">
-        <div class="task-title">${esc(t.title)} ${statusTag(o.status)}<span class="tag rec">${icon('repeat')}${recLabel(t)}</span>${prevMonthTag}</div>
+        <div class="task-title">${esc(t.title)} ${statusTag(o.status)}${kindTag}<span class="tag rec">${icon('repeat')}${recLabel(t)}</span>${prevMonthTag}</div>
         <div class="task-sub">
-          <span>${payeeIcon(t)}${esc(t.payee || '—')}</span>
+          ${kind === 'pagamento' ? `<span>${payeeIcon(t)}${esc(t.payee || '—')}</span>` : ''}
+          ${kind === 'cobranca' ? `<span>${payeeIcon(t)}${esc(t.chargeTo || '—')}</span>` : ''}
+          ${kind === 'documentacao' && t.docOwner ? `<span>${payeeIcon(t)}${esc(t.docOwner)}</span>` : ''}
           <span>${icon('calendar-clock')}${windowLabel(o)}${d ? '' : ` · ${dueText(o)}`}</span>
-          ${t.account && !d ? `<span>${icon('landmark')}${esc(accName(t.account))}</span>` : ''}
+          ${t.account && !d && kind !== 'documentacao' ? `<span>${icon('landmark')}${esc(accName(t.account))}</span>` : ''}
         </div>
         ${info}
       </div>
-      <div class="task-value"><strong class="num">${val != null ? money(val) : '—'}</strong><small>${valNote}</small></div>
+      <div class="task-value">${hideValue ? '<strong>—</strong><small>documentação</small>' : `<strong class="num">${val != null ? money(val) : '—'}</strong><small>${valNote}</small>`}</div>
       <div class="task-actions">${actions}</div>
     </div>`;
   }
@@ -600,52 +761,167 @@
     return out.join('');
   }
 
+  function taskIssuer(t) {
+    return t?.createdByName || (t?.createdBy && !/^[0-9a-f-]{20,}$/i.test(t.createdBy) ? t.createdBy : '') || '—';
+  }
+
+  function taskTarget(t) {
+    const kind = taskKind(t);
+    if (kind === 'cobranca') return t.chargeTo || '—';
+    if (kind === 'documentacao') return t.docOwner || '—';
+    return t.payee || '—';
+  }
+
+  function launchBtn(o) {
+    if (!o || o.done) return '';
+    const cur = currentMonth();
+    // Pagou o mês atual → some o botão até o próximo mês chegar.
+    if (o.period > cur && occursIn(o.task, cur) && doneOf(o.task.id, cur)) return '';
+    const kind = taskKind(o.task);
+    if (kind === 'documentacao') {
+      return `<button type="button" class="btn btn-sm btn-action btn-doc" data-pay="${o.key}" data-pay-mode="documentacao">${icon('briefcase', 'i-sm')}Concluir</button>`;
+    }
+    if (kind === 'cobranca') {
+      return `<button type="button" class="btn btn-sm btn-action btn-charge" data-pay="${o.key}" data-pay-mode="cobranca">${icon('circle-dollar-sign', 'i-sm')}Cobrar</button>`;
+    }
+    return `<button type="button" class="btn btn-sm btn-action btn-pay" data-pay="${o.key}" data-pay-mode="pagamento">${icon('check', 'i-sm')}Pagar</button>`;
+  }
+
+  function nextPrazoLabel(t, nd) {
+    if (t.paused) return '<span class="tag paused">Pausada</span>';
+    if (!nd) {
+      const cur = doneOf(t.id, currentMonth());
+      if (cur && (t.rec?.type === 'once' || !occursIn(t, addMonths(currentMonth(), 1)))) {
+        return `<span class="tag st-paga">Concluída</span>`;
+      }
+      return '—';
+    }
+    const cur = currentMonth();
+    if (nd.period > cur && occursIn(t, cur) && doneOf(t.id, cur)) {
+      return `<span class="t-muted">Volta em ${monthLabel(nd.period)}</span>`;
+    }
+    const paidNote = doneOf(t.id, cur) && nd.period !== cur
+      ? `<span class="tag st-paga">Ok neste mês</span> · `
+      : '';
+    return `${paidNote}${fullDate(nd.to)} ${statusTag(nd.status)}<div class="sheet-due">${esc(dueText(nd))}</div>`;
+  }
+
   function modelsTable() {
-    if (!state.tasks.length) return `<div class="task-empty">${icon('list-checks')}Nenhuma tarefa cadastrada. Clique em “Nova tarefa”.</div>`;
-    const rows = state.tasks.slice().sort((a, b) => a.title.localeCompare(b.title, 'pt-BR')).map(t => {
+    const tasks = state.tasks.filter(taskMatchesFilters).sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
+    if (!state.tasks.length) return `<div class="task-empty">${icon('list-checks')}Nenhuma programação cadastrada. Clique em “Nova programação”.</div>`;
+    if (!tasks.length) return `<div class="task-empty">${icon('search')}Nenhuma programação com esses filtros.</div>`;
+    const rows = tasks.map(t => {
       const r = t.rec || {};
       const nd = t.paused ? null : nextDue(t);
+      const kind = taskKind(t);
       const when = r.type === 'once' ? `${fullDate(r.dateFrom || r.dateTo)} a ${fullDate(r.dateTo)}`
         : r.dayFrom === r.dayTo ? `dia ${r.dayFrom}` : `dias ${r.dayFrom}–${r.dayTo}`;
+      const admin = isAdmin ? `
+        <button class="icon-btn" data-edit-task="${t.id}" title="Editar" aria-label="Editar">${icon('pencil-line', 'i-sm')}</button>
+        <button class="icon-btn" data-pause-task="${t.id}" title="${t.paused ? 'Retomar' : 'Pausar'}" aria-label="${t.paused ? 'Retomar' : 'Pausar'}">${icon(t.paused ? 'play' : 'pause', 'i-sm')}</button>
+        <button class="icon-btn danger" data-del-task="${t.id}" title="Excluir" aria-label="Excluir">${icon('trash-2', 'i-sm')}</button>` : '';
       return `<tr>
-        <td><div class="t-desc"><span class="t-ico">${icon(CAT_ICON[t.category] || 'list-checks', 'i-sm')}</span><div>${esc(t.title)}<span class="t-payee">${esc(t.payee)}</span></div></div></td>
-        <td><span class="tag rec">${icon('repeat')}${recLabel(t)}</span></td>
-        <td class="t-muted">${when}</td>
-        <td class="t-right num amount">${t.expected != null ? money(t.expected) : '<span class="t-muted">variável</span>'}</td>
-        <td class="t-muted">${t.paused ? '<span class="tag paused">Pausada</span>' : nd ? `${fullDate(nd.to)} ${statusTag(nd.status)}` : '—'}</td>
-        <td class="t-right" style="white-space:nowrap">
-          <button class="icon-btn" data-edit-task="${t.id}" title="Editar" aria-label="Editar">${icon('pencil-line', 'i-sm')}</button>
-          <button class="icon-btn" data-pause-task="${t.id}" title="${t.paused ? 'Retomar' : 'Pausar'}" aria-label="${t.paused ? 'Retomar' : 'Pausar'}">${icon(t.paused ? 'play' : 'pause', 'i-sm')}</button>
-          <button class="icon-btn danger" data-del-task="${t.id}" title="Excluir" aria-label="Excluir">${icon('trash-2', 'i-sm')}</button>
-        </td></tr>`;
+        <td class="sheet-cell">${esc(KIND_LABEL[kind])}</td>
+        <td class="sheet-cell sheet-title">${esc(t.title)}</td>
+        <td class="sheet-cell">${esc(taskTarget(t))}</td>
+        <td class="sheet-cell t-right">${taskValorLabel(t)}</td>
+        <td class="sheet-cell">${recLabel(t)}</td>
+        <td class="sheet-cell t-muted">${when}</td>
+        <td class="sheet-cell">${nextPrazoLabel(t, nd)}</td>
+        <td class="sheet-cell">${esc(taskIssuer(t))}</td>
+        <td class="sheet-cell"><div class="sheet-actions">${launchBtn(nd)}${admin}</div></td>
+      </tr>`;
     }).join('');
-    return `<div class="table-wrap"><table><thead><tr><th>Tarefa</th><th>Frequência</th><th>Quando</th><th class="t-right">Valor</th><th>Próximo vencimento</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return `<div class="table-wrap sheet-wrap"><table class="sheet">
+      <thead><tr>
+        <th>Tipo</th><th>Título</th><th>Para / de</th><th class="t-right">Valor</th>
+        <th>Frequência</th><th>Quando</th><th>Próximo prazo</th><th>Emitido por</th><th>Ação</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+  }
+
+  function occurrencesSheet(list, emptyMsg) {
+    const filtered = list.filter(occMatchesFilters);
+    if (!list.length) return `<div class="task-empty">${icon('check')}${emptyMsg}</div>`;
+    if (!filtered.length) return `<div class="task-empty">${icon('search')}Nada com esses filtros.</div>`;
+    const rows = filtered.map(o => {
+      const t = o.task, d = o.done, kind = taskKind(t);
+      let valor;
+      if (d && (d.status === 'paga' || d.status === 'cobrada') && d.amount != null) valor = `<span class="num">${money(d.amount)}</span>`;
+      else if (kind === 'documentacao') valor = '<span class="tag rec">Sem valor</span>';
+      else if (t.expected != null) valor = `<span class="num">${money(t.expected)}</span>`;
+      else {
+        const last = lastPaidAmount(t.id);
+        valor = last != null
+          ? `<span class="tag var">Variável</span> <span class="t-muted">último ${money(last)}</span>`
+          : '<span class="tag var">Variável</span>';
+      }
+      let action = launchBtn(o);
+      if (d && (d.status === 'paga' || d.status === 'cobrada') && d.receiptId) {
+        action += `<button class="btn btn-sm" data-receipt="${d.receiptId}" data-rtx="${d.txId}">${icon('paperclip', 'i-sm')}</button>`;
+      }
+      if (d && isAdmin) {
+        action += `<button class="icon-btn" data-undo="${o.key}" title="Desfazer" aria-label="Desfazer">${icon('undo-2', 'i-sm')}</button>`;
+      }
+      if (!d && isAdmin) {
+        action += `<button class="icon-btn" data-skip="${o.key}" title="Dispensar" aria-label="Dispensar">${icon('ban', 'i-sm')}</button>`;
+      }
+      return `<tr>
+        <td class="sheet-cell">${esc(KIND_LABEL[kind])}</td>
+        <td class="sheet-cell sheet-title">${esc(t.title)}</td>
+        <td class="sheet-cell">${esc(taskTarget(t))}</td>
+        <td class="sheet-cell t-right">${valor}</td>
+        <td class="sheet-cell">${statusTag(o.status)}</td>
+        <td class="sheet-cell">${windowLabel(o)}<div class="sheet-due">${esc(dueText(o))}</div></td>
+        <td class="sheet-cell t-muted">${monthLabel(o.period)}</td>
+        <td class="sheet-cell">${esc(taskIssuer(t))}</td>
+        <td class="sheet-cell"><div class="sheet-actions">${action}</div></td>
+      </tr>`;
+    }).join('');
+    return `<div class="table-wrap sheet-wrap"><table class="sheet">
+      <thead><tr>
+        <th>Tipo</th><th>Título</th><th>Para / de</th><th class="t-right">Valor</th>
+        <th>Status</th><th>Prazo</th><th>Mês</th><th>Emitido por</th><th>Ação</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+  }
+
+  /** Todas as baixas/conclusões já registradas (sem filtrar por mês). */
+  function allDoneOccurrences() {
+    return state.taskDone
+      .map(d => {
+        const t = taskById(d.taskId);
+        return t ? occurrence(t, d.period) : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => (b.done?.date || b.to || '').localeCompare(a.done?.date || a.to || ''));
   }
 
   function renderTasks() {
-    const k = period;
-    const carry = k === currentMonth() ? overdueBefore(k) : [];
-    const occs = [...carry, ...occurrencesIn(k)];
-    const late = occs.filter(o => o.status === 'atrasada');
-    const open = occs.filter(o => o.status === 'hoje' || o.status === 'aberta');
-    const soon = k === currentMonth() ? upcoming(7) : [];
-    const paid = occs.filter(o => o.status === 'paga');
-    const exp = l => l.reduce((s, o) => s + (o.task.expected || 0), 0);
+    const pending = pendingNow();
+    const late = pending.filter(o => o.status === 'atrasada');
+    const open = pending.filter(o => o.status === 'hoje' || o.status === 'aberta');
+    const soon = upcoming(7);
+    const done = allDoneOccurrences();
+    const vars = state.tasks.filter(t => taskKind(t) !== 'documentacao' && t.expected == null).length;
+    const exp = l => l.reduce((s, o) => s + (taskKind(o.task) === 'documentacao' ? 0 : (o.task.expected || 0)), 0);
     $('#taskKpis').innerHTML = `
       <div class="kpi"><div class="kpi-label">Atrasadas</div><div class="kpi-value num ${late.length ? 'delta-neg' : ''}">${late.length}</div><div class="kpi-foot">${late.length ? `${money(exp(late))} previstos` : 'nada atrasado'}</div></div>
       <div class="kpi"><div class="kpi-label">Em aberto</div><div class="kpi-value num">${open.length}</div><div class="kpi-foot">${open.filter(o => o.status === 'hoje').length} vence(m) hoje</div></div>
       <div class="kpi"><div class="kpi-label">Próximos 7 dias</div><div class="kpi-value num">${soon.length}</div><div class="kpi-foot">${soon.length ? `${money(exp(soon))} previstos` : '&nbsp;'}</div></div>
-      <div class="kpi"><div class="kpi-label">Pagas em ${monthLabel(k).split(' ')[0].toLowerCase()}</div><div class="kpi-value num delta-pos">${paid.length}</div><div class="kpi-foot num">${money(paid.reduce((s, o) => s + (o.done.amount || 0), 0))}</div></div>`;
+      <div class="kpi"><div class="kpi-label">Cadastradas</div><div class="kpi-value num">${state.tasks.length}</div><div class="kpi-foot">${vars ? `${vars} com valor variável` : `${done.length} já concluída${done.length === 1 ? '' : 's'}`}</div></div>`;
 
-    if (taskTab === 'models' && !isAdmin) taskTab = 'pending';
+    renderDueBanner();
     $$('#taskTabs button').forEach(b => b.classList.toggle('on', b.dataset.ttab === taskTab));
     let html;
-    if (taskTab === 'models') html = modelsTable();
-    else {
-      const filter = { pending: o => !o.done, paid: o => !!o.done, all: () => true }[taskTab];
-      const list = occs.filter(filter);
-      html = list.length ? `<div class="task-list">${groupedRows(list)}</div>`
-        : `<div class="task-empty">${icon('check')}${taskTab === 'pending' ? 'Nenhum pagamento pendente neste mês.' : taskTab === 'paid' ? 'Nenhuma tarefa paga neste mês ainda.' : 'Nenhuma tarefa neste mês.'}</div>`;
+    if (taskTab === 'pending') {
+      html = occurrencesSheet(pending, 'Nenhuma pendência.');
+    } else if (taskTab === 'paid') {
+      html = occurrencesSheet(done, 'Nada concluído ainda.');
+    } else {
+      html = modelsTable();
     }
     $('#taskBody').innerHTML = html;
   }
@@ -656,7 +932,7 @@
     $('#pendingMeta').textContent = list.length ? `${late} atrasada${late === 1 ? '' : 's'} · ${list.length - late} em aberto` : 'Tudo em dia';
     $('#pendingList').innerHTML = list.length
       ? groupedRows(list.slice(0, 5)) + (list.length > 5 ? `<div class="task-empty" style="padding:12px"><button class="link" data-go="tasks">Ver mais ${list.length - 5}</button></div>` : '')
-      : `<div class="task-empty">${icon('check')}Nenhum pagamento pendente. Tudo em dia.</div>`;
+      : `<div class="task-empty">${icon('check')}Nenhuma pendência. Tudo em dia.</div>`;
     $$('[data-task-badge]').forEach(b => {
       b.hidden = !list.length;
       b.textContent = list.length;
@@ -669,80 +945,212 @@
     $('#taskEditorNote').hidden = isAdmin || !embedded;
   }
 
-  /* ---------- Formulário de tarefa (admin) ---------- */
+  /* ---------- Formulário de programação (admin) ---------- */
   function taskFormType() { return $('input[name="tkType"]:checked').value; }
+  function taskFormKind() {
+    const v = $('#tkKind')?.value;
+    return v === 'documentacao' || v === 'cobranca' ? v : 'pagamento';
+  }
+  const TK_FIELDS = {
+    pagamento: {
+      title: 'O que precisa ser pago',
+      titlePh: 'Ex.: Netflix, Aluguel, Conta de luz',
+      person: 'Quem recebe',
+      personPh: 'Nome de quem recebe o pagamento',
+      day: 'Dia do pagamento',
+      onceFrom: 'Pagar a partir de',
+      onceTo: 'Até (vencimento)',
+      notes: 'Instruções para quem vai pagar',
+    },
+    documentacao: {
+      title: 'Qual documento ou pendência precisa ser resolvido?',
+      titlePh: 'Ex.: Renovação de certificado digital',
+      person: 'Responsável por resolver',
+      personPh: 'Nome da pessoa responsável',
+      day: 'Prazo da documentação',
+      onceFrom: 'Resolver a partir de',
+      onceTo: 'Até (prazo final)',
+      notes: 'Detalhes da documentação',
+    },
+    cobranca: {
+      title: 'O que será cobrado?',
+      titlePh: 'Ex.: Serviço prestado, Aluguel, Empréstimo',
+      person: 'Quem será cobrado',
+      personPh: 'Nome da pessoa ou empresa devedora',
+      day: 'Dia da cobrança',
+      onceFrom: 'Cobrar a partir de',
+      onceTo: 'Até (vencimento)',
+      notes: 'Instruções da cobrança',
+    },
+  };
+
   function updateTaskForm() {
-    const type = taskFormType(), freq = $('#tkFreq').value;
-    $$('[data-tk="rec"]').forEach(el => { el.hidden = type !== 'rec'; });
-    $$('[data-tk="once"]').forEach(el => { el.hidden = type !== 'once'; });
-    $$('[data-tk="year"]').forEach(el => { el.hidden = !(type === 'rec' && freq === 'y'); });
+    const kind = taskFormKind();
+    const isDoc = kind === 'documentacao';
+    // Documentação: sempre prazo único (sem Recorrente / Uma vez)
+    if (isDoc) $('#tkTypeO').checked = true;
+    const type = isDoc ? 'once' : taskFormType();
+    const freq = $('#tkFreq').value;
+    const f = TK_FIELDS[kind];
+
+    $$('[data-tk-kind]').forEach(el => {
+      const allowed = (el.getAttribute('data-tk-kind') || '').split(/\s+/);
+      el.hidden = !allowed.includes(kind);
+    });
+    $$('[data-tk-when]').forEach(el => { el.hidden = isDoc; });
+    $$('[data-tk="rec"]').forEach(el => { el.hidden = isDoc || type !== 'rec'; });
+    $$('[data-tk="once"]').forEach(el => { el.hidden = !(isDoc || type === 'once'); });
+    $$('[data-tk="year"]').forEach(el => { el.hidden = isDoc || !(type === 'rec' && freq === 'y'); });
+
     const fixedDay = $('input[name="tkDayMode"]:checked').value === 'fixed';
     $$('[data-range-part]').forEach(el => { el.hidden = fixedDay; });
     $('#tkDayFrom').setAttribute('aria-label', fixedDay ? 'Dia fixo' : 'Do dia');
-    const varies = $('#tkVaries').checked;
-    $('#tkAmount').disabled = varies;
-    $('#tkAmount').required = !varies;
-    if (varies) $('#tkAmount').value = '';
-    // Resumo
-    const payee = $('#tkPayee').value.trim();
-    const amt = moneyVal('#tkAmount');
-    let txt;
-    if (type === 'once') {
-      const a = $('#tkDateFrom').value, b = $('#tkDateTo').value;
-      txt = b ? `Pagamento único${a && a !== b ? `, entre ${fullDate(a)} e ${fullDate(b)}` : `, até ${fullDate(b)}`}.` : 'Pagamento único: informe a data de vencimento.';
-    } else {
+
+    $('#tkNameLabel').textContent = f.title;
+    $('#tkName').placeholder = f.titlePh;
+    $('#tkPersonLabel').textContent = f.person;
+    $('#tkPerson').placeholder = isDoc
+      ? 'Escolha quem está logado ou digite outro nome'
+      : f.personPh;
+    $('#tkPerson').required = true;
+    // Documentação: lista de pessoas (inclui logado). Pagamento/Cobrança: recebedores.
+    $('#tkPerson').setAttribute('list', isDoc ? 'peopleList' : 'payeeList');
+    $('#tkPersonHint').hidden = !isDoc;
+    $('#tkDayLabel').textContent = f.day;
+    $('#tkDateFromLabel').textContent = f.onceFrom;
+    $('#tkDateToLabel').textContent = f.onceTo;
+    $('#tkNotesLabel').innerHTML = `${f.notes} <span class="opt">(opcional)</span>`;
+
+    const varies = kind === 'pagamento' && $('#tkVaries').checked;
+    if ($('#tkAmount')) {
+      $('#tkAmount').disabled = varies;
+      $('#tkAmount').required = kind === 'pagamento' && !varies;
+      if (varies) $('#tkAmount').value = '';
+    }
+    if ($('#tkChargeAmount')) $('#tkChargeAmount').required = kind === 'cobranca';
+    if ($('#tkDocCreated') && !$('#tkDocCreated').value) $('#tkDocCreated').value = todayISO();
+
+    const person = $('#tkPerson')?.value.trim() || '';
+    const subject = $('#tkName')?.value.trim() || KIND_LABEL[kind];
+    const amt = kind === 'cobranca' ? moneyVal('#tkChargeAmount') : moneyVal('#tkAmount');
+    let timing = '';
+    if (!isDoc && type === 'rec') {
       const fixed = $('input[name="tkDayMode"]:checked').value === 'fixed';
       const df = +$('#tkDayFrom').value || 1, dt = fixed ? df : (+$('#tkDayTo').value || df);
       const freqTxt = { m1: 'todo mês', m2: 'a cada 2 meses', m3: 'a cada 3 meses', m6: 'a cada 6 meses', y: `todo ano em ${MONTHS_FULL[+$('#tkMonth').value - 1]?.toLowerCase()}` }[freq];
       const win = df === dt ? `no dia ${df}` : `entre os dias ${Math.min(df, dt)} e ${Math.max(df, dt)}`;
       const st = $('#tkStart').value, en = $('#tkEnd').value;
-      txt = `Aparece ${freqTxt}, para pagar ${win}${st ? `, a partir de ${monthLabel(st).toLowerCase()}` : ''}${en ? ` até ${monthLabel(en).toLowerCase()}` : ''}.`;
-      if (df > 28 || dt > 28) txt += ' Em meses mais curtos, vale o último dia do mês.';
+      timing = `${freqTxt}, ${win}${st ? `, a partir de ${monthLabel(st).toLowerCase()}` : ''}${en ? ` até ${monthLabel(en).toLowerCase()}` : ''}`;
+    } else {
+      const a = $('#tkDateFrom').value, b = $('#tkDateTo').value;
+      timing = a && b ? `de ${fullDate(a)} até ${fullDate(b)}` : b ? `até ${fullDate(b)}` : a ? `a partir de ${fullDate(a)}` : 'em data a definir';
     }
-    txt += amt > 0 && !varies ? ` Valor previsto: ${money(amt)}.` : ' O valor é informado na hora da baixa.';
-    if (payee) txt += ` Recebe: ${payee}.`;
+    let txt = '';
+    if (kind === 'pagamento') {
+      txt = `Pagamento: ${subject}${person ? ` para ${person}` : ''}. ${amt > 0 && !varies ? money(amt) : 'Valor não informado'}. Programado ${timing}.`;
+    } else if (kind === 'documentacao') {
+      const created = $('#tkDocCreated')?.value;
+      txt = `Documentação: ${subject}${person ? ` — responsável: ${person}` : ''}.${created ? ` Cadastrada em ${fullDate(created)}.` : ''} Resolver ${timing}. Sem valor financeiro.`;
+    } else {
+      txt = `Cobrança: ${subject}${person ? ` de ${person}` : ''}. ${amt > 0 ? money(amt) : 'Valor não informado'}. Programada ${timing}. O recebimento só será lançado quando confirmado.`;
+    }
     $('#tkSummary').innerHTML = `${icon('info', 'i-sm')}<span>${esc(txt)}</span>`;
+  }
+
+  /** Opções YYYY-MM com rótulo em português (ex.: Novembro 2026). */
+  function monthSelectOptions(selected, { allowEmpty = false, emptyLabel = 'Sem fim' } = {}) {
+    const now = currentMonth();
+    const keys = [];
+    for (let i = -24; i <= 60; i++) keys.push(addMonths(now, i));
+    if (selected && !keys.includes(selected)) keys.push(selected);
+    keys.sort();
+    const opts = keys.map(k => `<option value="${k}" ${k === selected ? 'selected' : ''}>${monthLabel(k)}</option>`).join('');
+    return allowEmpty
+      ? `<option value="">${emptyLabel}</option>${opts}`
+      : opts;
   }
 
   function fillTaskForm(id) {
     const t = id ? taskById(id) : null;
-    $('#tkTitle').textContent = t ? 'Editar tarefa' : 'Nova tarefa';
-    $('#tkSubmit').textContent = t ? 'Salvar alterações' : 'Criar tarefa';
+    $('#tkTitle').textContent = t ? 'Editar programação' : 'Nova programação';
+    $('#tkSubmit').textContent = t ? 'Salvar alterações' : 'Criar programação';
     $('#tkCat').innerHTML = CATEGORIES.expense.map(c => `<option>${c}</option>`).join('');
     $('#tkMonth').innerHTML = MONTHS_FULL.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
     const r = t?.rec || {};
+    const kind = taskKind(t) || 'pagamento';
     $('#tkId').value = t?.id || '';
+    $('#tkKind').value = kind;
     $('#tkName').value = t?.title || '';
-    $('#tkPayee').value = t?.payee || '';
+    const person = kind === 'documentacao'
+      ? (t?.docOwner || (!t ? (userName || '') : ''))
+      : kind === 'cobranca' ? (t?.chargeTo || t?.payee || '')
+      : (t?.payee || '');
+    $('#tkPerson').value = person;
     $('#tkCat').value = t?.category || 'Outros';
-    $('#tkAcc').value = t?.account || state.accounts[0]?.id || '';
-    $('#tkVaries').checked = !!t && t.expected == null;
-    setMoney('#tkAmount', t?.expected);
-    $(r.type === 'once' ? '#tkTypeO' : '#tkTypeR').checked = true;
+    $('#tkAcc').value = kind === 'pagamento' ? (t?.account || '') : '';
+    $('#tkVaries').checked = kind === 'pagamento' && !!t && t.expected == null;
+    setMoney('#tkAmount', kind === 'pagamento' ? t?.expected : null);
+    $('#tkDocCreated').value = (t?.createdAt && String(t.createdAt).slice(0, 10)) || todayISO();
+    setMoney('#tkChargeAmount', kind === 'cobranca' ? t?.expected : null);
+    $('#tkChargeAcc').value = kind === 'cobranca' ? (t?.account || '') : '';
+    $(kind === 'documentacao' || r.type === 'once' ? '#tkTypeO' : '#tkTypeR').checked = true;
     $('#tkFreq').value = r.type === 'yearly' ? 'y' : `m${[1, 2, 3, 6].includes(r.every) ? r.every : 1}`;
     $('#tkMonth').value = r.month || (+currentMonth().slice(5));
     $('#tkDayFrom').value = r.dayFrom || 10;
     $('#tkDayTo').value = r.dayTo || r.dayFrom || 15;
     $(t && r.type !== 'once' && r.dayFrom === r.dayTo ? '#tkDayFixed' : '#tkDayRange').checked = true;
-    $('#tkStart').value = t?.start || currentMonth();
-    $('#tkEnd').value = t?.end || '';
+    const start = t?.start || currentMonth();
+    const end = t?.end || '';
+    $('#tkStart').innerHTML = monthSelectOptions(start);
+    $('#tkEnd').innerHTML = monthSelectOptions(end, { allowEmpty: true, emptyLabel: 'Sem fim' });
+    $('#tkStart').value = start;
+    $('#tkEnd').value = end;
     $('#tkDateFrom').value = r.dateFrom || todayISO();
-    $('#tkDateTo').value = r.dateTo || addDays(todayISO(), 5);
+    $('#tkDateTo').value = r.dateTo || (kind === 'documentacao' ? '' : addDays(todayISO(), 5));
     $('#tkNotes').value = t?.notes || '';
     updateTaskForm();
   }
 
   function saveTaskForm() {
     if (!isAdmin) return;
-    const type = taskFormType(), freq = $('#tkFreq').value;
-    const varies = $('#tkVaries').checked;
-    const expected = varies ? null : Math.round(moneyVal('#tkAmount') * 100) / 100;
-    if (!varies && !(expected > 0)) { alert('Informe o valor previsto ou marque “Valor varia todo mês”.'); return; }
+    const kind = taskFormKind();
+    const isDoc = kind === 'documentacao';
+    const type = isDoc ? 'once' : taskFormType();
+    const freq = $('#tkFreq').value;
+    const person = $('#tkPerson').value.trim();
+    if (!$('#tkName').value.trim()) { alert('Preencha o título da programação.'); return; }
+    if (!person) { alert(`Informe ${TK_FIELDS[kind].person.toLowerCase()}.`); return; }
+
+    let expected = null;
+    let account = null;
+    let category = 'Outros';
+    let payee = '';
+    let chargeTo = '';
+    let docOwner = '';
+
+    if (kind === 'pagamento') {
+      const varies = $('#tkVaries').checked;
+      expected = varies ? null : Math.round(moneyVal('#tkAmount') * 100) / 100;
+      if (!varies && !(expected > 0)) {
+        alert('Informe o valor previsto ou marque “Valor varia todo mês”.');
+        return;
+      }
+      payee = person;
+      account = $('#tkAcc').value || null;
+      category = $('#tkCat').value || 'Outros';
+    } else if (kind === 'cobranca') {
+      expected = Math.round(moneyVal('#tkChargeAmount') * 100) / 100;
+      if (!(expected > 0)) { alert('Informe o valor a receber.'); return; }
+      chargeTo = person;
+      account = $('#tkChargeAcc').value || null;
+    } else {
+      docOwner = person;
+    }
+
     let rec, start;
     if (type === 'once') {
       let a = $('#tkDateFrom').value, b = $('#tkDateTo').value;
-      if (!b) { alert('Informe a data de vencimento.'); return; }
-      if (!a) a = b;
+      if (!a || !b) { alert('Informe datas válidas para o período.'); return; }
       if (a > b) [a, b] = [b, a];
       rec = { type: 'once', dateFrom: a, dateTo: b };
       start = ym(a);
@@ -758,51 +1166,107 @@
       if (end && end < start) { alert('“Termina em” não pode ser antes de “Começa em”.'); return; }
     }
     const data = {
+      kind,
       title: $('#tkName').value.trim(),
-      payee: $('#tkPayee').value.trim(),
+      payee,
       payeeKind: 'empresa',
-      category: $('#tkCat').value,
-      account: $('#tkAcc').value,
+      chargeTo,
+      docOwner,
+      category,
+      account,
       expected, rec, start,
       end: type === 'once' ? null : ($('#tkEnd').value || null),
       notes: $('#tkNotes').value.trim(),
     };
     const id = $('#tkId').value;
     if (id) Object.assign(taskById(id), data, { updatedAt: new Date().toISOString(), updatedBy: userName || 'Admin' });
-    else state.tasks.push({ id: uid(), ...data, paused: false, createdBy: userId || null, createdAt: new Date().toISOString() });
-    rememberPayee(data.payee);
+    else state.tasks.push({
+      id: uid(), ...data, paused: false,
+      createdBy: userId || null,
+      createdByName: userName || 'Admin',
+      createdAt: new Date().toISOString(),
+    });
+    if (data.payee) rememberPayee(data.payee);
+    if (data.chargeTo) rememberPayee(data.chargeTo);
+    if (data.docOwner) rememberPerson(data.docOwner);
     save(); closeModals(); refresh();
   }
 
-  /* ---------- Dar baixa ---------- */
-  function openPay(key) {
+  /* ---------- Lançar programação (pagamento / documentação / cobrança) ---------- */
+  function openPay(key, modeHint) {
     const [taskId, k] = key.split('|');
     const t = taskById(taskId);
     if (!t) return;
-    if (doneOf(taskId, k)) { alert('Esta tarefa já teve baixa neste mês.'); return; }
-    if (!state.accounts.length) { alert('Cadastre uma conta antes de dar baixa.'); return; }
+    if (doneOf(taskId, k)) { alert('Este item já foi lançado neste mês.'); return; }
+    const mode = modeHint || taskKind(t);
+    if (mode !== 'documentacao' && !state.accounts.length) {
+      alert(mode === 'cobranca' ? 'Cadastre uma conta antes de lançar a cobrança.' : 'Cadastre uma conta antes de dar baixa.');
+      return;
+    }
     const o = occurrence(t, k);
+    $('#pyMode').value = mode;
+    $('#pyTitle').textContent = mode === 'documentacao' ? 'Concluir documentação'
+      : mode === 'cobranca' ? 'Lançar cobrança' : 'Dar baixa no pagamento';
+    $('#pySubmit').innerHTML = `<svg class="i i-sm"><use href="#i-check"/></svg>${mode === 'documentacao' ? 'Concluir' : mode === 'cobranca' ? 'Confirmar cobrança' : 'Confirmar pagamento'}`;
+    $$('[data-py="pagamento"]').forEach(el => { el.hidden = mode !== 'pagamento'; });
+    $$('[data-py="cobranca"]').forEach(el => { el.hidden = mode !== 'cobranca'; });
+    $('#pyAmount').required = mode === 'pagamento';
+    $('#pyAcc').required = mode === 'pagamento';
+    $('#pyTime').required = mode === 'pagamento';
+    $('#pyPayee').required = mode === 'pagamento';
+    $('#pyChargeAmount').required = mode === 'cobranca';
+    $('#pyChargeAcc').required = mode === 'cobranca';
+    $('#pyChargeTime').required = mode === 'cobranca';
+    $('#pyChargeTo').required = mode === 'cobranca';
+    $('#pyDateLabel').textContent = mode === 'documentacao' ? 'Data da conclusão' : mode === 'cobranca' ? 'Data do recebimento' : 'Data do pagamento';
+    $('#pyByLabel').textContent = mode === 'documentacao' ? 'Concluído por' : mode === 'cobranca' ? 'Registrado por' : 'Pago por';
+    const who = mode === 'cobranca' ? (t.chargeTo || '—') : mode === 'documentacao' ? (t.docOwner || '') : (t.payee || '—');
+    const lastAmt = mode !== 'documentacao' && t.expected == null ? lastPaidAmount(t.id) : null;
+    const valorHint = mode === 'documentacao' ? ''
+      : t.expected != null ? `Previsto: <strong class="num">${money(t.expected)}</strong>`
+      : lastAmt != null ? `Valor variável · último pago: <strong class="num">${money(lastAmt)}</strong>`
+      : 'Valor variável — informe o valor deste mês';
     $('#payHead').innerHTML = `
-      <div class="pay-head-title">${esc(t.title)} ${statusTag(o.status)}<span class="tag rec">${icon('repeat')}${recLabel(t)}</span></div>
+      <div class="pay-head-title">${esc(t.title)} ${statusTag(o.status)}<span class="tag rec">${KIND_LABEL[mode]}</span><span class="tag rec">${icon('repeat')}${recLabel(t)}</span></div>
       <div class="pay-head-sub">
-        <span>${payeeIcon(t)}${esc(t.payee)}</span>
+        ${who ? `<span>${payeeIcon(t)}${esc(who)}</span>` : ''}
         <span>${icon('calendar-clock')}${windowLabel(o)} · ${dueText(o)}</span>
-        <span>${t.expected != null ? `Previsto: <strong class="num">${money(t.expected)}</strong>` : 'Valor variável'}</span>
+        ${valorHint ? `<span>${valorHint}</span>` : ''}
       </div>
+      ${dueHeadline(o) ? `<div class="pay-head-due">${esc(dueHeadline(o))}</div>` : ''}
       ${t.notes ? `<div class="pay-head-notes">${icon('info', 'i-sm')}<span>${esc(t.notes)}</span></div>` : ''}`;
     $('#pyTask').value = taskId;
     $('#pyPeriod').value = k;
-    setMoney('#pyAmount', t.expected);
-    $('#pyAcc').value = state.accounts.some(a => a.id === t.account) ? t.account : state.accounts[0].id;
+    // Fixo: sugere o previsto. Variável: deixa em branco (só mostra o último como referência).
+    setMoney('#pyAmount', mode === 'pagamento' ? t.expected : null);
+    setMoney('#pyChargeAmount', mode === 'cobranca' ? t.expected : null);
+    if (mode === 'pagamento' && t.expected == null) {
+      $('#pyAmount').placeholder = lastAmt != null ? `Último: ${money(lastAmt).replace('R$', '').trim()}` : '0,00';
+    }
+    if (mode === 'cobranca' && t.expected == null) {
+      $('#pyChargeAmount').placeholder = lastAmt != null ? `Último: ${money(lastAmt).replace('R$', '').trim()}` : '0,00';
+    }
+    if (state.accounts.length) {
+      const acc = state.accounts.some(a => a.id === t.account) ? t.account : state.accounts[0].id;
+      $('#pyAcc').value = acc;
+      $('#pyChargeAcc').value = acc;
+    }
     $('#pyDate').value = todayISO();
     $('#pyTime').value = nowTime();
+    $('#pyChargeTime').value = nowTime();
     $('#pyPayee').value = t.payee || '';
-    $('#pyBy').value = state.people[0] || userName || '';
+    $('#pyChargeTo').value = t.chargeTo || '';
+    $('#pyBy').value = userName || '';
     $('#pyNote').value = '';
-    uploads.pay.reset();
+    uploads.pay?.reset();
+    uploads.charge?.reset();
     lastFocus = document.activeElement;
     $('#modal-pay').classList.add('open');
-    setTimeout(() => $('#pyAmount').focus(), 20);
+    setTimeout(() => {
+      if (mode === 'cobranca') $('#pyChargeAmount').focus();
+      else if (mode === 'documentacao') $('#pyDate').focus();
+      else $('#pyAmount').focus();
+    }, 20);
   }
 
   let salvandoBaixa = false;
@@ -810,19 +1274,55 @@
     if (salvandoBaixa) return;
     const taskId = $('#pyTask').value, k = $('#pyPeriod').value, t = taskById(taskId);
     if (!t) return;
-    if (doneOf(taskId, k)) { alert('Esta tarefa já teve baixa neste mês.'); return; }
-    const amount = Math.round(moneyVal('#pyAmount') * 100) / 100;
-    if (!(amount > 0)) return;
+    if (doneOf(taskId, k)) { alert('Este item já foi lançado neste mês.'); return; }
+    const mode = $('#pyMode').value === 'documentacao' || $('#pyMode').value === 'cobranca' ? $('#pyMode').value : 'pagamento';
+    const by = (userName || '').trim();
+    const note = $('#pyNote').value.trim(), date = $('#pyDate').value;
+    $('#pyBy').value = by;
+    if (!by) { alert('Não foi possível identificar quem está logado. Recarregue a página.'); return; }
+    if (!date) { alert('Informe a data.'); return; }
+
+    if (mode === 'documentacao') {
+      state.taskDone.push({
+        id: uid(), taskId, period: k, status: 'concluida',
+        date, time: nowTime(), by, note,
+      });
+      rememberPerson(by);
+      save(); closeModals(); refresh();
+      return;
+    }
+
+    const isCharge = mode === 'cobranca';
+    const amount = Math.round(moneyVal(isCharge ? '#pyChargeAmount' : '#pyAmount') * 100) / 100;
+    if (!(amount > 0)) {
+      alert(isCharge ? 'Informe o valor recebido.' : 'Informe o valor pago.');
+      return;
+    }
+    const payee = (isCharge ? $('#pyChargeTo') : $('#pyPayee')).value.trim();
+    if (!payee) {
+      alert(isCharge ? 'Informe quem foi cobrado.' : 'Informe quem recebeu.');
+      return;
+    }
+    const account = (isCharge ? $('#pyChargeAcc') : $('#pyAcc')).value;
+    const time = (isCharge ? $('#pyChargeTime') : $('#pyTime')).value;
+    if (!account || !time) return;
+
     salvandoBaixa = true;
     try {
       let receiptId = null;
-      const file = uploads.pay.file;
+      const file = (isCharge ? uploads.charge : uploads.pay)?.file;
       const txId = uid();
       if (file) receiptId = await FPComprovantes.put(file, txId);
-      const date = $('#pyDate').value, time = $('#pyTime').value, account = $('#pyAcc').value;
-      const by = $('#pyBy').value.trim(), payee = $('#pyPayee').value.trim(), note = $('#pyNote').value.trim();
-      state.txs.push({ ...stamp_(), id: txId, date, time, amount, kind: 'expense', description: t.title, category: t.category, account, payee, by, taskId, period: k, receiptId, note });
-      state.taskDone.push({ id: uid(), taskId, period: k, status: 'paga', txId, amount, account, date, time, by, payee, receiptId, note });
+      const txKind = isCharge ? 'income' : 'expense';
+      const status = isCharge ? 'cobrada' : 'paga';
+      const category = isCharge ? 'Renda extra' : (t.category || 'Outros');
+      state.txs.push({
+        ...stamp_(), id: txId, date, time, amount, kind: txKind, description: t.title,
+        category, account, payee, by, taskId, period: k, receiptId, note,
+      });
+      state.taskDone.push({
+        id: uid(), taskId, period: k, status, txId, amount, account, date, time, by, payee, receiptId, note,
+      });
       rememberPerson(by); rememberPayee(payee);
       save(); closeModals(); refresh();
     } catch (e) {
@@ -847,10 +1347,13 @@
     const [taskId, k] = key.split('|');
     const d = doneOf(taskId, k);
     if (!d) return;
-    if (d.status === 'paga') {
-      if (!confirm(`Desfazer a baixa? A despesa de ${money(d.amount)} em Movimentações${d.receiptId ? ' e o comprovante' : ''} também serão excluídos.`)) return;
+    if (d.status === 'paga' || d.status === 'cobrada') {
+      const tipo = d.status === 'cobrada' ? 'receita' : 'despesa';
+      if (!confirm(`Desfazer? A ${tipo} de ${money(d.amount)} em Movimentações${d.receiptId ? ' e o comprovante' : ''} também serão excluídos.`)) return;
       state.txs = state.txs.filter(x => x.id !== d.txId);
       FPComprovantes.del(d.receiptId);
+    } else if (!confirm('Reabrir este item da programação?')) {
+      return;
     }
     state.taskDone = state.taskDone.filter(x => x !== d);
     save(); refresh();
@@ -1056,6 +1559,7 @@
     $('#kNet').textContent = signed(net);
     $('#kNet').className = 'kpi-value num ' + (net >= 0 ? 'delta-pos' : 'delta-neg');
     $('#kNetFoot').textContent = inc ? `${pct(Math.max(net, 0) / inc)} da renda poupada` : '—';
+    renderFutureKpis();
 
     $$('#chartMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === chartMode));
     if (view === 'overview') flowChart(k);
@@ -1083,20 +1587,162 @@
     renderInvestments();
 
     // Relatórios
-    const expList = list.filter(x => x.kind === 'expense');
-    const biggest = expList.slice().sort((a, b) => b.amount - a.amount)[0];
-    const days = new Set(expList.map(x => x.date)).size;
-    $('#reportKpis').innerHTML = `
-      <div class="kpi"><div class="kpi-label">Lançamentos</div><div class="kpi-value num">${list.length}</div><div class="kpi-foot">${list.filter(x => x.kind === 'income').length} receitas · ${expList.length} despesas</div></div>
-      <div class="kpi"><div class="kpi-label">Maior despesa</div><div class="kpi-value num delta-neg">${biggest ? money(biggest.amount) : '—'}</div><div class="kpi-foot">${biggest ? esc(biggest.description) : '&nbsp;'}</div></div>
-      <div class="kpi"><div class="kpi-label">Gasto médio por dia com gasto</div><div class="kpi-value num">${days ? money(exp / days) : '—'}</div><div class="kpi-foot">${days} dias com despesas</div></div>
-      <div class="kpi"><div class="kpi-label">Taxa de poupança</div><div class="kpi-value num ${net >= 0 ? 'delta-pos' : 'delta-neg'}">${inc ? pct(net / inc) : '—'}</div><div class="kpi-foot">resultado ÷ receitas</div></div>`;
-    $('#reportPeriod').textContent = monthLabel(k);
-    $('#catAll').innerHTML = catBreakdown(list);
-    $('#byAccount').innerHTML = state.accounts.map(a => {
-      const l = list.filter(x => x.account === a.id);
-      return `<tr><td>${esc(a.name)}</td><td class="t-right num amount in">${money(sum(l, 'income'))}</td><td class="t-right num amount out">${money(sum(l, 'expense'))}</td></tr>`;
-    }).join('');
+    renderReports();
+  }
+
+  /* ---------- Relatórios (planilha + PDF A4) ---------- */
+  function situacaoProg(o) {
+    if (!o) return '—';
+    if (o.done) {
+      if (o.done.status === 'paga') return 'Pago';
+      if (o.done.status === 'cobrada') return 'Cobrado';
+      if (o.done.status === 'concluida') return 'Concluído';
+      if (o.done.status === 'dispensada') return 'Dispensado';
+      return STATUS_LABEL[o.done.status] || o.done.status;
+    }
+    if (o.status === 'atrasada') return 'Não pago (atrasado)';
+    if (o.status === 'hoje') return 'Não pago (vence hoje)';
+    if (o.status === 'aberta') return 'Não pago';
+    if (o.status === 'futura') return 'Programado';
+    return STATUS_LABEL[o.status] || 'Pendente';
+  }
+
+  function reportProgramacao(k) {
+    const rows = state.tasks
+      .filter(t => !t.paused && occursIn(t, k))
+      .map(t => occurrence(t, k))
+      .sort((a, b) => a.to.localeCompare(b.to) || a.task.title.localeCompare(b.task.title, 'pt-BR'));
+    const headers = ['Tipo', 'Título', 'Para / de', 'Valor', 'Prazo', 'Situação'];
+    const body = rows.map(o => {
+      const t = o.task, kind = taskKind(t);
+      const valor = kind === 'documentacao' ? '—'
+        : o.done?.amount != null ? money(o.done.amount)
+        : t.expected != null ? money(t.expected)
+        : 'Variável';
+      return [KIND_LABEL[kind], t.title, taskTarget(t), valor, fullDate(o.to), situacaoProg(o)];
+    });
+    return { title: `Programação — ${monthLabel(k)}`, headers, rows: body, empty: 'Nenhuma programação neste mês.' };
+  }
+
+  function reportMovimentacoes(k) {
+    const list = inMonth(k).slice().sort(byDateDesc);
+    const headers = ['Data', 'Tipo', 'Descrição', 'Categoria', 'Conta', 'Valor', 'Pago por'];
+    const body = list.map(x => [
+      fullDate(x.date),
+      x.kind === 'income' ? 'Receita' : 'Despesa',
+      x.description || '',
+      x.category || '',
+      accName(x.account),
+      money(x.amount),
+      x.by || '—',
+    ]);
+    return { title: `Movimentações — ${monthLabel(k)}`, headers, rows: body, empty: 'Nenhum lançamento neste mês.' };
+  }
+
+  function reportContas(k) {
+    const headers = ['Conta', 'Tipo', 'Saldo no mês', 'Entradas', 'Saídas', 'Lançamentos'];
+    const body = state.accounts.map(a => {
+      const l = inMonth(k).filter(x => x.account === a.id);
+      return [
+        a.name,
+        a.type || '—',
+        money(accBalance(a, k)),
+        money(sum(l, 'income')),
+        money(sum(l, 'expense')),
+        String(l.length),
+      ];
+    });
+    return { title: `Contas — ${monthLabel(k)}`, headers, rows: body, empty: 'Nenhuma conta cadastrada.' };
+  }
+
+  function reportInvestimentos() {
+    const headers = ['Aplicação', 'Conta / instituição', 'Saldo', 'Última atualização', 'Responsável'];
+    const body = state.investments.map(i => {
+      const last = snapsOf(i.id).at(-1);
+      return [
+        i.name,
+        invAccName(i),
+        money(invValue(i.id)),
+        last ? `${fullDate(last.date)}${last.time ? ` ${last.time}` : ''}` : '—',
+        last?.by || '—',
+      ];
+    });
+    return { title: 'Investimentos', headers, rows: body, empty: 'Nenhuma aplicação cadastrada.' };
+  }
+
+  function currentReportData() {
+    const k = period || currentMonth();
+    if (reportTab === 'movimentacoes') return reportMovimentacoes(k);
+    if (reportTab === 'contas') return reportContas(k);
+    if (reportTab === 'investimentos') return reportInvestimentos();
+    return reportProgramacao(k);
+  }
+
+  function reportDocHtml(data, { forPrint = false } = {}) {
+    const headHtml = data.headers.map(h => `<th>${esc(h)}</th>`).join('');
+    const rowsHtml = data.rows.length
+      ? data.rows.map(r => `<tr>${r.map((c, i) => {
+        const sit = reportTab === 'programacao' && i === data.headers.length - 1 ? String(c) : '';
+        const cls = [
+          sit.startsWith('Pago') || sit === 'Cobrado' || sit === 'Concluído' ? 'sit-ok' : '',
+          sit.startsWith('Não pago') ? 'sit-late' : '',
+        ].filter(Boolean).join(' ');
+        return `<td${cls ? ` class="${cls}"` : ''}>${esc(String(c))}</td>`;
+      }).join('')}</tr>`).join('')
+      : `<tr><td colspan="${Math.max(data.headers.length, 1)}">${esc(data.empty || 'Sem dados.')}</td></tr>`;
+    const sub = `Gerado em ${fullDate(todayISO())}${userName ? ` · ${esc(userName)}` : ''}`;
+    return `
+      <div class="a4-head">
+        <div class="a4-brand">Controle Financeiro Pessoal</div>
+        <h1 class="a4-title">${esc(data.title)}</h1>
+        <div class="a4-sub">${sub}</div>
+      </div>
+      <table class="a4-table"><thead><tr>${headHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>
+      <div class="a4-foot">Folha A4 · ${esc(data.title)}</div>
+      ${forPrint ? '' : ''}`;
+  }
+
+  function renderReports() {
+    const preview = $('#reportPreview');
+    if (!preview) return;
+    const k = period || currentMonth();
+    $$('#reportTabs button').forEach(b => b.classList.toggle('on', b.dataset.rtab === reportTab));
+    const needsMonth = reportTab !== 'investimentos';
+    $('#reportPeriodLabel').textContent = needsMonth
+      ? `Pré-visualização A4 · ${monthLabel(k)} · ${reportTab === 'programacao' ? 'pago / não pago / concluído' : 'dados do período'}`
+      : 'Pré-visualização A4 · saldo atual das aplicações';
+    const data = currentReportData();
+    preview.innerHTML = reportDocHtml(data);
+    preview.dataset.title = data.title;
+  }
+
+  function exportReportPdf() {
+    const data = currentReportData();
+    const frame = $('#reportPrintFrame');
+    if (!frame) { alert('Não foi possível preparar a impressão.'); return; }
+    const docHtml = reportDocHtml(data, { forPrint: true });
+    const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(data.title)}</title>
+<style>
+  @page { size: A4 portrait; margin: 12mm; }
+  * { box-sizing: border-box; }
+  body { font: 11px/1.35 Arial, Helvetica, sans-serif; color: #14233d; margin: 0; }
+  .a4-brand { font-size: 10px; color: #5b6d86; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+  .a4-title { font-size: 16px; margin: 0 0 4px; font-weight: 700; color: #14233d; }
+  .a4-sub { color: #5b6d86; font-size: 11px; margin-bottom: 14px; }
+  .a4-table { width: 100%; border-collapse: collapse; }
+  .a4-table th, .a4-table td { border: 1px solid #c5d1e4; padding: 5px 6px; text-align: left; vertical-align: top; }
+  .a4-table th { background: #eef2f7; font-size: 10px; font-weight: 700; }
+  .a4-table td { font-size: 10.5px; }
+  .sit-ok { color: #1f6b3a; font-weight: 700; }
+  .sit-late { color: #b42318; font-weight: 700; }
+  .a4-foot { margin-top: 12px; color: #8e9bb1; font-size: 9px; }
+</style></head><body>${docHtml}</body></html>`;
+    const printNow = () => {
+      try { frame.contentWindow.focus(); frame.contentWindow.print(); }
+      catch { alert('Não foi possível abrir a impressão. Tente de novo.'); }
+    };
+    frame.onload = () => setTimeout(printNow, 50);
+    frame.srcdoc = html;
   }
 
   function renderInvestments() {
@@ -1169,8 +1815,12 @@
 
   function fillPeriod() {
     const ms = months();
-    // Padrão: último mês com lançamentos até hoje; sem lançamentos, o mês atual
-    if (!period || !ms.includes(period)) period = ms.find(m => m <= ym(todayISO()) && inMonth(m).length) || ym(todayISO());
+    // Visão geral é sempre o mês atual; nas outras telas mantém a escolha manual.
+    if (view === 'overview' || !periodManual || !period || !ms.includes(period)) {
+      period = currentMonth();
+      if (view === 'overview') periodManual = false;
+    }
+    if (!ms.includes(period)) period = ms.includes(currentMonth()) ? currentMonth() : ms[0];
     $('#period').innerHTML = ms.map(m => `<option value="${m}" ${m === period ? 'selected' : ''}>${monthLabel(m)}</option>`).join('');
   }
 
@@ -1181,12 +1831,20 @@
     const fc = $('#fAccCheck').value;
     $('#fAccCheck').innerHTML = '<option value="all">Todas as contas</option>' + opts;
     if (fc && $(`#fAccCheck option[value="${fc}"]`)) $('#fAccCheck').value = fc;
-    $('#tkAcc').innerHTML = opts;
+    const tkOpts = `<option value="">Selecione</option>${opts}`;
+    $('#tkAcc').innerHTML = tkOpts;
+    $('#tkChargeAcc').innerHTML = tkOpts;
     $('#pyAcc').innerHTML = opts;
+    $('#pyChargeAcc').innerHTML = opts;
     const fa = $('#fAccount').value;
     $('#fAccount').innerHTML = '<option value="all">Todas as contas</option>' + opts;
     if (fa && $(`#fAccount option[value="${fa}"]`)) $('#fAccount').value = fa;
-    const payees = [...new Set([...state.payees, ...state.tasks.map(t => t.payee), ...state.txs.map(x => x.payee)].filter(Boolean))];
+    const payees = [...new Set([
+      ...state.payees,
+      ...state.tasks.map(t => t.payee),
+      ...state.tasks.map(t => t.chargeTo),
+      ...state.txs.map(x => x.payee),
+    ].filter(Boolean))];
     $('#payeeList').innerHTML = payees.map(p => `<option value="${esc(p)}">`).join('');
     const inv = state.investments.map(i => `<option value="${i.id}">${esc(i.name)}</option>`).join('');
     const cur = $('#fInv').value;
@@ -1194,7 +1852,12 @@
     if (cur && $(`#fInv option[value="${cur}"]`)) $('#fInv').value = cur;
     $('#snapInv').innerHTML = state.investments.map(i => `<option value="${i.id}">${esc(i.name)} — ${esc(invAccName(i))}</option>`).join('');
     $('#invAcc').innerHTML = opts;
-    $('#peopleList').innerHTML = state.people.map(p => `<option value="${esc(p)}">`).join('');
+    const people = [...new Set([
+      userName,
+      ...state.people,
+      ...state.tasks.map(t => t.docOwner).filter(Boolean),
+    ].filter(Boolean))];
+    $('#peopleList').innerHTML = people.map(p => `<option value="${esc(p)}">`).join('');
   }
 
   function fillCategories() {
@@ -1218,7 +1881,17 @@
     window.scrollTo({ top: 0 });
     // Telas com ação própria (contas, aplicações, tarefas) não mostram o botão Lançamento, para não confundir
     $('#headTxBtn').hidden = ['investments', 'accounts', 'tasks'].includes(v);
-    if (v === 'overview') flowChart(period);
+    // Programação lista tudo cadastrado — sem filtro de mês; Relatórios usam o mês do topo
+    $('#period').hidden = v === 'tasks';
+    if (v === 'reports') renderReports();
+    if (v === 'overview') {
+      periodManual = false;
+      period = currentMonth();
+      fillPeriod();
+      render();
+      return;
+    }
+    renderFutureKpis();
     if (v === 'investments') investChart();
   }
 
@@ -1227,7 +1900,7 @@
   function openModal(name, btn) {
     if (name === 'tx' && !state.accounts.length) { alert('Cadastre uma conta antes de lançar.'); return; }
     if (name === 'snap' && !state.investments.length) { alert('Cadastre uma aplicação antes de registrar o saldo.'); return; }
-    if (name === 'task' && !isAdmin) { alert('Só admin pode criar ou editar tarefas.'); return; }
+    if (name === 'task' && !isAdmin) { alert('Só admin pode criar ou editar programações.'); return; }
     lastFocus = document.activeElement;
     const m = $('#modal-' + name);
     m.classList.add('open');
@@ -1308,7 +1981,8 @@
     }
     else if ('close' in b.dataset) closeModals();
     else if (b.dataset.ttab) { taskTab = b.dataset.ttab; renderTasks(); }
-    else if (b.dataset.pay) openPay(b.dataset.pay);
+    else if (b.dataset.rtab) { reportTab = b.dataset.rtab; renderReports(); }
+    else if (b.dataset.pay) openPay(b.dataset.pay, b.dataset.payMode);
     else if (b.dataset.skip) skipOccurrence(b.dataset.skip);
     else if (b.dataset.undo) undoOccurrence(b.dataset.undo);
     else if (b.dataset.receipt) openReceipt(b.dataset.receipt, b.dataset.rtx);
@@ -1327,16 +2001,16 @@
     } else if (b.dataset.delTask) {
       const t = taskById(b.dataset.delTask);
       if (!isAdmin || !t) return;
-      if (!confirm(`Excluir a tarefa “${t.title}”? Os pagamentos já feitos continuam em Movimentações.`)) return;
+      if (!confirm(`Excluir a programação “${t.title}”? Os lançamentos já feitos continuam em Movimentações.`)) return;
       state.tasks = state.tasks.filter(x => x !== t);
       state.taskDone = state.taskDone.filter(d => d.taskId !== t.id);
       save(); refresh();
     } else if (b.dataset.delTx) {
       const tx = state.txs.find(x => x.id === b.dataset.delTx);
       if (!tx) return;
-      if (!canDelete(tx)) { alert('Este lançamento veio de uma tarefa. Só admin pode desfazer a baixa.'); return; }
+      if (!canDelete(tx)) { alert('Este lançamento veio de uma programação. Só admin pode desfazer.'); return; }
       const d = tx.taskId ? state.taskDone.find(x => x.txId === tx.id) : null;
-      const msg = d ? `Excluir este lançamento? A tarefa “${tx.description}” volta a ficar pendente${tx.receiptId ? ' e o comprovante será apagado' : ''}.`
+      const msg = d ? `Excluir este lançamento? A programação “${tx.description}” volta a ficar pendente${tx.receiptId ? ' e o comprovante será apagado' : ''}.`
         : `Excluir este lançamento?${tx.receiptId ? ' O comprovante também será apagado.' : ''}`;
       if (!confirm(msg)) return;
       state.txs = state.txs.filter(x => x !== tx);
@@ -1367,8 +2041,25 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModals(); });
 
   let periodManual = false; // a pessoa escolheu um mês: não troca sozinho ao recarregar do banco
-  $('#period').addEventListener('change', e => { period = e.target.value; periodManual = true; render(); });
+  $('#period').addEventListener('change', e => {
+    // Visão geral fica no mês atual; em outras telas a pessoa escolhe o período.
+    if (view === 'overview') {
+      period = currentMonth();
+      periodManual = false;
+      e.target.value = period;
+      render();
+      return;
+    }
+    period = e.target.value;
+    periodManual = true;
+    render();
+  });
   ['#q', '#fKind', '#fAccount'].forEach(s => $(s).addEventListener(s === '#q' ? 'input' : 'change', render));
+  ['#tq', '#tfKind', '#tfValor'].forEach(s => {
+    const el = $(s);
+    if (el) el.addEventListener(s === '#tq' ? 'input' : 'change', () => renderTasks());
+  });
+  $('#reportPdfBtn')?.addEventListener('click', exportReportPdf);
   $('#fInv').addEventListener('change', renderInvestments);
   $('#snapInv').addEventListener('change', updateSnapPrev);
   $$('input[name="kind"]').forEach(r => r.addEventListener('change', fillCategories));
@@ -1401,6 +2092,11 @@
   $('#taskForm').addEventListener('submit', e => { e.preventDefault(); saveTaskForm(); });
   $('#taskForm').addEventListener('input', updateTaskForm);
   $('#taskForm').addEventListener('change', updateTaskForm);
+  $('#tkKind').addEventListener('change', () => {
+    if (taskFormKind() === 'documentacao' && userName) $('#tkPerson').value = userName;
+    else if (!$('#tkId').value) $('#tkPerson').value = '';
+    updateTaskForm();
+  });
   $('#payForm').addEventListener('submit', e => { e.preventDefault(); savePay(); });
 
   $('#accForm').addEventListener('submit', e => {
@@ -1471,8 +2167,13 @@
     if (d.type === 'fp-hydrate' && d.payload) {
       if (dirty) return; // há alteração local ainda não salva: não sobrescreve
       const p = d.payload;
+      const tasks = (p.tasks || []).map(t => ({
+        ...t,
+        start: asMonth(t.start) || t.start || null,
+        end: asMonth(t.end) || t.end || null,
+      }));
       Object.assign(state, {
-        accounts: p.accounts || [], accChecks: p.accChecks || [], txs: p.txs || [], tasks: p.tasks || [],
+        accounts: p.accounts || [], accChecks: p.accChecks || [], txs: p.txs || [], tasks,
         taskDone: p.taskDone || [], investments: p.investments || [], snapshots: p.snapshots || [],
         goal: Number(p.goal) || 15000,
       });

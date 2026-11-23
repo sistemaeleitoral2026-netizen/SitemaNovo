@@ -42,6 +42,7 @@ export type MrContrato = {
   meses: number
   observacoes?: string
   criadoPorId?: string
+  anexos?: MrAnexoMeta[]
 }
 
 export type MrContaBancaria = {
@@ -177,11 +178,12 @@ async function listAnexos() {
 
 function anexosFor(
   rows: { id: string; entidade: string; entidade_id: string; nome: string; mime: string | null; tamanho: number | null; storage_path: string; created_at?: string }[],
+  entidade: 'lancamento' | 'contrato',
   entidadeId: string,
   signed: Map<string, string>,
 ): MrAnexoMeta[] {
   return rows
-    .filter((a) => a.entidade === 'lancamento' && a.entidade_id === entidadeId)
+    .filter((a) => a.entidade === entidade && a.entidade_id === entidadeId)
     .map((a) => ({
       id: a.id,
       name: a.nome,
@@ -224,8 +226,15 @@ export async function carregarEstadoMrTerceriza(sessao: MrSessao): Promise<MrDbP
   const pode = (empresa: string) => minhasEmpresas === null || minhasEmpresas.includes(empresa)
 
   const lancVisiveis = (lancamentos.data || []).filter((r) => pode(r.empresa as string))
-  const idsVisiveis = new Set(lancVisiveis.map((r) => r.id as string))
-  const anexosVisiveis = (anexos || []).filter((a) => idsVisiveis.has(String(a.entidade_id)))
+  const contrVisiveis = (contratosRows.data || []).filter((r) => pode(r.empresa as string))
+  const idsLancVisiveis = new Set(lancVisiveis.map((r) => r.id as string))
+  const idsContrVisiveis = new Set(contrVisiveis.map((r) => r.id as string))
+  const anexosVisiveis = (anexos || []).filter((a) => {
+    const id = String(a.entidade_id)
+    if (a.entidade === 'lancamento') return idsLancVisiveis.has(id)
+    if (a.entidade === 'contrato') return idsContrVisiveis.has(id)
+    return false
+  })
 
   const signed = await signPaths(anexosVisiveis.map((a) => a.storage_path))
   const anexoRows = anexosVisiveis.map((a) => ({ ...a, entidade_id: String(a.entidade_id) }))
@@ -258,7 +267,7 @@ export async function carregarEstadoMrTerceriza(sessao: MrSessao): Promise<MrDbP
       centroCusto: (r.centro_custo as string) || '',
       formaPagamento: (r.forma_pagamento as string) || '',
       observacoes: (r.observacoes as string) || '',
-      anexos: anexosFor(anexoRows, r.id as string, signed),
+      anexos: anexosFor(anexoRows, 'lancamento', r.id as string, signed),
       criadoPorId,
       criadoPor: criadoPorId ? nomePorId.get(criadoPorId) || '' : '',
       criadoEm: (r.created_at as string) || '',
@@ -295,19 +304,18 @@ export async function carregarEstadoMrTerceriza(sessao: MrSessao): Promise<MrDbP
   }
   const contasDetalhes = [...detalhesPorGrupo.values()]
 
-  const contratos: MrContrato[] = (contratosRows.data || [])
-    .filter((r) => pode(r.empresa as string))
-    .map((r) => ({
-      id: r.id as string,
-      empresa: r.empresa as string,
-      nome: (r.nome as string) || '',
-      valorTotal: money(r.valor_total),
-      centroCusto: (r.centro_custo as string) || '',
-      inicio: String(r.inicio || '').slice(0, 7),
-      meses: Number(r.meses) || 1,
-      observacoes: (r.observacoes as string) || '',
-      criadoPorId: (r.created_by as string) || '',
-    }))
+  const contratos: MrContrato[] = contrVisiveis.map((r) => ({
+    id: r.id as string,
+    empresa: r.empresa as string,
+    nome: (r.nome as string) || '',
+    valorTotal: money(r.valor_total),
+    centroCusto: (r.centro_custo as string) || '',
+    inicio: String(r.inicio || '').slice(0, 7),
+    meses: Number(r.meses) || 1,
+    observacoes: (r.observacoes as string) || '',
+    criadoPorId: (r.created_by as string) || '',
+    anexos: anexosFor(anexoRows, 'contrato', r.id as string, signed),
+  }))
 
   const centrosPorNome = new Map<string, { nome: string; descricao: string; empresas: string[] }>()
   for (const row of centrosRows.data || []) {
@@ -408,7 +416,7 @@ export async function salvarEstadoMrTerceriza(
 
   const contratos = (payload.contratos || [])
     .filter((c) => pode(c.empresa))
-    .map((c) => ({ ...c, id: ensureUuid(c.id) }))
+    .map((c) => ({ ...c, id: ensureUuid(c.id), anexos: remapAnexos(c.anexos) }))
   const contratoIds = new Set(contratos.map((c) => c.id))
   const lancamentos = payload.lancamentos
     .filter((r) => pode(r.empresa))
@@ -443,7 +451,7 @@ export async function salvarEstadoMrTerceriza(
     const temEstruturaNova = !contrList.faltando
     const remoteContr = (contrList.data || []) as { id: string; empresa: string; created_by: string | null }[]
 
-    // ---- centros de custo: editor só cadastra nas empresas liberadas ----
+    // ---- centros de custo: uma linha por (empresa, nome); editor só mexe nas liberadas ----
     const centrosDetalhes = (payload.centrosCustoDetalhes || [])
       .map((c) => ({
         nome: (c.nome || '').trim(),
@@ -451,19 +459,50 @@ export async function salvarEstadoMrTerceriza(
         empresas: [...new Set((c.empresas || []).filter((empresa) => pode(empresa)))],
       }))
       .filter((c) => c.nome && c.empresas.length)
-    if (temEstruturaNova && centrosDetalhes.length) {
+    if (temEstruturaNova) {
       const estruturaEmpresa = await opcional(supabase.from('mr_centros_custo').select('empresa').limit(1), [])
       if (estruturaEmpresa.error) throw asError(estruturaEmpresa.error)
       if (!estruturaEmpresa.faltando) {
-        const { data: jaTem, error } = await supabase.from('mr_centros_custo').select('nome,empresa')
+        const { data: atuais, error } = await supabase
+          .from('mr_centros_custo')
+          .select('id,nome,empresa,descricao,ativo,created_by')
         if (error) throw asError(error)
-        const vistos = new Set((jaTem || []).map((r) => `${String(r.empresa)}\u0000${String(r.nome).trim().toLocaleLowerCase('pt-BR')}`))
-        const novos = centrosDetalhes.flatMap((c) => c.empresas
-          .filter((empresa) => !vistos.has(`${empresa}\u0000${c.nome.toLocaleLowerCase('pt-BR')}`))
-          .map((empresa) => ({ nome: c.nome, descricao: c.descricao || null, empresa, created_by: opts.userId })))
-        if (novos.length) {
-          const { error: insErr } = await supabase.from('mr_centros_custo').insert(novos)
-          if (insErr) throw asError(insErr, 'Falha ao gravar centro de custo.')
+        const remote = (atuais || []) as Array<{
+          id: string
+          nome: string
+          empresa: string
+          descricao: string | null
+          ativo: boolean
+          created_by: string | null
+        }>
+        const usados = new Set<string>()
+        const rows = centrosDetalhes.flatMap((c) =>
+          c.empresas.map((empresa) => {
+            const existente = remote.find(
+              (r) => r.empresa === empresa && r.nome.trim().toLocaleLowerCase('pt-BR') === c.nome.toLocaleLowerCase('pt-BR'),
+            )
+            const id = existente?.id || ensureUuid(`${empresa}:${c.nome}`)
+            usados.add(id)
+            return {
+              id,
+              nome: c.nome,
+              descricao: c.descricao || null,
+              empresa,
+              ativo: true,
+              created_by: existente?.created_by || opts.userId,
+            }
+          }),
+        )
+        if (rows.length) {
+          const { error: upErr } = await supabase.from('mr_centros_custo').upsert(rows, { onConflict: 'id' })
+          if (upErr) throw asError(upErr, 'Falha ao gravar centro de custo.')
+        }
+        const desativar = remote
+          .filter((r) => pode(r.empresa) && !usados.has(r.id) && r.ativo !== false)
+          .map((r) => r.id)
+        if (desativar.length) {
+          const { error: offErr } = await supabase.from('mr_centros_custo').update({ ativo: false }).in('id', desativar)
+          if (offErr) throw asError(offErr, 'Falha ao atualizar vínculo do centro de custo.')
         }
       }
     }
@@ -635,6 +674,7 @@ export async function salvarEstadoMrTerceriza(
       .map((r) => r.id as string)
       .filter((id) => !contratoIds.has(id))
     if (delContr.length) {
+      await supabase.from('mr_anexos').delete().eq('entidade', 'contrato').in('entidade_id', delContr)
       const { error } = await supabase.from('mr_contratos').delete().in('id', delContr)
       if (error) throw asError(error, 'Falha ao excluir contrato.')
     }
@@ -692,13 +732,17 @@ export async function salvarEstadoMrTerceriza(
       if (error) throw asError(error, 'Falha ao gravar auditoria.')
     }
 
-    // ---- anexos ----
-    async function syncAnexos(entidadeId: string, list: MrAnexoMeta[] | undefined) {
+    // ---- anexos (lançamentos e contratos) ----
+    async function syncAnexos(
+      entidade: 'lancamento' | 'contrato',
+      entidadeId: string,
+      list: MrAnexoMeta[] | undefined,
+    ) {
       const wanted = list || []
       const { data: existing, error } = await supabase
         .from('mr_anexos')
         .select('id,storage_path')
-        .eq('entidade', 'lancamento')
+        .eq('entidade', entidade)
         .eq('entidade_id', entidadeId)
       if (error) throw asError(error, 'Falha ao ler anexos.')
       const keepIds = new Set(wanted.map((a) => a.id))
@@ -723,7 +767,7 @@ export async function salvarEstadoMrTerceriza(
         const { error: upErr } = await supabase.from('mr_anexos').upsert(
           {
             id: anexoId,
-            entidade: 'lancamento',
+            entidade,
             entidade_id: entidadeId,
             nome: a.name || pending?.name || 'arquivo',
             mime: a.type || pending?.type || null,
@@ -733,11 +777,12 @@ export async function salvarEstadoMrTerceriza(
           },
           { onConflict: 'id' },
         )
-        if (upErr) throw asError(upErr, 'Falha ao gravar metadados do comprovante.')
+        if (upErr) throw asError(upErr, 'Falha ao gravar metadados do anexo.')
       }
     }
 
-    for (const r of lancamentos) await syncAnexos(r.id, r.anexos)
+    for (const r of lancamentos) await syncAnexos('lancamento', r.id, r.anexos)
+    for (const c of contratos) await syncAnexos('contrato', c.id, c.anexos)
 
     return carregarEstadoMrTerceriza(sessao)
   } catch (e) {

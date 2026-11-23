@@ -97,7 +97,7 @@
   .task { grid-template-columns: 38px minmax(0, 1fr) 160px auto; padding: 15px 22px; }
   .task-ico { width: 38px; height: 38px; }
   /* Modelos: tabela respira melhor */
-  #taskBody .table-wrap td { padding-top: 14px; padding-bottom: 14px; }
+  #taskBody .table-wrap:not(.sheet-wrap) td { padding-top: 14px; padding-bottom: 14px; }
 }
 
 /* ---------- Tela muito larga (≥ 1800px) ---------- */
@@ -131,4 +131,5 @@
 [data-inv-new][hidden], [data-range-part][hidden] { display: none !important; }
 #tkDayFrom:only-child { max-width: 120px; }
 @media (max-width: 520px) { .inv-groups { grid-template-columns: 1fr; padding: 12px; } }
-.btn[hidden] { display: none !important; }
+.btn[hidden],
+#period[hidden] { display: none !important; }

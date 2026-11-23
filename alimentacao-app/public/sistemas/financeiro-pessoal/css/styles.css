@@ -157,7 +157,7 @@ h1 { font-size: 22px; font-weight: 600; letter-spacing: -.02em; margin: 0; }
 .row-1-1 { grid-template-columns: 1fr 1fr; }
 
 /* KPIs em faixa única */
-.kpis { display: grid; grid-template-columns: repeat(4, 1fr); }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); }
 .kpi { padding: 16px 18px; border-left: 1px solid var(--line); }
 .kpi:first-child { border-left: 0; }
 .kpi-label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
