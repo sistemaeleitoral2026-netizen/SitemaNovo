@@ -2,7 +2,8 @@ const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
 
-const SISTEMAS = new Set(['mr-terceiriza', 'assessoria-mb', 'painel-do-mandato'])
+// Ids dos sistemas que o /admin pode liberar (iguais a SITES em alimentacao-app/src/lib/sites.ts)
+const SISTEMAS = new Set(['mr-terceiriza', 'assessoria-mb', 'painel-do-mandato', 'financeiro-pessoal'])
 const NIVEIS = new Set(['admin', 'editor'])
 const SQL_HINT = ' Rode o SQL alimentacao-app/supabase/migrations/20261116b_acessos_externos.sql no Supabase e tente de novo.'
 
