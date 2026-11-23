@@ -32,7 +32,7 @@ export type FpDone = {
   amount?: number | null; account?: string | null; date?: string | null; time?: string | null
   by?: string | null; payee?: string | null; receiptId?: string | null; note?: string | null
 }
-export type FpInvestment = { id: string; name: string; type: string; institution: string }
+export type FpInvestment = { id: string; name: string; type: string; institution: string; account?: string | null }
 export type FpSnapshot = { id: string; invId: string; date: string; time: string; balance: number; by: string; createdBy?: string | null }
 
 export type FpState = {
@@ -57,7 +57,11 @@ const ROTULO: Record<TableName, string> = {
 function asError(e: unknown, padrao: string): Error {
   if (e instanceof Error) return e
   const o = e as { message?: string; details?: string } | null
-  return new Error(o?.message || o?.details || padrao)
+  const msg = o?.message || o?.details || ''
+  if (/conta_id/.test(msg) && /fp_investimentos|column/i.test(msg)) {
+    return new Error('Falta rodar o SQL 20261124b_financeiro_pessoal_contas_editor.sql no Supabase (aplicação ligada à conta).')
+  }
+  return new Error(msg || padrao)
 }
 
 const hhmm = (t: unknown) => (typeof t === 'string' && t ? t.slice(0, 5) : null)
@@ -76,7 +80,10 @@ export function estadoParaLinhas(s: FpState): FpRows {
     fp_contas: s.accounts.map((a, i) => ({
       id: a.id, nome: a.name, tipo: a.type, saldo_inicial: Number(a.initial) || 0, ordem: i,
     })),
-    fp_investimentos: s.investments.map((i) => ({ id: i.id, nome: i.name, tipo: i.type, instituicao: i.institution || '' })),
+    fp_investimentos: s.investments.map((i) => ({
+      id: i.id, nome: i.name, tipo: i.type, instituicao: i.institution || '',
+      conta_id: i.account && contas.has(i.account) ? i.account : null,
+    })),
     fp_tarefas: s.tasks.map((t) => {
       const r = t.rec || ({} as FpRec)
       const base = {
@@ -150,6 +157,7 @@ export async function carregarFinanceiroPessoal(): Promise<{ estado: FpState; li
     })),
     investments: invs.filter((i) => i.ativo !== false).map((i) => ({
       id: String(i.id), name: String(i.nome), type: String(i.tipo), institution: String(i.instituicao || ''),
+      account: (i.conta_id as string) ?? null,
     })),
     tasks: tarefas.map((t) => {
       const rec: FpRec = t.recorrencia === 'unica'

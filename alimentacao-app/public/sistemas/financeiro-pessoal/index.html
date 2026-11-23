@@ -110,7 +110,7 @@
         </div>
         <div class="head-actions">
           <select class="select" id="period" aria-label="Período"></select>
-          <button class="btn btn-primary" data-open="tx"><svg class="i"><use href="#i-plus"/></svg>Lançamento</button>
+          <button class="btn btn-primary" data-open="tx" id="headTxBtn"><svg class="i"><use href="#i-plus"/></svg>Lançamento</button>
         </div>
       </header>
 
@@ -276,39 +276,40 @@
 
       <!-- ============ INVESTIMENTOS ============ -->
       <section class="view" id="view-investments">
+        <div class="block kpis" id="invKpis"></div>
+
+        <div class="block">
+          <div class="block-head">
+            <div><div class="block-title">Minhas aplicações</div><div class="block-meta">Separadas pela conta (banco) onde estão. O valor é o último saldo conferido.</div></div>
+            <div class="head-right">
+              <button class="btn" data-open="snap"><svg class="i"><use href="#i-pencil-line"/></svg>Atualizar saldo</button>
+              <button class="btn btn-primary" data-open="invest"><svg class="i"><use href="#i-plus"/></svg>Nova aplicação</button>
+            </div>
+          </div>
+          <div class="inv-groups" id="invGroups"></div>
+        </div>
+
         <div class="row row-2-1">
           <div class="block">
             <div class="block-head">
-              <div><div class="block-title">Evolução do saldo investido</div><div class="block-meta">Soma dos saldos verificados a cada dia</div></div>
-              <button class="btn btn-primary btn-sm" data-open="snap"><svg class="i i-sm"><use href="#i-pencil-line"/></svg>Registrar saldo do dia</button>
+              <div><div class="block-title">Evolução do total investido</div><div class="block-meta">Soma dos saldos conferidos a cada dia</div></div>
             </div>
-            <div class="block-body"><svg class="chart" id="investChart" role="img" aria-label="Evolução diária do saldo investido"></svg></div>
+            <div class="block-body"><svg class="chart" id="investChart" role="img" aria-label="Evolução diária do total investido"></svg></div>
           </div>
           <div class="block">
             <div class="block-head"><div class="block-title">Meta de reserva</div></div>
             <div class="block-body" id="goalBox2"></div>
           </div>
         </div>
+
         <div class="block">
           <div class="block-head">
-            <div><div class="block-title">Aplicações</div><div class="block-meta">Valor atual = último saldo verificado</div></div>
-            <button class="btn" data-open="invest"><svg class="i"><use href="#i-plus"/></svg>Nova aplicação</button>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Aplicação</th><th>Instituição</th><th class="t-right">Saldo atual</th><th class="t-right">Variação</th><th>Última verificação</th><th></th></tr></thead>
-              <tbody id="investRows"></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="block">
-          <div class="block-head">
-            <div><div class="block-title">Histórico de verificações</div><div class="block-meta">Saldo informado, data, hora e responsável</div></div>
+            <div><div class="block-title">Histórico de saldos</div><div class="block-meta">Cada atualização: data, hora, valor e quem conferiu</div></div>
             <select class="select" id="fInv" aria-label="Filtrar aplicação"></select>
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Data</th><th>Hora</th><th>Aplicação</th><th class="t-right">Saldo</th><th class="t-right">Variação</th><th>Responsável</th><th></th></tr></thead>
+              <thead><tr><th>Data</th><th>Hora</th><th>Aplicação</th><th>Conta</th><th class="t-right">Saldo</th><th class="t-right">Variação</th><th>Responsável</th><th></th></tr></thead>
               <tbody id="snapRows"></tbody>
             </table>
           </div>
@@ -412,20 +413,21 @@
     <div class="modal-head"><h2 id="iTitle">Nova aplicação</h2>
       <button type="button" class="icon-btn" data-close aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button></div>
     <div class="modal-body">
-      <div class="field full"><label for="invName">Nome</label><input class="input" id="invName" required maxlength="50" placeholder="Ex.: Tesouro Selic 2029"></div>
+      <input type="hidden" id="invId">
+      <div class="field full"><label for="invAcc">Em qual conta (banco) está</label><select class="select" id="invAcc" required></select></div>
+      <div class="field full"><label for="invName">Nome do investimento</label><input class="input" id="invName" required maxlength="50" placeholder="Ex.: CDB liquidez diária, Tesouro Selic 2029"></div>
       <div class="field"><label for="invType">Tipo</label>
-        <select class="select" id="invType"><option>Renda fixa</option><option>Poupança</option><option>Tesouro Direto</option><option>Fundos</option><option>Ações</option></select></div>
-      <div class="field"><label for="invInst">Instituição</label><input class="input" id="invInst" required maxlength="40"></div>
-      <div class="field"><label for="invAmount">Saldo atual (R$)</label><input class="input num money" id="invAmount" required type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div>
-      <div class="field"><label for="invBy">Responsável</label><input class="input" id="invBy" required maxlength="40" list="peopleList"></div>
+        <select class="select" id="invType"><option>CDB</option><option>Poupança</option><option>Tesouro Direto</option><option>LCI / LCA</option><option>Renda fixa</option><option>Fundos</option><option>Ações</option><option>Previdência</option><option>Outro</option></select></div>
+      <div class="field" data-inv-new><label for="invAmount">Saldo atual (R$)</label><input class="input num money" id="invAmount" type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div>
+      <div class="field full" data-inv-new><label for="invBy">Responsável</label><input class="input" id="invBy" maxlength="40" list="peopleList" placeholder="Quem conferiu o saldo"></div>
     </div>
-    <div class="modal-foot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary">Adicionar</button></div>
+    <div class="modal-foot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary" id="invSubmit">Adicionar</button></div>
   </form>
 </div>
 
 <div class="modal-backdrop" id="modal-snap">
   <form class="modal" role="dialog" aria-modal="true" aria-labelledby="sTitle" id="snapForm">
-    <div class="modal-head"><h2 id="sTitle">Registrar saldo do dia</h2>
+    <div class="modal-head"><h2 id="sTitle">Atualizar saldo da aplicação</h2>
       <button type="button" class="icon-btn" data-close aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button></div>
     <div class="modal-body">
       <div class="field full"><label for="snapInv">Aplicação</label><select class="select" id="snapInv" required></select></div>
@@ -447,14 +449,8 @@
       <input type="hidden" id="tkId">
       <div class="field full"><label for="tkName">O que precisa ser pago</label><input class="input" id="tkName" required maxlength="60" placeholder="Ex.: Netflix, aluguel, escola, IPVA"></div>
       <div class="field full">
-        <label>Quem recebe</label>
-        <div class="payee-row">
-          <div class="seg seg-sm">
-            <input type="radio" name="tkKind" id="tkKindE" value="empresa" checked><label for="tkKindE">Empresa</label>
-            <input type="radio" name="tkKind" id="tkKindP" value="pessoa"><label for="tkKindP">Pessoa</label>
-          </div>
-          <input class="input" id="tkPayee" required maxlength="60" list="payeeList" placeholder="Nome de quem recebe o pagamento">
-        </div>
+        <label for="tkPayee">Quem recebe</label>
+        <input class="input" id="tkPayee" required maxlength="60" list="payeeList" placeholder="Nome de quem recebe o pagamento (pessoa ou empresa)">
       </div>
       <div class="field"><label for="tkCat">Categoria</label><select class="select" id="tkCat"></select></div>
       <div class="field"><label for="tkAcc">Conta sugerida</label><select class="select" id="tkAcc"></select></div>
@@ -474,8 +470,12 @@
           <option value="m6">A cada 6 meses</option><option value="y">Uma vez por ano</option>
         </select></div>
       <div class="field" data-tk="year"><label for="tkMonth">Mês do ano</label><select class="select" id="tkMonth"></select></div>
-      <div class="field" data-tk="rec"><label>Pagar entre os dias</label>
-        <div class="range"><input class="input num" id="tkDayFrom" type="number" min="1" max="31" value="10" aria-label="Dia inicial"><span>e</span><input class="input num" id="tkDayTo" type="number" min="1" max="31" value="15" aria-label="Dia final"></div></div>
+      <div class="field" data-tk="rec"><label>Dia do pagamento</label>
+        <div class="seg seg-sm">
+          <input type="radio" name="tkDayMode" id="tkDayFixed" value="fixed"><label for="tkDayFixed">Dia fixo</label>
+          <input type="radio" name="tkDayMode" id="tkDayRange" value="range" checked><label for="tkDayRange">Entre os dias</label>
+        </div>
+        <div class="range"><input class="input num" id="tkDayFrom" type="number" min="1" max="31" value="10" aria-label="Dia"><span data-range-part>e</span><input class="input num" id="tkDayTo" type="number" min="1" max="31" value="15" aria-label="Até o dia" data-range-part></div></div>
       <div class="field" data-tk="rec"><label for="tkStart">Começa em</label><input class="input" id="tkStart" type="month"></div>
       <div class="field" data-tk="rec"><label for="tkEnd">Termina em <span class="opt">(opcional)</span></label><input class="input" id="tkEnd" type="month"></div>
       <div class="field" data-tk="once"><label for="tkDateFrom">Pagar a partir de</label><input class="input" id="tkDateFrom" type="date"></div>

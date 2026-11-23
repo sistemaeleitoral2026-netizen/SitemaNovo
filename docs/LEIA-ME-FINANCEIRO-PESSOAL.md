@@ -3,7 +3,9 @@
 Banco: **mesmo do Sistema Nerites**
 `https://uzewhebfshmhuymgungr.supabase.co`
 
-SQL: `alimentacao-app/supabase/migrations/20261124_financeiro_pessoal.sql`
+SQL (nesta ordem):
+1. `alimentacao-app/supabase/migrations/20261124_financeiro_pessoal.sql`
+2. `alimentacao-app/supabase/migrations/20261124b_financeiro_pessoal_contas_editor.sql`
 
 > **Situação:** dentro do sistema (`/financeiro-pessoal`) a tela salva **no banco**.
 > Sem rodar o SQL, a tela abre vazia e mostra o aviso "As tabelas do Controle
@@ -71,12 +73,14 @@ em `/admin` (`profiles.acessos_externos ? 'financeiro-pessoal'`), igual à rota
 | Ação | admin (Nerites ou acesso "admin") | editor |
 |------|:---:|:---:|
 | Ver tudo | ✓ | ✓ |
-| Lançar, informar saldo de conta/investimento, anexar comprovante | ✓ | ✓ |
+| Contas, saldos do dia, aplicações, lançamentos e comprovantes (criar, editar, excluir) | ✓ | ✓ |
 | Dar baixa em tarefa (`paga`) | ✓ | ✓ |
 | Criar/editar/pausar/excluir tarefa | ✓ | — |
-| Dispensar mês, desfazer baixa | ✓ | — |
-| Excluir conta, investimento, meta | ✓ | — |
-| Excluir lançamento/saldo/anexo | qualquer um | só o que ele criou |
+| Dispensar mês, desfazer baixa (excluir lançamento de tarefa) | ✓ | — |
+| Alterar a meta da reserva | ✓ | — |
+
+Regras de 20261124b_financeiro_pessoal_contas_editor.sql (rode depois do primeiro SQL).
+Cada aplicação tem `conta_id` (a conta/banco onde está).
 
 `is_admin_financeiro_pessoal()` decide o nível admin.
 
