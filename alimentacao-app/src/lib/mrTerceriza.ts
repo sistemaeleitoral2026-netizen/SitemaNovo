@@ -25,6 +25,8 @@ export type MrLancamento = {
   anexos?: MrAnexoMeta[]
   criadoPor?: string
   criadoPorId?: string
+  /** Data e horário em que o lançamento foi registrado no sistema. */
+  criadoEm?: string
   contratoId?: string | null
 }
 
@@ -39,6 +41,15 @@ export type MrContrato = {
   meses: number
   observacoes?: string
   criadoPorId?: string
+}
+
+export type MrContaBancaria = {
+  /** Identifica o mesmo cadastro quando ele está ligado a várias empresas. */
+  id: string
+  nome: string
+  descricao?: string
+  observacoes?: string
+  empresas: string[]
 }
 
 export type MrUsuario = {
@@ -60,11 +71,14 @@ export type MrAudit = {
 
 export type MrDbPayload = {
   lancamentos: MrLancamento[]
-  /** empresa (slug) -> nomes das contas bancárias, só inclusão (sem editar/excluir). */
+  /** empresa (slug) -> nomes disponíveis no formulário de lançamento. */
   contas: Record<string, string[]>
+  /** Cadastro central usado para criar, editar, compartilhar e desativar contas. */
+  contasDetalhes?: MrContaBancaria[]
   audit: MrAudit[]
   contratos: MrContrato[]
   centrosCusto: string[]
+  centrosCustoDetalhes?: Array<{ nome: string; descricao?: string }>
   /** userId -> empresas liberadas. Admin recebe de todos; editor só o dele. */
   permissoes?: Record<string, string[]>
   /** Só vem pro admin (tela Usuários). */
@@ -81,7 +95,7 @@ export type MrSessao = { userId: string; admin: boolean }
 /** Tabela/função de 20261117a_mr_contratos.sql ainda não criada no banco. */
 function semEstruturaNova(err: unknown) {
   const o = (err || {}) as { code?: string; message?: string }
-  return o.code === 'PGRST205' || o.code === 'PGRST202' || o.code === '42P01' || o.code === '42883' ||
+  return o.code === 'PGRST205' || o.code === 'PGRST204' || o.code === 'PGRST202' || o.code === '42P01' || o.code === '42703' || o.code === '42883' ||
     /could not find|does not exist/i.test(o.message || '')
 }
 
@@ -123,7 +137,12 @@ function makeIdCache() {
     const key = raw || `new-${cache.size}`
     let v = cache.get(key)
     if (!v) {
-      v = crypto.randomUUID()
+      const bytes = new Uint8Array(16)
+      crypto.getRandomValues(bytes)
+      bytes[6] = (bytes[6] & 15) | 64
+      bytes[8] = (bytes[8] & 63) | 128
+      const h = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+      v = `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
       cache.set(key, v)
     }
     return v
@@ -177,11 +196,11 @@ export async function carregarEstadoMrTerceriza(sessao: MrSessao): Promise<MrDbP
   const [lancamentos, contasRows, auditoria, anexos, contratosRows, centrosRows, permRows, usuariosRes] =
     await Promise.all([
       supabase.from('mr_lancamentos').select('*').order('data', { ascending: false }),
-      supabase.from('mr_contas').select('empresa,nome,ordem').eq('ativo', true).order('ordem'),
+      supabase.from('mr_contas').select('*').eq('ativo', true).order('ordem'),
       supabase.from('mr_auditoria').select('*').order('at', { ascending: false }).limit(500),
       listAnexos(),
       opcional(supabase.from('mr_contratos').select('*').order('inicio', { ascending: false }), []),
-      opcional(supabase.from('mr_centros_custo').select('nome').eq('ativo', true).order('nome'), []),
+      opcional(supabase.from('mr_centros_custo').select('*').eq('ativo', true).order('nome'), []),
       opcional(supabase.from('mr_permissoes').select('user_id,empresa'), []),
       sessao.admin
         ? opcional(supabase.rpc('list_mr_usuarios'), [])
@@ -240,17 +259,39 @@ export async function carregarEstadoMrTerceriza(sessao: MrSessao): Promise<MrDbP
       anexos: anexosFor(anexoRows, r.id as string, signed),
       criadoPorId,
       criadoPor: criadoPorId ? nomePorId.get(criadoPorId) || '' : '',
+      criadoEm: (r.created_at as string) || '',
       contratoId: (r.contrato_id as string) || null,
     }
   })
 
   const contas: Record<string, string[]> = {}
+  const detalhesPorGrupo = new Map<string, MrContaBancaria>()
   for (const row of contasRows.data || []) {
     const empresa = row.empresa as string
     if (!pode(empresa)) continue
     if (!contas[empresa]) contas[empresa] = []
     contas[empresa].push(row.nome as string)
+    // Antes da migração, a mesma conta era uma linha separada por empresa.
+    // Agrupa essas linhas pelo nome para a interface mostrar a conta uma vez
+    // só, seguida de todas as empresas/terceirizadas vinculadas.
+    const nome = (row.nome as string) || ''
+    const grupoId = row.grupo_id
+      ? String(row.grupo_id)
+      : `legacy:${nome.trim().toLocaleLowerCase('pt-BR')}`
+    let detalhe = detalhesPorGrupo.get(grupoId)
+    if (!detalhe) {
+      detalhe = {
+        id: grupoId,
+        nome,
+        descricao: (row.descricao as string) || '',
+        observacoes: (row.observacoes as string) || '',
+        empresas: [],
+      }
+      detalhesPorGrupo.set(grupoId, detalhe)
+    }
+    if (!detalhe.empresas.includes(empresa)) detalhe.empresas.push(empresa)
   }
+  const contasDetalhes = [...detalhesPorGrupo.values()]
 
   const contratos: MrContrato[] = (contratosRows.data || [])
     .filter((r) => pode(r.empresa as string))
@@ -267,6 +308,10 @@ export async function carregarEstadoMrTerceriza(sessao: MrSessao): Promise<MrDbP
     }))
 
   const centrosCusto = (centrosRows.data || []).map((r) => r.nome as string)
+  const centrosCustoDetalhes = (centrosRows.data || []).map((r) => ({
+    nome: r.nome as string,
+    descricao: (r.descricao as string) || '',
+  }))
 
   const usuarios: MrUsuario[] | undefined = sessao.admin
     ? ((usuariosRes.data as { id: string; nome: string; nivel: string; pode_abrir?: boolean }[] | null) || []).map(
@@ -293,9 +338,11 @@ export async function carregarEstadoMrTerceriza(sessao: MrSessao): Promise<MrDbP
   return {
     lancamentos: lancs,
     contas,
+    contasDetalhes,
     audit,
     contratos,
     centrosCusto,
+    centrosCustoDetalhes,
     permissoes,
     usuarios,
     minhasEmpresas,
@@ -366,6 +413,16 @@ export async function salvarEstadoMrTerceriza(
     .slice(0, 500)
     .filter((a) => (a.empresa ? pode(a.empresa) : opts.admin))
     .map((a) => ({ ...a, id: ensureUuid(String(a.id)) }))
+  const contasDetalhes = (payload.contasDetalhes || [])
+    .map((c) => ({
+      ...c,
+      id: ensureUuid(c.id),
+      nome: c.nome.trim(),
+      descricao: (c.descricao || '').trim(),
+      observacoes: (c.observacoes || '').trim(),
+      empresas: [...new Set((c.empresas || []).filter((empresa) => pode(empresa)))],
+    }))
+    .filter((c) => c.nome && c.empresas.length)
 
   try {
     // ---- contratos (antes dos lançamentos, por causa da FK contrato_id) ----
@@ -374,13 +431,20 @@ export async function salvarEstadoMrTerceriza(
     const temEstruturaNova = !contrList.faltando
     const remoteContr = (contrList.data || []) as { id: string; empresa: string; created_by: string | null }[]
 
-    // ---- centros de custo: só inclusão ----
+    // ---- centros de custo: cadastro com descrição opcional ----
     const centrosWanted = [...new Set((payload.centrosCusto || []).map((n) => n.trim()).filter(Boolean))]
     if (temEstruturaNova && centrosWanted.length) {
       const { data: jaTem, error } = await supabase.from('mr_centros_custo').select('nome')
       if (error) throw asError(error)
       const vistos = new Set((jaTem || []).map((r) => r.nome as string))
-      const novos = centrosWanted.filter((n) => !vistos.has(n)).map((nome) => ({ nome, created_by: opts.userId }))
+      const detalhes = new Map((payload.centrosCustoDetalhes || []).map((c) => [c.nome.trim(), (c.descricao || '').trim()]))
+      const estruturaDescricao = await opcional(supabase.from('mr_centros_custo').select('descricao').limit(1), [])
+      if (estruturaDescricao.error) throw asError(estruturaDescricao.error)
+      const novos = centrosWanted.filter((n) => !vistos.has(n)).map((nome) => ({
+        nome,
+        ...(estruturaDescricao.faltando ? {} : { descricao: detalhes.get(nome) || null }),
+        created_by: opts.userId,
+      }))
       if (novos.length) {
         const { error: insErr } = await supabase.from('mr_centros_custo').insert(novos)
         if (insErr) throw asError(insErr, 'Falha ao gravar centro de custo.')
@@ -409,32 +473,85 @@ export async function salvarEstadoMrTerceriza(
       if (error) throw asError(error, 'Falha ao gravar contratos.')
     }
 
-    // ---- contas bancárias: só inclusão (o painel não edita/exclui conta) ----
-    const contasExistentes = new Map<string, Set<string>>()
-    for (const [empresa, nomes] of Object.entries(payload.contas || {})) {
-      if (!pode(empresa)) continue
-      for (const nome of nomes) {
-        if (!contasExistentes.has(empresa)) contasExistentes.set(empresa, new Set())
-        contasExistentes.get(empresa)!.add(nome)
-      }
-    }
-    if (contasExistentes.size) {
-      const { data: jaTem, error: contasErr } = await supabase.from('mr_contas').select('empresa,nome')
+    // ---- contas bancárias: cadastro central compartilhável entre empresas ----
+    const estruturaContas = await opcional(supabase.from('mr_contas').select('grupo_id').limit(1), [])
+    if (estruturaContas.error) throw asError(estruturaContas.error)
+    const temContasDetalhadas = !estruturaContas.faltando
+    if (temContasDetalhadas) {
+      const { data: atuais, error: contasErr } = await supabase.from('mr_contas').select('*')
       if (contasErr) throw asError(contasErr)
-      const vistos = new Set((jaTem || []).map((r) => `${r.empresa}\u0000${r.nome}`))
-      const novas: { empresa: string; nome: string; ordem: number }[] = []
-      for (const [empresa, nomes] of contasExistentes) {
-        let ordem = 0
-        for (const nome of nomes) {
-          if (!vistos.has(`${empresa}\u0000${nome}`)) {
-            novas.push({ empresa, nome, ordem })
+      const remote = (atuais || []) as Array<{
+        id: string
+        grupo_id: string
+        empresa: string
+        nome: string
+        ativo: boolean
+      }>
+      const gruposDesejados = new Set(contasDetalhes.map((c) => c.id))
+      const linhasUsadas = new Set<string>()
+      for (let ordemGrupo = 0; ordemGrupo < contasDetalhes.length; ordemGrupo++) {
+        const conta = contasDetalhes[ordemGrupo]
+        const linhasGrupo = remote.filter((r) => String(r.grupo_id || r.id) === conta.id)
+        const rows = conta.empresas.map((empresa, ordem) => {
+          const atual = linhasGrupo.find((r) => r.empresa === empresa)
+          const mesmoNome = remote.find((r) => r.empresa === empresa && r.nome === conta.nome)
+          // Reativa uma linha antiga quando a conta foi excluída e cadastrada
+          // novamente, evitando conflito com o índice empresa+nome.
+          const existente = atual?.nome === conta.nome ? atual : mesmoNome || atual
+          const id = existente?.id || ensureUuid(`${conta.id}:${empresa}`)
+          linhasUsadas.add(id)
+          return {
+            id,
+            grupo_id: conta.id,
+            empresa,
+            nome: conta.nome,
+            descricao: conta.descricao || null,
+            observacoes: conta.observacoes || null,
+            ativo: true,
+            ordem: ordemGrupo * 100 + ordem,
           }
-          ordem++
+        })
+        const { error } = await supabase.from('mr_contas').upsert(rows, { onConflict: 'id' })
+        if (error) throw asError(error, 'Falha ao gravar conta bancária.')
+        const desativar = linhasGrupo.filter((r) => !linhasUsadas.has(r.id)).map((r) => r.id)
+        if (desativar.length) {
+          const { error } = await supabase.from('mr_contas').update({ ativo: false }).in('id', desativar)
+          if (error) throw asError(error, 'Falha ao remover vínculo da conta bancária.')
         }
       }
-      if (novas.length) {
-        const { error: insErr } = await supabase.from('mr_contas').insert(novas)
-        if (insErr) throw asError(insErr, 'Falha ao gravar conta bancária.')
+      const desativarGrupos = remote
+        .filter((r) => !linhasUsadas.has(r.id) && !gruposDesejados.has(String(r.grupo_id || r.id)))
+        .map((r) => r.id)
+      if (desativarGrupos.length) {
+        const { error } = await supabase.from('mr_contas').update({ ativo: false }).in('id', desativarGrupos)
+        if (error) throw asError(error, 'Falha ao excluir conta bancária.')
+      }
+    } else {
+      // Compatibilidade enquanto a migração de contas compartilhadas não foi aplicada.
+      const contasExistentes = new Map<string, Set<string>>()
+      for (const [empresa, nomes] of Object.entries(payload.contas || {})) {
+        if (!pode(empresa)) continue
+        for (const nome of nomes) {
+          if (!contasExistentes.has(empresa)) contasExistentes.set(empresa, new Set())
+          contasExistentes.get(empresa)!.add(nome)
+        }
+      }
+      if (contasExistentes.size) {
+        const { data: jaTem, error: contasErr } = await supabase.from('mr_contas').select('empresa,nome')
+        if (contasErr) throw asError(contasErr)
+        const vistos = new Set((jaTem || []).map((r) => `${r.empresa}\u0000${r.nome}`))
+        const novas: { empresa: string; nome: string; ordem: number }[] = []
+        for (const [empresa, nomes] of contasExistentes) {
+          let ordem = 0
+          for (const nome of nomes) {
+            if (!vistos.has(`${empresa}\u0000${nome}`)) novas.push({ empresa, nome, ordem })
+            ordem++
+          }
+        }
+        if (novas.length) {
+          const { error } = await supabase.from('mr_contas').insert(novas)
+          if (error) throw asError(error, 'Falha ao gravar conta bancária.')
+        }
       }
     }
 
@@ -443,7 +560,6 @@ export async function salvarEstadoMrTerceriza(
     const { data: contasValidasRows, error: contasValidasErr } = await supabase
       .from('mr_contas')
       .select('empresa,nome')
-      .eq('ativo', true)
     if (contasValidasErr) throw asError(contasValidasErr, 'Falha ao validar contas bancárias.')
     const contasValidas = new Set(
       (contasValidasRows || []).map((r) => `${r.empresa}\u0000${r.nome}`),
