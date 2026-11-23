@@ -438,6 +438,23 @@ export async function salvarEstadoMrTerceriza(
       }
     }
 
+    // Mesmo antes da constraint da migração chegar ao ambiente, não permite
+    // gravar uma conta que não pertença à empresa do lançamento.
+    const { data: contasValidasRows, error: contasValidasErr } = await supabase
+      .from('mr_contas')
+      .select('empresa,nome')
+      .eq('ativo', true)
+    if (contasValidasErr) throw asError(contasValidasErr, 'Falha ao validar contas bancárias.')
+    const contasValidas = new Set(
+      (contasValidasRows || []).map((r) => `${r.empresa}\u0000${r.nome}`),
+    )
+    const lancamentoComContaInvalida = lancamentos.find(
+      (r) => r.conta && !contasValidas.has(`${r.empresa}\u0000${r.conta}`),
+    )
+    if (lancamentoComContaInvalida) {
+      throw new Error('A conta bancária selecionada não está vinculada à empresa do lançamento.')
+    }
+
     // ---- lançamentos ----
     const { data: remoteLanc, error: lancListErr } = await supabase.from('mr_lancamentos').select('id,created_by,empresa,created_at')
     if (lancListErr) throw asError(lancListErr)
