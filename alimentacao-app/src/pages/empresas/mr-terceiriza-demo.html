@@ -197,7 +197,14 @@ table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
 .bank-note{font-size:12px;color:#64748b;line-height:1.45;white-space:normal}
 .bank-actions{display:flex;gap:7px;justify-content:flex-end;flex-wrap:wrap}
 .bank-empty{padding:28px;border:1px dashed #c9d4e2;border-radius:10px;text-align:center;color:var(--muted);background:#fbfcfe}
-.cc-company-tools{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 6px}
+.cc-company-tools{display:flex;gap:8px;flex-wrap:wrap}
+.cc-company-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.bank-company-option .co-ico{width:28px;height:28px;border-radius:7px}
+.bank-company-option .co-ico svg{width:18px;height:18px}
+.bank-item.is-editing{border-color:#86a9e7;background:#f5f9ff;box-shadow:0 0 0 3px #2563eb14}
+.cc-editing-tag{display:inline-flex;align-items:center;border-radius:999px;padding:5px 10px;background:var(--blue-soft);color:var(--blue);font-size:11px;font-weight:700}
+.card.cc-form-editing{border-color:#86a9e7;box-shadow:0 0 0 3px #2563eb14}
+.card-head .cc-search{margin:0;max-width:240px;flex:1 1 180px}
 @media(max-width:760px){.bank-form-grid{grid-template-columns:1fr}.bank-item{grid-template-columns:1fr;gap:12px}.bank-actions{justify-content:flex-start}.bank-company-picker{grid-template-columns:1fr}}
 
 /* Planilha */
@@ -455,17 +462,39 @@ table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
   .bottom-nav button svg{width:22px;height:22px}
   .bottom-nav button.active{color:var(--blue);font-weight:600}
 }
+
+/* Ícones Phosphor: microanimações */
+svg.ph{transform-origin:50% 50%;transition:transform .22s cubic-bezier(.34,1.56,.64,1)}
+@keyframes ph-wiggle{0%,100%{transform:rotate(0)}20%{transform:rotate(-12deg)}40%{transform:rotate(10deg)}60%{transform:rotate(-6deg)}80%{transform:rotate(3deg)}}
+@keyframes ph-ring{0%,100%{transform:rotate(0)}15%{transform:rotate(14deg)}30%{transform:rotate(-12deg)}45%{transform:rotate(8deg)}60%{transform:rotate(-5deg)}75%{transform:rotate(2deg)}}
+@keyframes ph-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes ph-spin{to{transform:rotate(-360deg)}}
+@keyframes ph-pop{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.08);opacity:1}100%{transform:scale(1)}}
+@keyframes ph-drop{0%,100%{transform:translateY(0)}50%{transform:translateY(3px)}}
+.co-ico svg,.metric-ico svg{animation:ph-pop .45s cubic-bezier(.34,1.56,.64,1) both}
+.co-tile:hover .co-ico svg{animation:ph-wiggle .6s ease}
+.metric:hover .metric-ico svg{transform:scale(1.14)}
+.nav-btn:hover svg,.bottom-nav button:hover svg{transform:translateY(-1px) scale(1.1)}
+.icon-btn[aria-label="Notificações"]:hover svg{transform-origin:50% 12%;animation:ph-ring .7s ease}
+.btn:hover svg.ph{transform:scale(1.12)}
+.btn[onclick^="clearFilters"]:hover svg{animation:ph-spin .6s ease}
+.btn[onclick^="exportCsv"]:hover svg{animation:ph-drop .8s ease infinite}
+.dropzone svg{animation:ph-float 2.6s ease-in-out infinite}
+.empty svg,.pie-empty svg{animation:ph-float 3.2s ease-in-out infinite}
+.co-chev svg{transition:transform .2s}
+.co-tile:hover .co-chev svg{transform:translateX(3px)}
+@media (prefers-reduced-motion:reduce){svg.ph{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
 <div class="sidebar-overlay" id="overlay"></div>
 <div class="app" id="app">
   <aside class="sidebar" id="sidebar">
-    <div class="brand"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="12" width="4.5" height="9" rx="1"/><rect x="9.75" y="7" width="4.5" height="14" rx="1"/><rect x="16.5" y="3" width="4.5" height="18" rx="1"/></svg><span>Empresas</span></div>
+    <div class="brand"><svg class="ph" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232,208a8,8,0,0,1-8,8H32a8,8,0,0,1,0-16h8V136a8,8,0,0,1,8-8H72a8,8,0,0,1,8,8v64H96V88a8,8,0,0,1,8-8h32a8,8,0,0,1,8,8V200h16V40a8,8,0,0,1,8-8h40a8,8,0,0,1,8,8V200h8A8,8,0,0,1,232,208Z"/></svg><span>Empresas</span></div>
     <nav class="navigation" id="nav"></nav>
     <div class="side-bottom">
       <div class="side-user" id="sideUser"></div>
-      <button class="collapse-btn" id="collapse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/></svg><span class="nav-label">Recolher menu</span></button>
+      <button class="collapse-btn" id="collapse" data-icon="chevrons-left"><span class="nav-label">Recolher menu</span></button>
     </div>
   </aside>
   <div class="content">
@@ -473,7 +502,7 @@ table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
       <div class="top-left"><button class="icon-btn" id="toggle" aria-label="Menu" data-icon="menu"></button><span class="top-title" id="topPage">Painel</span></div>
       <div class="top-right">
         <button class="icon-btn" aria-label="Notificações" data-icon="bell"></button>
-        <button class="user-chip" id="userChip"><span class="avatar" id="avatar"></span><span id="userName"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+        <button class="user-chip" id="userChip"><span class="avatar" id="avatar"></span><span id="userName"></span><svg class="ph" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216.49,104.49l-80,80a12,12,0,0,1-17,0l-80-80a12,12,0,0,1,17-17L128,159l71.51-71.52a12,12,0,0,1,17,17Z"/></svg></button>
         <div class="user-menu hidden" id="userMenu"></div>
       </div>
     </header>
@@ -488,53 +517,54 @@ table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
 // Protótipo local sem backend. Os dados ficam apenas nesta aba.
 const ME=window.MR_USER||{nome:'Jurandy Santana',admin:true};
 const initials=n=>{const w=String(n).split(/\s+/).filter(Boolean);return ((w[0]?.[0]||'')+(w.length>1?w[w.length-1][0]:'')).toUpperCase()};
+// Ícones: Phosphor Icons (MIT, phosphoricons.com) — duotone; setas/ações em bold.
 const icons={
-  'menu':"<path d='M4 7h16M4 12h16M4 17h16'/>",
-  'bell':"<path d='M6 8a6 6 0 1 1 12 0c0 7 3 8.5 3 8.5H3S6 15 6 8'/><path d='M10 20.5a2 2 0 0 0 4 0'/>",
-  'home':"<path d='M3 10.5 12 3l9 7.5'/><path d='M5 9v12h14V9'/><path d='M10 21v-6h4v6'/>",
-  'list':"<rect x='4' y='3' width='16' height='18' rx='2'/><path d='M8 8h8M8 12h8M8 16h5'/>",
-  'arrow-down':"<path d='M12 4v16M6 14l6 6 6-6'/>",
-  'arrow-up':"<path d='M12 20V4M6 10l6-6 6 6'/>",
-  'file':"<path d='M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z'/><path d='M14 3v5h5M9 13h6M9 17h6M9 9h2'/>",
-  'shield':"<path d='M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z'/><path d='m9 12 2 2 4-4'/>",
-  'chart':"<path d='M4 20h16'/><path d='M7 20v-8M11 20V5M15 20v-10M19 20v-5'/>",
-  'building':"<rect x='5' y='3' width='14' height='18' rx='1'/><path d='M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M10 21v-3h4v3'/>",
-  'card':"<rect x='3' y='5' width='18' height='14' rx='2'/><path d='M3 10h18M7 15h4'/>",
-  'users':"<circle cx='9' cy='8' r='3.5'/><path d='M2.5 20a6.5 6.5 0 0 1 13 0'/><path d='M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6'/>",
-  'settings':"<circle cx='12' cy='12' r='3'/><path d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06-2.83 2.83-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 1.5V21h-4v-.1A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06-2.83-2.83.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.5-1H3v-4h.1A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06 2.83-2.83.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.5V3h4v.1a1.65 1.65 0 0 0 1 1.5 1.65 1.65 0 0 0 1.82-.33l.06-.06 2.83 2.83-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.5 1h.1v4h-.1a1.65 1.65 0 0 0-1.5 1Z'/>",
-  'calendar':"<rect x='3' y='5' width='18' height='16' rx='2'/><path d='M3 10h18M8 3v4M16 3v4M7 14h2M11 14h2M15 14h2M7 17h2M11 17h2'/>",
-  'chevron-down':"<path d='m6 9 6 6 6-6'/>",
-  'chevron-right':"<path d='m9 6 6 6-6 6'/>",
-  'user':"<circle cx='12' cy='8' r='4'/><path d='M4 21a8 8 0 0 1 16 0'/>",
-  'clock':"<circle cx='12' cy='12' r='9'/><path d='M12 7v5l3 2'/>",
-  'dots':"<circle cx='5' cy='12' r='1.6' fill='currentColor'/><circle cx='12' cy='12' r='1.6' fill='currentColor'/><circle cx='19' cy='12' r='1.6' fill='currentColor'/>",
-  'plus':"<path d='M12 5v14M5 12h14'/>",
-  'download':"<path d='M12 3v12m-5-5 5 5 5-5M5 18v3h14v-3'/>",
-  'paperclip':"<path d='m21 11.5-8.8 8.8a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5'/>",
-  'bars-fill':"<rect x='4' y='12' width='4' height='9' rx='1' fill='currentColor' stroke='none'/><rect x='10' y='6' width='4' height='15' rx='1' fill='currentColor' stroke='none'/><rect x='16' y='9' width='4' height='12' rx='1' fill='currentColor' stroke='none'/>",
-  'search':"<circle cx='11' cy='11' r='7'/><path d='m20 20-3.5-3.5'/>",
-  'refresh':"<path d='M3 12a9 9 0 1 0 3-6.7L3 8'/><path d='M3 3v5h5'/>",
-  'info':"<circle cx='12' cy='12' r='9'/><path d='M12 11v5M12 8h.01'/>",
-  'x':"<path d='M6 6l12 12M18 6 6 18'/>",
-  'save':"<path d='M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z'/><path d='M7 3v5h8V3M7 21v-7h10v7'/>",
-  'send':"<path d='M21 3 10 14'/><path d='m21 3-7 18-4-7-7-4z'/>",
-  'cloud':"<path d='M7 18a5 5 0 1 1 .9-9.9A6 6 0 0 1 19 10a4 4 0 0 1-1 8z'/><path d='M12 12v6M9.5 14.5 12 12l2.5 2.5'/>",
-  'trash':"<path d='M4 7h16M10 11v6M14 11v6M6 7l1 14h10l1-14M9 7V4h6v3'/>",
-  'check-circle':"<circle cx='12' cy='12' r='10' fill='currentColor' stroke='none'/><path d='m8 12 3 3 5-6' stroke='#fff' stroke-width='2.4'/>",
-  'bulb':"<path d='M9 18h6M10 21h4'/><path d='M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z'/>",
-  'chevron-left':"<path d='m15 6-6 6 6 6'/>",
-  'file-alert':"<path d='M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z'/><path d='M14 3v5h5M12 11v4M12 18h.01'/>",
-  'shield-ok':"<path d='M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z' fill='currentColor' fill-opacity='.15'/><path d='m9 12 2 2 4-4'/>",
-  // Ícones das empresas
-  'hardhat':"<path d='M3 18h18v-1.5a9 9 0 0 0-18 0z' fill='currentColor'/><path d='M10 8V5h4v3' fill='currentColor'/><path d='M2 18h20' stroke-width='2.4'/>",
-  'dress':"<path d='M9.5 3h5l-1 4.5L18 20H6l4.5-12.5z' fill='currentColor'/>",
-  'store':"<path d='M4 9l1.5-5h13L20 9'/><path d='M4 9h16v1.5a2.7 2.7 0 0 1-5.3 0 2.7 2.7 0 0 1-5.4 0 2.7 2.7 0 0 1-5.3 0z'/><path d='M5 13v8h14v-8M10 21v-5h4v5'/>",
-  'cal-co':"<rect x='3' y='5' width='18' height='16' rx='2' fill='currentColor' fill-opacity='.16'/><path d='M3 10h18M8 3v4M16 3v4'/><path d='M7 14h2M11 14h2M15 14h2M7 17h2M11 17h2' stroke-width='2.4'/>",
-  'truck':"<path d='M2 6h12v10H2z' fill='currentColor'/><path d='M14 10h4l3 3v3h-7z' fill='currentColor' fill-opacity='.55'/><circle cx='6' cy='18' r='2' fill='#fff'/><circle cx='17' cy='18' r='2' fill='#fff'/>",
-  'car':"<path d='M5 16H3v-4l2-5h14l2 5v4h-2' fill='currentColor' fill-opacity='.16'/><path d='M3 12h18'/><circle cx='7.5' cy='16.5' r='2' fill='#fff'/><circle cx='16.5' cy='16.5' r='2' fill='#fff'/>",
-  'printer':"<path d='M7 9V3h10v6'/><rect x='3' y='9' width='18' height='8' rx='2' fill='currentColor' fill-opacity='.25'/><path d='M7 14h10v7H7z' fill='#fff'/><path d='M10 17h4'/>"
+  'menu':"<path d='M228,128a12,12,0,0,1-12,12H40a12,12,0,0,1,0-24H216A12,12,0,0,1,228,128ZM40,76H216a12,12,0,0,0,0-24H40a12,12,0,0,0,0,24ZM216,180H40a12,12,0,0,0,0,24H216a12,12,0,0,0,0-24Z'/>",
+  'bell':"<path d='M208,192H48a8,8,0,0,1-6.88-12C47.71,168.6,56,139.81,56,104a72,72,0,0,1,144,0c0,35.82,8.3,64.6,14.9,76A8,8,0,0,1,208,192Z' opacity='0.2'/><path d='M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216ZM48,184c7.7-13.24,16-43.92,16-80a64,64,0,1,1,128,0c0,36.05,8.28,66.73,16,80Z'/>",
+  'home':"<path d='M216,120v96H152V152H104v64H40V120a8,8,0,0,1,2.34-5.66l80-80a8,8,0,0,1,11.32,0l80,80A8,8,0,0,1,216,120Z' opacity='0.2'/><path d='M219.31,108.68l-80-80a16,16,0,0,0-22.62,0l-80,80A15.87,15.87,0,0,0,32,120v96a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V160h32v56a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V120A15.87,15.87,0,0,0,219.31,108.68ZM208,208H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48V120l80-80,80,80Z'/>",
+  'list':"<path d='M208,48V216a8,8,0,0,1-8,8H56a8,8,0,0,1-8-8V48a8,8,0,0,1,8-8H96a39.83,39.83,0,0,0-8,24v8h80V64a39.83,39.83,0,0,0-8-24h40A8,8,0,0,1,208,48Z' opacity='0.2'/><path d='M168,152a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,152Zm-8-40H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16Zm56-64V216a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V48A16,16,0,0,1,56,32H92.26a47.92,47.92,0,0,1,71.48,0H200A16,16,0,0,1,216,48ZM96,64h64a32,32,0,0,0-64,0ZM200,48H173.25A47.93,47.93,0,0,1,176,64v8a8,8,0,0,1-8,8H88a8,8,0,0,1-8-8V64a47.93,47.93,0,0,1,2.75-16H56V216H200Z'/>",
+  'arrow-down':"<path d='M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z' opacity='0.2'/><path d='M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm37.66-85.66a8,8,0,0,1,0,11.32l-32,32a8,8,0,0,1-11.32,0l-32-32a8,8,0,0,1,11.32-11.32L120,148.69V88a8,8,0,0,1,16,0v60.69l18.34-18.35A8,8,0,0,1,165.66,130.34Z'/>",
+  'arrow-up':"<path d='M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z' opacity='0.2'/><path d='M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm37.66-101.66a8,8,0,0,1-11.32,11.32L136,107.31V168a8,8,0,0,1-16,0V107.31l-18.34,18.35a8,8,0,0,1-11.32-11.32l32-32a8,8,0,0,1,11.32,0Z'/>",
+  'file':"<path d='M208,88H152V32Z' opacity='0.2'/><path d='M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-32-80a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,136Zm0,32a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,168Z'/>",
+  'shield':"<path d='M216,56v56c0,96-88,120-88,120S40,208,40,112V56a8,8,0,0,1,8-8H208A8,8,0,0,1,216,56Z' opacity='0.2'/><path d='M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.26,47,25.53a8,8,0,0,0,4.2,0c1-.27,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0ZM82.34,141.66a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32l-56,56a8,8,0,0,1-11.32,0Z'/>",
+  'chart':"<path d='M208,40V208H152V40Z' opacity='0.2'/><path d='M224,200h-8V40a8,8,0,0,0-8-8H152a8,8,0,0,0-8,8V80H96a8,8,0,0,0-8,8v40H48a8,8,0,0,0-8,8v64H32a8,8,0,0,0,0,16H224a8,8,0,0,0,0-16ZM160,48h40V200H160ZM104,96h40V200H104ZM56,144H88v56H56Z'/>",
+  'building':"<path d='M136,32V216H40V85.35a8,8,0,0,1,3.56-6.66l80-53.33A8,8,0,0,1,136,32Z' opacity='0.2'/><path d='M240,208H224V96a16,16,0,0,0-16-16H144V32a16,16,0,0,0-24.88-13.32L39.12,72A16,16,0,0,0,32,85.34V208H16a8,8,0,0,0,0,16H240a8,8,0,0,0,0-16ZM208,96V208H144V96ZM48,85.34,128,32V208H48ZM112,112v16a8,8,0,0,1-16,0V112a8,8,0,1,1,16,0Zm-32,0v16a8,8,0,0,1-16,0V112a8,8,0,1,1,16,0Zm0,56v16a8,8,0,0,1-16,0V168a8,8,0,0,1,16,0Zm32,0v16a8,8,0,0,1-16,0V168a8,8,0,0,1,16,0Z'/>",
+  'card':"<path d='M232,96H24L128,32Z' opacity='0.2'/><path d='M24,104H48v64H32a8,8,0,0,0,0,16H224a8,8,0,0,0,0-16H208V104h24a8,8,0,0,0,4.19-14.81l-104-64a8,8,0,0,0-8.38,0l-104,64A8,8,0,0,0,24,104Zm40,0H96v64H64Zm80,0v64H112V104Zm48,64H160V104h32ZM128,41.39,203.74,88H52.26ZM248,208a8,8,0,0,1-8,8H16a8,8,0,0,1,0-16H240A8,8,0,0,1,248,208Z'/>",
+  'users':"<path d='M168,144a40,40,0,1,1-40-40A40,40,0,0,1,168,144ZM64,56A32,32,0,1,0,96,88,32,32,0,0,0,64,56Zm128,0a32,32,0,1,0,32,32A32,32,0,0,0,192,56Z' opacity='0.2'/><path d='M244.8,150.4a8,8,0,0,1-11.2-1.6A51.6,51.6,0,0,0,192,128a8,8,0,0,1,0-16,24,24,0,1,0-23.24-30,8,8,0,1,1-15.5-4A40,40,0,1,1,219,117.51a67.94,67.94,0,0,1,27.43,21.68A8,8,0,0,1,244.8,150.4ZM190.92,212a8,8,0,1,1-13.85,8,57,57,0,0,0-98.15,0,8,8,0,1,1-13.84-8,72.06,72.06,0,0,1,33.74-29.92,48,48,0,1,1,58.36,0A72.06,72.06,0,0,1,190.92,212ZM128,176a32,32,0,1,0-32-32A32,32,0,0,0,128,176ZM72,120a8,8,0,0,0-8-8A24,24,0,1,1,87.24,82a8,8,0,1,0,15.5-4A40,40,0,1,0,37,117.51,67.94,67.94,0,0,0,9.6,139.19a8,8,0,1,0,12.8,9.61A51.6,51.6,0,0,1,64,128,8,8,0,0,0,72,120Z'/>",
+  'settings':"<path d='M230.1,108.76,198.25,90.62c-.64-1.16-1.31-2.29-2-3.41l-.12-36A104.61,104.61,0,0,0,162,32L130,49.89c-1.34,0-2.69,0-4,0L94,32A104.58,104.58,0,0,0,59.89,51.25l-.16,36c-.7,1.12-1.37,2.26-2,3.41l-31.84,18.1a99.15,99.15,0,0,0,0,38.46l31.85,18.14c.64,1.16,1.31,2.29,2,3.41l.12,36A104.61,104.61,0,0,0,94,224l32-17.87c1.34,0,2.69,0,4,0L162,224a104.58,104.58,0,0,0,34.08-19.25l.16-36c.7-1.12,1.37-2.26,2-3.41l31.84-18.1A99.15,99.15,0,0,0,230.1,108.76ZM128,168a40,40,0,1,1,40-40A40,40,0,0,1,128,168Z' opacity='0.2'/><path d='M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Zm109.94-52.79a8,8,0,0,0-3.89-5.4l-29.83-17-.12-33.62a8,8,0,0,0-2.83-6.08,111.91,111.91,0,0,0-36.72-20.67,8,8,0,0,0-6.46.59L128,41.85,97.88,25a8,8,0,0,0-6.47-.6A111.92,111.92,0,0,0,54.73,45.15a8,8,0,0,0-2.83,6.07l-.15,33.65-29.83,17a8,8,0,0,0-3.89,5.4,106.47,106.47,0,0,0,0,41.56,8,8,0,0,0,3.89,5.4l29.83,17,.12,33.63a8,8,0,0,0,2.83,6.08,111.91,111.91,0,0,0,36.72,20.67,8,8,0,0,0,6.46-.59L128,214.15,158.12,231a7.91,7.91,0,0,0,3.9,1,8.09,8.09,0,0,0,2.57-.42,112.1,112.1,0,0,0,36.68-20.73,8,8,0,0,0,2.83-6.07l.15-33.65,29.83-17a8,8,0,0,0,3.89-5.4A106.47,106.47,0,0,0,237.94,107.21Zm-15,34.91-28.57,16.25a8,8,0,0,0-3,3c-.58,1-1.19,2.06-1.81,3.06a7.94,7.94,0,0,0-1.22,4.21l-.15,32.25a95.89,95.89,0,0,1-25.37,14.3L134,199.13a8,8,0,0,0-3.91-1h-.19c-1.21,0-2.43,0-3.64,0a8.1,8.1,0,0,0-4.1,1l-28.84,16.1A96,96,0,0,1,67.88,201l-.11-32.2a8,8,0,0,0-1.22-4.22c-.62-1-1.23-2-1.8-3.06a8.09,8.09,0,0,0-3-3.06l-28.6-16.29a90.49,90.49,0,0,1,0-28.26L61.67,97.63a8,8,0,0,0,3-3c.58-1,1.19-2.06,1.81-3.06a7.94,7.94,0,0,0,1.22-4.21l.15-32.25a95.89,95.89,0,0,1,25.37-14.3L122,56.87a8,8,0,0,0,4.1,1c1.21,0,2.43,0,3.64,0a8,8,0,0,0,4.1-1l28.84-16.1A96,96,0,0,1,188.12,55l.11,32.2a8,8,0,0,0,1.22,4.22c.62,1,1.23,2,1.8,3.06a8.09,8.09,0,0,0,3,3.06l28.6,16.29A90.49,90.49,0,0,1,222.9,142.12Z'/>",
+  'calendar':"<path d='M216,48V88H40V48a8,8,0,0,1,8-8H208A8,8,0,0,1,216,48Z' opacity='0.2'/><path d='M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM72,48v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24V80H48V48ZM208,208H48V96H208V208Z'/>",
+  'chevron-down':"<path d='M216.49,104.49l-80,80a12,12,0,0,1-17,0l-80-80a12,12,0,0,1,17-17L128,159l71.51-71.52a12,12,0,0,1,17,17Z'/>",
+  'chevron-right':"<path d='M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z'/>",
+  'chevron-left':"<path d='M168.49,199.51a12,12,0,0,1-17,17l-80-80a12,12,0,0,1,0-17l80-80a12,12,0,0,1,17,17L97,128Z'/>",
+  'chevrons-left':"<path d='M208.49,199.51a12,12,0,0,1-17,17l-80-80a12,12,0,0,1,0-17l80-80a12,12,0,0,1,17,17L137,128ZM57,128l71.52-71.51a12,12,0,0,0-17-17l-80,80a12,12,0,0,0,0,17l80,80a12,12,0,0,0,17-17Z'/>",
+  'user':"<path d='M192,96a64,64,0,1,1-64-64A64,64,0,0,1,192,96Z' opacity='0.2'/><path d='M230.92,212c-15.23-26.33-38.7-45.21-66.09-54.16a72,72,0,1,0-73.66,0C63.78,166.78,40.31,185.66,25.08,212a8,8,0,1,0,13.85,8c18.84-32.56,52.14-52,89.07-52s70.23,19.44,89.07,52a8,8,0,1,0,13.85-8ZM72,96a56,56,0,1,1,56,56A56.06,56.06,0,0,1,72,96Z'/>",
+  'clock':"<path d='M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z' opacity='0.2'/><path d='M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm64-88a8,8,0,0,1-8,8H128a8,8,0,0,1-8-8V72a8,8,0,0,1,16,0v48h48A8,8,0,0,1,192,128Z'/>",
+  'dots':"<path d='M144,128a16,16,0,1,1-16-16A16,16,0,0,1,144,128ZM60,112a16,16,0,1,0,16,16A16,16,0,0,0,60,112Zm136,0a16,16,0,1,0,16,16A16,16,0,0,0,196,112Z'/>",
+  'plus':"<path d='M228,128a12,12,0,0,1-12,12H140v76a12,12,0,0,1-24,0V140H40a12,12,0,0,1,0-24h76V40a12,12,0,0,1,24,0v76h76A12,12,0,0,1,228,128Z'/>",
+  'download':"<path d='M216,48V208H40V48A16,16,0,0,1,56,32H200A16,16,0,0,1,216,48Z' opacity='0.2'/><path d='M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,124.69V32a8,8,0,0,0-16,0v92.69L93.66,98.34a8,8,0,0,0-11.32,11.32Z'/>",
+  'paperclip':"<path d='M180.75,104.75,204,128l-82.06,81.94a48,48,0,0,1-67.88-67.88L153.37,41.37a32,32,0,0,1,45.26,45.26Z' opacity='0.2'/><path d='M209.66,122.34a8,8,0,0,1,0,11.32l-82.05,82a56,56,0,0,1-79.2-79.21L147.67,35.73a40,40,0,1,1,56.61,56.55L105,193A24,24,0,1,1,71,159L154.3,74.38A8,8,0,1,1,165.7,85.6L82.39,170.31a8,8,0,1,0,11.27,11.36L192.93,81A24,24,0,1,0,159,47L59.76,147.68a40,40,0,1,0,56.53,56.62l82.06-82A8,8,0,0,1,209.66,122.34Z'/>",
+  'bars-fill':"<path d='M96,37.5v72l-62.4,36A96,96,0,0,1,96,37.5Z' opacity='0.2'/><path d='M100,116.43a8,8,0,0,0,4-6.93v-72A8,8,0,0,0,93.34,30,104.06,104.06,0,0,0,25.73,147a8,8,0,0,0,4.52,5.81,7.86,7.86,0,0,0,3.35.74,8,8,0,0,0,4-1.07ZM88,49.62v55.26L40.12,132.51C40,131,40,129.48,40,128A88.12,88.12,0,0,1,88,49.62ZM128,24a8,8,0,0,0-8,8v91.82L41.19,169.73a8,8,0,0,0-2.87,11A104,104,0,1,0,128,24Zm0,192a88.47,88.47,0,0,1-71.49-36.68l75.52-44a8,8,0,0,0,4-6.92V40.36A88,88,0,0,1,128,216Z'/>",
+  'search':"<path d='M192,112a80,80,0,1,1-80-80A80,80,0,0,1,192,112Z' opacity='0.2'/><path d='M229.66,218.34,179.6,168.28a88.21,88.21,0,1,0-11.32,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z'/>",
+  'refresh':"<path d='M216,128a88,88,0,1,1-88-88A88,88,0,0,1,216,128Z' opacity='0.2'/><path d='M224,128a96,96,0,0,1-94.71,96H128A95.38,95.38,0,0,1,62.1,197.8a8,8,0,0,1,11-11.63A80,80,0,1,0,71.43,71.39a3.07,3.07,0,0,1-.26.25L44.59,96H72a8,8,0,0,1,0,16H24a8,8,0,0,1-8-8V56a8,8,0,0,1,16,0V85.8L60.25,60A96,96,0,0,1,224,128Z'/>",
+  'info':"<path d='M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z' opacity='0.2'/><path d='M144,176a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176Zm88-48A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128ZM124,96a12,12,0,1,0-12-12A12,12,0,0,0,124,96Z'/>",
+  'x':"<path d='M208.49,191.51a12,12,0,0,1-17,17L128,145,64.49,208.49a12,12,0,0,1-17-17L111,128,47.51,64.49a12,12,0,0,1,17-17L128,111l63.51-63.52a12,12,0,0,1,17,17L145,128Z'/>",
+  'save':"<path d='M216,83.31V208a8,8,0,0,1-8,8H176V152a8,8,0,0,0-8-8H88a8,8,0,0,0-8,8v64H48a8,8,0,0,1-8-8V48a8,8,0,0,1,8-8H172.69a8,8,0,0,1,5.65,2.34l35.32,35.32A8,8,0,0,1,216,83.31Z' opacity='0.2'/><path d='M219.31,72,184,36.69A15.86,15.86,0,0,0,172.69,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V83.31A15.86,15.86,0,0,0,219.31,72ZM168,208H88V152h80Zm40,0H184V152a16,16,0,0,0-16-16H88a16,16,0,0,0-16,16v56H48V48H172.69L208,83.31ZM160,72a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h56A8,8,0,0,1,160,72Z'/>",
+  'send':"<path d='M223.69,42.18l-58.22,192a8,8,0,0,1-14.92,1.25L108,148,20.58,105.45a8,8,0,0,1,1.25-14.92l192-58.22A8,8,0,0,1,223.69,42.18Z' opacity='0.2'/><path d='M227.32,28.68a16,16,0,0,0-15.66-4.08l-.15,0L19.57,82.84a16,16,0,0,0-2.49,29.8L102,154l41.3,84.87A15.86,15.86,0,0,0,157.74,248q.69,0,1.38-.06a15.88,15.88,0,0,0,14-11.51l58.2-191.94c0-.05,0-.1,0-.15A16,16,0,0,0,227.32,28.68ZM157.83,231.85l-.05.14,0-.07-40.06-82.3,48-48a8,8,0,0,0-11.31-11.31l-48,48L24.08,98.25l-.07,0,.14,0L216,40Z'/>",
+  'cloud':"<path d='M240,128a80,80,0,0,1-80,80H72A56,56,0,1,1,85.92,97.74l0,.1A80,80,0,0,1,240,128Z' opacity='0.2'/><path d='M178.34,165.66,160,147.31V208a8,8,0,0,1-16,0V147.31l-18.34,18.35a8,8,0,0,1-11.32-11.32l32-32a8,8,0,0,1,11.32,0l32,32a8,8,0,0,1-11.32,11.32ZM160,40A88.08,88.08,0,0,0,81.29,88.68,64,64,0,1,0,72,216h40a8,8,0,0,0,0-16H72a48,48,0,0,1,0-96c1.1,0,2.2,0,3.29.12A88,88,0,0,0,72,128a8,8,0,0,0,16,0,72,72,0,1,1,100.8,66,8,8,0,0,0,3.2,15.34,7.9,7.9,0,0,0,3.2-.68A88,88,0,0,0,160,40Z'/>",
+  'trash':"<path d='M200,56V208a8,8,0,0,1-8,8H64a8,8,0,0,1-8-8V56Z' opacity='0.2'/><path d='M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z'/>",
+  'check-circle':"<path d='M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm45.66,85.66-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32Z'/>",
+  'bulb':"<path d='M208,104a79.86,79.86,0,0,1-30.59,62.92A24.29,24.29,0,0,0,168,186v6a8,8,0,0,1-8,8H96a8,8,0,0,1-8-8v-6a24.11,24.11,0,0,0-9.3-19A79.87,79.87,0,0,1,48,104.45C47.76,61.09,82.72,25,126.07,24A80,80,0,0,1,208,104Z' opacity='0.2'/><path d='M176,232a8,8,0,0,1-8,8H88a8,8,0,0,1,0-16h80A8,8,0,0,1,176,232Zm40-128a87.55,87.55,0,0,1-33.64,69.21A16.24,16.24,0,0,0,176,186v6a16,16,0,0,1-16,16H96a16,16,0,0,1-16-16v-6a16,16,0,0,0-6.23-12.66A87.59,87.59,0,0,1,40,104.49C39.74,56.83,78.26,17.14,125.88,16A88,88,0,0,1,216,104Zm-16,0a72,72,0,0,0-73.74-72c-39,.92-70.47,33.39-70.26,72.39a71.65,71.65,0,0,0,27.64,56.3A32,32,0,0,1,96,186v6h64v-6a32.15,32.15,0,0,1,12.47-25.35A71.65,71.65,0,0,0,200,104Zm-16.11-9.34a57.6,57.6,0,0,0-46.56-46.55,8,8,0,0,0-2.66,15.78c16.57,2.79,30.63,16.85,33.44,33.45A8,8,0,0,0,176,104a9,9,0,0,0,1.35-.11A8,8,0,0,0,183.89,94.66Z'/>",
+  'file-alert':"<path d='M208,88H152V32Z' opacity='0.2'/><path d='M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-42.34-82.34L139.31,152l18.35,18.34a8,8,0,0,1-11.32,11.32L128,163.31l-18.34,18.35a8,8,0,0,1-11.32-11.32L116.69,152,98.34,133.66a8,8,0,0,1,11.32-11.32L128,140.69l18.34-18.35a8,8,0,0,1,11.32,11.32Z'/>",
+  'shield-ok':"<path d='M216,56v56c0,96-88,120-88,120S40,208,40,112V56a8,8,0,0,1,8-8H208A8,8,0,0,1,216,56Z' opacity='0.2'/><path d='M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.26,47,25.53a8,8,0,0,0,4.2,0c1-.27,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0ZM82.34,141.66a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32l-56,56a8,8,0,0,1-11.32,0Z'/>",
+  'hardhat':"<path d='M104,51.31V160H40V136A88,88,0,0,1,104,51.31Zm48,0V160h64V136A88,88,0,0,0,152,51.31Z' opacity='0.2'/><path d='M224,152V136a96.37,96.37,0,0,0-64-90.51V40a16,16,0,0,0-16-16H112A16,16,0,0,0,96,40v5.49A96.37,96.37,0,0,0,32,136v16a16,16,0,0,0-16,16v24a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V168A16,16,0,0,0,224,152Zm-16-16v16H160V62.67A80.36,80.36,0,0,1,208,136ZM144,40V152H112V40ZM48,136A80.36,80.36,0,0,1,96,62.67V152H48Zm176,56H32V168H224v24Z'/>",
+  'dress':"<path d='M200,224H56a8,8,0,0,1-7.35-11.15L96,112,73.14,76.12a8,8,0,0,1,0-8.24L96,35.23,103,44a32,32,0,0,0,50,0l7-8.76,22.86,32.65a8,8,0,0,1,0,8.24L160,112l47.34,100.85A8,8,0,0,1,200,224Z' opacity='0.2'/><path d='M214.7,209.7a1.89,1.89,0,0,0-.11-.25l-45.48-96.86,20.5-32.18.11-.18a16,16,0,0,0,0-16.46c-.09-.16-.2-.32-.3-.47L168,32.7V8a8,8,0,0,0-16,0V32.42L146.74,39a24,24,0,0,1-37.48,0L104,32.42V8A8,8,0,0,0,88,8V32.7L66.58,63.3c-.1.15-.21.31-.3.47a16,16,0,0,0,0,16.46l.11.18,20.5,32.18L41.41,209.45a1.89,1.89,0,0,0-.11.25A16,16,0,0,0,56,232H200a16,16,0,0,0,14.71-22.3ZM80,72,96.43,48.57l.33.42a40,40,0,0,0,62.48,0l.33-.42L176,72l-20.38,32H100.39ZM56,216l45.07-96h53.84L200,216Z'/>",
+  'store':"<path d='M224,96v16a32,32,0,0,1-64,0V96H96v16a32,32,0,0,1-64,0V96L46.34,45.8A8,8,0,0,1,54,40H202a8,8,0,0,1,7.69,5.8Z' opacity='0.2'/><path d='M231.69,93.81,217.35,43.6A16.07,16.07,0,0,0,202,32H54A16.07,16.07,0,0,0,38.65,43.6L24.31,93.81A7.94,7.94,0,0,0,24,96v16a40,40,0,0,0,16,32v72a8,8,0,0,0,8,8H208a8,8,0,0,0,8-8V144a40,40,0,0,0,16-32V96A7.94,7.94,0,0,0,231.69,93.81ZM54,48H202l11.42,40H42.61Zm98,56v8a24,24,0,0,1-48,0v-8ZM51.06,132.2A24,24,0,0,1,40,112v-8H88v8a24,24,0,0,1-35.12,21.26A7.88,7.88,0,0,0,51.06,132.2ZM200,208H56V151.2a40.57,40.57,0,0,0,8,.8,40,40,0,0,0,32-16,40,40,0,0,0,64,0,40,40,0,0,0,32,16,40.57,40.57,0,0,0,8-.8Zm16-96a24,24,0,0,1-11.07,20.2,8.08,8.08,0,0,0-1.8,1.05A24,24,0,0,1,168,112v-8h48Z'/>",
+  'cal-co':"<path d='M149.6,143.41,157.67,176,128,158.54,98.33,176l8.07-32.59L80,121.61l34.65-2.67L128,88l13.35,30.94L176,121.61Z' opacity='0.2'/><path d='M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H72v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24V208Zm-31.38-94.36-29.84-2.31-11.43-26.5a8,8,0,0,0-14.7,0l-11.43,26.5-29.84,2.31a8,8,0,0,0-4.47,14.14l22.52,18.59-6.86,27.71a8,8,0,0,0,11.82,8.81L128,167.82l25.61,15.07a8,8,0,0,0,11.82-8.81l-6.86-27.71,22.52-18.59a8,8,0,0,0-4.47-14.14Zm-32.11,23.6a8,8,0,0,0-2.68,8.09l3.5,14.12-13.27-7.81a8,8,0,0,0-8.12,0l-13.27,7.81,3.5-14.12a8,8,0,0,0-2.68-8.09l-11.11-9.18,14.89-1.15a8,8,0,0,0,6.73-4.8l6-13.92,6,13.92a8,8,0,0,0,6.73,4.8l14.89,1.15Z'/>",
+  'truck':"<path d='M248,120v64a8,8,0,0,1-8,8H216a24,24,0,0,0-48,0H104a24,24,0,0,0-48,0H32a8,8,0,0,1-8-8V144H184V120Z' opacity='0.2'/><path d='M255.42,117l-14-35A15.93,15.93,0,0,0,226.58,72H192V64a8,8,0,0,0-8-8H32A16,16,0,0,0,16,72V184a16,16,0,0,0,16,16H49a32,32,0,0,0,62,0h50a32,32,0,0,0,62,0h17a16,16,0,0,0,16-16V120A7.94,7.94,0,0,0,255.42,117ZM192,88h34.58l9.6,24H192ZM32,72H176v64H32ZM80,208a16,16,0,1,1,16-16A16,16,0,0,1,80,208Zm81-24H111a32,32,0,0,0-62,0H32V152H176v12.31A32.11,32.11,0,0,0,161,184Zm31,24a16,16,0,1,1,16-16A16,16,0,0,1,192,208Zm48-24H223a32.06,32.06,0,0,0-31-24V128h48Z'/>",
+  'car':"<path d='M88,176a24,24,0,1,1-24-24A24,24,0,0,1,88,176Zm104-24a24,24,0,1,0,24,24A24,24,0,0,0,192,152ZM162.34,74.34A8,8,0,0,0,156.69,72H44.28a8,8,0,0,0-6.66,3.56L8,120H208Z' opacity='0.2'/><path d='M240,112H211.31L168,68.69A15.86,15.86,0,0,0,156.69,64H44.28A16,16,0,0,0,31,71.12L1.34,115.56A8.07,8.07,0,0,0,0,120v48a16,16,0,0,0,16,16H33a32,32,0,0,0,62,0h66a32,32,0,0,0,62,0h17a16,16,0,0,0,16-16V128A16,16,0,0,0,240,112ZM44.28,80H156.69l32,32H23ZM64,192a16,16,0,1,1,16-16A16,16,0,0,1,64,192Zm128,0a16,16,0,1,1,16-16A16,16,0,0,1,192,192Zm48-24H223a32,32,0,0,0-62,0H95a32,32,0,0,0-62,0H16V128H240Z'/>",
+  'printer':"<path d='M232,96v80H192V152H64v24H24V96c0-8.84,7.76-16,17.33-16H214.67C224.24,80,232,87.16,232,96Z' opacity='0.2'/><path d='M214.67,72H200V40a8,8,0,0,0-8-8H64a8,8,0,0,0-8,8V72H41.33C27.36,72,16,82.77,16,96v80a8,8,0,0,0,8,8H56v32a8,8,0,0,0,8,8H192a8,8,0,0,0,8-8V184h32a8,8,0,0,0,8-8V96C240,82.77,228.64,72,214.67,72ZM72,48H184V72H72ZM184,208H72V160H184Zm40-40H200V152a8,8,0,0,0-8-8H64a8,8,0,0,0-8,8v16H32V96c0-4.41,4.19-8,9.33-8H214.67c5.14,0,9.33,3.59,9.33,8Zm-24-52a12,12,0,1,1-12-12A12,12,0,0,1,200,116Z'/>"
 };
-const ico=(k,w=1.8)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[k]||''}</svg>`;
+const ico=(k)=>`<svg class="ph" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">${icons[k]||''}</svg>`;
 
 const ALL_COMPANIES=[
   {id:'mr',nome:'MR',tipo:'Empresa de Obra',licitado:true,icon:'hardhat',cor:'#f59e0b',fundo:'#fff4df'},
@@ -1117,38 +1147,47 @@ function togglePerm(uid,coId,on){
   audit.unshift({id:uuid(),date:stamp(),user:ME.nome,action:on?'Acesso liberado':'Acesso removido',desc:`${u?.nome||'Usuário'} · ${companyName(coId)}`,company:''});
   scheduleCloudSave();
 }
+let ccQ='';
 function renderConfig(){
-  const list=centros.slice().sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const all=centros.slice().sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const q=ccQ.trim().toLocaleLowerCase('pt-BR');
+  const list=all.filter(n=>!q||n.toLocaleLowerCase('pt-BR').includes(q)||String(centroDescricoes[n]||'').toLocaleLowerCase('pt-BR').includes(q));
   const editing=centroEditing&&centros.includes(centroEditing)?centroEditing:null;
   const selected=editing
     ?(centroEmpresas[editing]||[]).filter(id=>companies.some(c=>c.id===id))
     :companies.map(c=>c.id);
-  const companyChecks=companies.map(c=>`<label class="bank-company-option"><input type="checkbox" name="empresas" value="${c.id}" ${selected.includes(c.id)?'checked':''}><span>${esc(c.nome)}<br><small>${esc(c.tipo)}</small></span></label>`).join('');
+  const companyChecks=companies.map(c=>`<label class="bank-company-option"><input type="checkbox" name="empresas" value="${c.id}" ${selected.includes(c.id)?'checked':''}>${coIcon(c)}<span>${esc(c.nome)}<br><small>${esc(c.tipo)}</small></span></label>`).join('');
   const rows=list.map(n=>{
     const linked=centroEmpresas[n]||[];
-    const all=ALL_COMPANIES.length&&ALL_COMPANIES.every(c=>linked.includes(c.id));
-    const links=all
+    const allCo=ALL_COMPANIES.length&&ALL_COMPANIES.every(c=>linked.includes(c.id));
+    const links=allCo
       ?`<span class="bank-company-tag">Todas as empresas</span>`
       :(linked.map(id=>`<span class="bank-company-tag">${esc(companyName(id))}</span>`).join('')||'<span class="muted">Nenhuma empresa</span>');
     const key=encodeURIComponent(n);
-    return `<article class="bank-item"><div class="bank-title"><span>${ico('settings')}</span><div><b>${esc(n)}</b><small>${esc(centroDescricoes[n]||'Sem descrição')}</small></div></div><div><div class="bank-links">${links}</div><div class="bank-note">${contracts.filter(k=>k.cc===n).length} contrato(s) · ${linked.length} empresa(s)</div></div><div class="bank-actions"><button class="btn sm" type="button" onclick="editCentro(decodeURIComponent('${key}'))">Editar</button><button class="btn sm danger" type="button" onclick="deleteCentro(decodeURIComponent('${key}'))">Excluir</button></div></article>`;
+    return `<article class="bank-item ${editing===n?'is-editing':''}"><div class="bank-title"><span>${ico('chart')}</span><div><b>${esc(n)}</b><small>${esc(centroDescricoes[n]||'Sem descrição')}</small></div></div><div><div class="bank-links">${links}</div><div class="bank-note">${contracts.filter(k=>k.cc===n).length} contrato(s) · ${linked.length} empresa(s)</div></div><div class="bank-actions">${editing===n?'<span class="cc-editing-tag">Editando</span>':`<button class="btn sm" type="button" onclick="editCentro(decodeURIComponent('${key}'))">Editar</button>`}<button class="btn sm danger" type="button" onclick="deleteCentro(decodeURIComponent('${key}'))">Excluir</button></div></article>`;
   }).join('');
-  const form=`<form id="ccForm" class="form-grid" style="margin-top:${list.length?'18px':'0'}" onsubmit="saveCostCenter(event)">
-    <label class="field">${req('Nome do centro de custo')}<input name="nome" placeholder="Ex.: Operações, Obras, Eventos" required maxlength="80" value="${esc(editing||'')}"></label>
-    <label class="field">Descrição opcional<input name="descricao" placeholder="Explique a finalidade deste centro" maxlength="240" value="${esc(editing?centroDescricoes[editing]||'':'')}"></label>
-    <div class="field bank-company-field full">
-      <span>${req('Empresas vinculadas')}</span>
-      <small class="muted">Escolha uma empresa específica ou todas. Em cadastro novo, todas já vêm selecionadas.</small>
-      <div class="cc-company-tools"><button type="button" class="btn sm" onclick="ccSelectAll(true)">Todas</button><button type="button" class="btn sm" onclick="ccSelectAll(false)">Limpar</button></div>
-      <div class="bank-company-picker">${companyChecks||'<span class="muted">Nenhuma empresa liberada para você.</span>'}</div>
+  const form=`<form id="ccForm" onsubmit="saveCostCenter(event)">
+    <div class="bank-form-grid">
+      <label class="field">${req('Nome do centro de custo')}<input name="nome" placeholder="Ex.: Operações, Obras, Eventos" required maxlength="80" value="${esc(editing||'')}"></label>
+      <label class="field">Descrição<input name="descricao" placeholder="Opcional — explique a finalidade deste centro" maxlength="240" value="${esc(editing?centroDescricoes[editing]||'':'')}"></label>
+      <div class="field bank-company-field">
+        <div class="cc-company-head"><span>${req('Empresas que podem usar este centro')}</span><span class="cc-company-tools"><button type="button" class="btn sm" onclick="ccSelectAll(true)">Marcar todas</button><button type="button" class="btn sm" onclick="ccSelectAll(false)">Desmarcar</button></span></div>
+        <div class="bank-company-picker">${companyChecks||'<span class="muted">Nenhuma empresa liberada para você.</span>'}</div>
+      </div>
     </div>
-    <div class="form-actions full">
+    <div class="form-actions">
       <button class="btn primary" type="submit">${ico(editing?'save':'plus')} ${editing?'Salvar alterações':'Cadastrar centro de custo'}</button>
-      ${editing?`<button class="btn" type="button" onclick="cancelCentroEdit()">Cancelar</button>`:''}
+      ${editing?`<button class="btn" type="button" onclick="cancelCentroEdit()">Cancelar edição</button>`:''}
     </div>
   </form>`;
-  view().innerHTML=title('Configurações','Cadastros usados nos contratos e lançamentos.')
-  +card('Centros de custo',(list.length?`<div class="bank-list">${rows}</div>`:'<div class="bank-empty">Nenhum centro de custo cadastrado ainda.</div>')+form);
+  const search=all.length>3?`<label class="search cc-search">${ico('search')}<input id="ccSearch" placeholder="Buscar centro..." value="${esc(ccQ)}" aria-label="Buscar centro de custo"></label>`:'';
+  const empty=all.length?emptyBox('search','Nenhum centro encontrado','Ajuste a busca.'):'<div class="bank-empty">Nenhum centro de custo cadastrado ainda. Use o formulário acima para criar o primeiro.</div>';
+  view().innerHTML=title('Configurações','Cadastre os centros de custo e escolha em quais empresas cada um aparece nos contratos e lançamentos.')
+  +card(editing?`Editar centro de custo · ${esc(editing)}`:'Novo centro de custo',form,'',editing?'cc-form-editing':'')
+  +`<div style="height:14px"></div>`
+  +card(`Centros de custo cadastrados (${all.length})`,list.length?`<div class="bank-list">${rows}</div>`:empty,search);
+  const s=document.getElementById('ccSearch');
+  if(s)s.oninput=e=>{ccQ=e.target.value;const pos=e.target.selectionStart;renderConfig();const n=document.getElementById('ccSearch');n.focus();n.setSelectionRange(pos,pos)};
 }
 function ccSelectAll(on){document.querySelectorAll('#ccForm input[name="empresas"]').forEach(el=>{el.checked=!!on})}
 function editCentro(nome){centroEditing=nome;renderConfig();window.scrollTo(0,0)}
