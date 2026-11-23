@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Spinner } from '../../components/ui/Spinner'
-import { canAccessAssessoriaMb, clearSite, isSiteId, readSite, SITES, siteById, writeSite, type SiteId } from '../../lib/sites'
+import { canAccessAssessoriaMb, canAccessFinanceiroPessoal, clearSite, isSiteId, readSite, SITES, siteById, writeSite, type SiteId } from '../../lib/sites'
 
 export function LoginPage() {
   const { session, profile, loading, signIn } = useAuth()
@@ -26,7 +26,10 @@ export function LoginPage() {
 
   if (session && profile) {
     const site = readSite()
-    if (site === 'assessoria-mb' && !canAccessAssessoriaMb(profile)) {
+    if (
+      (site === 'assessoria-mb' && !canAccessAssessoriaMb(profile)) ||
+      (site === 'financeiro-pessoal' && !canAccessFinanceiroPessoal(profile))
+    ) {
       writeSite('nerites')
       return <Navigate to="/" replace />
     }

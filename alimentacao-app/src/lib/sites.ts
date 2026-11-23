@@ -1,7 +1,7 @@
 import { hasRole } from './roles'
 import type { Profile } from '../types'
 
-export type SiteId = 'nerites' | 'mr-terceiriza' | 'assessoria-mb' | 'painel-do-mandato'
+export type SiteId = 'nerites' | 'mr-terceiriza' | 'assessoria-mb' | 'painel-do-mandato' | 'financeiro-pessoal'
 
 export type SiteDef = {
   id: SiteId
@@ -14,6 +14,7 @@ export const SITES: SiteDef[] = [
   { id: 'mr-terceiriza', nome: 'Empresas', home: '/mr-terceiriza' },
   { id: 'assessoria-mb', nome: 'Assessoria MB', home: '/assessoria-mb' },
   { id: 'painel-do-mandato', nome: 'Painel do Mandato', home: '/painel-do-mandato' },
+  { id: 'financeiro-pessoal', nome: 'Controle Financeiro Pessoal', home: '/financeiro-pessoal' },
 ]
 
 export type AcessoExternoNivel = 'admin' | 'editor'
@@ -51,10 +52,18 @@ export function canAccessAssessoriaMb(
   return hasRole(profile, ['admin', 'diretoria']) || canAccessSiteExterno(profile, 'assessoria-mb')
 }
 
+/** Controle Financeiro Pessoal: só admin do Nerites ou acesso extra cadastrado em /admin. */
+export function canAccessFinanceiroPessoal(
+  profile: Pick<Profile, 'role' | 'extra_roles' | 'acessos_externos'> | null | undefined,
+): boolean {
+  return hasRole(profile, 'admin') || canAccessSiteExterno(profile, 'financeiro-pessoal')
+}
+
 const STORAGE_KEY = 'alimentacao_site'
 
 export function isSiteId(value: string | null | undefined): value is SiteId {
-  return value === 'nerites' || value === 'mr-terceiriza' || value === 'assessoria-mb' || value === 'painel-do-mandato'
+  return value === 'nerites' || value === 'mr-terceiriza' || value === 'assessoria-mb' || value === 'painel-do-mandato' ||
+    value === 'financeiro-pessoal'
 }
 
 export function readSite(): SiteId | null {

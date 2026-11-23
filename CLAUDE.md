@@ -9,7 +9,7 @@ Mapa dos sistemas (Nerites, Mandato, Assessoria MB, Empresas): `docs/SISTEMAS.md
 - Autor dos commits: `Jurandy1 <jujuba100054@gmail.com>`
 - Não use `noreply` no autor
 - App fica em `alimentacao-app/`
-- Páginas por sistema em `alimentacao-app/src/pages/{auth,nerites,mandato,assessoria,empresas}/`
+- Páginas por sistema em `alimentacao-app/src/pages/{auth,nerites,mandato,assessoria,empresas,financeiro-pessoal}/`
 - Assessoria MB tem fonte legível em `alimentacao-app/public/sistemas/assessoria-mb/` (`index.html`, `app.js`, `styles/` e `assets/`); não reempacote em `__bundler/template`
 - Mandato ainda usa embed empacotado. Antes de editá-lo (ou o HTML de Empresas), leia `.cursor/rules/embeds-empacotados.mdc` e `docs/EMBEDS.md`
 - Depois de mudanças na Assessoria MB / Mandato / Empresas: rode `npm run validate-embeds` e `npm run build` em `alimentacao-app`
