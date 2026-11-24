@@ -1,7 +1,7 @@
 import { hasRole } from './roles'
 import type { Profile } from '../types'
 
-export type SiteId = 'nerites' | 'mr-terceiriza' | 'assessoria-mb' | 'painel-do-mandato' | 'financeiro-pessoal'
+export type SiteId = 'nerites' | 'mr-terceiriza' | 'assessoria-mb' | 'painel-do-mandato' | 'financeiro-pessoal' | 'chat'
 
 export type SiteDef = {
   id: SiteId
@@ -15,6 +15,7 @@ export const SITES: SiteDef[] = [
   { id: 'assessoria-mb', nome: 'Assessoria MB', home: '/assessoria-mb' },
   { id: 'painel-do-mandato', nome: 'Painel do Mandato', home: '/painel-do-mandato' },
   { id: 'financeiro-pessoal', nome: 'Controle Financeiro Pessoal', home: '/financeiro-pessoal' },
+  { id: 'chat', nome: 'Chat Seguro', home: '/chat' },
 ]
 
 export type AcessoExternoNivel = 'admin' | 'editor'
@@ -59,11 +60,18 @@ export function canAccessFinanceiroPessoal(
   return hasRole(profile, 'admin') || canAccessSiteExterno(profile, 'financeiro-pessoal')
 }
 
+/** Chat Seguro: admin do Nerites ou acesso extra (admin/editor) cadastrado em /admin. */
+export function canAccessChat(
+  profile: Pick<Profile, 'role' | 'extra_roles' | 'acessos_externos'> | null | undefined,
+): boolean {
+  return hasRole(profile, 'admin') || canAccessSiteExterno(profile, 'chat')
+}
+
 const STORAGE_KEY = 'alimentacao_site'
 
 export function isSiteId(value: string | null | undefined): value is SiteId {
   return value === 'nerites' || value === 'mr-terceiriza' || value === 'assessoria-mb' || value === 'painel-do-mandato' ||
-    value === 'financeiro-pessoal'
+    value === 'financeiro-pessoal' || value === 'chat'
 }
 
 export function readSite(): SiteId | null {
@@ -103,6 +111,7 @@ export function sitesForProfile(
       if (s.id === 'nerites') return false
       if (s.id === 'assessoria-mb') return canAccessAssessoriaMb(profile)
       if (s.id === 'financeiro-pessoal') return canAccessFinanceiroPessoal(profile)
+      if (s.id === 'chat') return canAccessChat(profile)
       return canAccessSiteExterno(profile, s.id)
     })
   }
@@ -110,6 +119,7 @@ export function sitesForProfile(
   return SITES.filter((s) => {
     if (s.id === 'assessoria-mb') return canAccessAssessoriaMb(profile)
     if (s.id === 'financeiro-pessoal') return canAccessFinanceiroPessoal(profile)
+    if (s.id === 'chat') return canAccessChat(profile)
     return true
   })
 }

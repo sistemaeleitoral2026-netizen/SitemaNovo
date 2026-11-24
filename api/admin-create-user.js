@@ -4,7 +4,7 @@ const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON
 const { logAdminEvent } = require('./_admin-audit')
 
 // Ids dos sistemas que o /admin pode liberar (iguais a SITES em alimentacao-app/src/lib/sites.ts)
-const SISTEMAS = new Set(['mr-terceiriza', 'assessoria-mb', 'painel-do-mandato', 'financeiro-pessoal'])
+const SISTEMAS = new Set(['mr-terceiriza', 'assessoria-mb', 'painel-do-mandato', 'financeiro-pessoal', 'chat'])
 const NIVEIS = new Set(['admin', 'editor'])
 const SQL_HINT = ' Rode o SQL alimentacao-app/supabase/migrations/20261116b_acessos_externos.sql no Supabase e tente de novo.'
 
