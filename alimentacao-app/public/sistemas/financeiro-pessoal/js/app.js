@@ -414,8 +414,7 @@
       <div class="cat-row">
         <div class="cat-name">${icon(CAT_ICON[c] || 'ellipsis', 'i-sm')}${esc(c)}</div>
         <div class="cat-val num">${money(v)}<small>${pct(v / total)}</small></div>
-        <div class="cat-bar"><span style="width:${((v - s) / max) * 100}%"></span>${s ? `<span class="is-sched" style="width:${(s / max) * 100}%"></span>` : ''}</div>
-        ${s ? `<div class="cat-sched">${money(s)} agendado${v - s > 0.004 ? ` · ${money(v - s)} pago` : ''}</div>` : ''}
+        <div class="cat-bar" title="${s ? `${money(s)} agendado` : ''}${s && v - s > 0.004 ? ' · ' : ''}${v - s > 0.004 ? `${money(v - s)} pago` : ''}">${v - s > 0.004 ? `<span style="width:${((v - s) / max) * 100}%"></span>` : ''}${s ? `<span class="is-sched" style="width:${(s / max) * 100}%"></span>` : ''}</div>
       </div>`).join('');
   }
 

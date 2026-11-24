@@ -172,21 +172,13 @@
               <button class="link" data-go="reports">Detalhar</button>
             </div>
             <div class="block-body"><div class="cat-list" id="catTop"></div></div>
+            <div class="cat-legend"><span><i class="lg-paid"></i>Pago</span><span><i class="lg-sched"></i>Agendado (sem baixa)</span></div>
           </div>
         </div>
 
-        <div class="row row-wide-1-2">
-        <div class="block">
+        <div class="block overview-recent">
           <div class="block-head">
-            <div><div class="block-title">Compromissos pendentes</div><div class="block-meta" id="pendingMeta"></div></div>
-          </div>
-          <div class="commit-sum" id="commitSum"></div>
-          <div class="task-list" id="pendingList"></div>
-        </div>
-
-        <div class="block">
-          <div class="block-head">
-            <div class="block-title">Últimos lançamentos</div>
+            <div><div class="block-title">Últimos lançamentos</div><div class="block-meta">Lançamentos do mês e agendamentos ainda sem baixa</div></div>
             <button class="link" data-go="transactions">Ver todos</button>
           </div>
           <div class="table-wrap sheet-wrap overview-sheet">
@@ -196,6 +188,13 @@
             </table>
           </div>
         </div>
+
+        <div class="block overview-pending">
+          <div class="block-head">
+            <div><div class="block-title">Compromissos pendentes</div><div class="block-meta" id="pendingMeta"></div></div>
+          </div>
+          <div class="commit-sum" id="commitSum"></div>
+          <div class="task-list" id="pendingList"></div>
         </div>
 
         <div class="row row-1-1">

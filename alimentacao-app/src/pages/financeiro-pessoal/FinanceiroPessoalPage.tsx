@@ -210,7 +210,7 @@ export function FinanceiroPessoalPage() {
           ref={frameRef}
           className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
           title="Controle Financeiro Pessoal"
-          src="/sistemas/financeiro-pessoal/index.html?v=40&remote=1"
+          src="/sistemas/financeiro-pessoal/index.html?v=41&remote=1"
           onLoad={() => window.setTimeout(() => setPronto(true), 8000)}
         />
       </div>

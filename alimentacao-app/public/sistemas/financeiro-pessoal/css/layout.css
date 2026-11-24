@@ -90,8 +90,12 @@ button.overview-movement { font: inherit; color: inherit; text-align: left; back
 /* Despesas por categoria: parte agendada da barra */
 .cat-bar { display: flex; }
 .cat-bar span { border-radius: 0; }
-.cat-bar span.is-sched { background: repeating-linear-gradient(135deg, #e8a35c 0 4px, #f3c99c 4px 8px) !important; }
-.cat-sched { grid-column: 1 / -1; font-size: 11.5px; color: #a35a00; margin-top: -2px; }
+.cat-bar { height: 6px; border-radius: 3px; }
+.cat-bar span.is-sched { background: #f0b06e !important; }
+.cat-legend { display: flex; gap: 16px; padding: 10px 18px 14px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--muted); }
+.cat-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.cat-legend i { width: 10px; height: 6px; border-radius: 3px; background: var(--accent); }
+.cat-legend i.lg-sched { background: #f0b06e; }
 
 .overview-movements { display: grid; }
 .overview-movement {
@@ -567,3 +571,11 @@ tbody tr:focus-within td { background: #f2f6fc; }
 .overview-sheet .sheet-done { background: #eef2f7; color: var(--muted); font-weight: 500; }
 .overview-sheet .t-faint { color: var(--faint); font-weight: 400; }
 .overview-sheet .sheet th.t-right { text-align: right; }
+
+/* Visão geral: estrutura */
+#view-overview .row-2-1 > .block:first-child .block-body { display: flex; align-items: center; }
+.overview-pending .commit-sum { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.overview-pending #pendingList > .task-empty:only-child { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 8px; padding: 14px; }
+.overview-pending #pendingList > .task-empty:only-child .i { margin: 0; width: 16px; height: 16px; }
+@media (max-width: 760px) { .overview-pending .commit-sum { grid-template-columns: 1fr; } }
+.overview-recent .block-head .link { white-space: nowrap; }
