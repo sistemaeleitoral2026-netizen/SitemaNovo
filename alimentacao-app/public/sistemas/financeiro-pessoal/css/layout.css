@@ -620,3 +620,32 @@ tbody tr:focus-within td { background: #f2f6fc; }
   .num-table td:first-child { width: 80px; }
   .num-table td:last-child { width: 104px; }
 }
+
+/* Despesas por categoria com cor por categoria */
+.cat-total { padding: 12px 18px 4px; }
+.cat-total-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--muted); }
+.cat-total-row strong { font-size: 22px; font-weight: 650; color: var(--neg); letter-spacing: -.02em; }
+.cat-stack { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin-top: 8px; gap: 2px; background: #eef2f7; }
+.cat-stack span { display: block; height: 100%; min-width: 3px; }
+.cat-color { gap: 12px; }
+.cat-color .cat-row { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); border-left: 4px solid var(--cat); background: color-mix(in srgb, var(--cat) 4%, #fff); }
+.cat-color .cat-name { font-weight: 600; color: var(--ink); gap: 10px; }
+.cat-color .cat-ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex: none; background: color-mix(in srgb, var(--cat) 14%, #fff); }
+.cat-color .cat-ico .i { color: var(--cat); }
+.cat-color .cat-txt { display: grid; line-height: 1.2; }
+.cat-color .cat-txt small { font-size: 11px; font-weight: 400; color: var(--muted); }
+.cat-color .cat-val { font-weight: 650; }
+.cat-color .cat-bar { background: color-mix(in srgb, var(--cat) 10%, #fff); }
+.cat-color .cat-bar span.is-paid { background: var(--cat) !important; }
+.cat-color .cat-bar span.is-sched { background: color-mix(in srgb, var(--cat) 45%, #fff) !important; }
+.cat-legend i.lg-paid { background: #2f6fdb; }
+.cat-legend i.lg-sched { background: color-mix(in srgb, #2f6fdb 45%, #fff); }
+
+/* Próximos vencimentos em tabela */
+.num-next { padding: 12px 0 0; }
+.num-next-head { padding: 0 18px 8px; }
+.num-next-sheet { border-top: 1px solid var(--line); }
+.num-next-sheet tr.is-scheduled td:first-child { box-shadow: inset 3px 0 0 var(--cat); }
+.cat-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--cat); margin-right: 7px; vertical-align: middle; }
+.sched-tag.is-soon { background: #ffe7c7; color: #9a4d00; }
+#view-overview .block-head .link { white-space: nowrap; }

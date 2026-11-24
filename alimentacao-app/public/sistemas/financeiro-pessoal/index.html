@@ -124,22 +124,28 @@
           <div class="block overview-numbers">
             <div class="block-head">
               <div><div class="block-title">Resumo em números</div><div class="block-meta" id="numMeta"></div></div>
-              <button class="link" data-go="pagamentos">Ver pagamentos</button>
+              <button class="link" data-go="cobrancas">Ver cobranças</button>
             </div>
             <div class="num-grid" id="numGrid"></div>
             <div class="num-next">
               <div class="num-next-head">Próximos vencimentos</div>
-              <div id="numNext"></div>
+              <div class="table-wrap sheet-wrap overview-sheet num-next-sheet">
+                <table class="sheet">
+                  <thead><tr><th>Vencimento</th><th>Descrição</th><th>Categoria</th><th>Prazo</th><th class="t-right">Valor</th></tr></thead>
+                  <tbody id="numNext"></tbody>
+                </table>
+              </div>
             </div>
           </div>
 
           <div class="block">
             <div class="block-head">
               <div><div class="block-title">Despesas por categoria</div><div class="block-meta" id="catMeta"></div></div>
-              <button class="link" data-go="reports">Detalhar</button>
+              <button class="link" data-go="pagamentos">Ver pagamentos</button>
             </div>
-            <div class="block-body"><div class="cat-list" id="catTop"></div></div>
-            <div class="cat-legend"><span><i class="lg-paid"></i>Pago</span><span><i class="lg-sched"></i>Agendado (sem baixa)</span></div>
+            <div class="cat-total" id="catTotal"></div>
+            <div class="block-body"><div class="cat-list cat-color" id="catTop"></div></div>
+            <div class="cat-legend"><span><i class="lg-paid"></i>Cor forte: pago</span><span><i class="lg-sched"></i>Cor clara: agendado</span></div>
           </div>
         </div>
 

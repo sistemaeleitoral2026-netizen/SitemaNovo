@@ -18,6 +18,13 @@
     'Lazer': 'gamepad-2', 'Compras': 'shopping-cart', 'Contas da casa': 'credit-card', 'Outros': 'ellipsis',
     'Salário': 'briefcase', 'Renda extra': 'circle-dollar-sign', 'Rendimentos': 'trending-up',
   };
+  /** Cor de cada categoria (ícone e barra na visão geral). */
+  const CAT_COLOR = {
+    'Moradia': '#2f6fdb', 'Alimentação': '#e07b1f', 'Transporte': '#7a4fd6', 'Saúde': '#d93f5c',
+    'Lazer': '#1a9e8f', 'Compras': '#c2559b', 'Contas da casa': '#0f8a4a', 'Outros': '#6b7a90',
+    'Recebimentos': '#0f8a4a', 'Demais categorias': '#8a96a8',
+  };
+  const catColor = c => CAT_COLOR[c] || '#6b7a90';
   const TITLES = {
     overview: 'Visão geral', transactions: 'Movimentações',
     pagamentos: 'Pagamentos', cobrancas: 'Cobranças', documentacao: 'Documentação',
@@ -391,12 +398,20 @@
     ].join('');
 
     const today = todayISO();
-    const prox = sched.slice().sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5);
-    $('#numNext').innerHTML = prox.length ? `<table class="num-table"><tbody>${prox.map(x => {
+    const prox = sched.slice().sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6);
+    $('#numNext').innerHTML = prox.length ? prox.map(x => {
       const d = daysBetween(today, x.date);
-      const quando = d < 0 ? `<span class="delta-neg">${-d} dia${d === -1 ? '' : 's'} atrasado</span>` : d === 0 ? '<span class="delta-neg">vence hoje</span>' : `em ${d} dia${d === 1 ? '' : 's'}`;
-      return `<tr><td class="num">${fullDate(x.date)}</td><td class="num-t">${esc(x.description)}</td><td class="t-muted">${quando}</td><td class="t-right num ${x.kind === 'income' ? 'delta-pos' : 'delta-neg'}">${x.amount ? signed(value(x)) : '<span class="t-faint">a definir</span>'}</td></tr>`;
-    }).join('')}</tbody></table>` : '<div class="empty">Nenhum vencimento agendado.</div>';
+      const quando = d < 0 ? `<span class="tag sched-tag is-late">${-d} dia${d === -1 ? '' : 's'} atrasado</span>`
+        : d === 0 ? '<span class="tag sched-tag is-late">Vence hoje</span>'
+        : `<span class="tag sched-tag ${d <= 7 ? 'is-soon' : ''}">em ${d} dia${d === 1 ? '' : 's'}</span>`;
+      return `<tr class="is-scheduled" style="--cat:${catColor(x.category)}">
+        <td class="num">${fullDate(x.date)}</td>
+        <td class="sheet-desc"><span class="sheet-desc-in">${esc(x.description)}</span></td>
+        <td><span class="cat-dot"></span>${esc(x.category)}</td>
+        <td>${quando}</td>
+        <td class="t-right num ${x.kind === 'income' ? 'delta-pos' : 'delta-neg'}">${x.amount ? signed(value(x)) : '<span class="t-faint">a definir</span>'}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="5" class="empty">Nenhum vencimento agendado.</td></tr>';
   }
 
   /** Linha da planilha "Últimos lançamentos" (lançamentos reais e agendamentos sem baixa). */
@@ -436,24 +451,34 @@
     const exp = list.filter(x => x.kind === 'expense');
     const total = sum(exp, 'expense');
     if (!total) return '<div class="empty">Sem despesas neste período.</div>';
-    const groups = {}, sched = {};
+    const groups = {}, sched = {}, count = {};
     exp.forEach(x => {
       groups[x.category] = (groups[x.category] || 0) + x.amount;
+      count[x.category] = (count[x.category] || 0) + 1;
       if (x.scheduled) sched[x.category] = (sched[x.category] || 0) + x.amount;
     });
-    let rows = Object.entries(groups).map(([c, v]) => [c, v, sched[c] || 0]).sort((a, b) => b[1] - a[1]);
+    let rows = Object.entries(groups).map(([c, v]) => [c, v, sched[c] || 0, count[c]]).sort((a, b) => b[1] - a[1]);
     if (limit && rows.length > limit) {
       const rest = rows.slice(limit - 1);
-      rows = [...rows.slice(0, limit - 1), ['Demais categorias', rest.reduce((s, r) => s + r[1], 0), rest.reduce((s, r) => s + r[2], 0)]];
+      rows = [...rows.slice(0, limit - 1), ['Demais categorias', rest.reduce((s, r) => s + r[1], 0), rest.reduce((s, r) => s + r[2], 0), rest.reduce((s, r) => s + r[3], 0)]];
     }
     const max = rows[0][1];
-    return rows.map(([c, v, s]) => `
-      <div class="cat-row">
-        <div class="cat-name">${icon(CAT_ICON[c] || 'ellipsis', 'i-sm')}${esc(c)}</div>
+    const tot = $('#catTotal');
+    if (tot) {
+      tot.innerHTML = `<div class="cat-total-row"><span>Total</span><strong class="num">${money(total)}</strong></div>
+        <div class="cat-stack">${rows.map(([c, v]) => `<span style="width:${(v / total) * 100}%;background:${catColor(c)}" title="${esc(c)}: ${money(v)}"></span>`).join('')}</div>`;
+    }
+    return rows.map(([c, v, s, n]) => {
+      const col = catColor(c);
+      return `
+      <div class="cat-row" style="--cat:${col}">
+        <div class="cat-name"><span class="cat-ico">${icon(CAT_ICON[c] || 'ellipsis', 'i-sm')}</span><span class="cat-txt">${esc(c)}<small>${n} ${n === 1 ? 'conta' : 'contas'}</small></span></div>
         <div class="cat-val num">${money(v)}<small>${pct(v / total)}</small></div>
-        <div class="cat-bar" title="${s ? `${money(s)} agendado` : ''}${s && v - s > 0.004 ? ' · ' : ''}${v - s > 0.004 ? `${money(v - s)} pago` : ''}">${v - s > 0.004 ? `<span style="width:${((v - s) / max) * 100}%"></span>` : ''}${s ? `<span class="is-sched" style="width:${(s / max) * 100}%"></span>` : ''}</div>
-      </div>`).join('');
+        <div class="cat-bar" title="${s ? `${money(s)} agendado` : ''}${s && v - s > 0.004 ? ' · ' : ''}${v - s > 0.004 ? `${money(v - s)} pago` : ''}">${v - s > 0.004 ? `<span class="is-paid" style="width:${((v - s) / max) * 100}%"></span>` : ''}${s ? `<span class="is-sched" style="width:${(s / max) * 100}%"></span>` : ''}</div>
+      </div>`;
+    }).join('');
   }
+
 
   function accRows(k, withDelete) {
     if (!state.accounts.length) return '<div class="empty">Nenhuma conta cadastrada.</div>';
