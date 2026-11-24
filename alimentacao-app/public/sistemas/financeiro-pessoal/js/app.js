@@ -367,32 +367,55 @@
   const sheetDate = d => { const [y, m, day] = d.split('-'); return `${day}/${m}<span class="yr">/${y}</span>`; };
 
   /** Quadro "Resumo em números" da visão geral (substitui o gráfico). */
-  function renderNumbers(k, list, sched, next) {
-    const grid = $('#numGrid');
-    if (!grid) return;
-    const mName = m => MONTHS_FULL[+m.slice(5) - 1].toLowerCase();
-    const pay = sched.filter(x => x.kind === 'expense'), get = sched.filter(x => x.kind === 'income');
-    const payNow = pay.filter(x => ym(x.date) === k), payNext = pay.filter(x => ym(x.date) === next);
-    const paidNow = list.filter(x => x.kind === 'expense'), gotNow = list.filter(x => x.kind === 'income');
+  function renderNumbers(k, list, sched, next, overdue = []) {
+    const box = $('#ovMonths');
+    if (!box) return;
     const tot = l => l.reduce((s, x) => s + (x.amount || 0), 0);
-    const undef = l => l.filter(x => !x.amount).length;
-    const qty = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
-    const extra = l => (undef(l) ? ` · ${undef(l)} sem valor` : '');
-    const saldo = totalBalance(k);
-    const previsto = saldo - tot(pay) + tot(get);
-    const late = pay.filter(x => x.status === 'atrasada');
-    const maior = pay.slice().sort((a, b) => (b.amount || 0) - (a.amount || 0))[0];
-    const lastM = sched.length ? sched.map(x => ym(x.date)).sort().at(-1) : k;
-    const cell = (label, val, foot, cls = '') => `<div class="num-cell ${cls}"><div class="num-label">${label}</div><div class="num-val num">${val}</div><div class="num-foot">${foot}</div></div>`;
-    $('#numMeta').textContent = `${monthLabel(k)}${lastM !== k ? ` e ${mName(lastM)}` : ''}`;
-    grid.innerHTML = [
-      cell(`Saldo previsto ao fim de ${mName(lastM)}`, signed(previsto), `saldo hoje ${money(saldo)} − a pagar + a receber`, previsto < 0 ? 'is-neg' : 'is-pos'),
-      cell(`A pagar ainda em ${mName(k)}`, money(tot(payNow)), `${qty(payNow.length, 'conta', 'contas')}${extra(payNow)}${late.length ? ` · <b class="delta-neg">${late.length} atrasada${late.length === 1 ? '' : 's'}</b>` : ''}`, payNow.length ? 'is-neg' : ''),
-      cell(`A pagar em ${mName(next)}`, money(tot(payNext)), `${qty(payNext.length, 'conta', 'contas')}${extra(payNext)}`, payNext.length ? 'is-neg' : ''),
-      cell('A receber (agendado)', money(tot(get)), qty(get.length, 'cobrança', 'cobranças'), get.length ? 'is-pos' : ''),
-      cell(`Já pago em ${mName(k)}`, money(tot(paidNow)), `${qty(paidNow.length, 'lançamento', 'lançamentos')} · recebido ${money(tot(gotNow))}`),
-      cell('Maior conta agendada', maior && maior.amount ? money(maior.amount) : '—', maior ? `${esc(maior.description)} · ${shortDate(maior.date)}` : 'nada agendado'),
-    ].join('');
+    const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+    const semValor = l => { const n = l.filter(x => !x.amount).length; return n ? ` · ${n} sem valor definido` : ''; };
+    const mes = m => MONTHS_FULL[+m.slice(5) - 1];
+
+    const card = (m, tipo, extra) => {
+      const doMes = sched.filter(x => ym(x.date) === m);
+      const dividas = [...(tipo === 'atual' ? overdue.filter(x => x.kind === 'expense') : []), ...doMes.filter(x => x.kind === 'expense')];
+      const receber = [...(tipo === 'atual' ? overdue.filter(x => x.kind === 'income') : []), ...doMes.filter(x => x.kind === 'income')];
+      const atrasadas = dividas.filter(x => x.status === 'atrasada').length;
+      const saldo = tot(receber) - tot(dividas);
+      return `<div class="block ov-month ${tipo === 'atual' ? 'is-current' : 'is-next'}">
+        <div class="ov-month-head">
+          <div><span class="ov-month-tag">${tipo === 'atual' ? 'Este mês' : 'Próximo mês'}</span><h3>${mes(m)}</h3></div>
+          <button class="link" data-go="pagamentos">Ver contas</button>
+        </div>
+        <div class="ov-line is-debt ${tot(dividas) ? '' : 'is-zero'}">
+          <div><div class="ov-line-label">${tipo === 'atual' ? 'Dívidas deste mês' : `Dívidas para ${mes(m).toLowerCase()}`}</div>
+            <div class="ov-line-sub">${dividas.length ? plural(dividas.length, 'conta a pagar', 'contas a pagar') : 'nenhuma conta'}${semValor(dividas)}${atrasadas ? ` · <b>${plural(atrasadas, 'atrasada', 'atrasadas')}</b>` : ''}</div></div>
+          <div class="ov-line-val num">${money(tot(dividas))}</div>
+        </div>
+        <div class="ov-line is-get ${tot(receber) ? '' : 'is-zero'}">
+          <div><div class="ov-line-label">${tipo === 'atual' ? 'A receber este mês' : `A receber em ${mes(m).toLowerCase()}`}</div>
+            <div class="ov-line-sub">${receber.length ? plural(receber.length, 'cobrança', 'cobranças') : 'nenhuma cobrança'}</div></div>
+          <div class="ov-line-val num">${money(tot(receber))}</div>
+        </div>
+        ${extra}
+        <div class="ov-line is-total ${saldo < 0 ? 'neg' : saldo > 0 ? 'pos' : 'is-zero'}">
+          <div><div class="ov-line-label">${saldo < 0 ? 'Falta (receber − dívidas)' : 'Sobra (receber − dívidas)'}</div></div>
+          <div class="ov-line-val num">${signed(saldo)}</div>
+        </div>
+      </div>`;
+    };
+
+    const pago = list.filter(x => x.kind === 'expense'), recebido = list.filter(x => x.kind === 'income');
+    const jaFeito = `<div class="ov-line is-done">
+          <div><div class="ov-line-label">Já pago / recebido</div>
+            <div class="ov-line-sub">${plural(pago.length + recebido.length, 'lançamento com baixa', 'lançamentos com baixa')}</div></div>
+          <div class="ov-line-val num"><span class="delta-neg">${money(tot(pago))}</span> / <span class="delta-pos">${money(tot(recebido))}</span></div>
+        </div>`;
+    const saldoContas = `<div class="ov-line is-done">
+          <div><div class="ov-line-label">Saldo em contas hoje</div>
+            <div class="ov-line-sub">${plural(state.accounts.length, 'conta', 'contas')}</div></div>
+          <div class="ov-line-val num">${money(totalBalance(k))}</div>
+        </div>`;
+    box.innerHTML = card(k, 'atual', jaFeito) + card(next, 'proximo', saldoContas);
 
     const today = todayISO();
     const prox = sched.slice().sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6);
@@ -1940,7 +1963,8 @@
         ? `${nextPay.length} pagamento${nextPay.length === 1 ? '' : 's'}${nextGet.length ? ` · <span class="delta-pos">+ ${money(sum(nextGet, 'income'))}</span> a receber` : ''}`
         : 'nada agendado';
     }
-    renderNumbers(k, list, sched, next);
+    const overdue = k === cur ? scheduledEntries(Array.from({ length: 12 }, (_, i) => addMonths(k, -(i + 1)))).filter(x => x.status === 'atrasada') : [];
+    renderNumbers(k, list, [...overdue, ...sched], next, overdue);
     $('#catMeta').textContent = sched.some(x => x.kind === 'expense')
       ? `${monthLabel(k).split(' ')[0]}${schedMonths.length > 1 ? ` + agendados até ${nextName.toLowerCase()}` : ' + agendados'}`
       : monthLabel(k);

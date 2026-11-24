@@ -690,3 +690,39 @@ tbody tr:focus-within td { background: #f2f6fc; }
   .overview-sheet .yr { display: none; }
   .overview-sheet .sheet th:first-child, .overview-sheet .sheet td:first-child { width: 52px; }
 }
+
+/* ===== Visão geral: Este mês / Próximo mês ===== */
+.ov-months { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 900px) { .ov-months { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 1500px) { .ov-months { gap: 20px; } }
+.ov-months + .row { margin-top: 16px; }
+@media (min-width: 1500px) { .ov-months + .row { margin-top: 20px; } }
+.ov-month { margin-top: 0 !important; overflow: hidden; }
+.ov-month-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+.ov-month-head h3 { margin: 2px 0 0; font-size: 20px; font-weight: 650; letter-spacing: -.01em; color: var(--ink); }
+.ov-month-tag { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.ov-month.is-current { border-top: 3px solid var(--accent); }
+.ov-month.is-current .ov-month-tag { color: var(--accent); }
+.ov-month.is-next { border-top: 3px solid #d9822b; }
+.ov-month.is-next .ov-month-tag { color: #b8650f; }
+.ov-line { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 13px 20px; border-bottom: 1px solid var(--line); }
+.ov-line:last-child { border-bottom: 0; }
+.ov-line-label { font-size: 14px; font-weight: 600; color: var(--ink); }
+.ov-line-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.ov-line-sub b { color: var(--neg); font-weight: 600; }
+.ov-line-val { font-size: 22px; font-weight: 650; letter-spacing: -.02em; white-space: nowrap; text-align: right; }
+.ov-line.is-debt .ov-line-val { color: var(--neg); }
+.ov-line.is-get .ov-line-val { color: var(--pos); }
+.ov-line.is-done .ov-line-label { font-weight: 500; color: var(--ink-2); }
+.ov-line.is-done .ov-line-val { font-size: 15px; font-weight: 600; color: var(--ink-2); }
+.ov-line.is-total { background: #f6f8fb; }
+.ov-line.is-total .ov-line-label { font-size: 13px; color: var(--ink-2); }
+.ov-line.is-total.neg .ov-line-val { color: var(--neg); }
+.ov-line.is-total.pos .ov-line-val { color: var(--pos); }
+@media (max-width: 760px) {
+  .ov-month-head { padding: 12px 14px; }
+  .ov-line { padding: 12px 14px; }
+  .ov-line-val { font-size: 18px; }
+  .ov-line.is-done .ov-line-val { font-size: 13px; }
+}
+.ov-line.is-zero .ov-line-val { color: var(--faint) !important; }
