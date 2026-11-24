@@ -18,3 +18,6 @@ logs/
 
 alimentacao-app/scripts/
 designer noivo/
+
+# Chat Seguro: capturas do teste local
+alimentacao-app/build-checks/chat-seguro/out/

@@ -65,5 +65,6 @@ export function presenceSystemLabel(path: string | null) {
   if (path.startsWith('/assessoria-mb')) return 'Assessoria MB'
   if (path.startsWith('/painel-do-mandato')) return 'Painel do Mandato'
   if (path.startsWith('/financeiro-pessoal')) return 'Financeiro Pessoal'
+  if (path.startsWith('/chat')) return 'Chat Seguro'
   return 'Sistema Nerites'
 }

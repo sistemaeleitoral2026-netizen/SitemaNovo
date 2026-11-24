@@ -11,12 +11,13 @@ import { MrTerceirizaPage } from './pages/empresas/MrTerceirizaPage'
 import { AssessoriaMbPage } from './pages/assessoria/AssessoriaMbPage'
 import { PainelMandatoPage } from './pages/mandato/PainelMandatoPage'
 import { FinanceiroPessoalPage } from './pages/financeiro-pessoal/FinanceiroPessoalPage'
+import { ChatSeguroPage } from './pages/chat/ChatSeguroPage'
 import { VotacaoLancarPage } from './pages/nerites/VotacaoLancarPage'
 import { VotacaoProgressoPage } from './pages/nerites/VotacaoProgressoPage'
 import { VotacaoHistoricoPage } from './pages/nerites/VotacaoHistoricoPage'
 import { canSeeFormigasWhatsapp } from './lib/formigasWhatsapp'
 import { hasRole } from './lib/roles'
-import { canAccessAssessoriaMb, canAccessFinanceiroPessoal, canAccessSiteExterno, readSite, siteById, writeSite, type SiteId } from './lib/sites'
+import { canAccessAssessoriaMb, canAccessChat, canAccessFinanceiroPessoal, canAccessSiteExterno, readSite, siteById, writeSite, type SiteId } from './lib/sites'
 import type { Profile } from './types'
 import { PresenceHeartbeat } from './components/PresenceHeartbeat'
 
@@ -63,6 +64,8 @@ function homeForProfile(profile: Profile | null | undefined) {
     writeSite('nerites')
   } else if (site === 'financeiro-pessoal' && !canAccessFinanceiroPessoal(profile)) {
     writeSite('nerites')
+  } else if (site === 'chat' && !canAccessChat(profile)) {
+    writeSite('nerites')
   } else {
     const siteHome = siteById(site)?.home
     if (siteHome && siteHome !== '/') return siteHome
@@ -75,7 +78,7 @@ function homeForProfile(profile: Profile | null | undefined) {
   if (hasRole(profile, 'administrativo')) return '/demandas/lancar'
   // Sem cargo no Nerites (login cadastrado em /admin): manda pro primeiro sistema liberado.
   if (hasRole(profile, 'externo')) {
-    const liberado = (['assessoria-mb', 'painel-do-mandato', 'mr-terceiriza', 'financeiro-pessoal'] as const)
+    const liberado = (['assessoria-mb', 'painel-do-mandato', 'mr-terceiriza', 'financeiro-pessoal', 'chat'] as const)
       .find((s) => canAccessSiteExterno(profile, s))
     if (liberado) return siteById(liberado)?.home ?? '/login'
   }
@@ -97,6 +100,16 @@ function FinanceiroPessoalRoute({ children }: { children: React.ReactNode }) {
   if (loading) return <Spinner />
   if (!session || !profile || !profile.ativo) return <Navigate to="/login" replace />
   if (!canAccessFinanceiroPessoal(profile)) {
+    return <Navigate to={homeForProfile(profile)} replace />
+  }
+  return children
+}
+
+function ChatRoute({ children }: { children: React.ReactNode }) {
+  const { session, profile, loading } = useAuth()
+  if (loading) return <Spinner />
+  if (!session || !profile || !profile.ativo) return <Navigate to="/login" replace />
+  if (!canAccessChat(profile)) {
     return <Navigate to={homeForProfile(profile)} replace />
   }
   return children
@@ -271,6 +284,7 @@ function AppRoutes() {
       <Route path="/assessoria-mb" element={<AssessoriaMbRoute><AssessoriaMbPage /></AssessoriaMbRoute>} />
       <Route path="/painel-do-mandato" element={<DemoSiteRoute site="painel-do-mandato"><PainelMandatoPage /></DemoSiteRoute>} />
       <Route path="/financeiro-pessoal" element={<FinanceiroPessoalRoute><FinanceiroPessoalPage /></FinanceiroPessoalRoute>} />
+      <Route path="/chat" element={<ChatRoute><ChatSeguroPage /></ChatRoute>} />
       <Route path="/admin" element={<AdminUsuariosRoute><AdminShell /></AdminUsuariosRoute>}>
         <Route index element={<AdminDashboardPage />} />
         <Route path="atividades" element={<AdminAtividadesPage />} />

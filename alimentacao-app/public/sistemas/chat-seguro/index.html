@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#111b21">
+<meta name="color-scheme" content="dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Chat Seguro">
+<meta name="format-detection" content="telephone=no">
+<title>Chat Seguro</title>
+<link rel="icon" type="image/svg+xml" href="/sistemas/chat-seguro/favicon.svg">
+<link rel="stylesheet" href="/sistemas/chat-seguro/style.css?v=4">
+</head>
+<body>
+<div id="watermark" aria-hidden="true"></div>
+<div id="app"></div>
+<div id="lockscreen" hidden>
+  <div class="lock-box">
+    <div class="lock-ic"><svg class="i"><use href="/sistemas/chat-seguro/icons.svg#i-lock"/></svg></div>
+    <h2>Conteúdo protegido</h2>
+    <p>Esta conversa é sensível. Toque para revelar.</p>
+    <button id="lock-btn" class="btn">Revelar</button>
+  </div>
+</div>
+<script src="/sistemas/chat-seguro/vendor/supabase.js?v=3"></script>
+<script src="/sistemas/chat-seguro/e2ee.js?v=4"></script>
+<script src="/sistemas/chat-seguro/charts.js?v=4"></script>
+<script src="/sistemas/chat-seguro/security-center.js?v=4"></script>
+<script src="/sistemas/chat-seguro/app.js?v=4"></script>
+</body>
+</html>
