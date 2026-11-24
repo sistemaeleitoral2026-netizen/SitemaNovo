@@ -2649,9 +2649,23 @@
 
   /* ---------- Ponte com o sistema (página React que carrega este iframe) ---------- */
   const avisarPai = msg => { if (embedded) window.parent.postMessage(msg, window.location.origin); };
+  $('#headShotBtn')?.addEventListener('click', e => {
+    const b = e.currentTarget;
+    if (!embedded) { alert('Abra pelo sistema para salvar a imagem.'); return; }
+    b.disabled = true;
+    b.querySelector('span').textContent = 'Gerando…';
+    const nome = `${$('#pageTitle')?.textContent || 'Financeiro'} ${period ? monthLabel(period) : ''}`.trim();
+    avisarPai({ type: 'fp-capture', nome });
+  });
   window.addEventListener('message', ev => {
     if (ev.origin !== window.location.origin || ev.source !== window.parent) return;
     const d = ev.data || {};
+    if (d.type === 'fp-capture-done') {
+      const b = $('#headShotBtn');
+      if (b) { b.disabled = false; b.querySelector('span').textContent = 'Salvar imagem'; }
+      if (d.erro) alert(d.erro);
+      return;
+    }
     if (d.type === 'fp-hydrate' && d.payload) {
       if (dirty) return; // há alteração local ainda não salva: não sobrescreve
       const p = d.payload;

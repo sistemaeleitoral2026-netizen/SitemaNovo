@@ -20,7 +20,73 @@ type FpMensagem = {
   file?: Blob
   name?: string
   entidadeId?: string
+  nome?: string
   id?: string
+}
+
+/**
+ * Gera um PNG da tela inteira do iframe (o print do navegador corta porque a rolagem é dentro do iframe).
+ * Os ícones usam <use href="#i-…"> de um sprite; o html2canvas não resolve isso, então no clone
+ * cada ícone recebe o desenho do símbolo direto.
+ */
+async function capturarTela(frame: HTMLIFrameElement, nome: string) {
+  const doc = frame.contentDocument
+  const win = frame.contentWindow
+  if (!doc || !win) throw new Error('A tela ainda não carregou.')
+  const alvo = (doc.querySelector('#mainContent') as HTMLElement | null) || doc.body
+  const { default: html2canvas } = await import('html2canvas')
+  const fundo = win.getComputedStyle(doc.body).backgroundColor || '#f4f6fa'
+  const canvas = await html2canvas(alvo, {
+    backgroundColor: fundo,
+    scale: 2,
+    useCORS: true,
+    logging: false,
+    width: alvo.scrollWidth,
+    height: alvo.scrollHeight,
+    windowWidth: doc.documentElement.clientWidth,
+    windowHeight: alvo.scrollHeight,
+    scrollX: 0,
+    scrollY: 0,
+    onclone: (clone) => {
+      // Os <link> de CSS são relativos ao iframe e não carregam no clone: embute o CSS já carregado
+      const css = Array.from(doc.styleSheets)
+        .map((sh) => {
+          try { return Array.from(sh.cssRules).map((r) => r.cssText).join('\n') } catch { return '' }
+        })
+        .join('\n')
+      clone.querySelectorAll('link[rel="stylesheet"]').forEach((l) => l.remove())
+      const st = clone.createElement('style')
+      st.textContent = css
+      clone.head.appendChild(st)
+      const cwin = clone.defaultView
+      clone.querySelectorAll('svg').forEach((svg) => {
+        const use = svg.querySelector('use')
+        const ref = use?.getAttribute('href') || use?.getAttribute('xlink:href')
+        if (!use || !ref?.startsWith('#')) return
+        const sym = clone.getElementById(ref.slice(1))
+        if (!sym) return
+        const r = svg.getBoundingClientRect()
+        const cor = cwin ? cwin.getComputedStyle(svg).color : ''
+        svg.setAttribute('viewBox', sym.getAttribute('viewBox') || '0 0 256 256')
+        svg.setAttribute('width', String(r.width || 16))
+        svg.setAttribute('height', String(r.height || 16))
+        if (cor) svg.setAttribute('fill', cor)
+        svg.innerHTML = sym.innerHTML
+      })
+      // Botões flutuantes / menu do celular não entram na imagem
+      clone.querySelectorAll<HTMLElement>('#headShotBtn, #headTxBtn, #periodNow, .fab, .tabbar').forEach((el) => { el.style.display = 'none' })
+    },
+  })
+  const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, 'image/png'))
+  if (!blob) throw new Error('Não foi possível gerar a imagem.')
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${nome.replace(/[\\/:*?"<>|]+/g, '-')}.png`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 2000)
 }
 
 function mensagemDe(e: unknown, padrao: string) {
@@ -119,6 +185,17 @@ export function FinanceiroPessoalPage() {
         void hidratar()
         return
       }
+      if (dados.type === 'fp-capture') {
+        try {
+          if (!frameRef.current) throw new Error('A tela ainda não carregou.')
+          await capturarTela(frameRef.current, dados.nome || 'Financeiro pessoal')
+          postar({ type: 'fp-capture-done' })
+        } catch (e) {
+          console.error('[financeiro-pessoal] captura', e)
+          postar({ type: 'fp-capture-done', erro: mensagemDe(e, 'Não foi possível salvar a imagem.') })
+        }
+        return
+      }
       if (dados.type === 'fp-sair') {
         void signOut()
         return
@@ -210,7 +287,7 @@ export function FinanceiroPessoalPage() {
           ref={frameRef}
           className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
           title="Controle Financeiro Pessoal"
-          src="/sistemas/financeiro-pessoal/index.html?v=47&remote=1"
+          src="/sistemas/financeiro-pessoal/index.html?v=48&remote=1"
           onLoad={() => window.setTimeout(() => setPronto(true), 8000)}
         />
       </div>
