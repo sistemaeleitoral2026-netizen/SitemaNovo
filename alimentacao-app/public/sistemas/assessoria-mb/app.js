@@ -3000,10 +3000,18 @@
           ? "Realizar tarefa"
           : kind === "vincular"
             ? "Selecionar lançamentos"
-            : (id ? "Editar " : "Novo ") +
-              (kind === "task" ? "tarefa" : "lançamento financeiro");
+            : kind === "recebimento"
+              ? "Registrar recebimento"
+              : (id ? "Editar " : "Novo ") +
+                (kind === "task" ? "tarefa" : "lançamento financeiro");
     let html = "";
-    if (kind === "task") {
+    if (kind === "recebimento") {
+      if (!obj) {
+        toast("Lançamento não encontrado.");
+        return;
+      }
+      html += `<div class="fin-receipt-register"><div class="form-section">Registrar recebimento</div><p class="field-note wide">Informe a data e o valor recebido. O status muda para <b>Concluído</b> quando o total recebido atingir o valor a receber. O detalhe fica na aba <b>Histórico</b>.</p><div class="field"><label>Data do recebimento</label><input class="control" name="novaBaixaData" type="date" value="${esc(todayISO())}" required></div><div class="field"><label>Valor recebido (R$)</label><input class="control money-input" name="novaBaixaValor" inputmode="numeric" value="${inputBRL(finFalta(obj))}" placeholder="R$ 0,00" required></div></div>`;
+    } else if (kind === "task") {
       html += `<div class="form-section">Atividade</div><div class="field"><label>Modelo de tarefa</label><select class="control" id="task-template"><option value="">Tarefa livre</option>${db.templates.map((x) => `<option>${esc(x)}</option>`).join("")}</select></div>`;
       html += field(
         "Título da tarefa *",
@@ -3137,7 +3145,9 @@
             ? "Já lancei — selecionar lançamentos"
             : kind === "vincular"
               ? "Vincular selecionados"
-              : "Salvar";
+              : kind === "recebimento"
+                ? "Registrar recebimento"
+                : "Salvar";
       submitBtn.hidden =
         kind === "vincular" && !lancamentosVinculaveis(obj).length;
     }
@@ -3177,7 +3187,15 @@
       );
       updateVincularTotal();
     }
-    $("#modal-body input")?.focus();
+    if (kind === "recebimento") {
+      const valor = $("#modal-body [name=novaBaixaValor]");
+      setTimeout(() => {
+        valor?.focus();
+        valor?.select?.();
+      }, 50);
+    } else {
+      $("#modal-body input")?.focus();
+    }
     if (kind === "finance" && obj) {
       wireFinModalTabs();
     }
@@ -3316,6 +3334,56 @@
       closeModal();
       render();
       toast(msg);
+      return;
+    }
+    if (typeModal === "recebimento") {
+      const old = db.finance.find((x) => x.id === editing);
+      if (!old) return;
+      const addData = String(f.get("novaBaixaData") || "").trim();
+      const addValor = money(f.get("novaBaixaValor"));
+      if (!addData || addValor <= 0) {
+        toast("Informe a data e o valor recebido.");
+        return;
+      }
+      const existing = (old.anexos || []).filter(
+        (_, i) => !removedAttachments.has(i),
+      );
+      const anexos = [
+        ...existing,
+        ...Array.from(e.target.elements.anexo?.files || []).map(storeFile),
+      ];
+      const rx = finRecebimentos(old).concat([
+        {
+          id: crypto.randomUUID(),
+          data: addData,
+          valor: addValor,
+          actor: MB.nome || "",
+          at: new Date().toISOString(),
+        },
+      ]);
+      const totalRec = sumRecebimentos(rx);
+      const lastRx = rx
+        .slice()
+        .sort((a, b) => String(a.data).localeCompare(String(b.data)))
+        .pop();
+      const rec = {
+        ...old,
+        recebido: totalRec,
+        recebimentos: rx,
+        dataRecebida: lastRx ? lastRx.data : old.dataRecebida || addData,
+        anexos,
+      };
+      const idx = db.finance.findIndex((x) => x.id === old.id);
+      if (idx >= 0) db.finance[idx] = rec;
+      markMutation("financeUpserts", rec.id);
+      audit(
+        "Recebimento registrado",
+        `Financeiro: ${old.parceiro || "—"} / ${old.centro || "—"} · ${fmt(addValor)} em ${dateBR(addData)}`,
+      );
+      save();
+      closeModal();
+      render();
+      toast("Recebimento registrado");
       return;
     }
     let selectedFinanceType = "";
@@ -5841,21 +5909,11 @@
         .join("") || noRows("Nenhum valor pendente para os filtros selecionados.", 12)
     }</tbody></table>`;
   }
-  /** Abre o lançamento já no bloco "Registrar recebimento", com o valor que falta. */
+  /** Abre só o formulário de recebimento (data, valor e comprovante). */
   function lancarPendente(id) {
     const r = db.finance.find((x) => x.id === id);
     if (!r) return;
-    openModal("finance", id);
-    const valor = $("#modal-body [name=novaBaixaValor]");
-    if (!valor) return;
-    valor.value = fmt(finFalta(r));
-    const data = $("#modal-body [name=novaBaixaData]");
-    if (data && !data.value) data.value = todayISO();
-    valor.closest(".fin-receipt-register")?.scrollIntoView({ block: "center" });
-    setTimeout(() => {
-      valor.focus();
-      valor.select?.();
-    }, 50);
+    openModal("recebimento", id);
   }
   function drawReceber() {
     const el = $("#rec-table");
