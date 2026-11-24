@@ -1137,7 +1137,7 @@
           kind === "receita" && money(r.previsto) > 0
             ? `<small class="received-date">Recebido: ${fmt(recebido)}${recebido + 0.009 < money(r.previsto) ? ` · falta ${fmt(money(r.previsto) - recebido)}` : ""}</small>`
             : "";
-        return `<tr><td class="nowrap fin-col-data" data-label="Data">${dateBR(r.data)}${origin ? `<small class="fin-origin-tag ${origin === "Do mês" ? "is-month" : "is-prior"}">${esc(origin)}</small>` : ""}${r.dataRecebida ? `<small class="received-date">Recebida: ${dateBR(r.dataRecebida)}</small>` : ""}</td><td data-label="Empresa"><b>${esc(r.sub || "—")}</b></td><td class="fin-col-parceiro" data-label="Parceiro">${esc(r.parceiro || "—")}${r.observacao ? `<div class="muted">${esc(r.observacao)}</div>` : ""}</td><td data-label="Centro de Custo">${esc(r.centro || "—")}</td><td data-label="Conta Bancária">${esc(r.contaBancaria || "—")}</td><td class="description-cell" data-label="Empresa depositante">${esc(r.empresaDepositante || "—")}</td><td data-label="Tipo"><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${icon(tp === "Saída" ? "arrow" : "down")}${tp}</span></td><td class="amount nowrap" data-label="Valor (R$)"><b>${n2(v)}</b>${valorHint}</td><td data-label="Situação">${finStatusHTML(r)}</td><td class="fin-col-file" data-label="Comprovante">${fileCell(r.anexos, "fin:" + r.id)}</td><td class="action-cell"><div class="row-actions">${(r.anexos || []).length ? `<button type="button" class="row-icon" data-view-files="fin:${esc(r.id)}" title="Visualizar">${icon("eye")}</button>` : ""}<button type="button" class="edit-action" data-edit-fin="${esc(r.id)}" title="Editar" aria-label="Editar">${icon("edit")}<span class="ea-label">Editar</span></button>${canDeleteFinance() ? `<button type="button" class="edit-action danger" data-delete-fin="${esc(r.id)}" title="Excluir" aria-label="Excluir">${icon("trash")}<span class="ea-label">Excluir</span></button>` : ""}</div></td></tr>`;
+        return `<tr><td class="nowrap fin-col-data" data-label="Data">${dateBR(r.data)}${origin ? `<small class="fin-origin-tag ${origin === "Do mês" ? "is-month" : "is-prior"}">${esc(origin)}</small>` : ""}${r.dataRecebida ? `<small class="received-date">Recebida: ${dateBR(r.dataRecebida)}</small>` : ""}</td><td data-label="Empresa"><b>${esc(r.sub || "—")}</b></td><td class="fin-col-parceiro" data-label="Parceiro">${esc(r.parceiro || "—")}${r.observacao ? `<div class="muted">${esc(r.observacao)}</div>` : ""}</td><td class="contato-cell" data-label="Contato">${contatoCell(r)}</td><td data-label="Centro de Custo">${esc(r.centro || "—")}</td><td data-label="Conta Bancária">${esc(r.contaBancaria || "—")}</td><td class="description-cell" data-label="Empresa depositante">${esc(r.empresaDepositante || "—")}</td><td data-label="Tipo"><span class="tipo ${tp === "Saída" ? "desp" : "rec"}">${icon(tp === "Saída" ? "arrow" : "down")}${tp}</span></td><td class="amount nowrap" data-label="Valor (R$)"><b>${n2(v)}</b>${valorHint}</td><td data-label="Situação">${finStatusHTML(r)}</td><td class="fin-col-file" data-label="Comprovante">${fileCell(r.anexos, "fin:" + r.id)}</td><td class="action-cell"><div class="row-actions">${(r.anexos || []).length ? `<button type="button" class="row-icon" data-view-files="fin:${esc(r.id)}" title="Visualizar">${icon("eye")}</button>` : ""}<button type="button" class="edit-action" data-edit-fin="${esc(r.id)}" title="Editar" aria-label="Editar">${icon("edit")}<span class="ea-label">Editar</span></button>${canDeleteFinance() ? `<button type="button" class="edit-action danger" data-delete-fin="${esc(r.id)}" title="Excluir" aria-label="Excluir">${icon("trash")}<span class="ea-label">Excluir</span></button>` : ""}</div></td></tr>`;
       })
       .join("");
     $("#finance-table").innerHTML =
@@ -1156,7 +1156,7 @@
               .join("") ||
             `<div class="fin-empty">Nenhum lançamento encontrado para os filtros selecionados.</div>`
           }${periodFootHtml ? `<div class="fin-detail-total fin-detail-break">${periodFootHtml}</div>` : ""}</div>`
-        : `<div class="fin-table-scroll"><table class="fin-table"><thead><tr>${finTh("data", "Data")}${finTh("empresa", "Empresa")}${finTh("parceiro", "Parceiro")}${finTh("centro", "Centro de Custo")}${finTh("contaBancaria", "Conta Bancária")}${finTh("empresaDepositante", "Empresa depositante")}${finTh("tipo", "Tipo")}${finTh("valor", "Valor (R$)", "num")}${finTh("situacao", "Situação")}<th>Comprovante</th><th class="action-cell">Ações</th></tr></thead><tbody>${tableRows || noRows("Nenhum lançamento encontrado para os filtros selecionados.", 11)}</tbody></table></div>${periodFootHtml ? `<div class="fin-table-foot">${periodFootHtml}</div>` : ""}`;
+        : `<div class="fin-table-scroll"><table class="fin-table"><thead><tr>${finTh("data", "Data")}${finTh("empresa", "Empresa")}${finTh("parceiro", "Parceiro")}<th>Contato</th>${finTh("centro", "Centro de Custo")}${finTh("contaBancaria", "Conta Bancária")}${finTh("empresaDepositante", "Empresa depositante")}${finTh("tipo", "Tipo")}${finTh("valor", "Valor (R$)", "num")}${finTh("situacao", "Situação")}<th>Comprovante</th><th class="action-cell">Ações</th></tr></thead><tbody>${tableRows || noRows("Nenhum lançamento encontrado para os filtros selecionados.", 12)}</tbody></table></div>${periodFootHtml ? `<div class="fin-table-foot">${periodFootHtml}</div>` : ""}`;
     $("#finance-pager").innerHTML =
       `<span>Mostrando ${rows.length ? (state.finPage - 1) * pageSize + 1 : 0} a ${Math.min(state.finPage * pageSize, rows.length)} de ${rows.length} registros</span><div class="fin-page-buttons"><button type="button" id="fin-first" ${state.finPage === 1 ? "disabled" : ""}>«</button><button type="button" id="fin-prev" ${state.finPage === 1 ? "disabled" : ""}>‹</button><span>${state.finPage}</span><button type="button" id="fin-next" ${state.finPage === pages ? "disabled" : ""}>›</button><button type="button" id="fin-last" ${state.finPage === pages ? "disabled" : ""}>»</button></div>`;
     const bind = (id, key, clearAudit = false) => {
@@ -1362,8 +1362,7 @@
   function lancamentosVinculaveis(t) {
     return db.finance
       .filter(
-        (f) =>
-          finKind(f) === "saida" && (!f.tarefaId || f.tarefaId === t.id),
+        (f) => finKind(f) === "saida" && (!f.tarefaId || f.tarefaId === t.id),
       )
       .sort((a, b) =>
         String(b.criadoEm || b.data || "").localeCompare(
@@ -1828,13 +1827,13 @@
     );
     $("#fin-history-count").textContent = `${rows.length} registro(s)`;
     $("#fin-history-table").innerHTML =
-      `<table class="ledger-table"><thead><tr><th>Data</th><th>Empresa / referência</th><th>Parceiro</th><th>Centro de custo</th><th>A receber</th><th>Recebido</th><th>Saída</th><th>Situação</th><th>Anexos</th><th class="action-cell">Ações</th></tr></thead><tbody>${
+      `<table class="ledger-table"><thead><tr><th>Data</th><th>Empresa / referência</th><th>Parceiro</th><th>Contato</th><th>Centro de custo</th><th>A receber</th><th>Recebido</th><th>Saída</th><th>Situação</th><th>Anexos</th><th class="action-cell">Ações</th></tr></thead><tbody>${
         shown
           .map((r) => {
             const st = finStatus(r);
-            return `<tr><td>${dateBR(r.data)}</td><td>${esc(r.sub || "Não identificada")}</td><td>${esc(r.parceiro)}</td><td>${esc(r.centro)}</td><td class="amount">${fmt(r.previsto)}</td><td class="amount">${fmt(r.recebido)}</td><td class="amount">${fmt(r.saida)}</td><td>${finStatusHTML(r)}</td><td>${fileCell(r.anexos, "fin:" + r.id)}</td><td class="action-cell"><div class="row-actions"><button class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")} Editar</button>${canDeleteFinance() ? `<button class="edit-action danger" type="button" data-delete-fin="${esc(r.id)}">${icon("trash")} Excluir</button>` : ""}</div></td></tr>`;
+            return `<tr><td>${dateBR(r.data)}</td><td>${esc(r.sub || "Não identificada")}</td><td>${esc(r.parceiro)}</td><td class="contato-cell">${contatoCell(r)}</td><td>${esc(r.centro)}</td><td class="amount">${fmt(r.previsto)}</td><td class="amount">${fmt(r.recebido)}</td><td class="amount">${fmt(r.saida)}</td><td>${finStatusHTML(r)}</td><td>${fileCell(r.anexos, "fin:" + r.id)}</td><td class="action-cell"><div class="row-actions"><button class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")} Editar</button>${canDeleteFinance() ? `<button class="edit-action danger" type="button" data-delete-fin="${esc(r.id)}">${icon("trash")} Excluir</button>` : ""}</div></td></tr>`;
           })
-          .join("") || noRows("Nenhum lançamento financeiro encontrado.", 10)
+          .join("") || noRows("Nenhum lançamento financeiro encontrado.", 11)
       }</tbody></table>`;
     $("#fin-history-pager").innerHTML =
       `<span>Página ${state.finHistPage} de ${pages}</span><div class="actions"><button class="btn" id="fh-prev" ${state.finHistPage === 1 ? "disabled" : ""}>Anterior</button><button class="btn" id="fh-next" ${state.finHistPage === pages ? "disabled" : ""}>Próxima</button></div>`;
@@ -2659,10 +2658,7 @@
     const table = $("#correction-table");
     if (!table) return;
     const rows = recordsWithoutReceivedDate();
-    const total = rows.reduce(
-      (sum, record) => sum + money(record.recebido),
-      0,
-    );
+    const total = rows.reduce((sum, record) => sum + money(record.recebido), 0);
     const count = $("#correction-count");
     if (count)
       count.textContent = `${rows.length} ${rows.length === 1 ? "lançamento pendente" : "lançamentos pendentes"}`;
@@ -2675,7 +2671,11 @@
           (record) =>
             `<tr><td data-label="Data do lançamento" class="nowrap">${dateBR(record.data)}</td><td data-label="Empresa"><b>${esc(record.sub || "—")}</b></td><td data-label="Parceiro / descrição">${esc(record.parceiro || "—")}</td><td data-label="Tipo"><span class="tipo rec">${esc(finTipo(record))}</span></td><td data-label="Valor recebido (R$)" class="amount">${fmt(record.recebido)}</td><td data-label="Data recebida"><span class="correction-missing">Não informada</span></td><td data-label="Empresa depositante">${esc(record.empresaDepositante || "—")}</td><td data-label="Conta bancária">${esc(record.contaBancaria || "—")}</td><td data-label="Responsável">${esc(record.criadoPor || "—")}</td><td data-label="Ações" class="action-cell correction-actions"><button type="button" class="edit-action" data-edit-fin="${esc(record.id)}">${icon("edit")}Editar</button>${canDeleteFinance() ? `<button type="button" class="edit-action danger" data-delete-fin="${esc(record.id)}" data-delete-source="correction">${icon("trash")}Excluir</button>` : ""}</td></tr>`,
         )
-        .join("") || noRows("Nenhum lançamento sem data recebida. O caixa está conciliado.", 10)
+        .join("") ||
+      noRows(
+        "Nenhum lançamento sem data recebida. O caixa está conciliado.",
+        10,
+      )
     }</tbody></table>`;
   }
 
@@ -3002,8 +3002,10 @@
             ? "Selecionar lançamentos"
             : kind === "recebimento"
               ? "Registrar recebimento"
-              : (id ? "Editar " : "Novo ") +
-                (kind === "task" ? "tarefa" : "lançamento financeiro");
+              : kind === "contato"
+                ? "Registrar contato"
+                : (id ? "Editar " : "Novo ") +
+                  (kind === "task" ? "tarefa" : "lançamento financeiro");
     let html = "";
     if (kind === "recebimento") {
       if (!obj) {
@@ -3011,6 +3013,19 @@
         return;
       }
       html += `<div class="fin-receipt-register"><div class="form-section">Registrar recebimento</div><p class="field-note wide">Informe a data e o valor recebido. O status muda para <b>Concluído</b> quando o total recebido atingir o valor a receber. O detalhe fica na aba <b>Histórico</b>.</p><div class="field"><label>Data do recebimento</label><input class="control" name="novaBaixaData" type="date" value="${esc(todayISO())}" required></div><div class="field"><label>Valor recebido (R$)</label><input class="control money-input" name="novaBaixaValor" inputmode="numeric" value="${inputBRL(finFalta(obj))}" placeholder="R$ 0,00" required></div></div>`;
+    } else if (kind === "contato") {
+      if (!obj) {
+        toast("Lançamento não encontrado.");
+        return;
+      }
+      const hist = finContatos(obj)
+        .slice()
+        .sort((a, b) =>
+          String(b.data + (b.at || "")).localeCompare(
+            String(a.data + (a.at || "")),
+          ),
+        );
+      html += `<div class="contato-register"><p class="field-note wide"><b>${esc(obj.sub || "—")}</b> · ${esc(obj.parceiro || "—")} · falta receber <b>${fmt(finFalta(obj))}</b></p><div class="field"><label>Data do contato</label><input class="control" name="contatoData" type="date" value="${esc(todayISO())}" required></div><div class="field"><label>Previsão de pagamento (opcional)</label><input class="control" name="contatoPrevisao" type="date"></div><div class="field wide"><label>O que foi dito</label><div class="contato-chips">${CONTATO_SUGESTOES.map((t) => `<button type="button" class="contato-chip" data-contato-chip="${esc(t)}">${esc(t)}</button>`).join("")}</div><textarea class="control" name="contatoNota" placeholder="Ex.: Diz que paga na segunda" required></textarea></div>${hist.length ? `<div class="form-section">Contatos anteriores</div><ul class="contato-hist wide">${hist.map((c) => `<li><span class="muted nowrap">${dateBR(c.data)}${c.actor ? " · " + esc(c.actor) : ""}</span> ${esc(c.nota)}${c.previsao ? ` <span class="pill info">prev. ${dateBR(c.previsao)}</span>` : ""}</li>`).join("")}</ul>` : ""}</div>`;
     } else if (kind === "task") {
       html += `<div class="form-section">Atividade</div><div class="field"><label>Modelo de tarefa</label><select class="control" id="task-template"><option value="">Tarefa livre</option>${db.templates.map((x) => `<option>${esc(x)}</option>`).join("")}</select></div>`;
       html += field(
@@ -3129,7 +3144,7 @@
         html += `<div data-fin-pane="historico" id="fin-hist-pane" class="hidden">${rxSheetHTML(obj, "data", "asc")}</div>`;
       }
     }
-    if (kind !== "realizar" && kind !== "vincular")
+    if (kind !== "realizar" && kind !== "vincular" && kind !== "contato")
       html += `<div class="form-section">Comprovantes</div><div class="field wide"><label>Anexar comprovante (foto ou PDF)</label><input class="control" name="anexo" type="file" accept="image/*,.pdf" multiple><div class="attachment-note">Os comprovantes são salvos na nuvem (Supabase) e podem ser visualizados em Comprovantes.</div>${attachmentsListHTML(obj?.anexos)}</div>`;
     $("#modal-body").innerHTML = html;
     $$(".money-input").forEach((el) =>
@@ -3147,7 +3162,9 @@
               ? "Vincular selecionados"
               : kind === "recebimento"
                 ? "Registrar recebimento"
-                : "Salvar";
+                : kind === "contato"
+                  ? "Salvar contato"
+                  : "Salvar";
       submitBtn.hidden =
         kind === "vincular" && !lancamentosVinculaveis(obj).length;
     }
@@ -3187,7 +3204,16 @@
       );
       updateVincularTotal();
     }
-    if (kind === "recebimento") {
+    if (kind === "contato") {
+      const nota = $("#modal-body [name=contatoNota]");
+      $$("#modal-body [data-contato-chip]").forEach((b) =>
+        b.addEventListener("click", () => {
+          nota.value = b.dataset.contatoChip;
+          nota.focus();
+        }),
+      );
+      setTimeout(() => nota?.focus(), 50);
+    } else if (kind === "recebimento") {
       const valor = $("#modal-body [name=novaBaixaValor]");
       setTimeout(() => {
         valor?.focus();
@@ -3247,9 +3273,7 @@
       }
       const received = body.querySelector('[name="recebido"]');
       const receivedDate = body.querySelector('[name="dataRecebida"]');
-      const receivedDateLabel = body.querySelector(
-        "#fin-received-date-label",
-      );
+      const receivedDateLabel = body.querySelector("#fin-received-date-label");
       const correctionEdit = !!editing && page === "sem-data-recebida";
       const mustHaveReceivedDate =
         type !== "saida" &&
@@ -3259,9 +3283,7 @@
       if (receivedDateLabel)
         receivedDateLabel.textContent = `Data recebida${mustHaveReceivedDate ? " *" : ""}`;
     };
-    body
-      .querySelector('[name="recebido"]')
-      ?.addEventListener("input", sync);
+    body.querySelector('[name="recebido"]')?.addEventListener("input", sync);
     select.onchange = sync;
     sync();
   }
@@ -3334,6 +3356,42 @@
       closeModal();
       render();
       toast(msg);
+      return;
+    }
+    if (typeModal === "contato") {
+      const old = db.finance.find((x) => x.id === editing);
+      if (!old) return;
+      const data = String(f.get("contatoData") || "").trim();
+      const nota = String(f.get("contatoNota") || "").trim();
+      const previsao = String(f.get("contatoPrevisao") || "").trim();
+      if (!data || !nota) {
+        toast("Informe a data e o que foi dito no contato.");
+        return;
+      }
+      const rec = {
+        ...old,
+        contatos: finContatos(old).concat([
+          {
+            id: crypto.randomUUID(),
+            data,
+            nota,
+            previsao,
+            actor: MB.nome || "",
+            at: new Date().toISOString(),
+          },
+        ]),
+      };
+      const idx = db.finance.findIndex((x) => x.id === old.id);
+      if (idx >= 0) db.finance[idx] = rec;
+      markMutation("financeUpserts", rec.id);
+      audit(
+        "Contato registrado",
+        `Financeiro: ${old.sub || "—"} / ${old.parceiro || "—"} · ${nota}`,
+      );
+      save();
+      closeModal();
+      render();
+      toast("Contato registrado");
       return;
     }
     if (typeModal === "recebimento") {
@@ -3719,6 +3777,11 @@
       openModal(t.status === "Em andamento" ? "vincular" : "realizar", id);
       return;
     }
+    const contatoPend = e.target.closest("[data-contato-pendente]");
+    if (contatoPend) {
+      openModal("contato", contatoPend.dataset.contatoPendente);
+      return;
+    }
     const lancarPend = e.target.closest("[data-lancar-pendente]");
     if (lancarPend) {
       lancarPendente(lancarPend.dataset.lancarPendente);
@@ -4031,7 +4094,9 @@
     if (pendCount) {
       const total = pendingRecords().length;
       pendCount.textContent = total || "";
-      pendCount.title = total ? `${total} lançamento(s) com valor pendente` : "";
+      pendCount.title = total
+        ? `${total} lançamento(s) com valor pendente`
+        : "";
     }
     const missingDateCount = $("#count-sem-data-recebida");
     if (missingDateCount) {
@@ -5433,10 +5498,7 @@
     const rows = subdivisions.map((company) => {
       return [company, snapshots.get(company)];
     });
-    const total = cashSnapshot(
-      [...companyRows.values()].flat(),
-      state.mes,
-    );
+    const total = cashSnapshot([...companyRows.values()].flat(), state.mes);
     const priorCell = (value) =>
       value == null ? '<span class="muted">—</span>' : fmt(value);
     const isZero = ([company, snapshot]) =>
@@ -5880,6 +5942,35 @@
       )
       .sort((a, b) => String(b.data).localeCompare(String(a.data)));
   };
+  const CONTATO_SUGESTOES = [
+    "Diz que paga na segunda",
+    "Diz que paga na próxima semana",
+    "Diz que paga amanhã",
+    "Não atendeu",
+    "Pediu para ligar depois",
+  ];
+  function finContatos(r) {
+    return Array.isArray(r?.contatos)
+      ? r.contatos.filter((c) => c && c.nota)
+      : [];
+  }
+  function ultimoContato(r) {
+    return finContatos(r)
+      .slice()
+      .sort((a, b) =>
+        String(a.data + (a.at || "")).localeCompare(
+          String(b.data + (b.at || "")),
+        ),
+      )
+      .pop();
+  }
+  function contatoCell(r) {
+    const c = ultimoContato(r);
+    const n = finContatos(r).length;
+    const btn = `<button type="button" class="inline-btn contato-btn" data-contato-pendente="${esc(r.id)}">${icon("plus")}${c ? "Novo contato" : "Registrar contato"}</button>`;
+    if (!c) return `<span class="muted contato-none">Sem contato</span>${btn}`;
+    return `<div class="contato-last"><b>${esc(c.nota)}</b>${c.previsao ? `<span class="pill info">Prev. ${dateBR(c.previsao)}</span>` : ""}<span class="muted">${dateBR(c.data)}${c.actor ? " · " + esc(c.actor) : ""}${n > 1 ? ` · ${n} contatos` : ""}</span></div>${btn}`;
+  }
   function pendingRecords() {
     return db.finance.filter(
       (r) => r && finKind(r) === "receita" && finFalta(r) > 0.009,
@@ -5900,13 +5991,14 @@
       hs("A receber", fmt(prev)) +
       hs("Já recebido", fmt(rec)) +
       hs("Falta receber", fmt(prev - rec));
-    el.innerHTML = `<table class="pend-table"><thead><tr><th>Data</th><th>Empresa</th><th>Parceiro / descrição</th><th>Centro de custo</th><th>Conta bancária</th><th class="num">A receber (R$)</th><th class="num">Recebido (R$)</th><th class="num">Falta receber (R$)</th><th>Situação</th><th>Quem lançou</th><th>Comprovante</th><th class="action-cell">Ações</th></tr></thead><tbody>${
+    el.innerHTML = `<table class="pend-table"><thead><tr><th>Data</th><th>Empresa</th><th>Parceiro / descrição</th><th>Contato</th><th>Centro de custo</th><th>Conta bancária</th><th class="num">A receber (R$)</th><th class="num">Recebido (R$)</th><th class="num">Falta receber (R$)</th><th>Situação</th><th>Quem lançou</th><th>Comprovante</th><th class="action-cell">Ações</th></tr></thead><tbody>${
       rows
         .map((r) => {
           const st = finStatus(r);
-          return `<tr><td data-label="Data" class="nowrap">${dateBR(r.data)}</td><td data-label="Empresa"><b>${esc(r.sub || "—")}</b></td><td data-label="Parceiro / descrição">${esc(r.parceiro || "—")}${r.observacao ? `<div class="muted">${esc(r.observacao)}</div>` : ""}</td><td data-label="Centro de custo">${esc(r.centro || "—")}</td><td data-label="Conta bancária">${esc(r.contaBancaria || "—")}</td><td data-label="A receber (R$)" class="amount">${fmt(r.previsto)}</td><td data-label="Recebido (R$)" class="amount">${fmt(r.recebido)}</td><td data-label="Falta receber (R$)" class="amount"><b>${fmt(finFalta(r))}</b></td><td data-label="Situação"><span class="pill ${st[1]}">${st[0]}</span></td><td data-label="Quem lançou">${esc(r.criadoPor || "—")}</td><td data-label="Comprovante">${fileCell(r.anexos, "fin:" + r.id)}</td><td data-label="Ações" class="action-cell"><div class="row-actions pend-actions"><button type="button" class="btn primary pend-launch" data-lancar-pendente="${esc(r.id)}">${icon("plus")}Lançar recebimento</button><button type="button" class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")}Editar</button></div></td></tr>`;
+          return `<tr><td data-label="Data" class="nowrap">${dateBR(r.data)}</td><td data-label="Empresa"><b>${esc(r.sub || "—")}</b></td><td data-label="Parceiro / descrição">${esc(r.parceiro || "—")}${r.observacao ? `<div class="muted">${esc(r.observacao)}</div>` : ""}</td><td data-label="Contato" class="contato-cell">${contatoCell(r)}</td><td data-label="Centro de custo">${esc(r.centro || "—")}</td><td data-label="Conta bancária">${esc(r.contaBancaria || "—")}</td><td data-label="A receber (R$)" class="amount">${fmt(r.previsto)}</td><td data-label="Recebido (R$)" class="amount">${fmt(r.recebido)}</td><td data-label="Falta receber (R$)" class="amount"><b>${fmt(finFalta(r))}</b></td><td data-label="Situação"><span class="pill ${st[1]}">${st[0]}</span></td><td data-label="Quem lançou">${esc(r.criadoPor || "—")}</td><td data-label="Comprovante">${fileCell(r.anexos, "fin:" + r.id)}</td><td data-label="Ações" class="action-cell"><div class="row-actions pend-actions"><button type="button" class="btn primary pend-launch" data-lancar-pendente="${esc(r.id)}">${icon("plus")}Lançar recebimento</button><button type="button" class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")}Editar</button></div></td></tr>`;
         })
-        .join("") || noRows("Nenhum valor pendente para os filtros selecionados.", 12)
+        .join("") ||
+      noRows("Nenhum valor pendente para os filtros selecionados.", 13)
     }</tbody></table>`;
   }
   /** Abre só o formulário de recebimento (data, valor e comprovante). */
@@ -6147,7 +6239,9 @@
     if (page !== "dashboard" || dashResizeFrame) return;
     dashResizeFrame = requestAnimationFrame(() => {
       dashResizeFrame = 0;
-      const width = Math.round($("#company-picker-dashboard")?.clientWidth || 0);
+      const width = Math.round(
+        $("#company-picker-dashboard")?.clientWidth || 0,
+      );
       if (width && Math.abs(width - lastDashTabsWidth) >= 32) {
         dashCompanyTabs();
       }

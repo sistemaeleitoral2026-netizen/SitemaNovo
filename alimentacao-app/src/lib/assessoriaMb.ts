@@ -40,6 +40,8 @@ export type MbFinance = {
   observacao?: string
   /** Baixas/recebimentos parciais até concluir o lançamento. */
   recebimentos?: MbRecebimento[]
+  /** Contatos de cobrança (ex.: "diz que paga segunda"). */
+  contatos?: MbContato[]
   /** Quem criou (nome) — editora só exclui o que ela mesma lançou. */
   criadoPor?: string
   /** Quem criou (id do profile). */
@@ -48,6 +50,30 @@ export type MbFinance = {
   criadoEm?: string
   /** Tarefa à qual este lançamento foi vinculado (quita o valor dela). */
   tarefaId?: string | null
+}
+
+export type MbContato = {
+  id: string
+  data: string
+  nota: string
+  previsao?: string
+  actor?: string
+  at?: string
+}
+
+function parseContatos(raw: unknown): MbContato[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((x) => x as Record<string, unknown>)
+    .filter((x) => x && typeof x.nota === 'string' && x.nota.trim())
+    .map((x) => ({
+      id: String(x.id || crypto.randomUUID()),
+      data: String(x.data || '').slice(0, 10),
+      nota: String(x.nota),
+      previsao: x.previsao ? String(x.previsao).slice(0, 10) : '',
+      actor: x.actor ? String(x.actor) : '',
+      at: x.at ? String(x.at) : '',
+    }))
 }
 
 type LegacyFinanceMeta = {
@@ -453,6 +479,7 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
       origem: (r.origem as string) || 'Cadastro manual',
       observacao,
       recebimentos,
+      contatos: parseContatos(r.contatos),
       anexos: anexosFor(anexoRows, 'lancamento', r.id as string, signed),
       criadoPorId,
       criadoPor: criadoPorId ? nomePorId.get(criadoPorId) || '' : '',
@@ -790,6 +817,7 @@ export async function salvarEstadoAssessoria(
                 saida: money(r.saida),
                 tipo_lancamento: normalizeFinanceType(r.tipoLancamento, r.previsto, recebido, r.saida),
                 recebimentos,
+                contatos: parseContatos(r.contatos),
                 origem: r.origem || 'Cadastro manual',
                 observacao: r.observacao || null,
                 tarefa_id: r.tarefaId || null,
@@ -800,6 +828,13 @@ export async function salvarEstadoAssessoria(
               }
             })
             let { error } = await supabase.from('mb_lancamentos').upsert(rows, { onConflict: 'id' })
+            if (error && /contatos/i.test(String(error.message || error))) {
+              // Migration 20261124_assessoria_mb_contatos.sql ainda não aplicada:
+              // grava o resto sem perder o lançamento.
+              console.warn('mb_lancamentos.contatos ausente — aplique 20261124_assessoria_mb_contatos.sql')
+              for (const row of rows) delete (row as { contatos?: unknown }).contatos
+              ;({ error } = await supabase.from('mb_lancamentos').upsert(rows, { onConflict: 'id' }))
+            }
             if (error && /tipo_lancamento|recebimentos|conta_bancaria|schema cache|column/i.test(String(error.message || error))) {
               const originalById = new Map(rowsToUpsert.map((r) => [r.id, r]))
               const legacyRows = rows.map((row) => {
