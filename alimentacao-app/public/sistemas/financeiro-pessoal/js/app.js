@@ -1889,6 +1889,7 @@
     const inc = sum(list, 'income'), exp = sum(list, 'expense'), net = inc - exp;
 
     // KPIs
+    if ($('#kBalance')) {
     $('#kBalance').textContent = money(totalBalance(k));
     $('#kBalanceFoot').textContent = `${state.accounts.length} conta${state.accounts.length === 1 ? '' : 's'} · fim de ${monthLabel(k).split(' ')[0].toLowerCase()}`;
     $('#kIncome').textContent = money(inc);
@@ -1900,6 +1901,7 @@
     $('#kNet').textContent = signed(net);
     $('#kNet').className = 'kpi-value num ' + (net >= 0 ? 'delta-pos' : 'delta-neg');
     $('#kNetFoot').textContent = inc ? `${pct(Math.max(net, 0) / inc)} da renda poupada` : '—';
+    }
     $$('#chartMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === chartMode));
     if (view === 'overview') flowChart(k);
     // Agendamentos (pagamentos/cobranças sem baixa): mês da tela e, no mês atual, também o seguinte
