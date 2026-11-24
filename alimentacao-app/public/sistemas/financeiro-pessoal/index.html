@@ -121,28 +121,31 @@
 
       <!-- ============ VISÃO GERAL ============ -->
       <section class="view active" id="view-overview">
-        <div class="row row-2-1">
-          <div class="block overview-numbers">
+        <div class="block overview-numbers">
+          <div class="block-head">
+            <div><div class="block-title">Resumo em números</div><div class="block-meta" id="numMeta"></div></div>
+            <button class="link" data-go="pagamentos">Ver pagamentos</button>
+          </div>
+          <div class="num-grid" id="numGrid"></div>
+        </div>
+
+        <div class="row ov-row">
+          <div class="block ov-next">
             <div class="block-head">
-              <div><div class="block-title">Resumo em números</div><div class="block-meta" id="numMeta"></div></div>
+              <div><div class="block-title">Próximos vencimentos</div><div class="block-meta">Pagamentos e cobranças ainda sem baixa</div></div>
               <button class="link" data-go="cobrancas">Ver cobranças</button>
             </div>
-            <div class="num-grid" id="numGrid"></div>
-            <div class="num-next">
-              <div class="num-next-head">Próximos vencimentos</div>
-              <div class="table-wrap sheet-wrap overview-sheet num-next-sheet">
-                <table class="sheet">
-                  <thead><tr><th>Vencimento</th><th>Descrição</th><th>Categoria</th><th>Prazo</th><th class="t-right">Valor</th></tr></thead>
-                  <tbody id="numNext"></tbody>
-                </table>
-              </div>
+            <div class="table-wrap sheet-wrap overview-sheet">
+              <table class="sheet">
+                <thead><tr><th>Vencimento</th><th>Descrição</th><th class="col-cat">Categoria</th><th>Prazo</th><th class="t-right">Valor</th></tr></thead>
+                <tbody id="numNext"></tbody>
+              </table>
             </div>
           </div>
 
-          <div class="block">
+          <div class="block ov-cat">
             <div class="block-head">
               <div><div class="block-title">Despesas por categoria</div><div class="block-meta" id="catMeta"></div></div>
-              <button class="link" data-go="pagamentos">Ver pagamentos</button>
             </div>
             <div class="cat-total" id="catTotal"></div>
             <div class="block-body"><div class="cat-list cat-plain" id="catTop"></div></div>
@@ -157,7 +160,7 @@
           </div>
           <div class="table-wrap sheet-wrap overview-sheet">
             <table class="sheet">
-              <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Conta</th><th>Origem</th><th>Situação</th><th class="t-right">Valor</th></tr></thead>
+              <thead><tr><th>Data</th><th>Descrição</th><th class="col-cat">Categoria</th><th class="col-acc">Conta</th><th class="col-orig">Origem</th><th>Situação</th><th class="t-right">Valor</th></tr></thead>
               <tbody id="recentRows"></tbody>
             </table>
           </div>

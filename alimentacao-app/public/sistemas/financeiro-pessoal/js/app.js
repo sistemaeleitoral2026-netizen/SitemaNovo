@@ -363,6 +363,9 @@
     return out;
   }
 
+  /** dd/mm/aaaa; o ano some no celular (classe .yr). */
+  const sheetDate = d => { const [y, m, day] = d.split('-'); return `${day}/${m}<span class="yr">/${y}</span>`; };
+
   /** Quadro "Resumo em números" da visão geral (substitui o gráfico). */
   function renderNumbers(k, list, sched, next) {
     const grid = $('#numGrid');
@@ -399,9 +402,9 @@
         : d === 0 ? '<span class="tag sched-tag is-late">Vence hoje</span>'
         : `<span class="tag sched-tag ${d <= 7 ? 'is-soon' : ''}">em ${d} dia${d === 1 ? '' : 's'}</span>`;
       return `<tr class="is-scheduled">
-        <td class="num">${fullDate(x.date)}</td>
+        <td class="num">${sheetDate(x.date)}</td>
         <td class="sheet-desc"><span class="sheet-desc-in">${esc(x.description)}</span></td>
-        <td>${esc(x.category)}</td>
+        <td class="col-cat">${esc(x.category)}</td>
         <td>${quando}</td>
         <td class="t-right num ${x.kind === 'income' ? 'delta-pos' : 'delta-neg'}">${x.amount ? signed(value(x)) : '<span class="t-faint">a definir</span>'}</td>
       </tr>`;
@@ -423,11 +426,11 @@
     const val = x.scheduled && !x.amount ? '<span class="t-faint">a definir</span>'
       : `${signed(value(x))}${x.scheduled && x.variable ? '<small>estimado</small>' : ''}`;
     return `<tr class="${x.scheduled ? 'is-scheduled' : ''}">
-      <td class="num">${fullDate(x.date)}${x.time ? `<small>${x.time}</small>` : ''}</td>
+      <td class="num">${sheetDate(x.date)}${x.time ? `<small>${x.time}</small>` : ''}</td>
       <td class="sheet-desc"><span class="sheet-desc-in">${esc(x.description)}${x.receiptId ? `<button class="clip" data-receipt="${x.receiptId}" data-rtx="${x.id}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip')}</button>` : ''}</span></td>
-      <td>${esc(x.category)}</td>
-      <td>${acc}</td>
-      <td>${origin}</td>
+      <td class="col-cat">${esc(x.category)}</td>
+      <td class="col-acc">${acc}</td>
+      <td class="col-orig">${origin}</td>
       <td>${sit}</td>
       <td class="t-right num ${inc ? 'delta-pos' : 'delta-neg'}">${val}</td>
     </tr>`;

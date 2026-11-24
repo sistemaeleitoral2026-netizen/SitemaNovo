@@ -642,3 +642,51 @@ tbody tr:focus-within td { background: #f2f6fc; }
 .num-next-sheet { border-top: 1px solid var(--line); }
 .sched-tag.is-soon { background: #ffe7c7; color: #9a4d00; }
 #view-overview .block-head .link { white-space: nowrap; }
+
+/* ===== Visão geral: estrutura responsiva ===== */
+/* Faixa de números: as bordas vêm do gap, então nunca ficam tortas quando quebra linha */
+.overview-numbers { container-type: inline-size; }
+.overview-numbers .num-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px; background: var(--line); border: 0; border-top: 1px solid var(--line);
+}
+.overview-numbers .num-cell { border: 0 !important; background: #fff; padding: 14px 18px; }
+.overview-numbers .num-cell:first-child { background: linear-gradient(145deg, #f4f8ff 0%, #fff 80%); }
+.overview-numbers .num-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@container (min-width: 620px) { .overview-numbers .num-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container (min-width: 1180px) { .overview-numbers .num-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+
+/* Vencimentos + categorias: lado a lado só quando cabe */
+.ov-row { grid-template-columns: 1fr; }
+@media (min-width: 1280px) { .ov-row { grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr); } }
+.ov-next, .overview-recent { container-type: inline-size; min-width: 0; }
+.ov-next .overview-sheet { flex: 1; }
+.ov-cat .block-body { flex: 1; }
+
+/* Tabelas: esconde colunas secundárias quando o bloco fica estreito (sem rolagem lateral) */
+.overview-sheet .sheet { table-layout: auto; }
+@container (max-width: 860px) { .overview-recent .col-orig { display: none; } }
+@container (max-width: 700px) { .overview-recent .col-acc { display: none; } }
+@container (max-width: 560px) {
+  .overview-recent .col-cat, .ov-next .col-cat { display: none; }
+  .overview-sheet .sheet td, .overview-sheet .sheet th { padding: 7px 8px; }
+  .overview-sheet .sheet-desc { max-width: 150px; }
+}
+@container (max-width: 420px) {
+  .overview-sheet .sheet td.num:first-child { font-size: 11.5px; }
+}
+.overview-sheet table.sheet { min-width: 0 !important; width: 100%; }
+.overview-sheet .sheet-desc { overflow: hidden; text-overflow: ellipsis; }
+@container (max-width: 560px) {
+  .overview-sheet table.sheet { table-layout: fixed; font-size: 12px; }
+  .overview-sheet .sheet th:first-child, .overview-sheet .sheet td:first-child { width: 80px; }
+  .overview-sheet .sheet th:nth-last-child(2), .overview-sheet .sheet td:nth-last-child(2) { width: 84px; }
+  .overview-sheet .sheet th:last-child, .overview-sheet .sheet td:last-child { width: 96px; }
+  .overview-sheet .sheet td { overflow: hidden; text-overflow: ellipsis; }
+  .overview-sheet .sheet-desc { max-width: none; }
+  .overview-sheet .sched-tag { padding: 2px 6px; font-size: 10.5px; }
+}
+@container (max-width: 560px) {
+  .overview-sheet .yr { display: none; }
+  .overview-sheet .sheet th:first-child, .overview-sheet .sheet td:first-child { width: 52px; }
+}
