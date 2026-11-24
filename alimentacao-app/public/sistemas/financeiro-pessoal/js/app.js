@@ -14,17 +14,11 @@
     income: ['Salário', 'Renda extra', 'Rendimentos', 'Outros'],
   };
   const CAT_ICON = {
-    'Moradia': 'house', 'Alimentação': 'utensils', 'Transporte': 'car', 'Saúde': 'heart-pulse',
-    'Lazer': 'gamepad-2', 'Compras': 'shopping-cart', 'Contas da casa': 'credit-card', 'Outros': 'ellipsis',
-    'Salário': 'briefcase', 'Renda extra': 'circle-dollar-sign', 'Rendimentos': 'trending-up',
+    'Moradia': 'cat-house', 'Alimentação': 'cat-fork-knife', 'Transporte': 'cat-car', 'Saúde': 'cat-heartbeat',
+    'Lazer': 'cat-game-controller', 'Compras': 'cat-shopping-bag', 'Contas da casa': 'cat-receipt', 'Outros': 'cat-dots-three-outline',
+    'Salário': 'cat-briefcase', 'Renda extra': 'cat-hand-coins', 'Rendimentos': 'cat-trend-up',
+    'Recebimentos': 'cat-coins', 'Demais categorias': 'cat-squares-four',
   };
-  /** Cor de cada categoria (ícone e barra na visão geral). */
-  const CAT_COLOR = {
-    'Moradia': '#2f6fdb', 'Alimentação': '#e07b1f', 'Transporte': '#7a4fd6', 'Saúde': '#d93f5c',
-    'Lazer': '#1a9e8f', 'Compras': '#c2559b', 'Contas da casa': '#0f8a4a', 'Outros': '#6b7a90',
-    'Recebimentos': '#0f8a4a', 'Demais categorias': '#8a96a8',
-  };
-  const catColor = c => CAT_COLOR[c] || '#6b7a90';
   const TITLES = {
     overview: 'Visão geral', transactions: 'Movimentações',
     pagamentos: 'Pagamentos', cobrancas: 'Cobranças', documentacao: 'Documentação',
@@ -404,10 +398,10 @@
       const quando = d < 0 ? `<span class="tag sched-tag is-late">${-d} dia${d === -1 ? '' : 's'} atrasado</span>`
         : d === 0 ? '<span class="tag sched-tag is-late">Vence hoje</span>'
         : `<span class="tag sched-tag ${d <= 7 ? 'is-soon' : ''}">em ${d} dia${d === 1 ? '' : 's'}</span>`;
-      return `<tr class="is-scheduled" style="--cat:${catColor(x.category)}">
+      return `<tr class="is-scheduled">
         <td class="num">${fullDate(x.date)}</td>
         <td class="sheet-desc"><span class="sheet-desc-in">${esc(x.description)}</span></td>
-        <td><span class="cat-dot"></span>${esc(x.category)}</td>
+        <td>${esc(x.category)}</td>
         <td>${quando}</td>
         <td class="t-right num ${x.kind === 'income' ? 'delta-pos' : 'delta-neg'}">${x.amount ? signed(value(x)) : '<span class="t-faint">a definir</span>'}</td>
       </tr>`;
@@ -465,14 +459,12 @@
     const max = rows[0][1];
     const tot = $('#catTotal');
     if (tot) {
-      tot.innerHTML = `<div class="cat-total-row"><span>Total</span><strong class="num">${money(total)}</strong></div>
-        <div class="cat-stack">${rows.map(([c, v]) => `<span style="width:${(v / total) * 100}%;background:${catColor(c)}" title="${esc(c)}: ${money(v)}"></span>`).join('')}</div>`;
+      tot.innerHTML = `<div class="cat-total-row"><span>Total</span><strong class="num">${money(total)}</strong></div>`;
     }
     return rows.map(([c, v, s, n]) => {
-      const col = catColor(c);
       return `
-      <div class="cat-row" style="--cat:${col}">
-        <div class="cat-name"><span class="cat-ico">${icon(CAT_ICON[c] || 'ellipsis', 'i-sm')}</span><span class="cat-txt">${esc(c)}<small>${n} ${n === 1 ? 'conta' : 'contas'}</small></span></div>
+      <div class="cat-row">
+        <div class="cat-name">${icon(CAT_ICON[c] || 'cat-dots-three-outline', 'i-sm')}<span class="cat-txt">${esc(c)}</span><small class="cat-n">${n} ${n === 1 ? 'conta' : 'contas'}</small></div>
         <div class="cat-val num">${money(v)}<small>${pct(v / total)}</small></div>
         <div class="cat-bar" title="${s ? `${money(s)} agendado` : ''}${s && v - s > 0.004 ? ' · ' : ''}${v - s > 0.004 ? `${money(v - s)} pago` : ''}">${v - s > 0.004 ? `<span class="is-paid" style="width:${((v - s) / max) * 100}%"></span>` : ''}${s ? `<span class="is-sched" style="width:${(s / max) * 100}%"></span>` : ''}</div>
       </div>`;
