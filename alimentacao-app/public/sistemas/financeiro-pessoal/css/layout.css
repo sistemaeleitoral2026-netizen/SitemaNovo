@@ -51,7 +51,7 @@
 .acc-card-btn { justify-content: center; width: 100%; }
 
 /* Visão geral: principais investimentos */
-.overview-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden; }
+.overview-kpis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); overflow: hidden; }
 .overview-kpi { position: relative; min-width: 0; }
 .overview-kpi::before {
   content: '';
@@ -69,6 +69,29 @@
 .overview-kpi-expense::before { background: var(--neg); }
 .overview-kpi-result::before { background: #6e55c7; }
 .overview-kpi .kpi-value { overflow: hidden; text-overflow: ellipsis; }
+.overview-kpis:has(.overview-kpi-next:not([hidden])) .kpi-value { font-size: clamp(16px, 1.55vw, 22px); }
+button.overview-kpi { font: inherit; color: inherit; text-align: left; background: none; border: 0; border-left: 1px solid var(--line); cursor: pointer; }
+button.overview-kpi:hover { background: #f8fafd; }
+.overview-kpi-next { background: linear-gradient(145deg, #fff7ef 0%, #fff 72%) !important; }
+.overview-kpi-next::before { background: #d9822b; }
+.overview-kpi-next[hidden] { display: none; }
+
+/* Pagamentos/cobranças agendados no meio dos lançamentos */
+button.overview-movement { font: inherit; color: inherit; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); width: 100%; cursor: pointer; }
+.overview-movement.is-scheduled { background: repeating-linear-gradient(135deg, transparent 0 10px, #fafbfd 10px 20px); }
+.overview-movement.is-scheduled:hover { background: #f8fafd; }
+.overview-movement.is-scheduled .overview-movement-icon { background: #fff4e8; color: #b8650f; }
+.overview-movement.is-scheduled .overview-movement-icon.is-income { background: var(--pos-soft); color: var(--pos); }
+.overview-movement.is-scheduled .overview-movement-value { opacity: .8; display: grid; justify-items: end; }
+.overview-movement-value small { font-size: 11px; font-weight: 400; color: var(--faint); }
+.sched-tag { margin-left: 8px; background: #fff1db; color: #a35a00; font-weight: 500; }
+.sched-tag.is-late { background: var(--neg-soft); color: var(--neg); }
+
+/* Despesas por categoria: parte agendada da barra */
+.cat-bar { display: flex; }
+.cat-bar span { border-radius: 0; }
+.cat-bar span.is-sched { background: repeating-linear-gradient(135deg, #e8a35c 0 4px, #f3c99c 4px 8px) !important; }
+.cat-sched { grid-column: 1 / -1; font-size: 11.5px; color: #a35a00; margin-top: -2px; }
 
 .overview-movements { display: grid; }
 .overview-movement {
@@ -381,6 +404,7 @@ tbody tr:focus-within td { background: #f2f6fc; }
   .overview-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .overview-kpi:nth-child(3) { border-left: 0; }
   .overview-kpi:nth-child(n+3) { border-top: 1px solid var(--line); }
+  .overview-kpi-next { grid-column: 1 / -1; border-left: 0 !important; }
 }
 
 @media (max-width: 760px) {
@@ -469,6 +493,7 @@ tbody tr:focus-within td { background: #f2f6fc; }
   .overview-kpis { grid-template-columns: 1fr 1fr; }
   .overview-kpi:nth-child(3) { border-left: 0; }
   .overview-kpi:nth-child(n+3) { border-top: 1px solid var(--line); }
+  .overview-kpi-next { grid-column: 1 / -1; border-left: 0 !important; }
   .overview-movement {
     grid-template-columns: 36px minmax(0, 1fr) auto;
     grid-template-areas: "icon main value" "icon date value";
@@ -515,3 +540,30 @@ tbody tr:focus-within td { background: #f2f6fc; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+
+/* Visão geral: "Últimos lançamentos" como planilha */
+.overview-sheet { border: 0; border-radius: 0; border-top: 1px solid var(--line); }
+.overview-sheet .sheet th { position: sticky; top: 0; z-index: 1; text-align: left; white-space: nowrap; }
+.overview-sheet .sheet th:first-child, .overview-sheet .sheet td:first-child { border-left: 0; }
+.overview-sheet .sheet th:last-child, .overview-sheet .sheet td:last-child { border-right: 0; }
+.overview-sheet .sheet td {
+  border: 1px solid #dce3ec;
+  padding: 7px 10px;
+  vertical-align: middle;
+  color: var(--ink);
+  background: #fff;
+  white-space: nowrap;
+}
+.overview-sheet .sheet tbody tr:nth-child(even) td { background: #fbfcfe; }
+.overview-sheet .sheet tbody tr:hover td { background: #f1f6fc; }
+.overview-sheet .sheet tbody tr:last-child td { border-bottom: 0; }
+.overview-sheet .sheet td small { display: block; font-size: 11px; color: var(--faint); font-weight: 400; }
+.overview-sheet .sheet td.t-right { font-weight: 650; }
+.overview-sheet .sheet td.t-right small { text-align: right; }
+.overview-sheet .sheet-desc { font-weight: 600; max-width: 260px; }
+.overview-sheet .sheet-desc-in { display: flex; align-items: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.overview-sheet tr.is-scheduled td:first-child { box-shadow: inset 3px 0 0 #e8a35c; }
+.overview-sheet .sched-tag { margin-left: 0; }
+.overview-sheet .sheet-done { background: #eef2f7; color: var(--muted); font-weight: 500; }
+.overview-sheet .t-faint { color: var(--faint); font-weight: 400; }
+.overview-sheet .sheet th.t-right { text-align: right; }

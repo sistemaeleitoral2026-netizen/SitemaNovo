@@ -335,20 +335,58 @@
     </tr>`;
   }
 
-  function overviewTxRow(x) {
-    const origin = x.taskId
-      ? (taskById(x.taskId) && taskKind(taskById(x.taskId)) === 'cobranca' ? 'Cobrança recebida' : 'Pagamento programado')
-      : 'Lançamento avulso';
-    return `<div class="overview-movement">
-      <div class="overview-movement-icon ${x.kind === 'income' ? 'is-income' : 'is-expense'}">${icon(CAT_ICON[x.category] || (x.kind === 'income' ? 'arrow-down-left' : 'arrow-up-right'))}</div>
-      <div class="overview-movement-main">
-        <div class="overview-movement-title">${esc(x.description)}${x.receiptId ? `<button class="clip" data-receipt="${x.receiptId}" data-rtx="${x.id}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip')}</button>` : ''}</div>
-        <div class="overview-movement-meta"><span>${esc(x.category)}</span><span>${esc(accName(x.account))}</span><span>${esc(origin)}</span></div>
-      </div>
-      <div class="overview-movement-date num">${shortDate(x.date)}${x.time ? `<small>${x.time}</small>` : ''}</div>
-      <div class="overview-movement-value num ${x.kind === 'income' ? 'delta-pos' : 'delta-neg'}">${signed(value(x))}</div>
-    </div>`;
+  /**
+   * Pagamentos e cobranças agendados (ainda sem baixa) nos meses dados, no formato de lançamento.
+   * O que já teve baixa vira lançamento real (com taskId), então não entra aqui — sem duplicar.
+   */
+  function scheduledEntries(monthKeys) {
+    const out = [];
+    monthKeys.forEach(k => occurrencesIn(k).forEach(o => {
+      const t = o.task, kind = taskKind(t);
+      if (kind === 'documentacao' || o.done) return;
+      const amount = t.expected ?? lastPaidAmount(t.id) ?? 0;
+      out.push({
+        id: `sched:${o.key}`,
+        scheduled: true,
+        status: o.status,
+        taskId: t.id,
+        description: t.title || (kind === 'cobranca' ? 'Cobrança' : 'Pagamento'),
+        category: kind === 'cobranca' ? (t.category && t.category !== 'Outros' ? t.category : 'Recebimentos') : (t.category || 'Outros'),
+        account: t.account,
+        date: o.to,
+        kind: kind === 'cobranca' ? 'income' : 'expense',
+        amount,
+        variable: t.expected == null,
+      });
+    }));
+    return out;
   }
+
+  /** Linha da planilha "Últimos lançamentos" (lançamentos reais e agendamentos sem baixa). */
+  function overviewTxRow(x) {
+    const inc = x.kind === 'income';
+    const t = x.taskId ? taskById(x.taskId) : null;
+    const cob = t && taskKind(t) === 'cobranca';
+    const origin = x.scheduled
+      ? (inc ? 'Cobrança a receber' : 'Pagamento a fazer')
+      : x.taskId ? (cob ? 'Cobrança recebida' : 'Pagamento programado') : 'Lançamento avulso';
+    const sit = x.scheduled
+      ? `<span class="tag sched-tag ${x.status === 'atrasada' ? 'is-late' : ''}">${x.status === 'atrasada' ? 'Atrasado' : x.status === 'hoje' ? 'Vence hoje' : 'Agendado'}</span>`
+      : `<span class="tag sheet-done">${inc ? 'Recebido' : 'Pago'}</span>`;
+    const acc = x.account && accName(x.account) !== '—' ? esc(accName(x.account)) : '<span class="t-faint">—</span>';
+    const val = x.scheduled && !x.amount ? '<span class="t-faint">a definir</span>'
+      : `${signed(value(x))}${x.scheduled && x.variable ? '<small>estimado</small>' : ''}`;
+    return `<tr class="${x.scheduled ? 'is-scheduled' : ''}">
+      <td class="num">${fullDate(x.date)}${x.time ? `<small>${x.time}</small>` : ''}</td>
+      <td class="sheet-desc"><span class="sheet-desc-in">${esc(x.description)}${x.receiptId ? `<button class="clip" data-receipt="${x.receiptId}" data-rtx="${x.id}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip')}</button>` : ''}</span></td>
+      <td>${esc(x.category)}</td>
+      <td>${acc}</td>
+      <td>${origin}</td>
+      <td>${sit}</td>
+      <td class="t-right num ${inc ? 'delta-pos' : 'delta-neg'}">${val}</td>
+    </tr>`;
+  }
+
 
   function chip(diff, base) {
     if (diff == null) return '<span class="chip zero">primeiro registro</span>';
@@ -361,19 +399,23 @@
     const exp = list.filter(x => x.kind === 'expense');
     const total = sum(exp, 'expense');
     if (!total) return '<div class="empty">Sem despesas neste período.</div>';
-    const groups = {};
-    exp.forEach(x => { groups[x.category] = (groups[x.category] || 0) + x.amount; });
-    let rows = Object.entries(groups).sort((a, b) => b[1] - a[1]);
+    const groups = {}, sched = {};
+    exp.forEach(x => {
+      groups[x.category] = (groups[x.category] || 0) + x.amount;
+      if (x.scheduled) sched[x.category] = (sched[x.category] || 0) + x.amount;
+    });
+    let rows = Object.entries(groups).map(([c, v]) => [c, v, sched[c] || 0]).sort((a, b) => b[1] - a[1]);
     if (limit && rows.length > limit) {
-      const rest = rows.slice(limit - 1).reduce((s, r) => s + r[1], 0);
-      rows = [...rows.slice(0, limit - 1), ['Demais categorias', rest]];
+      const rest = rows.slice(limit - 1);
+      rows = [...rows.slice(0, limit - 1), ['Demais categorias', rest.reduce((s, r) => s + r[1], 0), rest.reduce((s, r) => s + r[2], 0)]];
     }
     const max = rows[0][1];
-    return rows.map(([c, v]) => `
+    return rows.map(([c, v, s]) => `
       <div class="cat-row">
         <div class="cat-name">${icon(CAT_ICON[c] || 'ellipsis', 'i-sm')}${esc(c)}</div>
         <div class="cat-val num">${money(v)}<small>${pct(v / total)}</small></div>
-        <div class="cat-bar"><span style="width:${(v / max) * 100}%"></span></div>
+        <div class="cat-bar"><span style="width:${((v - s) / max) * 100}%"></span>${s ? `<span class="is-sched" style="width:${(s / max) * 100}%"></span>` : ''}</div>
+        ${s ? `<div class="cat-sched">${money(s)} agendado${v - s > 0.004 ? ` · ${money(v - s)} pago` : ''}</div>` : ''}
       </div>`).join('');
   }
 
@@ -1823,8 +1865,28 @@
     $('#kNetFoot').textContent = inc ? `${pct(Math.max(net, 0) / inc)} da renda poupada` : '—';
     $$('#chartMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === chartMode));
     if (view === 'overview') flowChart(k);
-    $('#catTop').innerHTML = catBreakdown(list, 5);
-    $('#recentRows').innerHTML = list.slice(0, 6).map(overviewTxRow).join('') || '<div class="empty">Nenhum lançamento neste mês.</div>';
+    // Agendamentos (pagamentos/cobranças sem baixa): mês da tela e, no mês atual, também o seguinte
+    const cur = currentMonth(), next = addMonths(k, 1);
+    const schedMonths = k === cur ? [k, next] : k > cur ? [k] : [];
+    const sched = scheduledEntries(schedMonths);
+    const nextSched = sched.filter(x => ym(x.date) === next);
+    const nextPay = nextSched.filter(x => x.kind === 'expense'), nextGet = nextSched.filter(x => x.kind === 'income');
+    const nextName = MONTHS_FULL[+next.slice(5) - 1];
+    const nk = $('#kNextBox');
+    if (nk) {
+      nk.hidden = k !== cur;
+      $('#kNextLabel').textContent = `Agendado para ${nextName.toLowerCase()}`;
+      $('#kNext').textContent = nextPay.length ? `− ${money(sum(nextPay, 'expense'))}` : money(0);
+      $('#kNextFoot').innerHTML = nextSched.length
+        ? `${nextPay.length} pagamento${nextPay.length === 1 ? '' : 's'}${nextGet.length ? ` · <span class="delta-pos">+ ${money(sum(nextGet, 'income'))}</span> a receber` : ''}`
+        : 'nada agendado';
+    }
+    $('#catMeta').textContent = sched.some(x => x.kind === 'expense')
+      ? `${monthLabel(k).split(' ')[0]}${schedMonths.length > 1 ? ` + agendados até ${nextName.toLowerCase()}` : ' + agendados'}`
+      : monthLabel(k);
+    $('#catTop').innerHTML = catBreakdown([...list, ...sched], 6);
+    const recent = [...sched, ...list].sort((a, b) => b.date.localeCompare(a.date) || (b.time || '').localeCompare(a.time || ''));
+    $('#recentRows').innerHTML = recent.slice(0, 10).map(overviewTxRow).join('') || '<tr><td colspan="7" class="empty">Nenhum lançamento neste mês.</td></tr>';
     $('#accSummary').innerHTML = accRows(k);
     renderInvTop();
 

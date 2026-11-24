@@ -141,6 +141,11 @@
             <div class="kpi-value num" id="kNet">—</div>
             <div class="kpi-foot" id="kNetFoot">&nbsp;</div>
           </div>
+          <button type="button" class="kpi overview-kpi overview-kpi-next" id="kNextBox" data-go="pagamentos" title="Abrir pagamentos">
+            <div class="kpi-label" id="kNextLabel">Agendado para o próximo mês</div>
+            <div class="kpi-value num delta-neg" id="kNext">—</div>
+            <div class="kpi-foot" id="kNextFoot">&nbsp;</div>
+          </button>
         </div>
 
         <div class="row row-2-1">
@@ -163,7 +168,7 @@
 
           <div class="block">
             <div class="block-head">
-              <div class="block-title">Despesas por categoria</div>
+              <div><div class="block-title">Despesas por categoria</div><div class="block-meta" id="catMeta"></div></div>
               <button class="link" data-go="reports">Detalhar</button>
             </div>
             <div class="block-body"><div class="cat-list" id="catTop"></div></div>
@@ -184,7 +189,12 @@
             <div class="block-title">Últimos lançamentos</div>
             <button class="link" data-go="transactions">Ver todos</button>
           </div>
-          <div class="overview-movements" id="recentRows"></div>
+          <div class="table-wrap sheet-wrap overview-sheet">
+            <table class="sheet">
+              <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Conta</th><th>Origem</th><th>Situação</th><th class="t-right">Valor</th></tr></thead>
+              <tbody id="recentRows"></tbody>
+            </table>
+          </div>
         </div>
         </div>
 
