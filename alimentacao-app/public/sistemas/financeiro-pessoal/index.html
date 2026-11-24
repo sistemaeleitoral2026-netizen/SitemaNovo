@@ -149,21 +149,16 @@
         </div>
 
         <div class="row row-2-1">
-          <div class="block">
+          <div class="block overview-numbers">
             <div class="block-head">
-              <div class="block-title">Receitas e despesas</div>
-              <div class="head-right">
-                <div class="legend">
-                  <span><i style="background:var(--chart-in)"></i>Receitas</span>
-                  <span><i style="background:var(--chart-out)"></i>Despesas</span>
-                </div>
-                <div class="seg-tabs" id="chartMode" role="group" aria-label="Tipo de gráfico">
-                  <button type="button" data-mode="line" class="on" aria-label="Linhas"><svg class="i i-sm"><use href="#i-chart-line"/></svg>Linhas</button>
-                  <button type="button" data-mode="bar" aria-label="Barras"><svg class="i i-sm"><use href="#i-chart-column"/></svg>Barras</button>
-                </div>
-              </div>
+              <div><div class="block-title">Resumo em números</div><div class="block-meta" id="numMeta"></div></div>
+              <button class="link" data-go="pagamentos">Ver pagamentos</button>
             </div>
-            <div class="block-body"><svg class="chart" id="chart" role="img" aria-label="Receitas e despesas dos últimos seis meses"></svg></div>
+            <div class="num-grid" id="numGrid"></div>
+            <div class="num-next">
+              <div class="num-next-head">Próximos vencimentos</div>
+              <div id="numNext"></div>
+            </div>
           </div>
 
           <div class="block">

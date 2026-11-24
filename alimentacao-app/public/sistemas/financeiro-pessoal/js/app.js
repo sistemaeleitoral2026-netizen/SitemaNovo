@@ -362,6 +362,43 @@
     return out;
   }
 
+  /** Quadro "Resumo em números" da visão geral (substitui o gráfico). */
+  function renderNumbers(k, list, sched, next) {
+    const grid = $('#numGrid');
+    if (!grid) return;
+    const mName = m => MONTHS_FULL[+m.slice(5) - 1].toLowerCase();
+    const pay = sched.filter(x => x.kind === 'expense'), get = sched.filter(x => x.kind === 'income');
+    const payNow = pay.filter(x => ym(x.date) === k), payNext = pay.filter(x => ym(x.date) === next);
+    const paidNow = list.filter(x => x.kind === 'expense'), gotNow = list.filter(x => x.kind === 'income');
+    const tot = l => l.reduce((s, x) => s + (x.amount || 0), 0);
+    const undef = l => l.filter(x => !x.amount).length;
+    const qty = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+    const extra = l => (undef(l) ? ` · ${undef(l)} sem valor` : '');
+    const saldo = totalBalance(k);
+    const previsto = saldo - tot(pay) + tot(get);
+    const late = pay.filter(x => x.status === 'atrasada');
+    const maior = pay.slice().sort((a, b) => (b.amount || 0) - (a.amount || 0))[0];
+    const lastM = sched.length ? sched.map(x => ym(x.date)).sort().at(-1) : k;
+    const cell = (label, val, foot, cls = '') => `<div class="num-cell ${cls}"><div class="num-label">${label}</div><div class="num-val num">${val}</div><div class="num-foot">${foot}</div></div>`;
+    $('#numMeta').textContent = `${monthLabel(k)}${lastM !== k ? ` e ${mName(lastM)}` : ''}`;
+    grid.innerHTML = [
+      cell(`Saldo previsto ao fim de ${mName(lastM)}`, signed(previsto), `saldo hoje ${money(saldo)} − a pagar + a receber`, previsto < 0 ? 'is-neg' : 'is-pos'),
+      cell(`A pagar ainda em ${mName(k)}`, money(tot(payNow)), `${qty(payNow.length, 'conta', 'contas')}${extra(payNow)}${late.length ? ` · <b class="delta-neg">${late.length} atrasada${late.length === 1 ? '' : 's'}</b>` : ''}`, payNow.length ? 'is-neg' : ''),
+      cell(`A pagar em ${mName(next)}`, money(tot(payNext)), `${qty(payNext.length, 'conta', 'contas')}${extra(payNext)}`, payNext.length ? 'is-neg' : ''),
+      cell('A receber (agendado)', money(tot(get)), qty(get.length, 'cobrança', 'cobranças'), get.length ? 'is-pos' : ''),
+      cell(`Já pago em ${mName(k)}`, money(tot(paidNow)), `${qty(paidNow.length, 'lançamento', 'lançamentos')} · recebido ${money(tot(gotNow))}`),
+      cell('Maior conta agendada', maior && maior.amount ? money(maior.amount) : '—', maior ? `${esc(maior.description)} · ${shortDate(maior.date)}` : 'nada agendado'),
+    ].join('');
+
+    const today = todayISO();
+    const prox = sched.slice().sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5);
+    $('#numNext').innerHTML = prox.length ? `<table class="num-table"><tbody>${prox.map(x => {
+      const d = daysBetween(today, x.date);
+      const quando = d < 0 ? `<span class="delta-neg">${-d} dia${d === -1 ? '' : 's'} atrasado</span>` : d === 0 ? '<span class="delta-neg">vence hoje</span>' : `em ${d} dia${d === 1 ? '' : 's'}`;
+      return `<tr><td class="num">${fullDate(x.date)}</td><td class="num-t">${esc(x.description)}</td><td class="t-muted">${quando}</td><td class="t-right num ${x.kind === 'income' ? 'delta-pos' : 'delta-neg'}">${x.amount ? signed(value(x)) : '<span class="t-faint">a definir</span>'}</td></tr>`;
+    }).join('')}</tbody></table>` : '<div class="empty">Nenhum vencimento agendado.</div>';
+  }
+
   /** Linha da planilha "Últimos lançamentos" (lançamentos reais e agendamentos sem baixa). */
   function overviewTxRow(x) {
     const inc = x.kind === 'income';
@@ -459,6 +496,7 @@
 
   function flowChart(k) {
     const svg = $('#chart');
+    if (!svg) return;
     const W = svg.clientWidth || 600, H = Math.round(Math.min(340, Math.max(230, W * 0.3))), pad = { l: 52, r: 12, t: 18, b: 26 };
     const keys = []; let c = k; for (let i = 0; i < 6; i++) { keys.unshift(c); c = prevMonth(c); }
     const data = keys.map(key => { const l = inMonth(key); return { key, inc: sum(l, 'income'), exp: sum(l, 'expense') }; });
@@ -1880,6 +1918,7 @@
         ? `${nextPay.length} pagamento${nextPay.length === 1 ? '' : 's'}${nextGet.length ? ` · <span class="delta-pos">+ ${money(sum(nextGet, 'income'))}</span> a receber` : ''}`
         : 'nada agendado';
     }
+    renderNumbers(k, list, sched, next);
     $('#catMeta').textContent = sched.some(x => x.kind === 'expense')
       ? `${monthLabel(k).split(' ')[0]}${schedMonths.length > 1 ? ` + agendados até ${nextName.toLowerCase()}` : ' + agendados'}`
       : monthLabel(k);
