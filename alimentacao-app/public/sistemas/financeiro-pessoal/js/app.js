@@ -2317,6 +2317,7 @@
     $('#pageTitle').textContent = TITLES[v];
     document.title = `${TITLES[v]} · Matheus do Beiju`;
     window.scrollTo({ top: 0 });
+    if (growOn) avisarPai({ type: 'fp-top' });
     // Telas com ação própria (contas, aplicações, compromissos) não mostram o botão Lançamento, para não confundir
     const hasOwnPrimaryAction = ['investments', 'accounts', 'tasks'].includes(view);
     $('#headTxBtn').hidden = hasOwnPrimaryAction;
@@ -2649,21 +2650,37 @@
 
   /* ---------- Ponte com o sistema (página React que carrega este iframe) ---------- */
   const avisarPai = msg => { if (embedded) window.parent.postMessage(msg, window.location.origin); };
-  $('#headShotBtn')?.addEventListener('click', e => {
-    const b = e.currentTarget;
-    if (!embedded) { alert('Abra pelo sistema para salvar a imagem.'); return; }
-    b.disabled = true;
-    b.querySelector('span').textContent = 'Gerando…';
-    const nome = `${$('#pageTitle')?.textContent || 'Financeiro'} ${period ? monthLabel(period) : ''}`.trim();
-    avisarPai({ type: 'fp-capture', nome });
-  });
+  /* Computador: o iframe cresce até a altura do conteúdo (a página do sistema rola),
+     assim o print de página inteira do navegador sai completo. Celular continua com rolagem interna. */
+  const GROW_MIN = 761;
+  let growOn = false, growH = 0, growRaf = 0;
+  function syncGrow() {
+    growRaf = 0;
+    const on = embedded && REMOTE && window.innerWidth >= GROW_MIN;
+    document.documentElement.classList.toggle('fp-grow', on);
+    const app = $('.app');
+    const h = on && app ? Math.ceil(app.getBoundingClientRect().height) : 0;
+    if (on === growOn && Math.abs(h - growH) < 2) return;
+    growOn = on; growH = h;
+    avisarPai({ type: 'fp-grow', on, height: h });
+  }
+  const pedirGrow = () => { if (!growRaf) growRaf = requestAnimationFrame(syncGrow); };
+  if (embedded && REMOTE) {
+    if (window.ResizeObserver) {
+      const ro = new ResizeObserver(pedirGrow);
+      ro.observe($('.main'));
+      ro.observe($('.app'));
+    }
+    window.addEventListener('resize', pedirGrow);
+    pedirGrow();
+  }
   window.addEventListener('message', ev => {
     if (ev.origin !== window.location.origin || ev.source !== window.parent) return;
     const d = ev.data || {};
-    if (d.type === 'fp-capture-done') {
-      const b = $('#headShotBtn');
-      if (b) { b.disabled = false; b.querySelector('span').textContent = 'Salvar imagem'; }
-      if (d.erro) alert(d.erro);
+    if (d.type === 'fp-viewport') {
+      const r = document.documentElement.style;
+      r.setProperty('--vp-top', `${Math.round(d.top || 0)}px`);
+      r.setProperty('--vp-h', `${Math.max(200, Math.round(d.height || window.innerHeight))}px`);
       return;
     }
     if (d.type === 'fp-hydrate' && d.payload) {

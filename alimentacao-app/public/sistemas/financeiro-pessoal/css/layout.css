@@ -726,3 +726,19 @@ tbody tr:focus-within td { background: #f2f6fc; }
   .ov-line.is-done .ov-line-val { font-size: 13px; }
 }
 .ov-line.is-zero .ov-line-val { color: var(--faint) !important; }
+
+/* ===== Computador dentro do sistema: página cresce com o conteúdo (print de página inteira) ===== */
+html.fp-grow, html.fp-grow body { overflow: hidden; height: auto; }
+html.fp-grow .app {
+  min-height: 0;
+  /* a coluna do menu continua escura de cima a baixo (inclusive no print) */
+  background: linear-gradient(to right, var(--navy) var(--sidebar), transparent var(--sidebar));
+}
+html.fp-grow .sidebar {
+  position: relative; top: var(--vp-top, 0px);
+  height: var(--vp-h, 100vh); align-self: start;
+}
+html.fp-grow .modal-backdrop {
+  position: absolute; left: 0; right: 0; bottom: auto;
+  top: var(--vp-top, 0px); height: var(--vp-h, 100vh); overflow-y: auto;
+}

@@ -20,73 +20,9 @@ type FpMensagem = {
   file?: Blob
   name?: string
   entidadeId?: string
-  nome?: string
+  on?: boolean
+  height?: number
   id?: string
-}
-
-/**
- * Gera um PNG da tela inteira do iframe (o print do navegador corta porque a rolagem é dentro do iframe).
- * Os ícones usam <use href="#i-…"> de um sprite; o html2canvas não resolve isso, então no clone
- * cada ícone recebe o desenho do símbolo direto.
- */
-async function capturarTela(frame: HTMLIFrameElement, nome: string) {
-  const doc = frame.contentDocument
-  const win = frame.contentWindow
-  if (!doc || !win) throw new Error('A tela ainda não carregou.')
-  const alvo = (doc.querySelector('#mainContent') as HTMLElement | null) || doc.body
-  const { default: html2canvas } = await import('html2canvas')
-  const fundo = win.getComputedStyle(doc.body).backgroundColor || '#f4f6fa'
-  const canvas = await html2canvas(alvo, {
-    backgroundColor: fundo,
-    scale: 2,
-    useCORS: true,
-    logging: false,
-    width: alvo.scrollWidth,
-    height: alvo.scrollHeight,
-    windowWidth: doc.documentElement.clientWidth,
-    windowHeight: alvo.scrollHeight,
-    scrollX: 0,
-    scrollY: 0,
-    onclone: (clone) => {
-      // Os <link> de CSS são relativos ao iframe e não carregam no clone: embute o CSS já carregado
-      const css = Array.from(doc.styleSheets)
-        .map((sh) => {
-          try { return Array.from(sh.cssRules).map((r) => r.cssText).join('\n') } catch { return '' }
-        })
-        .join('\n')
-      clone.querySelectorAll('link[rel="stylesheet"]').forEach((l) => l.remove())
-      const st = clone.createElement('style')
-      st.textContent = css
-      clone.head.appendChild(st)
-      const cwin = clone.defaultView
-      clone.querySelectorAll('svg').forEach((svg) => {
-        const use = svg.querySelector('use')
-        const ref = use?.getAttribute('href') || use?.getAttribute('xlink:href')
-        if (!use || !ref?.startsWith('#')) return
-        const sym = clone.getElementById(ref.slice(1))
-        if (!sym) return
-        const r = svg.getBoundingClientRect()
-        const cor = cwin ? cwin.getComputedStyle(svg).color : ''
-        svg.setAttribute('viewBox', sym.getAttribute('viewBox') || '0 0 256 256')
-        svg.setAttribute('width', String(r.width || 16))
-        svg.setAttribute('height', String(r.height || 16))
-        if (cor) svg.setAttribute('fill', cor)
-        svg.innerHTML = sym.innerHTML
-      })
-      // Botões flutuantes / menu do celular não entram na imagem
-      clone.querySelectorAll<HTMLElement>('#headShotBtn, #headTxBtn, #periodNow, .fab, .tabbar').forEach((el) => { el.style.display = 'none' })
-    },
-  })
-  const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, 'image/png'))
-  if (!blob) throw new Error('Não foi possível gerar a imagem.')
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${nome.replace(/[\\/:*?"<>|]+/g, '-')}.png`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 2000)
 }
 
 function mensagemDe(e: unknown, padrao: string) {
@@ -117,6 +53,18 @@ export function FinanceiroPessoalPage() {
   const salvando = useRef(false)
   const pendente = useRef<{ payload: FpState; requestId?: string } | null>(null)
   const hidratou = useRef(false)
+  const [crescer, setCrescer] = useState(false)
+  const [altura, setAltura] = useState(0)
+
+  /** Diz ao iframe que pedaço dele está visível (menu lateral e janelas acompanham a rolagem). */
+  function enviarJanela() {
+    const f = frameRef.current
+    if (!f) return
+    const r = f.getBoundingClientRect()
+    const top = Math.max(0, -r.top)
+    const h = Math.max(0, Math.min(window.innerHeight, r.bottom) - Math.max(0, r.top))
+    postar({ type: 'fp-viewport', top, height: h })
+  }
 
   function postar(msg: Record<string, unknown>) {
     frameRef.current?.contentWindow?.postMessage(msg, window.location.origin)
@@ -185,15 +133,17 @@ export function FinanceiroPessoalPage() {
         void hidratar()
         return
       }
-      if (dados.type === 'fp-capture') {
-        try {
-          if (!frameRef.current) throw new Error('A tela ainda não carregou.')
-          await capturarTela(frameRef.current, dados.nome || 'Financeiro pessoal')
-          postar({ type: 'fp-capture-done' })
-        } catch (e) {
-          console.error('[financeiro-pessoal] captura', e)
-          postar({ type: 'fp-capture-done', erro: mensagemDe(e, 'Não foi possível salvar a imagem.') })
-        }
+      if (dados.type === 'fp-grow') {
+        // No computador o iframe cresce até a altura do conteúdo: a página de fora rola
+        // e o print de página inteira do navegador pega tudo.
+        setCrescer(!!dados.on)
+        if (dados.on && dados.height) setAltura(Math.ceil(dados.height))
+        window.requestAnimationFrame(enviarJanela)
+        return
+      }
+      if (dados.type === 'fp-top') {
+        const r = frameRef.current?.getBoundingClientRect()
+        if (r && r.top < 0) window.scrollTo({ top: window.scrollY + r.top })
         return
       }
       if (dados.type === 'fp-sair') {
@@ -239,6 +189,18 @@ export function FinanceiroPessoalPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nome, neritesAdmin, admin, userId, navigate, signOut])
 
+  useEffect(() => {
+    if (!crescer) return
+    enviarJanela()
+    window.addEventListener('scroll', enviarJanela, { passive: true })
+    window.addEventListener('resize', enviarJanela)
+    return () => {
+      window.removeEventListener('scroll', enviarJanela)
+      window.removeEventListener('resize', enviarJanela)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crescer, altura])
+
   // Ao voltar para a aba, busca o que outras pessoas lançaram (sem atropelar salvamento em andamento)
   useEffect(() => {
     if (!pronto) return
@@ -255,7 +217,7 @@ export function FinanceiroPessoalPage() {
   }, [pronto])
 
   return (
-    <div className="mr-demo">
+    <div className={`mr-demo${crescer ? ' is-grow' : ''}`}>
       <div className="mr-demo-stage">
         {!pronto ? (
           <div className="mr-demo-loading" aria-live="polite">
@@ -267,7 +229,7 @@ export function FinanceiroPessoalPage() {
           <div
             role="alert"
             style={{
-              position: 'absolute', right: 16, bottom: 16, zIndex: 3, maxWidth: 420,
+              position: 'fixed', right: 16, bottom: 16, zIndex: 30, maxWidth: 420,
               background: '#fdeceb', color: '#a3241d', border: '1px solid #f3c4c0', borderRadius: 8,
               padding: '10px 36px 10px 12px', fontSize: 13, lineHeight: 1.45, boxShadow: '0 6px 20px rgba(0,0,0,.12)',
             }}
@@ -287,7 +249,8 @@ export function FinanceiroPessoalPage() {
           ref={frameRef}
           className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
           title="Controle Financeiro Pessoal"
-          src="/sistemas/financeiro-pessoal/index.html?v=48&remote=1"
+          src="/sistemas/financeiro-pessoal/index.html?v=49&remote=1"
+          style={crescer && altura ? { height: altura } : undefined}
           onLoad={() => window.setTimeout(() => setPronto(true), 8000)}
         />
       </div>

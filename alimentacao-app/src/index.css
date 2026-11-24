@@ -4291,6 +4291,10 @@ button.fichas-count.equipe-drill-count.zero:hover {
   opacity: 1;
   pointer-events: auto;
 }
+/* Financeiro Pessoal no computador: o iframe tem a altura do conteúdo e quem rola é a página */
+.mr-demo.is-grow { height: auto; min-height: 100vh; min-height: 100dvh; }
+.mr-demo.is-grow .mr-demo-stage { flex: none; }
+.mr-demo.is-grow .mr-demo-frame { min-height: 100vh; min-height: 100dvh; }
 .mr-demo-actions button.is-on {
   color: #182437;
 }
