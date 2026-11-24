@@ -1,3 +1,5 @@
+const { randomUUID } = require('crypto')
+const { logAdminEvent } = require('./_admin-audit')
 const NERITES_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const NERITES_ANON = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
 const NERITES_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -63,9 +65,9 @@ async function getAuthUser(token) {
 }
 
 async function loadProfile(userId, token) {
-  let res = await nerites(`profiles?id=eq.${userId}&select=id,role,ativo`, token)
+  let res = await nerites(`profiles?id=eq.${userId}&select=id,nome,role,ativo`, token)
   if ((!res.ok || !Array.isArray(res.data) || !res.data[0]) && NERITES_SERVICE) {
-    res = await httpJson(`${NERITES_URL}/rest/v1/profiles?id=eq.${userId}&select=id,role,ativo`, {
+    res = await httpJson(`${NERITES_URL}/rest/v1/profiles?id=eq.${userId}&select=id,nome,role,ativo`, {
       Authorization: `Bearer ${NERITES_SERVICE}`,
       apikey: NERITES_SERVICE,
     })
@@ -126,6 +128,47 @@ module.exports = async function handler(req, res) {
     : {}
   const recurso = String((req.query && req.query.recurso) || body.recurso || '')
   const q = termo((req.query && req.query.q) || body.q || '')
+  const auditSuccess = async (payload, options = {}) => {
+    const excluir = /excluir/.test(recurso)
+    const status = /status|competencia/.test(recurso)
+    const criar = !body.id && !excluir && !status
+    const titulo = options.titulo || ({
+      vincular: 'Pessoa vinculada ao mandato',
+      demanda: 'Demanda criada no mandato',
+      'financeiro-lancamento': criar ? 'Lançamento criado no mandato' : 'Lançamento atualizado no mandato',
+      'financeiro-excluir': 'Lançamento excluído do mandato',
+      'financeiro-status': 'Status de lançamento alterado',
+      'financeiro-competencia': 'Competência conciliada',
+      'financeiro-equipe': 'Informações da equipe atualizadas',
+      'financeiro-equipe-salvar': criar ? 'Pessoa adicionada à equipe' : 'Pessoa da equipe atualizada',
+      'financeiro-equipe-excluir': 'Pessoa removida da equipe',
+      'financeiro-verbas-salvar': criar ? 'Verba registrada no mandato' : 'Verba atualizada no mandato',
+      'financeiro-verbas-excluir': 'Verba excluída do mandato',
+      'financeiro-fundo-salvar': criar ? 'Fundo criado no mandato' : 'Fundo atualizado no mandato',
+      'financeiro-fundo-excluir': 'Fundo excluído do mandato',
+      'financeiro-fundo-lancamento-salvar': 'Movimentação de fundo registrada',
+      'financeiro-fundo-lancamento-excluir': 'Movimentação de fundo excluída',
+      'financeiro-sincronizar': 'Dados oficiais do mandato atualizados',
+    })[recurso] || 'Atividade registrada no mandato'
+    await logAdminEvent({
+      sistema: 'painel-do-mandato',
+      categoria: options.categoria || (excluir ? 'exclusao' : status ? 'conclusao' : criar ? 'criacao' : 'edicao'),
+      acao: `mandato.${recurso || 'atividade'}`,
+      entidade: options.entidade || (recurso.includes('financeiro') ? 'financeiro' : recurso || 'mandato'),
+      entidadeId: String(body.id || body.nerites_id || body.empenho || ''),
+      titulo,
+      resumo: options.resumo || String(body.nome || body.cidadao_nome || body.titulo || body.descricao || body.status || '').slice(0, 220) || null,
+      actorId: profile.id,
+      actorNome: profile.nome || user.email || 'Usuário',
+      metadata: options.metadata || Object.fromEntries(
+        ['valor', 'salario', 'competencia', 'status', 'mes']
+          .filter((key) => body[key] !== undefined && body[key] !== null && body[key] !== '')
+          .map((key) => [key, body[key]]),
+      ),
+      origemUrl: '/painel-do-mandato',
+    })
+    return json(res, 200, payload)
+  }
 
   try {
     if (recurso === 'liderancas' || recurso === 'cidadaos') {
@@ -176,7 +219,7 @@ module.exports = async function handler(req, res) {
             : errMsg(saved.data, 'Falha ao gravar no Gabinete.'),
         })
       }
-      return json(res, 200, { ok: true })
+      return auditSuccess({ ok: true })
     }
 
     if (recurso === 'demandas' && req.method === 'GET') {
@@ -221,7 +264,7 @@ module.exports = async function handler(req, res) {
       if (!saved.ok) {
         return json(res, saved.status || 500, { error: errMsg(saved.data, 'Falha ao gravar a demanda.') })
       }
-      return json(res, 200, { demanda: Array.isArray(saved.data) ? saved.data[0] : saved.data })
+      return auditSuccess({ demanda: Array.isArray(saved.data) ? saved.data[0] : saved.data })
     }
 
     if (recurso === 'proposicoes' && req.method === 'GET') {
@@ -263,15 +306,24 @@ module.exports = async function handler(req, res) {
       if (req.method !== 'POST') return json(res, 405, { error: 'Use POST.' })
       if (!exigirEdicao()) return
 
-      // Carga/atualização do salário do vereador na folha da Câmara. Até 4 meses por chamada.
+      // Carga/atualização dos portais oficiais (folha + despesas). Até 4 meses por chamada.
       if (recurso === 'financeiro-sincronizar') {
         const forcar = body.forcar === true || body.forcar === 1 || body.forcar === '1'
-        try {
-          const folha = await fin.sincronizarFolha(db, { forcar })
-          return json(res, 200, { ok: true, folha })
-        } catch (err) {
-          return json(res, 500, { ok: false, folha: { erro: err instanceof Error ? err.message : String(err) } })
+        const resultado = {}
+        let falhou = false
+        for (const [parte, fn] of [
+          ['folha', () => fin.sincronizarFolha(db, { forcar })],
+          ['despesas', () => fin.sincronizarDespesas(db)],
+        ]) {
+          try {
+            resultado[parte] = await fn()
+          } catch (err) {
+            falhou = true
+            resultado[parte] = { erro: err instanceof Error ? err.message : String(err) }
+          }
         }
+        if (!falhou) return auditSuccess({ ok: true, ...resultado })
+        return json(res, 500, { ok: false, ...resultado })
       }
 
       if (recurso === 'financeiro-lancamento') {
@@ -284,14 +336,14 @@ module.exports = async function handler(req, res) {
         } else {
           await db.upsert('fin_lancamento', 'id', { ...linha, criado_por: user.id, criado_em: agora, atualizado_em: agora })
         }
-        return json(res, 200, { ok: true })
+        return auditSuccess({ ok: true })
       }
 
       if (recurso === 'financeiro-excluir') {
         const id = String(body.id || '').replace(/[^0-9a-f-]/gi, '')
         if (!id) return json(res, 400, { error: 'Informe o lançamento.' })
         await db.del(`fin_lancamento?id=eq.${id}`)
-        return json(res, 200, { ok: true })
+        return auditSuccess({ ok: true })
       }
 
       if (recurso === 'financeiro-status') {
@@ -299,75 +351,156 @@ module.exports = async function handler(req, res) {
         const status = ['pendente', 'enviado', 'reembolsado', 'glosado', 'pago'].includes(body.status) ? body.status : ''
         if (!id || !status) return json(res, 400, { error: 'Informe o lançamento e o status.' })
         await db.patch(`fin_lancamento?id=eq.${id}`, { status, atualizado_em: new Date().toISOString() })
-        return json(res, 200, { ok: true })
+        return auditSuccess({ ok: true })
       }
 
-      // Equipe do gabinete: cadastro manual (Nome, Cargo/Função, Admissão, Salário)
-      if (recurso === 'financeiro-equipe-salvar') {
+      if (recurso === 'financeiro-competencia') {
+        // Conciliação: define a qual mês (competência) um pagamento da Câmara se refere
+        const empenho = String(body.empenho || '').slice(0, 20)
+        const numPag = String(body.num_pagamento || '').slice(0, 20)
+        const data = String(body.data || '').slice(0, 10)
+        const comp = body.competencia ? String(body.competencia).slice(0, 7) : null
+        if (!empenho || !numPag || !/^\d{4}-\d{2}-\d{2}$/.test(data)) return json(res, 400, { error: 'Pagamento inválido.' })
+        if (comp && !/^\d{4}-\d{2}$/.test(comp)) return json(res, 400, { error: 'Competência inválida (AAAA-MM).' })
+        await db.patch(
+          `fin_pagamento?empenho=eq.${encodeURIComponent(empenho)}&num_pagamento=eq.${encodeURIComponent(numPag)}&data=eq.${data}`,
+          { competencia: comp },
+        )
+        return auditSuccess({ ok: true })
+      }
+
+      if (recurso === 'financeiro-equipe') {
+        const matricula = String(body.matricula || '').trim().slice(0, 40)
+        if (!matricula) return json(res, 400, { error: 'Informe a matrícula.' })
+        await db.upsert('fin_equipe_info', 'matricula', {
+          matricula,
+          funcao_real: body.funcao_real ? String(body.funcao_real).slice(0, 120) : null,
+          telefone: body.telefone ? String(body.telefone).slice(0, 30) : null,
+          indicado_por: body.indicado_por ? String(body.indicado_por).slice(0, 120) : null,
+          observacao: body.observacao ? String(body.observacao).slice(0, 500) : null,
+          atualizado_em: new Date().toISOString(),
+        })
+        return auditSuccess({ ok: true })
+      }
+
+      if (recurso === 'financeiro-verbas-salvar') {
         let linha
-        try { linha = fin.validarEquipeManual(body) } catch (e) { return json(res, e.status || 400, { error: e.message }) }
+        try { linha = fin.validarVerba(body) } catch (e) { return json(res, e.status || 400, { error: e.message }) }
         const agora = new Date().toISOString()
+        const rawId = String(body.id || '')
+        if (rawId && !rawId.startsWith('manual:')) {
+          const id = rawId.replace(/[^0-9a-f-]/gi, '')
+          if (!id) return json(res, 400, { error: 'Informe a verba.' })
+          await db.patch(`fin_verba?id=eq.${id}`, { ...linha, atualizado_em: agora })
+        } else {
+          const id = randomUUID()
+          await db.upsert('fin_verba', 'id', { ...linha, id, criado_em: agora, atualizado_em: agora })
+          if (rawId.startsWith('manual:') || linha.tipo === 'VIEP') {
+            try { await db.del(`fin_mes_manual?mes=eq.${encodeURIComponent(linha.mes)}`) } catch { /* ok */ }
+          }
+        }
+        return auditSuccess({ ok: true })
+      }
+
+      if (recurso === 'financeiro-verbas-excluir') {
+        const rawId = String(body.id || '')
+        if (rawId.startsWith('manual:')) {
+          const mes = rawId.slice(7)
+          if (!/^\d{4}-\d{2}$/.test(mes)) return json(res, 400, { error: 'Mês inválido.' })
+          try { await db.del(`fin_mes_manual?mes=eq.${encodeURIComponent(mes)}`) } catch { /* ok */ }
+          return auditSuccess({ ok: true })
+        }
+        const id = rawId.replace(/[^0-9a-f-]/gi, '')
+        if (!id) return json(res, 400, { error: 'Informe a verba.' })
+        await db.del(`fin_verba?id=eq.${id}`)
+        return auditSuccess({ ok: true })
+      }
+
+      if (recurso === 'financeiro-equipe-salvar') {
+        const nome = String(body.nome || '').trim().slice(0, 160)
+        if (!nome) return json(res, 400, { error: 'Informe o nome.' })
+        const fundoId = String(body.fundo_id || '').replace(/[^0-9a-f-]/gi, '')
+        if (!fundoId) return json(res, 400, { error: 'Selecione o fundo.' })
+        const agora = new Date().toISOString()
+        const salario = fin.r2(typeof body.salario === 'number' ? body.salario : fin.num(body.salario))
+        const admissao = body.admissao && /^\d{4}-\d{2}-\d{2}$/.test(String(body.admissao).slice(0, 10))
+          ? String(body.admissao).slice(0, 10) : null
+        const linha = {
+          nome,
+          cargo: body.cargo ? String(body.cargo).trim().slice(0, 120) : null,
+          admissao,
+          salario: salario || 0,
+          fundo_id: fundoId,
+          ativo: true,
+          atualizado_em: agora,
+        }
         if (body.id) {
           const id = String(body.id).replace(/[^0-9a-f-]/gi, '')
-          await db.patch(`fin_gabinete_manual?id=eq.${id}`, { ...linha, atualizado_em: agora })
+          await db.patch(`fin_gabinete_manual?id=eq.${id}`, linha)
         } else {
-          await db.upsert('fin_gabinete_manual', 'id', { ...linha, ativo: true, criado_em: agora, atualizado_em: agora })
+          await db.upsert('fin_gabinete_manual', 'id', { ...linha, id: randomUUID(), criado_em: agora })
         }
-        return json(res, 200, { ok: true })
+        return auditSuccess({ ok: true })
       }
 
       if (recurso === 'financeiro-equipe-excluir') {
         const id = String(body.id || '').replace(/[^0-9a-f-]/gi, '')
         if (!id) return json(res, 400, { error: 'Informe a pessoa.' })
-        await db.del(`fin_gabinete_manual?id=eq.${id}`)
-        return json(res, 200, { ok: true })
+        await db.patch(`fin_gabinete_manual?id=eq.${id}`, { ativo: false, atualizado_em: new Date().toISOString() })
+        return auditSuccess({ ok: true })
       }
 
-      // VIEP recebida da Câmara, lançada à mão todo mês
-      if (recurso === 'financeiro-verbas-salvar') {
-        let linha
-        try { linha = fin.validarViepManual(body) } catch (e) { return json(res, e.status || 400, { error: e.message }) }
-        await db.upsert('fin_mes_manual', 'mes', { ...linha, atualizado_em: new Date().toISOString() })
-        return json(res, 200, { ok: true })
-      }
-
-      // Fundos: de onde sai o dinheiro que paga a equipe do gabinete
       if (recurso === 'financeiro-fundo-salvar') {
-        let linha
-        try { linha = fin.validarFundo(body) } catch (e) { return json(res, e.status || 400, { error: e.message }) }
+        const nome = String(body.nome || '').trim().slice(0, 120)
+        if (!nome) return json(res, 400, { error: 'Informe o nome do fundo.' })
         const agora = new Date().toISOString()
+        const linha = {
+          nome,
+          descricao: body.descricao ? String(body.descricao).trim().slice(0, 500) : null,
+          ativo: true,
+          atualizado_em: agora,
+        }
         if (body.id) {
           const id = String(body.id).replace(/[^0-9a-f-]/gi, '')
-          await db.patch(`fin_fundos?id=eq.${id}`, { ...linha, atualizado_em: agora })
+          await db.patch(`fin_fundos?id=eq.${id}`, linha)
         } else {
-          await db.upsert('fin_fundos', 'id', { ...linha, ativo: true, criado_em: agora, atualizado_em: agora })
+          await db.upsert('fin_fundos', 'id', { ...linha, id: randomUUID(), criado_em: agora })
         }
-        return json(res, 200, { ok: true })
+        return auditSuccess({ ok: true })
       }
 
       if (recurso === 'financeiro-fundo-excluir') {
         const id = String(body.id || '').replace(/[^0-9a-f-]/gi, '')
         if (!id) return json(res, 400, { error: 'Informe o fundo.' })
-        const emUso = await db.get(`fin_gabinete_manual?select=id&fundo_id=eq.${id}&limit=1`)
-        if (Array.isArray(emUso) && emUso.length) {
-          return json(res, 400, { error: 'Esse fundo paga o salário de alguém da equipe. Troque o fundo da pessoa antes de remover.' })
-        }
+        await db.del(`fin_fundo_lancamento?fundo_id=eq.${id}`)
         await db.del(`fin_fundos?id=eq.${id}`)
-        return json(res, 200, { ok: true })
+        return auditSuccess({ ok: true })
       }
 
       if (recurso === 'financeiro-fundo-lancamento-salvar') {
-        let linha
-        try { linha = fin.validarFundoLancamento(body) } catch (e) { return json(res, e.status || 400, { error: e.message }) }
-        await db.upsert('fin_fundo_lancamento', 'id', { ...linha, criado_em: new Date().toISOString() })
-        return json(res, 200, { ok: true })
+        const fundoId = String(body.fundo_id || '').replace(/[^0-9a-f-]/gi, '')
+        const data = String(body.data || '').slice(0, 10)
+        const valor = fin.r2(typeof body.valor === 'number' ? body.valor : fin.num(body.valor))
+        if (!fundoId) return json(res, 400, { error: 'Informe o fundo.' })
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return json(res, 400, { error: 'Informe a data.' })
+        if (!(valor > 0)) return json(res, 400, { error: 'Valor precisa ser maior que zero.' })
+        await db.upsert('fin_fundo_lancamento', 'id', {
+          id: randomUUID(),
+          fundo_id: fundoId,
+          data,
+          valor,
+          origem: body.origem ? String(body.origem).trim().slice(0, 160) : null,
+          observacao: body.observacao ? String(body.observacao).trim().slice(0, 500) : null,
+          criado_em: new Date().toISOString(),
+        })
+        return auditSuccess({ ok: true })
       }
 
       if (recurso === 'financeiro-fundo-lancamento-excluir') {
         const id = String(body.id || '').replace(/[^0-9a-f-]/gi, '')
         if (!id) return json(res, 400, { error: 'Informe o lançamento.' })
         await db.del(`fin_fundo_lancamento?id=eq.${id}`)
-        return json(res, 200, { ok: true })
+        return auditSuccess({ ok: true })
       }
 
       return json(res, 404, { error: 'Recurso do financeiro não encontrado.' })

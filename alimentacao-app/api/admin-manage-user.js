@@ -1,6 +1,7 @@
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
+const { logAdminEvent } = require('./_admin-audit')
 
 // Ids dos sistemas que o /admin pode liberar (iguais a SITES em alimentacao-app/src/lib/sites.ts)
 const SISTEMAS = new Set(['mr-terceiriza', 'assessoria-mb', 'painel-do-mandato', 'financeiro-pessoal'])
@@ -52,7 +53,7 @@ async function getAuthUser(token) {
 /** Só o admin mexe nos logins "externos" por aqui — nunca em admin/diretoria/nerites. */
 async function loadCallerAdmin(userId) {
   const r = await fetch(
-    `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=id,role,ativo`,
+    `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=id,nome,role,ativo`,
     { headers: { Authorization: `Bearer ${SERVICE_ROLE}`, apikey: SERVICE_ROLE } },
   )
   const rows = await r.json().catch(() => [])
@@ -63,7 +64,7 @@ async function loadCallerAdmin(userId) {
 
 async function loadTargetExterno(userId) {
   const r = await fetch(
-    `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=id,role`,
+    `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=id,nome,email,role`,
     { headers: { Authorization: `Bearer ${SERVICE_ROLE}`, apikey: SERVICE_ROLE } },
   )
   const rows = await r.json().catch(() => [])
@@ -109,6 +110,12 @@ module.exports = async function handler(req, res) {
         const data = await delRes.json().catch(() => ({}))
         return json(res, 400, { error: errMsg(data, 'Falha ao excluir usuário.') })
       }
+      await logAdminEvent({
+        sistema: 'admin', categoria: 'exclusao', acao: 'usuario.excluir', entidade: 'profiles', entidadeId: targetId,
+        titulo: 'Login excluído', resumo: `${target.nome || 'Usuário'}${target.email ? ` · ${target.email}` : ''}`,
+        actorId: caller.id, actorNome: caller.nome, metadata: { usuario: target.nome || null }, origemUrl: '/admin/usuarios',
+        sourceKey: `admin:usuario.excluir:${targetId}:${Date.now()}`,
+      })
       return json(res, 200, { ok: true })
     }
 
@@ -166,6 +173,13 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    await logAdminEvent({
+      sistema: 'admin', categoria: 'acesso', acao: 'usuario.editar', entidade: 'profiles', entidadeId: targetId,
+      titulo: 'Acesso de usuário atualizado', resumo: nome || target.nome || 'Usuário',
+      actorId: caller.id, actorNome: caller.nome,
+      metadata: { usuario: nome || target.nome || null, ativo, senha_alterada: Boolean(password), acessos: acessos ? Object.keys(acessos) : undefined },
+      origemUrl: '/admin/usuarios', sourceKey: `admin:usuario.editar:${targetId}:${Date.now()}`,
+    })
     return json(res, 200, { ok: true })
   } catch (err) {
     return json(res, 500, { error: err instanceof Error ? err.message : 'Erro interno.' })

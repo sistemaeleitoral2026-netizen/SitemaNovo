@@ -18,6 +18,7 @@ import { canSeeFormigasWhatsapp } from './lib/formigasWhatsapp'
 import { hasRole } from './lib/roles'
 import { canAccessAssessoriaMb, canAccessFinanceiroPessoal, canAccessSiteExterno, readSite, siteById, writeSite, type SiteId } from './lib/sites'
 import type { Profile } from './types'
+import { PresenceHeartbeat } from './components/PresenceHeartbeat'
 
 // Telas de gestão (mapa/Leaflet, gráficos/Recharts, PDF/Excel) em chunks
 // separados — cada perfil só baixa o que abrir. Alivia muito o celular.
@@ -48,6 +49,11 @@ const TvDashboardPage = lazy(() => import('./pages/nerites/TvDashboardPage').the
 const AuditoriaPage = lazy(() => import('./pages/nerites/AuditoriaPage').then((m) => ({ default: m.AuditoriaPage })))
 const FormigasWhatsappPage = lazy(() => import('./pages/nerites/FormigasWhatsappPage').then((m) => ({ default: m.FormigasWhatsappPage })))
 const AdminUsuariosPage = lazy(() => import('./pages/admin/AdminUsuariosPage').then((m) => ({ default: m.AdminUsuariosPage })))
+const AdminShell = lazy(() => import('./pages/admin/AdminShell').then((m) => ({ default: m.AdminShell })))
+const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })))
+const AdminAtividadesPage = lazy(() => import('./pages/admin/AdminAtividadesPage').then((m) => ({ default: m.AdminAtividadesPage })))
+const AdminSistemasPage = lazy(() => import('./pages/admin/AdminSistemasPage').then((m) => ({ default: m.AdminSistemasPage })))
+const AdminFinanceiroPage = lazy(() => import('./pages/admin/AdminFinanceiroPage').then((m) => ({ default: m.AdminFinanceiroPage })))
 
 function homeForProfile(profile: Profile | null | undefined) {
   if (!profile) return '/login'
@@ -265,7 +271,13 @@ function AppRoutes() {
       <Route path="/assessoria-mb" element={<AssessoriaMbRoute><AssessoriaMbPage /></AssessoriaMbRoute>} />
       <Route path="/painel-do-mandato" element={<DemoSiteRoute site="painel-do-mandato"><PainelMandatoPage /></DemoSiteRoute>} />
       <Route path="/financeiro-pessoal" element={<FinanceiroPessoalRoute><FinanceiroPessoalPage /></FinanceiroPessoalRoute>} />
-      <Route path="/admin"element={<AdminUsuariosRoute><AdminUsuariosPage /></AdminUsuariosRoute>} />
+      <Route path="/admin" element={<AdminUsuariosRoute><AdminShell /></AdminUsuariosRoute>}>
+        <Route index element={<AdminDashboardPage />} />
+        <Route path="atividades" element={<AdminAtividadesPage />} />
+        <Route path="financeiro" element={<AdminFinanceiroPage />} />
+        <Route path="sistemas" element={<AdminSistemasPage />} />
+        <Route path="usuarios" element={<AdminUsuariosPage />} />
+      </Route>
 
       <Route element={<AppShell />}>
         <Route index element={<HomeRedirect />} />
@@ -316,6 +328,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <PresenceHeartbeat />
         <AppRoutes />
       </BrowserRouter>
     </AuthProvider>

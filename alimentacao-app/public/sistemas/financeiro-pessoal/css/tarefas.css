@@ -3,7 +3,7 @@
    ========================================================================== */
 .nav button { position: relative; }
 .nav-badge { margin-left: auto; min-width: 19px; height: 19px; padding: 0 6px; border-radius: 10px;
-  background: var(--neg); color: #fff; font-size: 11px; font-weight: 600; display: inline-grid; place-items: center; }
+  background: var(--neg); color: #fff; font-size: 12px; font-weight: 600; display: inline-grid; place-items: center; }
 .nav-badge.soft { background: #4f86e8; }
 .nav-badge[hidden] { display: none; }
 .tabbar { grid-template-columns: repeat(6, 1fr) !important; }
@@ -127,7 +127,26 @@
   border: 1px solid #f0d4a8;
 }
 .sheet-due { font-size: 11px; color: var(--muted); margin-top: 2px; }
-.task-filters { border-bottom: 1px solid var(--line); }
+.task-filters { border-bottom: 1px solid var(--line); align-items: center; gap: 8px; }
+.task-filters .search { flex: 1 1 180px; min-width: 160px; }
+.task-filters .select { max-width: 148px; }
+.task-pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+.task-pager-btns { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.task-pager-btns .btn.on {
+  background: var(--ink, #16345f);
+  color: #fff;
+  border-color: transparent;
+}
+.task-pager-btns .btn[disabled] { opacity: .45; }
 
 .due-banners {
   display: grid;
@@ -351,3 +370,38 @@ a.btn { text-decoration: none; }
 .sync-status.saving { color: #f5c26b; }
 .sync-status.ok { color: #7fd6a4; }
 .sync-status.err { color: #ff9b94; }
+
+/* ==========================================================================
+   Compromissos separados: Pagamentos / Cobranças / Documentação
+   ========================================================================== */
+.tag.st-ativa { background: var(--pos-soft); color: var(--pos); }
+
+/* Troca de tipo dentro da tela (só no celular; no computador o menu lateral já faz isso) */
+.kind-switch { display: none; margin-bottom: 14px; width: 100%; }
+.kind-switch button { flex: 1; justify-content: center; height: 32px; font-size: 13px; }
+@media (max-width: 760px) { .kind-switch { display: flex; } }
+
+/* Filtros: busca + situação visíveis, o resto em "Mais filtros" */
+.task-filters #tfStatus { max-width: 200px; }
+#tfMore.on { background: var(--accent-soft); border-color: #b9cff5; color: var(--accent); }
+.task-filters-more { background: var(--surface-2); }
+.task-filters-more[hidden] { display: none !important; }
+.task-filters-more .select { max-width: 180px; }
+
+/* Linhas: destaque leve para atrasadas */
+.sheet tr.occ-row.st-atrasada td:first-child { box-shadow: inset 3px 0 0 var(--neg); }
+.sheet tr.occ-row.st-hoje td:first-child { box-shadow: inset 3px 0 0 #e08a00; }
+
+/* Visão geral: resumo por tipo, cada cartão abre a tela correspondente */
+.commit-sum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.commit-card { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); text-align: left; cursor: pointer; min-width: 0; transition: border-color .15s, box-shadow .15s; }
+.commit-card:hover { border-color: var(--line-strong); box-shadow: 0 3px 12px #0d2a560f; }
+.commit-card.is-late { border-color: #f3c4c0; background: #fffafa; }
+.commit-ico { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; flex: none; background: var(--accent-soft); color: var(--accent); }
+.commit-ico .i { width: 19px; height: 19px; }
+.commit-card.is-late .commit-ico { background: var(--neg-soft); color: var(--neg); }
+.commit-txt { display: grid; min-width: 0; }
+.commit-label { font-size: 12px; color: var(--muted); }
+.commit-txt strong { font-size: 20px; font-weight: 600; line-height: 1.2; }
+.commit-txt small { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 1100px) { .commit-sum { grid-template-columns: 1fr; } }

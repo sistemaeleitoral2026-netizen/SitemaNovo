@@ -1,6 +1,7 @@
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
+const { logAdminEvent } = require('./_admin-audit')
 
 // Ids dos sistemas que o /admin pode liberar (iguais a SITES em alimentacao-app/src/lib/sites.ts)
 const SISTEMAS = new Set(['mr-terceiriza', 'assessoria-mb', 'painel-do-mandato', 'financeiro-pessoal'])
@@ -53,7 +54,7 @@ async function getAuthUser(token) {
 /** Só o admin cadastra login para os outros sistemas por aqui. */
 async function loadCallerAdmin(userId) {
   const r = await fetch(
-    `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=id,role,ativo`,
+    `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=id,nome,role,ativo`,
     { headers: { Authorization: `Bearer ${SERVICE_ROLE}`, apikey: SERVICE_ROLE } },
   )
   const rows = await r.json().catch(() => [])
@@ -168,6 +169,12 @@ module.exports = async function handler(req, res) {
       return json(res, 400, { error: `Usuário criado, mas o perfil falhou: ${raw}` })
     }
 
+    await logAdminEvent({
+      sistema: 'admin', categoria: 'acesso', acao: 'usuario.criar', entidade: 'profiles', entidadeId: userId,
+      titulo: 'Novo login criado', resumo: `${nome} · ${email}`, actorId: caller.id, actorNome: caller.nome,
+      metadata: { usuario: nome, email, acessos: Object.keys(acessos) }, origemUrl: '/admin/usuarios',
+      sourceKey: `admin:usuario.criar:${userId}`,
+    })
     return json(res, 200, { ok: true, id: userId, email })
   } catch (err) {
     return json(res, 500, { error: err instanceof Error ? err.message : 'Erro interno.' })
