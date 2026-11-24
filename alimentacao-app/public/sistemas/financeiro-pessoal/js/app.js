@@ -18,9 +18,23 @@
     'Lazer': 'gamepad-2', 'Compras': 'shopping-cart', 'Contas da casa': 'credit-card', 'Outros': 'ellipsis',
     'Salário': 'briefcase', 'Renda extra': 'circle-dollar-sign', 'Rendimentos': 'trending-up',
   };
-  const TITLES = { overview: 'Visão geral', transactions: 'Movimentações', tasks: 'Programação', accounts: 'Contas', investments: 'Investimentos', reports: 'Relatórios' };
+  const TITLES = {
+    overview: 'Visão geral', transactions: 'Movimentações',
+    pagamentos: 'Pagamentos', cobrancas: 'Cobranças', documentacao: 'Documentação',
+    accounts: 'Contas', investments: 'Investimentos', reports: 'Relatórios',
+  };
   const KIND_LABEL = { pagamento: 'Pagamento', documentacao: 'Documentação', cobranca: 'Cobrança' };
   const taskKind = t => (t && (t.kind === 'documentacao' || t.kind === 'cobranca') ? t.kind : 'pagamento');
+  // Menu → tipo de programação. As três telas usam a mesma seção (#view-tasks) e os mesmos dados.
+  const TASK_VIEWS = { pagamentos: 'pagamento', cobrancas: 'cobranca', documentacao: 'documentacao' };
+  const VIEW_OF_KIND = { pagamento: 'pagamentos', cobranca: 'cobrancas', documentacao: 'documentacao' };
+  const NEW_LABEL = { pagamento: 'Novo pagamento', cobranca: 'Nova cobrança', documentacao: 'Nova pendência' };
+  const TASK_TABS = {
+    pagamento: [['open', 'A fazer'], ['done', 'Concluídos'], ['rec', 'Recorrentes'], ['once', 'Avulsos']],
+    cobranca: [['open', 'A receber'], ['done', 'Concluídas'], ['rec', 'Recorrentes'], ['once', 'Avulsas']],
+    documentacao: [['pend', 'Pendentes'], ['late', 'Atrasadas'], ['done', 'Concluídas'], ['all', 'Todas']],
+  };
+  const PERSON_COL = { pagamento: 'Quem recebe', cobranca: 'Quem paga', documentacao: 'Responsável' };
 
   /* ---------- Formatação ---------- */
   const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -227,8 +241,12 @@
 
   let period = null;
   let view = 'overview';
-  let taskTab = 'all';
-  let reportTab = 'programacao';
+  let taskView = 'pagamento'; // tipo mostrado na tela de compromissos
+  const taskTabs = { pagamento: 'open', cobranca: 'open', documentacao: 'pend' }; // aba escolhida por tipo
+  let taskTab = 'open';
+  let taskPage = 1;
+  const TASK_PAGE = 12;
+  let reportTab = 'pagamentos';
   let chartMode = 'line';
   try { chartMode = localStorage.getItem('mf:chart') || 'line'; } catch { /* */ }
 
@@ -272,6 +290,25 @@
   const invValue = id => latest(id)?.balance ?? 0;
   const invTotal = () => state.investments.reduce((s, i) => s + invValue(i.id), 0);
   const prevSnap = s => { const l = snapsOf(s.invId); const i = l.findIndex(x => x.id === s.id); return i > 0 ? l[i - 1] : null; };
+  function snapshotResult(cur, before) {
+    if (!cur || !before) return null;
+    const difference = Math.round((cur.balance - before.balance) * 100) / 100;
+    const percent = before.balance ? difference / before.balance : null;
+    const days = Math.max(0, daysBetween(before.date, cur.date));
+    const daily = days > 0 ? Math.round((difference / days) * 100) / 100 : null;
+    return { difference, percent, days, daily };
+  }
+  function snapshotBefore(invId, date, time) {
+    const target = `${date || '9999-12-31'}T${time || '23:59'}`;
+    return snapsOf(invId).filter(s => stamp(s) < target).at(-1) || null;
+  }
+  const resultClass = n => n > 0 ? 'delta-pos' : n < 0 ? 'delta-neg' : 't-muted';
+  const resultMoney = n => `<span class="num ${resultClass(n)}">${signed(n)}</span>`;
+  function dailyResultLabel(result) {
+    if (!result) return '<span class="t-muted">—</span>';
+    if (!result.days) return '<span class="t-muted">mesmo dia</span>';
+    return `${resultMoney(result.daily)}<small>${result.days === 1 ? 'em 1 dia' : `média simples · ${result.days} dias`}</small>`;
+  }
   const lastCheck = () => state.snapshots.slice().sort((a, b) => stamp(b).localeCompare(stamp(a)))[0];
 
   function months() {
@@ -286,47 +323,31 @@
     return [...set].sort().reverse();
   }
 
-  /** Só o mês seguinte, só programações de pagamento ainda pendentes. */
-  function futureExpenseCards() {
-    const k = addMonths(currentMonth(), 1);
-    const pending = occurrencesIn(k).filter(o =>
-      taskKind(o.task) === 'pagamento' && !['paga', 'dispensada', 'concluida', 'cobrada'].includes(o.status));
-    if (!pending.length) return [];
-    const total = pending.reduce((s, o) => s + (o.task.expected || 0), 0);
-    return [{
-      k,
-      monthName: MONTHS_FULL[+k.slice(5) - 1],
-      count: pending.length,
-      total,
-    }];
-  }
-
-  function renderFutureKpis() {
-    const root = $('#overviewKpis');
-    if (!root) return;
-    $$('#overviewKpis .kpi-future').forEach(el => el.remove());
-    if (view !== 'overview') return;
-    futureExpenseCards().forEach(c => {
-      const el = document.createElement('div');
-      el.className = 'kpi kpi-future';
-      el.innerHTML = `
-        <div class="kpi-label">Despesas futuras em ${c.monthName}</div>
-        <div class="kpi-value num delta-neg">${c.total ? money(c.total) : '—'}</div>
-        <div class="kpi-foot">${c.count} pagamento${c.count === 1 ? '' : 's'} programado${c.count === 1 ? '' : 's'}</div>`;
-      root.appendChild(el);
-    });
-  }
-
   /* ---------- Componentes ---------- */
   function txRow(x, withDelete) {
     return `<tr>
-      <td><div class="t-desc"><span class="t-ico">${icon(CAT_ICON[x.category] || 'ellipsis', 'i-sm')}</span><div>${esc(x.description)}${x.taskId ? '<span class="tag task-tag">Programação</span>' : ''}${x.receiptId ? `<button class="clip" data-receipt="${x.receiptId}" data-rtx="${x.id}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip')}</button>` : ''}${x.payee ? `<span class="t-payee">${esc(x.payee)}</span>` : ''}</div></div></td>
+      <td><div class="t-desc"><span class="t-ico">${icon(CAT_ICON[x.category] || 'ellipsis', 'i-sm')}</span><div>${esc(x.description)}${x.taskId ? `<span class="tag task-tag">${taskById(x.taskId) && taskKind(taskById(x.taskId)) === 'cobranca' ? 'Cobrança recebida' : 'Pagamento programado'}</span>` : ''}${x.receiptId ? `<button class="clip" data-receipt="${x.receiptId}" data-rtx="${x.id}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip')}</button>` : ''}${x.payee ? `<span class="t-payee">${esc(x.payee)}</span>` : ''}</div></div></td>
       <td>${esc(x.category)}</td>
       <td class="t-muted">${esc(accName(x.account))}</td>
       <td class="t-muted num">${shortDate(x.date)}${x.time ? ` · ${x.time}` : ''}</td>
       <td class="t-right num amount ${x.kind === 'income' ? 'in' : 'out'}">${signed(value(x))}</td>
       ${withDelete ? `<td class="t-right" style="width:44px"><button class="icon-btn" data-del-tx="${x.id}" aria-label="Excluir lançamento">${icon('trash-2', 'i-sm')}</button></td>` : ''}
     </tr>`;
+  }
+
+  function overviewTxRow(x) {
+    const origin = x.taskId
+      ? (taskById(x.taskId) && taskKind(taskById(x.taskId)) === 'cobranca' ? 'Cobrança recebida' : 'Pagamento programado')
+      : 'Lançamento avulso';
+    return `<div class="overview-movement">
+      <div class="overview-movement-icon ${x.kind === 'income' ? 'is-income' : 'is-expense'}">${icon(CAT_ICON[x.category] || (x.kind === 'income' ? 'arrow-down-left' : 'arrow-up-right'))}</div>
+      <div class="overview-movement-main">
+        <div class="overview-movement-title">${esc(x.description)}${x.receiptId ? `<button class="clip" data-receipt="${x.receiptId}" data-rtx="${x.id}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip')}</button>` : ''}</div>
+        <div class="overview-movement-meta"><span>${esc(x.category)}</span><span>${esc(accName(x.account))}</span><span>${esc(origin)}</span></div>
+      </div>
+      <div class="overview-movement-date num">${shortDate(x.date)}${x.time ? `<small>${x.time}</small>` : ''}</div>
+      <div class="overview-movement-value num ${x.kind === 'income' ? 'delta-pos' : 'delta-neg'}">${signed(value(x))}</div>
+    </div>`;
   }
 
   function chip(diff, base) {
@@ -354,17 +375,6 @@
         <div class="cat-val num">${money(v)}<small>${pct(v / total)}</small></div>
         <div class="cat-bar"><span style="width:${(v / max) * 100}%"></span></div>
       </div>`).join('');
-  }
-
-  function goalBox() {
-    const total = invTotal();
-    const p = state.goal ? Math.min(total / state.goal, 1) : 0;
-    const lc = lastCheck();
-    return `<div class="goal-value num">${money(total)}</div>
-      <div class="goal-sub">aplicados de ${money(state.goal)}</div>
-      <div class="progress"><span style="width:${p * 100}%"></span></div>
-      <div class="goal-foot"><span>${pct(p)} da meta</span><span class="num">faltam ${money(Math.max(state.goal - total, 0))}</span></div>
-      ${lc ? `<div class="checked" style="margin-top:14px">${icon('clock', 'i-sm')}Última verificação: ${fullDate(lc.date)} às ${lc.time} · ${esc(lc.by)}</div>` : ''}`;
   }
 
   function accRows(k, withDelete) {
@@ -507,12 +517,18 @@
   const currentMonth = () => ym(todayISO());
   const OPEN = ['atrasada', 'hoje', 'aberta'];
   const STATUS_LABEL = {
-    atrasada: 'Atrasada', hoje: 'Vence hoje', aberta: 'Em aberto', futura: 'Programada',
-    paga: 'Paga', cobrada: 'Cobrada', concluida: 'Concluída', dispensada: 'Dispensada',
+    atrasada: 'Atrasada', hoje: 'Vence hoje', aberta: 'Pendente', futura: 'A vencer',
+    paga: 'Paga', cobrada: 'Recebida', concluida: 'Concluída', dispensada: 'Dispensada',
   };
   const GROUP_LABEL = {
-    atrasada: 'Atrasadas', hoje: 'Vencem hoje', aberta: 'Em aberto', futura: 'Programadas',
-    paga: 'Pagas', cobrada: 'Cobradas', concluida: 'Concluídas', dispensada: 'Dispensadas',
+    atrasada: 'Atrasadas', hoje: 'Vencem hoje', aberta: 'Pendentes', futura: 'A vencer',
+    paga: 'Pagas', cobrada: 'Recebidas', concluida: 'Concluídas', dispensada: 'Dispensadas',
+  };
+  // Status que fazem sentido em cada tipo (filtro "Situação")
+  const STATUS_BY_KIND = {
+    pagamento: ['atrasada', 'hoje', 'aberta', 'futura', 'paga', 'dispensada'],
+    cobranca: ['atrasada', 'hoje', 'aberta', 'futura', 'cobrada', 'dispensada'],
+    documentacao: ['atrasada', 'hoje', 'aberta', 'futura', 'concluida', 'dispensada'],
   };
   const ORDER = ['atrasada', 'hoje', 'aberta', 'futura', 'paga', 'cobrada', 'concluida', 'dispensada'];
   const DONE_STATUSES = ['paga', 'cobrada', 'concluida', 'dispensada'];
@@ -604,7 +620,7 @@
   }
 
   function dueActionWord(kind) {
-    return kind === 'cobranca' ? 'cobrança' : kind === 'documentacao' ? 'conclusão' : 'pagamento';
+    return kind === 'cobranca' ? 'recebimento' : kind === 'documentacao' ? 'conclusão' : 'pagamento';
   }
 
   /** Cabeçalho: faltam X dias para o pagamento/cobrança… */
@@ -650,22 +666,78 @@
 
   function taskMatchesFilters(t) {
     const q = ($('#tq')?.value || '').trim().toLowerCase();
-    const fk = $('#tfKind')?.value || 'all';
+    const fk = taskView; // tipo vem do menu (Pagamentos / Cobranças / Documentação)
     const fv = $('#tfValor')?.value || 'all';
+    const ff = $('#tfFreq')?.value || 'all';
+    const fs = $('#tfState')?.value || 'all';
     const kind = taskKind(t);
-    if (fk !== 'all' && kind !== fk) return false;
+    const r = t.rec || {};
+    if (kind !== fk) return false;
     if (fv === 'fixo' && (kind === 'documentacao' || t.expected == null)) return false;
     if (fv === 'variavel' && (kind === 'documentacao' || t.expected != null)) return false;
     if (fv === 'sem' && kind !== 'documentacao') return false;
+    if (ff === 'unica' && r.type !== 'once') return false;
+    if (ff === 'anual' && r.type !== 'yearly') return false;
+    if (ff === 'mensal' && (r.type === 'once' || r.type === 'yearly' || (r.every || 1) !== 1)) return false;
+    if (ff === 'periodico' && (r.type === 'once' || r.type === 'yearly' || (r.every || 1) <= 1)) return false;
+    if (fs === 'ativa' && t.paused) return false;
+    if (fs === 'pausada' && !t.paused) return false;
     if (q) {
-      const blob = `${t.title} ${t.payee || ''} ${t.chargeTo || ''} ${t.docOwner || ''} ${t.category || ''} ${accName(t.account) || ''} ${KIND_LABEL[kind]}`.toLowerCase();
+      const blob = `${t.title} ${t.payee || ''} ${t.chargeTo || ''} ${t.docOwner || ''} ${t.category || ''} ${accName(t.account) || ''} ${taskIssuer(t)} ${KIND_LABEL[kind]} ${recLabel(t)}`.toLowerCase();
       if (!blob.includes(q)) return false;
     }
     return true;
   }
 
   function occMatchesFilters(o) {
-    return taskMatchesFilters(o.task);
+    if (!taskMatchesFilters(o.task)) return false;
+    const st = $('#tfStatus')?.value || 'all';
+    if (st !== 'all' && o.status !== st) return false;
+    return true;
+  }
+
+  function clearTaskFilters() {
+    const tq = $('#tq'); if (tq) tq.value = '';
+    ['tfValor', 'tfFreq', 'tfState', 'tfStatus'].forEach(id => {
+      const el = $(`#${id}`);
+      if (el) el.value = 'all';
+    });
+    taskPage = 1;
+    renderTasks();
+  }
+
+  function taskPagerHtml(total) {
+    const pages = Math.max(1, Math.ceil(total / TASK_PAGE));
+    taskPage = Math.min(Math.max(1, taskPage), pages);
+    if (!total) return '';
+    const start = (taskPage - 1) * TASK_PAGE + 1;
+    const end = Math.min(taskPage * TASK_PAGE, total);
+    if (pages === 1) return `<div class="task-pager"><span class="t-muted">${total} item(ns)</span></div>`;
+    const btns = [];
+    for (let i = 1; i <= pages; i++) {
+      if (pages > 7 && i !== 1 && i !== pages && Math.abs(i - taskPage) > 2) {
+        if (btns[btns.length - 1] !== '…') btns.push('…');
+        continue;
+      }
+      btns.push(i);
+    }
+    return `<div class="task-pager">
+      <span class="t-muted">${start}–${end} de ${total}</span>
+      <div class="task-pager-btns">
+        <button type="button" class="btn btn-sm" data-task-page="${taskPage - 1}" ${taskPage <= 1 ? 'disabled' : ''} aria-label="Anterior">‹</button>
+        ${btns.map(i => i === '…'
+          ? '<span class="t-muted">…</span>'
+          : `<button type="button" class="btn btn-sm ${i === taskPage ? 'on' : ''}" data-task-page="${i}">${i}</button>`).join('')}
+        <button type="button" class="btn btn-sm" data-task-page="${taskPage + 1}" ${taskPage >= pages ? 'disabled' : ''} aria-label="Próxima">›</button>
+      </div>
+    </div>`;
+  }
+
+  function pageSlice(list) {
+    const pages = Math.max(1, Math.ceil(list.length / TASK_PAGE));
+    taskPage = Math.min(Math.max(1, taskPage), pages);
+    const start = (taskPage - 1) * TASK_PAGE;
+    return list.slice(start, start + TASK_PAGE);
   }
 
   function renderDueBanner() {
@@ -673,6 +745,7 @@
     if (!el) return;
     const list = [...pendingNow(), ...upcoming(7)]
       .filter((o, i, arr) => arr.findIndex(x => x.key === o.key) === i)
+      .filter(o => taskKind(o.task) === taskView)
       .filter(o => OPEN.includes(o.status) || o.status === 'futura')
       .sort((a, b) => a.to.localeCompare(b.to) || a.from.localeCompare(b.from))
       .slice(0, 4);
@@ -704,7 +777,7 @@
     const moneyDone = d && (d.status === 'paga' || d.status === 'cobrada');
     const val = moneyDone ? d.amount : t.expected;
     const valNote = d?.status === 'paga' ? 'pago'
-      : d?.status === 'cobrada' ? 'cobrado'
+      : d?.status === 'cobrada' ? 'recebido'
       : d?.status === 'concluida' ? 'concluído'
       : kind === 'documentacao' ? 'sem valor'
       : t.expected != null ? 'previsto' : 'valor variável';
@@ -712,7 +785,7 @@
     if (d && d.status === 'paga') {
       info = `<div class="task-done-info">${icon('check')}Pago por ${esc(d.by || '—')} em ${fullDate(d.date)}${d.time ? ` às ${d.time}` : ''} · ${esc(accName(d.account))}${d.payee && d.payee !== t.payee ? ` · recebido por ${esc(d.payee)}` : ''}</div>`;
     } else if (d && d.status === 'cobrada') {
-      info = `<div class="task-done-info">${icon('check')}Cobrado de ${esc(d.payee || t.chargeTo || '—')} por ${esc(d.by || '—')} em ${fullDate(d.date)}${d.time ? ` às ${d.time}` : ''} · ${esc(accName(d.account))}</div>`;
+      info = `<div class="task-done-info">${icon('check')}Recebido de ${esc(d.payee || t.chargeTo || '—')} · registrado por ${esc(d.by || '—')} em ${fullDate(d.date)}${d.time ? ` às ${d.time}` : ''} · ${esc(accName(d.account))}</div>`;
     } else if (d && d.status === 'concluida') {
       info = `<div class="task-done-info">${icon('check')}Concluído por ${esc(d.by || '—')}${d.date ? ` em ${fullDate(d.date)}` : ''}${d.note ? ` · ${esc(d.note)}` : ''}</div>`;
     } else if (d && d.status === 'dispensada') {
@@ -779,12 +852,12 @@
     if (o.period > cur && occursIn(o.task, cur) && doneOf(o.task.id, cur)) return '';
     const kind = taskKind(o.task);
     if (kind === 'documentacao') {
-      return `<button type="button" class="btn btn-sm btn-action btn-doc" data-pay="${o.key}" data-pay-mode="documentacao">${icon('briefcase', 'i-sm')}Concluir</button>`;
+      return `<button type="button" class="btn btn-sm btn-action btn-doc" data-pay="${o.key}" data-pay-mode="documentacao">${icon('check', 'i-sm')}Concluir pendência</button>`;
     }
     if (kind === 'cobranca') {
-      return `<button type="button" class="btn btn-sm btn-action btn-charge" data-pay="${o.key}" data-pay-mode="cobranca">${icon('circle-dollar-sign', 'i-sm')}Cobrar</button>`;
+      return `<button type="button" class="btn btn-sm btn-action btn-charge" data-pay="${o.key}" data-pay-mode="cobranca">${icon('circle-dollar-sign', 'i-sm')}Registrar recebimento</button>`;
     }
-    return `<button type="button" class="btn btn-sm btn-action btn-pay" data-pay="${o.key}" data-pay-mode="pagamento">${icon('check', 'i-sm')}Pagar</button>`;
+    return `<button type="button" class="btn btn-sm btn-action btn-pay" data-pay="${o.key}" data-pay-mode="pagamento">${icon('check', 'i-sm')}Registrar pagamento</button>`;
   }
 
   function nextPrazoLabel(t, nd) {
@@ -806,122 +879,284 @@
     return `${paidNote}${fullDate(nd.to)} ${statusTag(nd.status)}<div class="sheet-due">${esc(dueText(nd))}</div>`;
   }
 
-  function modelsTable() {
-    const tasks = state.tasks.filter(taskMatchesFilters).sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
-    if (!state.tasks.length) return `<div class="task-empty">${icon('list-checks')}Nenhuma programação cadastrada. Clique em “Nova programação”.</div>`;
-    if (!tasks.length) return `<div class="task-empty">${icon('search')}Nenhuma programação com esses filtros.</div>`;
-    const rows = tasks.map(t => {
-      const r = t.rec || {};
-      const nd = t.paused ? null : nextDue(t);
-      const kind = taskKind(t);
-      const when = r.type === 'once' ? `${fullDate(r.dateFrom || r.dateTo)} a ${fullDate(r.dateTo)}`
-        : r.dayFrom === r.dayTo ? `dia ${r.dayFrom}` : `dias ${r.dayFrom}–${r.dayTo}`;
-      const admin = isAdmin ? `
-        <button class="icon-btn" data-edit-task="${t.id}" title="Editar" aria-label="Editar">${icon('pencil-line', 'i-sm')}</button>
-        <button class="icon-btn" data-pause-task="${t.id}" title="${t.paused ? 'Retomar' : 'Pausar'}" aria-label="${t.paused ? 'Retomar' : 'Pausar'}">${icon(t.paused ? 'play' : 'pause', 'i-sm')}</button>
-        <button class="icon-btn danger" data-del-task="${t.id}" title="Excluir" aria-label="Excluir">${icon('trash-2', 'i-sm')}</button>` : '';
-      return `<tr>
-        <td class="sheet-cell">${esc(KIND_LABEL[kind])}</td>
-        <td class="sheet-cell sheet-title">${esc(t.title)}</td>
-        <td class="sheet-cell">${esc(taskTarget(t))}</td>
-        <td class="sheet-cell t-right">${taskValorLabel(t)}</td>
-        <td class="sheet-cell">${recLabel(t)}</td>
-        <td class="sheet-cell t-muted">${when}</td>
-        <td class="sheet-cell">${nextPrazoLabel(t, nd)}</td>
-        <td class="sheet-cell">${esc(taskIssuer(t))}</td>
-        <td class="sheet-cell"><div class="sheet-actions">${launchBtn(nd)}${admin}</div></td>
-      </tr>`;
-    }).join('');
-    return `<div class="table-wrap sheet-wrap"><table class="sheet">
-      <thead><tr>
-        <th>Tipo</th><th>Título</th><th>Para / de</th><th class="t-right">Valor</th>
-        <th>Frequência</th><th>Quando</th><th>Próximo prazo</th><th>Emitido por</th><th>Ação</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>`;
+  /* ---------- Compromissos: Pagamentos / Cobranças / Documentação ----------
+     Mesma fonte de dados (state.tasks + state.taskDone). Separação só na tela:
+     - situação do CADASTRO: Ativo / Pausado / Encerrado
+     - situação de CADA MÊS: Pendente / Atrasada / Paga|Recebida|Concluída / Dispensada */
+
+  const occSort = (a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status) || a.to.localeCompare(b.to)
+    || a.task.title.localeCompare(b.task.title, 'pt-BR');
+  const isMoneyDone = d => d && (d.status === 'paga' || d.status === 'cobrada');
+
+  function cadastroTag(t) {
+    if (t.paused) return '<span class="tag paused">Pausado</span>';
+    const end = asMonth(t.end);
+    if (end && end < currentMonth()) return '<span class="tag rec">Encerrado</span>';
+    return '<span class="tag st-ativa">Ativo</span>';
   }
 
-  function occurrencesSheet(list, emptyMsg) {
-    const filtered = list.filter(occMatchesFilters);
-    if (!list.length) return `<div class="task-empty">${icon('check')}${emptyMsg}</div>`;
+  function valueCell(o) {
+    const t = o.task, d = o.done;
+    if (isMoneyDone(d) && d.amount != null) return `<span class="num">${money(d.amount)}</span>`;
+    if (t.expected != null) return `<span class="num">${money(t.expected)}</span>`;
+    const last = lastPaidAmount(t.id);
+    return last != null
+      ? `<span class="tag var">Variável</span> <span class="t-muted">último ${money(last)}</span>`
+      : '<span class="tag var">Variável</span>';
+  }
+
+  /** Linha de baixo do prazo: quanto falta, ou quem registrou e quando. */
+  function occNote(o) {
+    const d = o.done;
+    if (!d) return dueText(o);
+    const what = d.status === 'dispensada' ? 'Dispensada' : d.status === 'concluida' ? 'Concluída' : 'Registrado';
+    return `${what}${d.date ? ` em ${fullDate(d.date)}` : ''}${d.by ? ` por ${d.by}` : ''}`;
+  }
+
+  function occActions(o) {
+    const d = o.done;
+    let a = launchBtn(o);
+    if (isMoneyDone(d) && d.receiptId) a += `<button class="btn btn-sm" data-receipt="${d.receiptId}" data-rtx="${d.txId}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip', 'i-sm')}</button>`;
+    if (d && isAdmin) a += `<button class="icon-btn" data-undo="${o.key}" title="${d.status === 'dispensada' ? 'Reabrir' : 'Desfazer registro'}" aria-label="Desfazer">${icon('undo-2', 'i-sm')}</button>`;
+    if (!d && isAdmin) a += `<button class="icon-btn" data-skip="${o.key}" title="Dispensar neste mês" aria-label="Dispensar neste mês">${icon('ban', 'i-sm')}</button>`;
+    return a;
+  }
+
+  function adminTaskActions(t) {
+    if (!isAdmin) return '';
+    const once = (t.rec || {}).type === 'once';
+    const editTitle = once ? 'Editar' : 'Editar o cadastro (vale para os próximos meses; registros já feitos não mudam)';
+    return `<button class="icon-btn" data-edit-task="${t.id}" title="${editTitle}" aria-label="Editar">${icon('pencil-line', 'i-sm')}</button>`
+      + (once ? '' : `<button class="icon-btn" data-pause-task="${t.id}" title="${t.paused ? 'Retomar' : 'Pausar'}" aria-label="${t.paused ? 'Retomar' : 'Pausar'}">${icon(t.paused ? 'play' : 'pause', 'i-sm')}</button>`)
+      + `<button class="icon-btn danger" data-del-task="${t.id}" title="Excluir cadastro" aria-label="Excluir">${icon('trash-2', 'i-sm')}</button>`;
+  }
+
+  function emptyTasks(msg) {
+    return `<div class="task-empty">${icon('check')}${msg}</div>`;
+  }
+
+  /** Ocorrência "principal" de uma documentação (prazo único). */
+  function docOccurrence(t) {
+    const r = t.rec || {};
+    if (r.type === 'once') {
+      const k = asMonth(r.dateTo || r.dateFrom || '');
+      return k ? occurrence(t, k) : null;
+    }
+    return nextDue(t) || occurrence(t, currentMonth());
+  }
+
+  /** Tabela de ocorrências (mês, avulsos, documentação). */
+  function occurrencesSheet(list, emptyMsg, { showMonth = false } = {}) {
+    const kind = taskView, isDoc = kind === 'documentacao';
+    if (!list.length) return emptyTasks(emptyMsg);
+    const st = $('#tfStatus')?.value || 'all';
+    const filtered = list.filter(o => taskMatchesFilters(o.task) && (isDoc || st === 'all' || o.status === st));
     if (!filtered.length) return `<div class="task-empty">${icon('search')}Nada com esses filtros.</div>`;
-    const rows = filtered.map(o => {
-      const t = o.task, d = o.done, kind = taskKind(t);
-      let valor;
-      if (d && (d.status === 'paga' || d.status === 'cobrada') && d.amount != null) valor = `<span class="num">${money(d.amount)}</span>`;
-      else if (kind === 'documentacao') valor = '<span class="tag rec">Sem valor</span>';
-      else if (t.expected != null) valor = `<span class="num">${money(t.expected)}</span>`;
-      else {
-        const last = lastPaidAmount(t.id);
-        valor = last != null
-          ? `<span class="tag var">Variável</span> <span class="t-muted">último ${money(last)}</span>`
-          : '<span class="tag var">Variável</span>';
-      }
-      let action = launchBtn(o);
-      if (d && (d.status === 'paga' || d.status === 'cobrada') && d.receiptId) {
-        action += `<button class="btn btn-sm" data-receipt="${d.receiptId}" data-rtx="${d.txId}">${icon('paperclip', 'i-sm')}</button>`;
-      }
-      if (d && isAdmin) {
-        action += `<button class="icon-btn" data-undo="${o.key}" title="Desfazer" aria-label="Desfazer">${icon('undo-2', 'i-sm')}</button>`;
-      }
-      if (!d && isAdmin) {
-        action += `<button class="icon-btn" data-skip="${o.key}" title="Dispensar" aria-label="Dispensar">${icon('ban', 'i-sm')}</button>`;
-      }
-      return `<tr>
-        <td class="sheet-cell">${esc(KIND_LABEL[kind])}</td>
-        <td class="sheet-cell sheet-title">${esc(t.title)}</td>
+    const rows = pageSlice(filtered).map(o => {
+      const t = o.task;
+      const otherMonth = !isDoc && !showMonth && o.period !== period ?` <span class="tag rec">${monthLabel(o.period)}</span>` : '';
+      return `<tr class="occ-row st-${o.status}">
+        <td class="sheet-cell sheet-title">${esc(t.title)}${otherMonth}<div class="sheet-due">${esc(recLabel(t))}${t.account && !isDoc ? ` · ${esc(accName(t.account))}` : ''}</div></td>
         <td class="sheet-cell">${esc(taskTarget(t))}</td>
-        <td class="sheet-cell t-right">${valor}</td>
+        ${isDoc ? '' : `<td class="sheet-cell t-right">${valueCell(o)}</td>`}
         <td class="sheet-cell">${statusTag(o.status)}</td>
-        <td class="sheet-cell">${windowLabel(o)}<div class="sheet-due">${esc(dueText(o))}</div></td>
-        <td class="sheet-cell t-muted">${monthLabel(o.period)}</td>
-        <td class="sheet-cell">${esc(taskIssuer(t))}</td>
-        <td class="sheet-cell"><div class="sheet-actions">${action}</div></td>
+        <td class="sheet-cell">${windowLabel(o)}<div class="sheet-due">${esc(occNote(o))}</div></td>
+        ${showMonth ? `<td class="sheet-cell t-muted">${monthLabel(o.period)}</td>` : ''}
+        <td class="sheet-cell t-muted">${esc(taskIssuer(t))}</td>
+        <td class="sheet-cell"><div class="sheet-actions">${occActions(o)}${adminTaskActions(t)}</div></td>
       </tr>`;
     }).join('');
     return `<div class="table-wrap sheet-wrap"><table class="sheet">
       <thead><tr>
-        <th>Tipo</th><th>Título</th><th>Para / de</th><th class="t-right">Valor</th>
-        <th>Status</th><th>Prazo</th><th>Mês</th><th>Emitido por</th><th>Ação</th>
+        <th>${isDoc ? 'Pendência' : 'Conta'}</th><th>${PERSON_COL[kind]}</th>${isDoc ? '' : '<th class="t-right">Valor</th>'}
+        <th>Situação</th><th>Prazo</th>${showMonth ? '<th>Mês</th>' : ''}<th>Cadastrado por</th><th>Ação</th>
       </tr></thead>
       <tbody>${rows}</tbody>
-    </table></div>`;
+    </table></div>${taskPagerHtml(filtered.length)}`;
   }
 
-  /** Todas as baixas/conclusões já registradas (sem filtrar por mês). */
-  function allDoneOccurrences() {
+  /** Recorrentes: o cadastro + como está o mês escolhido + próximo vencimento. */
+  function recurringSheet() {
+    const kind = taskView;
+    const all = state.tasks.filter(t => taskKind(t) === kind && (t.rec || {}).type !== 'once');
+    if (!all.length) return emptyTasks(kind === 'cobranca' ? 'Nenhuma cobrança recorrente cadastrada.' : 'Nenhum pagamento recorrente cadastrado.');
+    const st = $('#tfStatus')?.value || 'all';
+    const list = all.filter(taskMatchesFilters).filter(t => {
+      if (st === 'all') return true;
+      return occursIn(t, period) && occurrence(t, period).status === st;
+    }).sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
+    if (!list.length) return `<div class="task-empty">${icon('search')}Nada com esses filtros.</div>`;
+    const rows = pageSlice(list).map(t => {
+      const occ = occursIn(t, period) ? occurrence(t, period) : null;
+      let next = null;
+      for (let i = 1; i <= 24 && !next; i++) {
+        const m = addMonths(period, i);
+        if (occursIn(t, m)) next = occurrence(t, m);
+      }
+      const monthCell = occ
+        ? `${statusTag(occ.status)}<div class="sheet-due">${esc(occNote(occ))}</div>`
+        : '<span class="t-muted">Não vence neste mês</span>';
+      const valueO = occ || { task: t, done: null };
+      return `<tr class="${occ ? `occ-row st-${occ.status}` : ''}">
+        <td class="sheet-cell sheet-title">${esc(t.title)}<div class="sheet-due">${esc(recLabel(t))} · ${t.rec?.dayFrom === t.rec?.dayTo || !t.rec?.dayTo ? `dia ${t.rec?.dayFrom}` : `dias ${t.rec.dayFrom}–${t.rec.dayTo}`}</div></td>
+        <td class="sheet-cell">${esc(taskTarget(t))}</td>
+        <td class="sheet-cell t-right">${valueCell(valueO)}</td>
+        <td class="sheet-cell">${cadastroTag(t)}</td>
+        <td class="sheet-cell">${monthCell}</td>
+        <td class="sheet-cell">${t.paused ? '<span class="t-muted">—</span>' : next ? `${monthLabel(next.period)}<div class="sheet-due">${fullDate(next.to)}</div>` : '<span class="t-muted">Sem próximo</span>'}</td>
+        <td class="sheet-cell"><div class="sheet-actions">${occ ? occActions(occ) : ''}${adminTaskActions(t)}</div></td>
+      </tr>`;
+    }).join('');
+    return `<div class="table-wrap sheet-wrap"><table class="sheet">
+      <thead><tr>
+        <th>Conta</th><th>${PERSON_COL[kind]}</th><th class="t-right">Valor</th><th>Cadastro</th>
+        <th>${esc(monthLabel(period))}</th><th>Próximo vencimento</th><th>Ação</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>${taskPagerHtml(list.length)}`;
+  }
+
+  /** Ocorrências do mês escolhido (+ atrasadas de meses anteriores, se for o mês atual). */
+  function monthOccurrences(kind, k = period) {
+    const prev = k === currentMonth() ? overdueBefore(k) : [];
+    return [...prev, ...occurrencesIn(k)].filter(o => taskKind(o.task) === kind);
+  }
+
+  /**
+   * Área de trabalho: atrasados + o que ainda falta neste mês + o mês seguinte.
+   * Se a recorrência deste mês já foi concluída, a próxima ocorrência só volta
+   * quando o mês virar, evitando que a mesma conta pareça pendente novamente.
+   */
+  function openOccurrences(kind) {
+    const cur = currentMonth();
+    const next = addMonths(cur, 1);
+    const old = overdueBefore(cur);
+    const current = occurrencesIn(cur);
+    const upcoming = occurrencesIn(next).filter(o => {
+      const currentDone = occursIn(o.task, cur) && doneOf(o.task.id, cur);
+      return !currentDone;
+    });
+    return [...old, ...current, ...upcoming]
+      .filter(o => taskKind(o.task) === kind && !o.done)
+      .filter((o, i, arr) => arr.findIndex(x => x.key === o.key) === i);
+  }
+
+  /** Histórico real de baixas, sem recriar ou duplicar lançamentos. */
+  function completedOccurrences(kind) {
+    const completedStatus = kind === 'cobranca' ? 'cobrada' : 'paga';
     return state.taskDone
+      .filter(d => d.status === completedStatus)
       .map(d => {
         const t = taskById(d.taskId);
-        return t ? occurrence(t, d.period) : null;
+        return t && taskKind(t) === kind ? occurrence(t, d.period) : null;
       })
       .filter(Boolean)
-      .sort((a, b) => (b.done?.date || b.to || '').localeCompare(a.done?.date || a.to || ''));
+      .sort((a, b) => `${b.done?.date || b.to} ${b.done?.time || ''}`.localeCompare(`${a.done?.date || a.to} ${a.done?.time || ''}`));
+  }
+
+  function kpi(label, value, foot, cls = '') {
+    return `<div class="kpi"><div class="kpi-label">${label}</div><div class="kpi-value num ${cls}">${value}</div><div class="kpi-foot">${foot}</div></div>`;
+  }
+
+  function renderTaskKpis() {
+    const kind = taskView;
+    if (kind === 'documentacao') {
+      const docs = state.tasks.filter(t => taskKind(t) === kind).map(docOccurrence).filter(Boolean);
+      const late = docs.filter(o => o.status === 'atrasada').length;
+      const pend = docs.filter(o => !o.done && o.status !== 'atrasada').length;
+      const done = docs.filter(o => o.done && o.done.status === 'concluida').length;
+      $('#taskKpis').innerHTML = kpi('Pendentes', pend, 'dentro do prazo')
+        + kpi('Atrasadas', late, late ? 'prazo já terminou' : 'nada atrasado', late ? 'delta-neg' : '')
+        + kpi('Concluídas', done, 'com data e responsável')
+        + kpi('Cadastradas', docs.length, 'no total');
+      return;
+    }
+    const isCharge = kind === 'cobranca';
+    const all = monthOccurrences(kind);
+    const inMonthL = all.filter(o => o.period === period && o.status !== 'dispensada');
+    const late = all.filter(o => o.status === 'atrasada');
+    const done = inMonthL.filter(o => isMoneyDone(o.done));
+    const open = inMonthL.filter(o => !o.done);
+    const exp = l => l.reduce((s, o) => s + (o.task.expected || 0), 0);
+    const doneSum = done.reduce((s, o) => s + (o.done.amount || 0), 0);
+    const vars = open.filter(o => o.task.expected == null).length;
+    const mes = monthLabel(period).split(' ')[0].toLowerCase();
+    const n = (c, s, p) => `${c} ${c === 1 ? s : p}`;
+    $('#taskKpis').innerHTML =
+      kpi(isCharge ? 'Previsto a receber' : 'Previsto no mês', money(doneSum + exp(open)),
+        `${n(inMonthL.length, isCharge ? 'cobrança' : 'conta', isCharge ? 'cobranças' : 'contas')} em ${mes}`)
+      + kpi(isCharge ? 'Já recebido' : 'Já pago', money(doneSum),
+        n(done.length, 'registro', 'registros'), 'delta-pos')
+      + kpi(isCharge ? 'A receber' : 'A pagar', money(exp(open)),
+        `${n(open.length, 'pendente', 'pendentes')}${vars ? ` · ${n(vars, 'variável', 'variáveis')}` : ''}`)
+      + kpi('Atrasados', n(late.length, isCharge ? 'cobrança' : 'pagamento', isCharge ? 'cobranças' : 'pagamentos'),
+        late.length ? `${money(exp(late))} previstos` : 'nada atrasado', late.length ? 'delta-neg' : '');
+  }
+
+  function syncTaskToolbar() {
+    const kind = taskView, isDoc = kind === 'documentacao';
+    const sel = $('#tfStatus');
+    const statusContext = `${kind}:${taskTab}`;
+    if (sel && sel.dataset.kind !== statusContext) {
+      const cur = sel.value;
+      const opts = taskTab === 'open'
+        ? ['atrasada', 'hoje', 'aberta', 'futura']
+        : taskTab === 'done'
+          ? [kind === 'cobranca' ? 'cobrada' : 'paga']
+          : STATUS_BY_KIND[kind];
+      sel.innerHTML = '<option value="all">Todas as situações</option>'
+        + opts.map(s => `<option value="${s}">${STATUS_LABEL[s]}</option>`).join('');
+      sel.value = opts.includes(cur) ? cur : 'all';
+      sel.dataset.kind = statusContext;
+    }
+    if (sel) sel.hidden = isDoc;
+    $('#tfMore').hidden = isDoc;
+    if (isDoc) $('#tfMorePanel').hidden = true;
+    const freq = $('#tfFreq');
+    if (freq) freq.hidden = taskTab === 'once';
+    $('#taskNewBtn span').textContent = NEW_LABEL[kind];
+    $('#tq').placeholder = isDoc ? 'Buscar pendência ou responsável…' : 'Buscar conta, pessoa, banco…';
+    $('#taskTabs').innerHTML = TASK_TABS[kind]
+      .map(([id, label]) => `<button type="button" data-ttab="${id}" class="${id === taskTab ? 'on' : ''}">${label}</button>`).join('');
   }
 
   function renderTasks() {
-    const pending = pendingNow();
-    const late = pending.filter(o => o.status === 'atrasada');
-    const open = pending.filter(o => o.status === 'hoje' || o.status === 'aberta');
-    const soon = upcoming(7);
-    const done = allDoneOccurrences();
-    const vars = state.tasks.filter(t => taskKind(t) !== 'documentacao' && t.expected == null).length;
-    const exp = l => l.reduce((s, o) => s + (taskKind(o.task) === 'documentacao' ? 0 : (o.task.expected || 0)), 0);
-    $('#taskKpis').innerHTML = `
-      <div class="kpi"><div class="kpi-label">Atrasadas</div><div class="kpi-value num ${late.length ? 'delta-neg' : ''}">${late.length}</div><div class="kpi-foot">${late.length ? `${money(exp(late))} previstos` : 'nada atrasado'}</div></div>
-      <div class="kpi"><div class="kpi-label">Em aberto</div><div class="kpi-value num">${open.length}</div><div class="kpi-foot">${open.filter(o => o.status === 'hoje').length} vence(m) hoje</div></div>
-      <div class="kpi"><div class="kpi-label">Próximos 7 dias</div><div class="kpi-value num">${soon.length}</div><div class="kpi-foot">${soon.length ? `${money(exp(soon))} previstos` : '&nbsp;'}</div></div>
-      <div class="kpi"><div class="kpi-label">Cadastradas</div><div class="kpi-value num">${state.tasks.length}</div><div class="kpi-foot">${vars ? `${vars} com valor variável` : `${done.length} já concluída${done.length === 1 ? '' : 's'}`}</div></div>`;
-
+    const kind = taskView;
+    if (!TASK_TABS[kind].some(([id]) => id === taskTab)) taskTab = TASK_TABS[kind][0][0];
+    taskTabs[kind] = taskTab;
+    syncTaskToolbar();
+    renderTaskKpis();
     renderDueBanner();
-    $$('#taskTabs button').forEach(b => b.classList.toggle('on', b.dataset.ttab === taskTab));
     let html;
-    if (taskTab === 'pending') {
-      html = occurrencesSheet(pending, 'Nenhuma pendência.');
-    } else if (taskTab === 'paid') {
-      html = occurrencesSheet(done, 'Nada concluído ainda.');
+    if (kind === 'documentacao') {
+      const docs = state.tasks.filter(t => taskKind(t) === kind).map(docOccurrence).filter(Boolean).sort(occSort);
+      const pick = {
+        pend: docs.filter(o => !o.done && o.status !== 'atrasada'),
+        late: docs.filter(o => o.status === 'atrasada'),
+        done: docs.filter(o => o.done),
+        all: docs,
+      }[taskTab];
+      const empty = { pend: 'Nenhuma pendência no prazo.', late: 'Nenhuma documentação atrasada.', done: 'Nada concluído ainda.', all: 'Nenhuma documentação cadastrada. Clique em “Nova pendência”.' }[taskTab];
+      html = occurrencesSheet(pick, empty, { showMonth: false });
+    } else if (taskTab === 'open') {
+      const list = openOccurrences(kind).sort(occSort);
+      const next = monthLabel(addMonths(currentMonth(), 1));
+      const label = kind === 'cobranca' ? 'a receber' : 'a pagar';
+      html = `<div class="task-window-note">${icon('calendar-clock', 'i-sm')}<span>Mostrando atrasados e tudo ${label} até o fim de <strong>${esc(next)}</strong>. Itens concluídos saem desta lista.</span></div>`
+        + occurrencesSheet(list, `Nada ${label} neste mês nem no próximo.`, { showMonth: true });
+    } else if (taskTab === 'done') {
+      html = occurrencesSheet(completedOccurrences(kind), kind === 'cobranca' ? 'Nenhum recebimento concluído.' : 'Nenhum pagamento concluído.', { showMonth: true });
+    } else if (taskTab === 'rec') {
+      html = recurringSheet();
+    } else if (taskTab === 'once') {
+      const list = state.tasks
+        .filter(t => taskKind(t) === kind && (t.rec || {}).type === 'once')
+        .map(t => { const k = asMonth(t.rec.dateTo || t.rec.dateFrom || ''); return k ? occurrence(t, k) : null; })
+        .filter(Boolean).sort(occSort);
+      html = occurrencesSheet(list, kind === 'cobranca' ? 'Nenhuma cobrança avulsa.' : 'Nenhum pagamento avulso.', { showMonth: true });
     } else {
-      html = modelsTable();
+      const list = monthOccurrences(kind).sort(occSort);
+      html = occurrencesSheet(list, `Nada ${kind === 'cobranca' ? 'a receber' : 'a pagar'} em ${monthLabel(period).toLowerCase()}.`);
     }
     $('#taskBody').innerHTML = html;
   }
@@ -929,14 +1164,38 @@
   function renderPending() {
     const list = pendingNow();
     const late = list.filter(o => o.status === 'atrasada').length;
-    $('#pendingMeta').textContent = list.length ? `${late} atrasada${late === 1 ? '' : 's'} · ${list.length - late} em aberto` : 'Tudo em dia';
+    $('#pendingMeta').textContent = list.length ? `${late} atrasado${late === 1 ? '' : 's'} · ${list.length - late} em aberto` : 'Tudo em dia';
     $('#pendingList').innerHTML = list.length
-      ? groupedRows(list.slice(0, 5)) + (list.length > 5 ? `<div class="task-empty" style="padding:12px"><button class="link" data-go="tasks">Ver mais ${list.length - 5}</button></div>` : '')
+      ? groupedRows(list.slice(0, 5)) + (list.length > 5 ? `<div class="task-empty" style="padding:12px"><button class="link" data-go="${VIEW_OF_KIND[taskKind(list[5].task)]}">Ver mais ${list.length - 5}</button></div>` : '')
       : `<div class="task-empty">${icon('check')}Nenhuma pendência. Tudo em dia.</div>`;
+
+    // Resumo por tipo, cada um leva à sua tela
+    const cur = currentMonth();
+    const sumBox = $('#commitSum');
+    if (sumBox) {
+      const card = (kind, label, ico) => {
+        const open = monthOccurrences(kind, cur).filter(o => !o.done && o.status !== 'dispensada');
+        const lateN = open.filter(o => o.status === 'atrasada').length;
+        const total = open.reduce((s, o) => s + (o.task.expected || 0), 0);
+        const foot = kind === 'documentacao'
+          ? (lateN ? `${lateN} atrasada${lateN === 1 ? '' : 's'}` : 'nenhuma atrasada')
+          : `${money(total)}${lateN ? ` · ${lateN} atrasado${lateN === 1 ? '' : 's'}` : ''}`;
+        return `<button type="button" class="commit-card ${lateN ? 'is-late' : ''}" data-go="${VIEW_OF_KIND[kind]}">
+          <span class="commit-ico">${icon(ico)}</span>
+          <span class="commit-txt"><span class="commit-label">${label}</span><strong>${open.length}</strong><small>${foot}</small></span>
+        </button>`;
+      };
+      sumBox.innerHTML = card('pagamento', 'Pagamentos a vencer', 'credit-card')
+        + card('cobranca', 'Cobranças a receber', 'circle-dollar-sign')
+        + card('documentacao', 'Documentos pendentes', 'file-text');
+    }
+
     $$('[data-task-badge]').forEach(b => {
-      b.hidden = !list.length;
-      b.textContent = list.length;
-      b.classList.toggle('soft', !late);
+      const k = b.dataset.taskBadge;
+      const mine = k && k !== 'all' ? list.filter(o => taskKind(o.task) === k) : list;
+      b.hidden = !mine.length;
+      b.textContent = mine.length;
+      b.classList.toggle('soft', !mine.some(o => o.status === 'atrasada'));
     });
   }
 
@@ -1072,12 +1331,12 @@
 
   function fillTaskForm(id) {
     const t = id ? taskById(id) : null;
-    $('#tkTitle').textContent = t ? 'Editar programação' : 'Nova programação';
-    $('#tkSubmit').textContent = t ? 'Salvar alterações' : 'Criar programação';
+    const kind = t ? taskKind(t) : taskView;
+    $('#tkTitle').textContent = t ? `Editar ${KIND_LABEL[kind].toLowerCase()}` : NEW_LABEL[kind];
+    $('#tkSubmit').textContent = t ? 'Salvar alterações' : 'Cadastrar';
     $('#tkCat').innerHTML = CATEGORIES.expense.map(c => `<option>${c}</option>`).join('');
     $('#tkMonth').innerHTML = MONTHS_FULL.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
     const r = t?.rec || {};
-    const kind = taskKind(t) || 'pagamento';
     $('#tkId').value = t?.id || '';
     $('#tkKind').value = kind;
     $('#tkName').value = t?.title || '';
@@ -1206,8 +1465,8 @@
     const o = occurrence(t, k);
     $('#pyMode').value = mode;
     $('#pyTitle').textContent = mode === 'documentacao' ? 'Concluir documentação'
-      : mode === 'cobranca' ? 'Lançar cobrança' : 'Dar baixa no pagamento';
-    $('#pySubmit').innerHTML = `<svg class="i i-sm"><use href="#i-check"/></svg>${mode === 'documentacao' ? 'Concluir' : mode === 'cobranca' ? 'Confirmar cobrança' : 'Confirmar pagamento'}`;
+      : mode === 'cobranca' ? 'Registrar recebimento' : 'Registrar pagamento';
+    $('#pySubmit').innerHTML = `<svg class="i i-sm"><use href="#i-check"/></svg>${mode === 'documentacao' ? 'Concluir pendência' : mode === 'cobranca' ? 'Confirmar recebimento' : 'Confirmar pagamento'}`;
     $$('[data-py="pagamento"]').forEach(el => { el.hidden = mode !== 'pagamento'; });
     $$('[data-py="cobranca"]').forEach(el => { el.hidden = mode !== 'cobranca'; });
     $('#pyAmount').required = mode === 'pagamento';
@@ -1300,7 +1559,7 @@
     }
     const payee = (isCharge ? $('#pyChargeTo') : $('#pyPayee')).value.trim();
     if (!payee) {
-      alert(isCharge ? 'Informe quem foi cobrado.' : 'Informe quem recebeu.');
+      alert(isCharge ? 'Informe de quem você recebeu.' : 'Informe quem recebeu.');
       return;
     }
     const account = (isCharge ? $('#pyChargeAcc') : $('#pyAcc')).value;
@@ -1449,37 +1708,45 @@
 
   function renderAccounts(k) {
     const total = totalBalance(k);
-    const initial = state.accounts.reduce((s, a) => s + (a.initial || 0), 0);
     const last = state.accChecks.slice().sort((a, b) => chkStamp(b).localeCompare(chkStamp(a)))[0];
-    const varTotal = total - initial;
     $('#accKpis').innerHTML = `
-      <div class="kpi"><div class="kpi-label">Saldo atual em contas</div><div class="kpi-value num">${money(total)}</div><div class="kpi-foot">${state.accounts.length} conta${state.accounts.length === 1 ? '' : 's'}</div></div>
-      <div class="kpi"><div class="kpi-label">Saldo inicial somado</div><div class="kpi-value num">${money(initial)}</div><div class="kpi-foot">antes do primeiro lançamento</div></div>
-      <div class="kpi"><div class="kpi-label">Variação desde o início</div><div class="kpi-value num ${varTotal >= 0 ? 'delta-pos' : 'delta-neg'}">${signed(varTotal)}</div><div class="kpi-foot">saldo atual − saldo inicial</div></div>
-      <div class="kpi"><div class="kpi-label">Última conferência</div><div class="kpi-value num" style="font-size:18px">${last ? whenTxt(last) : '—'}</div><div class="kpi-foot">${last ? `${esc(accName(last.accId))} · ${esc(last.by)}` : 'nenhum saldo informado ainda'}</div></div>`;
+      <div class="account-total-panel">
+        <div class="invest-eyebrow">Saldo total em contas</div>
+        <div class="invest-total-value num ${total < 0 ? 'delta-neg' : ''}">${money(total)}</div>
+        <div class="invest-total-meta">${state.accounts.length} conta${state.accounts.length === 1 ? ' cadastrada' : 's cadastradas'}</div>
+      </div>
+      <div class="account-update-panel">
+        <div class="invest-eyebrow">Última conferência</div>
+        <div class="invest-update-date num">${last ? whenTxt(last) : 'Nenhuma conferência'}</div>
+        <div class="invest-total-meta">${last ? `${esc(accName(last.accId))} · verificado por ${esc(last.by)}` : 'Informe o saldo de uma conta para iniciar a conferência.'}</div>
+      </div>`;
 
-    $('#accFull').innerHTML = state.accounts.map(a => {
+    const accountRows = state.accounts.map(a => {
       const bal = accBalance(a, k);
       const lc = checksOf(a.id).at(-1);
       const after = lc ? Math.round((bal - lc.balance) * 100) / 100 : null;
-      return `<div class="acc-card">
-        <div class="acc-card-head">
-          <div class="acc-ico">${icon(a.type === 'Dinheiro em espécie' ? 'wallet' : 'landmark', 'i-sm')}</div>
-          <div class="acc-info"><div class="acc-name">${esc(a.name)}</div><div class="acc-type">${esc(a.type)}</div></div>
-          <button class="icon-btn edit" data-edit-acc="${a.id}" title="Editar conta" aria-label="Editar conta">${icon('pencil-line', 'i-sm')}</button>
+      return `<tr class="account-sheet-row">
+        <td class="sheet-cell sheet-title"><span class="account-name-cell">${icon(a.type === 'Dinheiro em espécie' ? 'wallet' : 'landmark', 'i-sm')}${esc(a.name)}</span></td>
+        <td class="sheet-cell"><span class="tag rec">${esc(a.type)}</span></td>
+        <td class="sheet-cell t-right"><strong class="num ${bal < 0 ? 'delta-neg' : ''}">${money(bal)}</strong></td>
+        <td class="sheet-cell t-right">${lc ? `<span class="num">${money(lc.balance)}</span>` : '<span class="t-muted">—</span>'}</td>
+        <td class="sheet-cell t-right">${lc ? resultMoney(after) : '<span class="t-muted">sem conferência</span>'}</td>
+        <td class="sheet-cell">${lc ? `${fullDate(lc.date)}<small>${lc.time}</small>` : '<span class="t-muted">Nunca</span>'}</td>
+        <td class="sheet-cell">${lc ? `<span class="checked">${icon('user-round', 'i-sm')}${esc(lc.by)}</span>` : '—'}</td>
+        <td class="sheet-cell"><div class="sheet-actions account-sheet-actions">
+          <button class="btn btn-sm btn-primary" data-open="acccheck" data-acc="${a.id}">${icon('pencil-line', 'i-sm')}Informar saldo</button>
+          <button class="icon-btn edit" data-edit-acc="${a.id}" title="Editar conta" aria-label="Editar conta">${icon('settings', 'i-sm')}</button>
           <button class="icon-btn" data-del-acc="${a.id}" title="Excluir conta" aria-label="Excluir conta">${icon('trash-2', 'i-sm')}</button>
-        </div>
-        <div class="acc-card-bal num ${bal < 0 ? 'delta-neg' : ''}">${money(bal)}</div>
-        <div class="acc-card-cap">saldo atual</div>
-        <dl class="acc-lines">
-          <div><dt>Saldo inicial</dt><dd class="num">${money(a.initial || 0)}</dd></div>
-          <div><dt>Último saldo informado</dt><dd>${lc ? `<span class="num">${money(lc.balance)}</span> ${diffChip(checkDiff(lc))}` : '<span class="t-muted">nenhum ainda</span>'}</dd></div>
-          ${lc ? `<div class="acc-when">${icon('clock', 'i-sm')}${whenTxt(lc)} · ${esc(lc.by)}</div>` : ''}
-          ${lc ? `<div><dt>Lançamentos depois disso</dt><dd class="num ${after > 0 ? 'delta-pos' : after < 0 ? 'delta-neg' : 't-muted'}">${signed(after)}</dd></div>` : ''}
-        </dl>
-        <button class="btn btn-sm acc-card-btn" data-open="acccheck" data-acc="${a.id}">${icon('pencil-line', 'i-sm')}Informar saldo do dia</button>
-      </div>`;
-    }).join('') || '<div class="empty">Nenhuma conta cadastrada.</div>';
+        </div></td>
+      </tr>`;
+    }).join('');
+    $('#accFull').innerHTML = state.accounts.length
+      ? `<div class="table-wrap sheet-wrap account-sheet-wrap"><table class="sheet account-sheet">
+          <thead><tr><th>Conta</th><th>Tipo</th><th class="t-right">Saldo atual</th><th class="t-right">Último saldo informado</th><th class="t-right">Lançamentos depois</th><th>Última conferência</th><th>Editor</th><th>Ação</th></tr></thead>
+          <tbody>${accountRows}</tbody>
+          <tfoot><tr><td class="sheet-cell" colspan="2"><strong>Total em contas</strong></td><td class="sheet-cell t-right"><strong class="num">${money(total)}</strong></td><td class="sheet-cell" colspan="5"></td></tr></tfoot>
+        </table></div>`
+      : '<div class="empty">Nenhuma conta cadastrada.</div>';
 
     const fa = $('#fAccCheck').value || 'all';
     const rows = state.accChecks.filter(c => fa === 'all' || c.accId === fa)
@@ -1522,7 +1789,6 @@
       .sort((a, b) => b.v - a.v);
     $('#invTopMeta').textContent = list.length ? `${money(total)} em ${list.length} aplicaç${list.length === 1 ? 'ão' : 'ões'}` : '';
     if (!list.length) { $('#invTop').innerHTML = '<div class="empty">Nenhuma aplicação cadastrada.</div>'; return; }
-    const p = state.goal ? Math.min(total / state.goal, 1) : 0;
     $('#invTop').innerHTML = list.slice(0, 3).map(({ i, v, l }) => {
       const cur = l.at(-1), before = l.at(-2);
       return `<div class="inv-row">
@@ -1533,11 +1799,7 @@
         </div>
         <div class="inv-val"><strong class="num">${money(v)}</strong>${cur && before ? chip(cur.balance - before.balance) : ''}</div>
       </div>`;
-    }).join('') + `
-      <div class="inv-goal">
-        <div class="progress"><span style="width:${p * 100}%"></span></div>
-        <div class="goal-foot"><span>${pct(p)} da meta de reserva</span><span class="num">meta ${money(state.goal)}</span></div>
-      </div>`;
+    }).join('');
   }
 
   /* ---------- Render ---------- */
@@ -1559,19 +1821,19 @@
     $('#kNet').textContent = signed(net);
     $('#kNet').className = 'kpi-value num ' + (net >= 0 ? 'delta-pos' : 'delta-neg');
     $('#kNetFoot').textContent = inc ? `${pct(Math.max(net, 0) / inc)} da renda poupada` : '—';
-    renderFutureKpis();
-
     $$('#chartMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === chartMode));
     if (view === 'overview') flowChart(k);
     $('#catTop').innerHTML = catBreakdown(list, 5);
-    $('#recentRows').innerHTML = list.slice(0, 6).map(x => txRow(x)).join('') || '<tr><td colspan="5" class="empty">Nenhum lançamento neste mês.</td></tr>';
+    $('#recentRows').innerHTML = list.slice(0, 6).map(overviewTxRow).join('') || '<div class="empty">Nenhum lançamento neste mês.</div>';
     $('#accSummary').innerHTML = accRows(k);
     renderInvTop();
 
     // Movimentações
     const q = $('#q').value.trim().toLowerCase(), fk = $('#fKind').value, fa = $('#fAccount').value;
+    const fo = $('#fOrigin')?.value || 'all';
     const filtered = list.filter(x =>
       (fk === 'all' || x.kind === fk) && (fa === 'all' || x.account === fa) &&
+      (fo === 'all' || (fo === 'avulso' ? !x.taskId : !!x.taskId)) &&
       (!q || `${x.description} ${x.category} ${accName(x.account)} ${x.payee || ''} ${x.by || ''}`.toLowerCase().includes(q)));
     $('#allRows').innerHTML = filtered.map(x => txRow(x, true)).join('') || '<tr><td colspan="6" class="empty">Nenhum lançamento encontrado.</td></tr>';
 
@@ -1593,35 +1855,42 @@
   /* ---------- Relatórios (planilha + PDF A4) ---------- */
   function situacaoProg(o) {
     if (!o) return '—';
+    const kind = taskKind(o.task);
+    const word = kind === 'cobranca' ? 'recebido' : kind === 'documentacao' ? 'concluído' : 'pago';
     if (o.done) {
       if (o.done.status === 'paga') return 'Pago';
-      if (o.done.status === 'cobrada') return 'Cobrado';
+      if (o.done.status === 'cobrada') return 'Recebido';
       if (o.done.status === 'concluida') return 'Concluído';
       if (o.done.status === 'dispensada') return 'Dispensado';
       return STATUS_LABEL[o.done.status] || o.done.status;
     }
-    if (o.status === 'atrasada') return 'Não pago (atrasado)';
-    if (o.status === 'hoje') return 'Não pago (vence hoje)';
-    if (o.status === 'aberta') return 'Não pago';
-    if (o.status === 'futura') return 'Programado';
+    if (o.status === 'atrasada') return `Não ${word} (atrasado)`;
+    if (o.status === 'hoje') return `Não ${word} (vence hoje)`;
+    if (o.status === 'aberta') return `Não ${word}`;
+    if (o.status === 'futura') return 'A vencer';
     return STATUS_LABEL[o.status] || 'Pendente';
   }
 
-  function reportProgramacao(k) {
+  const REPORT_KIND = { pagamentos: 'pagamento', cobrancas: 'cobranca', documentacao: 'documentacao' };
+  function reportProgramacao(k, kind = 'pagamento') {
     const rows = state.tasks
-      .filter(t => !t.paused && occursIn(t, k))
+      .filter(t => taskKind(t) === kind && !t.paused && occursIn(t, k))
       .map(t => occurrence(t, k))
       .sort((a, b) => a.to.localeCompare(b.to) || a.task.title.localeCompare(b.task.title, 'pt-BR'));
-    const headers = ['Tipo', 'Título', 'Para / de', 'Valor', 'Prazo', 'Situação'];
+    const isDoc = kind === 'documentacao';
+    const headers = isDoc
+      ? ['Pendência', 'Responsável', 'Prazo', 'Situação']
+      : ['Conta', PERSON_COL[kind], 'Valor', 'Prazo', 'Situação'];
     const body = rows.map(o => {
-      const t = o.task, kind = taskKind(t);
-      const valor = kind === 'documentacao' ? '—'
-        : o.done?.amount != null ? money(o.done.amount)
+      const t = o.task;
+      if (isDoc) return [t.title, taskTarget(t), fullDate(o.to), situacaoProg(o)];
+      const valor = o.done?.amount != null ? money(o.done.amount)
         : t.expected != null ? money(t.expected)
         : 'Variável';
-      return [KIND_LABEL[kind], t.title, taskTarget(t), valor, fullDate(o.to), situacaoProg(o)];
+      return [t.title, taskTarget(t), valor, fullDate(o.to), situacaoProg(o)];
     });
-    return { title: `Programação — ${monthLabel(k)}`, headers, rows: body, empty: 'Nenhuma programação neste mês.' };
+    const name = { pagamento: 'Pagamentos', cobranca: 'Cobranças', documentacao: 'Documentação' }[kind];
+    return { title: `${name} — ${monthLabel(k)}`, headers, rows: body, empty: `Nada em ${name.toLowerCase()} neste mês.` };
   }
 
   function reportMovimentacoes(k) {
@@ -1675,17 +1944,17 @@
     if (reportTab === 'movimentacoes') return reportMovimentacoes(k);
     if (reportTab === 'contas') return reportContas(k);
     if (reportTab === 'investimentos') return reportInvestimentos();
-    return reportProgramacao(k);
+    return reportProgramacao(k, REPORT_KIND[reportTab] || 'pagamento');
   }
 
   function reportDocHtml(data, { forPrint = false } = {}) {
     const headHtml = data.headers.map(h => `<th>${esc(h)}</th>`).join('');
     const rowsHtml = data.rows.length
       ? data.rows.map(r => `<tr>${r.map((c, i) => {
-        const sit = reportTab === 'programacao' && i === data.headers.length - 1 ? String(c) : '';
+        const sit = REPORT_KIND[reportTab] && i === data.headers.length - 1 ? String(c) : '';
         const cls = [
-          sit.startsWith('Pago') || sit === 'Cobrado' || sit === 'Concluído' ? 'sit-ok' : '',
-          sit.startsWith('Não pago') ? 'sit-late' : '',
+          sit === 'Pago' || sit === 'Recebido' || sit === 'Concluído' ? 'sit-ok' : '',
+          sit.startsWith('Não ') ? 'sit-late' : '',
         ].filter(Boolean).join(' ');
         return `<td${cls ? ` class="${cls}"` : ''}>${esc(String(c))}</td>`;
       }).join('')}</tr>`).join('')
@@ -1709,7 +1978,7 @@
     $$('#reportTabs button').forEach(b => b.classList.toggle('on', b.dataset.rtab === reportTab));
     const needsMonth = reportTab !== 'investimentos';
     $('#reportPeriodLabel').textContent = needsMonth
-      ? `Pré-visualização A4 · ${monthLabel(k)} · ${reportTab === 'programacao' ? 'pago / não pago / concluído' : 'dados do período'}`
+      ? `Pré-visualização A4 · ${monthLabel(k)} · ${REPORT_KIND[reportTab] ? 'situação de cada item no mês' : 'dados do período'}`
       : 'Pré-visualização A4 · saldo atual das aplicações';
     const data = currentReportData();
     preview.innerHTML = reportDocHtml(data);
@@ -1746,71 +2015,74 @@
   }
 
   function renderInvestments() {
-    $('#goalBox2').innerHTML = goalBox();
     if (view === 'investments') investChart();
 
-    // Indicadores
+    // Resumo: uma leitura principal, sem repetir a meta em blocos diferentes.
     const total = invTotal();
     const lc = lastCheck();
-    const p = state.goal ? Math.min(total / state.goal, 1) : 0;
     $('#invKpis').innerHTML = `
-      <div class="kpi"><div class="kpi-label">Total investido</div><div class="kpi-value num">${money(total)}</div><div class="kpi-foot">${state.investments.length} aplicaç${state.investments.length === 1 ? 'ão' : 'ões'}</div></div>
-      <div class="kpi"><div class="kpi-label">Meta de reserva</div><div class="kpi-value num">${pct(p)}</div><div class="kpi-foot">de ${money(state.goal)}</div></div>
-      <div class="kpi"><div class="kpi-label">Falta para a meta</div><div class="kpi-value num">${money(Math.max(state.goal - total, 0))}</div><div class="kpi-foot">&nbsp;</div></div>
-      <div class="kpi"><div class="kpi-label">Última atualização</div><div class="kpi-value num" style="font-size:18px">${lc ? `${fullDate(lc.date)} às ${lc.time}` : '—'}</div><div class="kpi-foot">${lc ? `${esc(invName(lc.invId))} · ${esc(lc.by)}` : 'nenhum saldo ainda'}</div></div>`;
-
-    // Aplicações separadas pela conta onde estão
-    const grupos = new Map();
-    state.investments.forEach(i => {
-      const key = state.accounts.some(a => a.id === i.account) ? i.account : '__sem';
-      if (!grupos.has(key)) grupos.set(key, []);
-      grupos.get(key).push(i);
-    });
-    const ordem = [...state.accounts.map(a => a.id).filter(id => grupos.has(id)), ...(grupos.has('__sem') ? ['__sem'] : [])];
-    $('#invGroups').innerHTML = ordem.map(key => {
-      const lista = grupos.get(key);
-      const conta = state.accounts.find(a => a.id === key);
-      const soma = lista.reduce((t, i) => t + invValue(i.id), 0);
-      return `<div class="inv-group">
-        <div class="inv-group-head">
-          <div class="acc-ico">${icon('landmark', 'i-sm')}</div>
-          <div class="acc-info"><div class="acc-name">${conta ? esc(conta.name) : 'Sem conta'}</div><div class="acc-type">${lista.length} aplicaç${lista.length === 1 ? 'ão' : 'ões'}</div></div>
-          <div class="inv-group-total num">${money(soma)}</div>
-        </div>
-        ${lista.map(i => {
-          const l = snapsOf(i.id), cur = l.at(-1), before = l.at(-2);
-          return `<div class="inv-item">
-            <div class="inv-item-main">
-              <div class="inv-item-name">${esc(i.name)} <span class="tag rec">${esc(i.type)}</span></div>
-              <div class="inv-item-sub">${cur ? `${icon('clock', 'i-xs')} Atualizado em ${fullDate(cur.date)} às ${cur.time} · ${esc(cur.by)}` : 'Saldo ainda não informado'}</div>
-            </div>
-            <div class="inv-item-val"><strong class="num">${cur ? money(cur.balance) : '—'}</strong>${cur && before ? chip(cur.balance - before.balance, before.balance) : ''}</div>
-            <div class="inv-item-actions">
-              <button class="btn btn-sm" data-open="snap" data-inv="${i.id}">${icon('pencil-line', 'i-sm')}Atualizar saldo</button>
-              <button class="icon-btn edit" data-edit-inv="${i.id}" title="Editar aplicação" aria-label="Editar aplicação">${icon('pencil-line', 'i-sm')}</button>
-              <button class="icon-btn" data-del-inv="${i.id}" title="Excluir aplicação" aria-label="Excluir aplicação">${icon('trash-2', 'i-sm')}</button>
-            </div>
-          </div>`;
-        }).join('')}
+      <div class="invest-total-panel">
+        <div class="invest-eyebrow">Patrimônio investido</div>
+        <div class="invest-total-value num">${money(total)}</div>
+        <div class="invest-total-meta">${state.investments.length} aplicaç${state.investments.length === 1 ? 'ão cadastrada' : 'ões cadastradas'}</div>
+      </div>
+      <div class="invest-update-panel">
+        <div class="invest-eyebrow">Última atualização</div>
+        <div class="invest-update-date num">${lc ? `${fullDate(lc.date)} · ${lc.time}` : 'Nenhuma atualização'}</div>
+        <div class="invest-total-meta">${lc ? `${esc(invName(lc.invId))} · ${esc(lc.by)}` : 'Informe o saldo de uma aplicação para começar.'}</div>
       </div>`;
-    }).join('') || `<div class="inv-empty">${icon('piggy-bank')}<strong>Nenhuma aplicação ainda</strong><span>${state.accounts.length ? 'Clique em “Nova aplicação”, escolha a conta e informe o saldo.' : 'Cadastre uma conta em “Contas” e depois adicione a aplicação aqui.'}</span></div>`;
+
+    // Planilha de aplicações: uma linha por aplicação, com resultado derivado das verificações reais.
+    const applications = state.investments.slice().sort((a, b) =>
+      invAccName(a).localeCompare(invAccName(b), 'pt-BR') || a.name.localeCompare(b.name, 'pt-BR'));
+    const applicationRows = applications.map(i => {
+      const records = snapsOf(i.id), cur = records.at(-1), before = records.at(-2);
+      const result = snapshotResult(cur, before);
+      const variation = result
+        ? `${resultMoney(result.difference)}${result.percent != null ? `<small>${pct2(result.percent)} no período</small>` : ''}`
+        : '<span class="t-muted">—</span>';
+      return `<tr class="invest-sheet-row">
+        <td class="sheet-cell"><span class="invest-bank">${icon('landmark', 'i-sm')}${esc(invAccName(i))}</span></td>
+        <td class="sheet-cell sheet-title">${esc(i.name)}</td>
+        <td class="sheet-cell"><span class="tag rec">${esc(i.type)}</span></td>
+        <td class="sheet-cell t-right"><strong class="num">${cur ? money(cur.balance) : '—'}</strong></td>
+        <td class="sheet-cell t-right invest-result-cell">${variation}</td>
+        <td class="sheet-cell t-right invest-result-cell">${dailyResultLabel(result)}</td>
+        <td class="sheet-cell">${cur ? `${fullDate(cur.date)}<small>${cur.time}</small>` : '<span class="t-muted">Nunca</span>'}</td>
+        <td class="sheet-cell">${cur ? `<span class="checked">${icon('user-round', 'i-sm')}${esc(cur.by)}</span>` : '—'}</td>
+        <td class="sheet-cell"><div class="sheet-actions invest-sheet-actions">
+          <button class="btn btn-sm btn-primary" data-open="snap" data-inv="${i.id}">${icon('pencil-line', 'i-sm')}Atualizar saldo</button>
+          <button class="icon-btn edit" data-edit-inv="${i.id}" title="Editar dados" aria-label="Editar dados da aplicação">${icon('settings', 'i-sm')}</button>
+          <button class="icon-btn" data-del-inv="${i.id}" title="Excluir aplicação" aria-label="Excluir aplicação">${icon('trash-2', 'i-sm')}</button>
+        </div></td>
+      </tr>`;
+    }).join('');
+    $('#invGroups').innerHTML = applications.length
+      ? `<div class="table-wrap sheet-wrap invest-sheet-wrap"><table class="sheet invest-sheet">
+          <thead><tr><th>Banco</th><th>Aplicação</th><th>Tipo</th><th class="t-right">Saldo atual</th><th class="t-right">Rendimento</th><th class="t-right">Média/dia</th><th>Última verificação</th><th>Editor</th><th>Ação</th></tr></thead>
+          <tbody>${applicationRows}</tbody>
+          <tfoot><tr><td class="sheet-cell" colspan="3"><strong>Total investido</strong></td><td class="sheet-cell t-right"><strong class="num">${money(total)}</strong></td><td class="sheet-cell" colspan="5"></td></tr></tfoot>
+        </table></div>`
+      : `<div class="inv-empty">${icon('piggy-bank')}<strong>Nenhuma aplicação ainda</strong><span>${state.accounts.length ? 'Clique em “Nova aplicação”, escolha a conta e informe o saldo.' : 'Cadastre uma conta em “Contas” e depois adicione a aplicação aqui.'}</span></div>`;
 
     const fi = $('#fInv').value || 'all';
     const hist = state.snapshots.filter(s => fi === 'all' || s.invId === fi)
       .sort((a, b) => stamp(b).localeCompare(stamp(a))).slice(0, 60);
     $('#snapRows').innerHTML = hist.map(s => {
-      const p = prevSnap(s);
+      const before = prevSnap(s);
+      const result = snapshotResult(s, before);
       return `<tr>
         <td class="num">${fullDate(s.date)}</td>
         <td class="num t-muted">${s.time}</td>
         <td>${esc(invName(s.invId))}</td>
         <td class="t-muted">${esc(invAccName(state.investments.find(i => i.id === s.invId)))}</td>
         <td class="t-right num amount">${money(s.balance)}</td>
-        <td class="t-right">${chip(p ? s.balance - p.balance : null, p?.balance)}</td>
+        <td class="t-right invest-result-cell">${result ? `${resultMoney(result.difference)}${result.percent != null ? `<small>${pct2(result.percent)}</small>` : ''}` : '<span class="t-muted">base inicial</span>'}</td>
+        <td class="t-right invest-result-cell">${dailyResultLabel(result)}</td>
         <td><span class="checked">${icon('user-round', 'i-sm')}${esc(s.by)}</span></td>
         <td class="t-right" style="width:44px"><button class="icon-btn" data-del-snap="${s.id}" aria-label="Excluir registro">${icon('trash-2', 'i-sm')}</button></td>
       </tr>`;
-    }).join('') || '<tr><td colspan="8" class="empty">Nenhum saldo registrado ainda.</td></tr>';
+    }).join('') || '<tr><td colspan="9" class="empty">Nenhum saldo registrado ainda.</td></tr>';
   }
 
   function fillPeriod() {
@@ -1821,7 +2093,23 @@
       if (view === 'overview') periodManual = false;
     }
     if (!ms.includes(period)) period = ms.includes(currentMonth()) ? currentMonth() : ms[0];
-    $('#period').innerHTML = ms.map(m => `<option value="${m}" ${m === period ? 'selected' : ''}>${monthLabel(m)}</option>`).join('');
+    const now = currentMonth();
+    $('#period').innerHTML = ms.map(m => `<option value="${m}" ${m === period ? 'selected' : ''}>${monthLabel(m)}${m === now ? ' (atual)' : ''}</option>`).join('');
+    syncPeriodNow();
+  }
+
+  /** Mostra "Voltar ao mês atual" só quando a tela está em outro mês. */
+  function syncPeriodNow() {
+    const btn = $('#periodNow');
+    if (!btn) return;
+    btn.hidden = $('#period').hidden || !period || period === currentMonth();
+  }
+
+  function goCurrentMonth() {
+    periodManual = false;
+    period = currentMonth();
+    fillPeriod();
+    render();
   }
 
   function fillSelects() {
@@ -1873,16 +2161,30 @@
 
   /* ---------- Navegação ---------- */
   function show(v) {
-    view = v;
-    $$('.view').forEach(s => s.classList.toggle('active', s.id === 'view-' + v));
-    $$('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+    if (v === 'tasks') v = VIEW_OF_KIND[taskView] || 'pagamentos'; // links antigos
+    const tk = TASK_VIEWS[v];
+    view = tk ? 'tasks' : v;
+    if (tk && tk !== taskView) { taskView = tk; taskTab = taskTabs[tk]; taskPage = 1; }
+    $$('.view').forEach(s => s.classList.toggle('active', s.id === 'view-' + view));
+    $$('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === v || (!!tk && 'tabTasks' in b.dataset)));
+    $$('#taskKindSwitch button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
     $('#pageTitle').textContent = TITLES[v];
     document.title = `${TITLES[v]} · Matheus do Beiju`;
     window.scrollTo({ top: 0 });
-    // Telas com ação própria (contas, aplicações, tarefas) não mostram o botão Lançamento, para não confundir
-    $('#headTxBtn').hidden = ['investments', 'accounts', 'tasks'].includes(v);
-    // Programação lista tudo cadastrado — sem filtro de mês; Relatórios usam o mês do topo
-    $('#period').hidden = v === 'tasks';
+    // Telas com ação própria (contas, aplicações, compromissos) não mostram o botão Lançamento, para não confundir
+    const hasOwnPrimaryAction = ['investments', 'accounts', 'tasks'].includes(view);
+    $('#headTxBtn').hidden = hasOwnPrimaryAction;
+    $('.mobile-quick-add').hidden = hasOwnPrimaryAction;
+    // Pagamentos e cobranças usam o mês do topo; documentação mostra tudo por prazo
+    $('#period').hidden = tk === 'documentacao';
+    if (v !== 'overview' && (periodManual || period !== currentMonth())) {
+      periodManual = false;
+      period = currentMonth();
+      fillPeriod();
+      render();
+    }
+    syncPeriodNow();
+    if (tk) renderTasks();
     if (v === 'reports') renderReports();
     if (v === 'overview') {
       periodManual = false;
@@ -1891,7 +2193,6 @@
       render();
       return;
     }
-    renderFutureKpis();
     if (v === 'investments') investChart();
   }
 
@@ -1913,7 +2214,8 @@
       if (btn?.dataset.inv) $('#snapInv').value = btn.dataset.inv;
       $('#snapDate').value = todayISO();
       $('#snapTime').value = nowTime();
-      $('#snapBy').value = state.people[0] || '';
+      $('#snapBy').value = userName || state.people[0] || '';
+      setMoney('#snapBal', '');
       updateSnapPrev();
     }
     if (name === 'invest') {
@@ -1959,10 +2261,25 @@
     lastFocus?.focus?.();
   }
   function updateSnapPrev() {
-    const l = latest($('#snapInv').value);
-    $('#snapPrev').innerHTML = l
-      ? `${icon('history', 'i-sm')}Último registro: ${money(l.balance)} em ${fullDate(l.date)} às ${l.time} (${esc(l.by)})`
-      : `${icon('info', 'i-sm')}Nenhum saldo registrado para esta aplicação.`;
+    const invId = $('#snapInv').value;
+    const date = $('#snapDate').value;
+    const time = $('#snapTime').value;
+    const before = snapshotBefore(invId, date, time);
+    const balance = moneyVal('#snapBal');
+    if (!before) {
+      $('#snapPrev').innerHTML = `${icon('info', 'i-sm')}<span>Primeira verificação desta aplicação. Ela será a base para calcular os próximos rendimentos.</span>`;
+      return;
+    }
+    let html = `${icon('history', 'i-sm')}<span>Saldo anterior: <strong class="num">${money(before.balance)}</strong> em ${fullDate(before.date)} às ${before.time}, verificado por ${esc(before.by)}.`;
+    if (!Number.isNaN(balance)) {
+      const result = snapshotResult({ invId, date, time, balance }, before);
+      html += ` Rendimento no período: <strong class="${resultClass(result.difference)}">${signed(result.difference)}</strong>`;
+      if (result.percent != null) html += ` (${pct2(result.percent)})`;
+      html += result.days
+        ? `. Média simples por dia: <strong class="${resultClass(result.daily)}">${signed(result.daily)}</strong> em ${result.days} dia${result.days === 1 ? '' : 's'}.`
+        : ' A comparação é do mesmo dia; não há média diária.';
+    }
+    $('#snapPrev').innerHTML = html + '</span>';
   }
 
   /* ---------- Eventos ---------- */
@@ -1980,7 +2297,18 @@
       flowChart(period);
     }
     else if ('close' in b.dataset) closeModals();
-    else if (b.dataset.ttab) { taskTab = b.dataset.ttab; renderTasks(); }
+    else if (b.dataset.ttab) {
+      taskTab = b.dataset.ttab;
+      taskTabs[taskView] = taskTab;
+      taskPage = 1;
+      const status = $('#tfStatus');
+      if (status) status.value = 'all';
+      renderTasks();
+    }
+    else if (b.dataset.taskPage) {
+      const p = Number(b.dataset.taskPage);
+      if (Number.isFinite(p) && p >= 1 && !b.disabled) { taskPage = p; renderTasks(); }
+    }
     else if (b.dataset.rtab) { reportTab = b.dataset.rtab; renderReports(); }
     else if (b.dataset.pay) openPay(b.dataset.pay, b.dataset.payMode);
     else if (b.dataset.skip) skipOccurrence(b.dataset.skip);
@@ -2051,17 +2379,27 @@
       return;
     }
     period = e.target.value;
-    periodManual = true;
+    periodManual = period !== currentMonth();
+    syncPeriodNow();
     render();
   });
-  ['#q', '#fKind', '#fAccount'].forEach(s => $(s).addEventListener(s === '#q' ? 'input' : 'change', render));
-  ['#tq', '#tfKind', '#tfValor'].forEach(s => {
+  $('#periodNow')?.addEventListener('click', goCurrentMonth);
+  ['#q', '#fKind', '#fAccount', '#fOrigin'].forEach(s => $(s).addEventListener(s === '#q' ? 'input' : 'change', render));
+  ['#tq', '#tfValor', '#tfFreq', '#tfState', '#tfStatus'].forEach(s => {
     const el = $(s);
-    if (el) el.addEventListener(s === '#tq' ? 'input' : 'change', () => renderTasks());
+    if (el) el.addEventListener(s === '#tq' ? 'input' : 'change', () => { taskPage = 1; renderTasks(); });
+  });
+  $('#tfClear')?.addEventListener('click', clearTaskFilters);
+  // Filtros menos usados ficam recolhidos em "Mais filtros"
+  $('#tfMore')?.addEventListener('click', e => {
+    const panel = $('#tfMorePanel'), open = panel.hidden;
+    panel.hidden = !open;
+    e.currentTarget.setAttribute('aria-expanded', String(open));
+    e.currentTarget.classList.toggle('on', open);
   });
   $('#reportPdfBtn')?.addEventListener('click', exportReportPdf);
   $('#fInv').addEventListener('change', renderInvestments);
-  $('#snapInv').addEventListener('change', updateSnapPrev);
+  ['#snapInv', '#snapDate', '#snapTime', '#snapBal'].forEach(s => $(s).addEventListener(s === '#snapBal' ? 'input' : 'change', updateSnapPrev));
   $$('input[name="kind"]').forEach(r => r.addEventListener('change', fillCategories));
 
   $('#txForm').addEventListener('submit', async e => {
@@ -2086,6 +2424,7 @@
     });
     rememberPayee(payee);
     period = ym(date);
+    periodManual = period !== currentMonth(); // lançou em outro mês: fica nele até voltar
     save(); closeModals(); refresh();
   });
 
@@ -2145,7 +2484,10 @@
     e.preventDefault();
     const balance = Math.round(moneyVal('#snapBal') * 100) / 100;
     if (!(balance >= 0)) return;
-    const invId = $('#snapInv').value, date = $('#snapDate').value, time = $('#snapTime').value, by = $('#snapBy').value.trim();
+    const invId = $('#snapInv').value, date = $('#snapDate').value, time = $('#snapTime').value;
+    const by = (userName || $('#snapBy').value).trim();
+    $('#snapBy').value = by;
+    if (!by) { alert('Não foi possível identificar o editor conectado. Recarregue a página.'); return; }
     const dup = state.snapshots.find(s => s.invId === invId && s.date === date && s.time === time);
     if (dup && !confirm(`Já existe um registro de ${invName(invId)} em ${fullDate(date)} às ${time}. Substituir?`)) return;
     if (dup) state.snapshots = state.snapshots.filter(s => s !== dup);
@@ -2244,8 +2586,6 @@
         return u;
       },
     });
-    const note = document.querySelector('.storage-note span');
-    if (note) note.innerHTML = 'Dados salvos no banco do sistema. <span id="syncStatus" class="sync-status"></span>';
     document.querySelector('#taskEditorNote span')?.insertAdjacentText('beforeend', '');
   }
 

@@ -64,11 +64,25 @@ svg{flex:none}
 .btn:hover{filter:brightness(.97)}
 .link{background:none;border:none;color:var(--blue);font-weight:500;padding:0;font-size:13px}
 
-.range{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:0 14px;height:42px;color:#1e293b;font-size:13px;white-space:nowrap}
-.range svg{width:18px;height:18px;color:#475569}
-.range-part{position:relative;cursor:pointer}
+.range{display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:36px}
+.range-part{position:relative;cursor:pointer;font-size:12px;font-weight:600;color:#334155;padding:6px 8px;border:1px solid #d5dce6;border-radius:7px;background:#fff}
 .range-part input{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer;border:0;padding:0}
-.range-chev{background:none;border:0;padding:0;display:inline-flex;margin-left:auto}
+.range-chev{display:none}
+.period-seg{display:inline-flex;border:1px solid #d5dce6;border-radius:9px;overflow:hidden;background:#fff;flex:none}
+.period-seg button{border:0;background:transparent;padding:8px 12px;font-size:12px;font-weight:650;color:#64748b;cursor:pointer;line-height:1}
+.period-seg button+button{border-left:1px solid #e2e8f0}
+.period-seg button.active{background:#16345f;color:#fff}
+.period-seg button:hover:not(.active){background:#f8fafc;color:#0f172a}
+.range-label{color:#64748b;font-size:12px;font-weight:500}
+.range-custom{display:inline-flex;align-items:center;gap:6px}
+.lanc-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px;padding:12px;background:#fff;border:1px solid var(--line);border-radius:10px}
+.lanc-toolbar .search{margin:0;flex:1 1 180px;min-width:160px}
+.lanc-toolbar .search input{height:36px}
+.lanc-toolbar select{height:36px;min-height:0;border:1px solid #d5dce6;border-radius:8px;padding:0 10px;font-size:12px;background:#fff;max-width:160px}
+.lanc-toolbar .btn.sm{height:36px}
+.lanc-stats-slim{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-bottom:12px;padding:10px 12px;background:#f8fafc;border:1px solid #e5eaf0;border-radius:10px;font-size:12px;color:#475569}
+.lanc-stats-slim b{color:#0f172a;font-size:13px}
+.lanc-stats-slim .pos{color:#15803d}.lanc-stats-slim .neg{color:#dc2626}
 
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius)}
 .card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 16px 0;font-weight:700;font-size:15px}
@@ -248,15 +262,9 @@ table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
 .sel-ico{position:relative;display:block;min-width:250px}
 .sel-ico svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:#475569;pointer-events:none}
 .sel-ico select{width:100%;height:42px;border:1px solid #d5dce6;border-radius:8px;background:#fff;padding:0 10px 0 40px;font-size:13px}
-.filters-card{margin-bottom:14px}
-.search{position:relative;display:block;margin-bottom:14px}
-.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:#64748b}
-.search input{width:100%;height:42px;border:1px solid #d5dce6;border-radius:8px;padding:0 12px 0 40px;font-size:13px}
-.filter-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:14px}
-.filter-grid .field,.filter-foot .field{font-weight:500}
-.filter-grid select{height:42px;min-height:0;font-size:13px}
-.filter-foot{display:flex;justify-content:space-between;align-items:flex-end;gap:14px}
-.filter-foot .range{min-width:250px}
+.search{position:relative;display:block}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:#64748b}
+.search input{width:100%;height:42px;border:1px solid #d5dce6;border-radius:8px;padding:0 12px 0 38px;font-size:13px}
 .metric-grid.four{grid-template-columns:repeat(4,minmax(0,1fr))}
 .mi-yellow{background:#fef6e0;color:#d97706}
 .warn{color:#d97706}
@@ -371,7 +379,7 @@ table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
 .sidebar-overlay{display:none}
 
 @media(max-width:1100px){.co-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
-@media(max-width:1100px){.filter-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.metric-grid.four{grid-template-columns:repeat(2,minmax(0,1fr))}.metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.row-2,.row-3,.form-layout{grid-template-columns:1fr}}
+@media(max-width:1100px){.metric-grid.four{grid-template-columns:repeat(2,minmax(0,1fr))}.metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.row-2,.row-3,.form-layout{grid-template-columns:1fr}}
 
 @media(max-width:760px){
   body{background:#f6f7fa}
@@ -433,10 +441,11 @@ table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
   .head-actions .btn{width:100%;padding:12px}
   .current-co{width:100%}
   .sel-ico{min-width:0}
-  .sel-ico select,.search input,.filter-grid select{font-size:16px}
-  .filter-grid{grid-template-columns:1fr 1fr;gap:10px}
-  .filter-foot{flex-direction:column;align-items:stretch}
-  .filter-foot .range{min-width:0}
+  .sel-ico select,.search input,.lanc-toolbar select{font-size:16px}
+  .lanc-toolbar{padding:10px}
+  .lanc-toolbar select{max-width:none;flex:1 1 120px}
+  .period-seg{width:100%}
+  .period-seg button{flex:1}
   .metric-grid.four{grid-template-columns:1fr 1fr}
   .pager{flex-direction:column;align-items:stretch}
   .pager-btns{justify-content:center}
@@ -615,9 +624,28 @@ let centroDescricoes=EMBED?{}:{Eventos:'Eventos e produções',Coleta:'Operaçõ
 let centroEmpresas=EMBED?{}:{Eventos:ALL_COMPANIES.map(c=>c.id),Coleta:ALL_COMPANIES.map(c=>c.id),Obras:ALL_COMPANIES.map(c=>c.id)};
 let perms={},users=[],structOk=true,coTab='geral',contractId=null,contractEditing=null,accountEditing=null,centroEditing=null;
 const TODAY_ISO=new Date().toLocaleDateString('en-CA');
-const DEFAULT_FROM=TODAY_ISO.slice(0,7)+'-01';
-const DEFAULT_TO=new Date(Number(TODAY_ISO.slice(0,4)),Number(TODAY_ISO.slice(5,7)),0).toLocaleDateString('en-CA');
-let page='dashboard',company='',filterFrom=DEFAULT_FROM,filterTo=DEFAULT_TO,draftFiles=[],editing=null,showAll=false;
+const isoDay=d=>{const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`};
+function boundsForMode(mode){
+  const now=new Date();
+  if(mode==='semana'){
+    const day=(now.getDay()+6)%7; // segunda = 0
+    const start=new Date(now.getFullYear(),now.getMonth(),now.getDate()-day);
+    const end=new Date(start.getFullYear(),start.getMonth(),start.getDate()+6);
+    return {from:isoDay(start),to:isoDay(end)};
+  }
+  if(mode==='ano'){
+    const y=now.getFullYear();
+    return {from:`${y}-01-01`,to:`${y}-12-31`};
+  }
+  // mês atual (padrão)
+  const from=isoDay(new Date(now.getFullYear(),now.getMonth(),1));
+  const to=isoDay(new Date(now.getFullYear(),now.getMonth()+1,0));
+  return {from,to};
+}
+const DEFAULT_BOUNDS=boundsForMode('mes');
+const DEFAULT_FROM=DEFAULT_BOUNDS.from;
+const DEFAULT_TO=DEFAULT_BOUNDS.to;
+let page='dashboard',company='',filterFrom=DEFAULT_FROM,filterTo=DEFAULT_TO,periodMode='mes',draftFiles=[],editing=null,showAll=false;
 let fileMem={},cloudTimer=null,cloudReq=0,cloudPending={},persistBusyRetries=0;
 
 const fmt=v=>(Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -649,9 +677,48 @@ const editCell=e=>`<button class="link" onclick="showForm('${e.id}')">Editar</bu
 const companyLabel=()=>{const c=companyById(company);return c?`${esc(c.nome)} · ${esc(c.tipo)}`:'Todas as empresas'};
 const coFilter=()=>`<select id="coFilter" aria-label="Empresa"><option value="">Todas as empresas</option>${companies.map(c=>`<option value="${c.id}" ${company===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}</select>`;
 
-function rangeBox(){return `<div class="range">${ico('calendar')}<label class="range-part"><span>${short(filterFrom)}</span><input type="date" id="from" value="${filterFrom}" aria-label="Data inicial"></label><span>-</span><label class="range-part"><span>${short(filterTo)}</span><input type="date" id="to" value="${filterTo}" aria-label="Data final"></label><button class="range-chev" type="button" aria-label="Escolher período" onclick="openPicker('from')">${ico('chevron-down')}</button></div>`}
+function applyPeriodMode(mode,customFrom=filterFrom,customTo=filterTo){
+  periodMode=mode;
+  if(mode==='personalizado'){
+    filterFrom=customFrom||filterFrom;
+    filterTo=customTo||filterTo;
+    return;
+  }
+  const b=boundsForMode(mode);
+  filterFrom=b.from;filterTo=b.to;
+}
+function setPeriodMode(mode){
+  applyPeriodMode(mode);
+  render();
+}
+function rangeBox(){
+  const custom=periodMode==='personalizado';
+  const seg=(id,label)=>`<button type="button" class="${periodMode===id?'active':''}" data-period="${id}">${label}</button>`;
+  return `<div class="range" role="group" aria-label="Período">
+    <div class="period-seg">${seg('mes','Mês')}${seg('semana','Semana')}${seg('ano','Ano')}${seg('personalizado','Personalizado')}</div>
+    ${custom
+      ?`<span class="range-custom"><label class="range-part"><span>${short(filterFrom)}</span><input type="date" id="from" value="${filterFrom}" aria-label="Data inicial"></label><span class="muted">–</span><label class="range-part"><span>${short(filterTo)}</span><input type="date" id="to" value="${filterTo}" aria-label="Data final"></label></span>`
+      :`<span class="range-label">${short(filterFrom)} – ${short(filterTo)}</span>`}
+  </div>`;
+}
 function openPicker(id){const el=document.getElementById(id);if(el)dpOpen(el)}
-function wireDates(){[['from',v=>filterFrom=v],['to',v=>filterTo=v]].forEach(([id,set])=>{const el=document.getElementById(id);if(!el)return;el.onclick=()=>openPicker(id);el.onchange=e=>{if(e.target.value){set(e.target.value);render()}}});const f=document.getElementById('coFilter');if(f)f.onchange=e=>{company=e.target.value;render()}}
+function wireDates(){
+  document.querySelectorAll('[data-period]').forEach(btn=>{
+    btn.onclick=()=>setPeriodMode(btn.getAttribute('data-period'));
+  });
+  [['from',v=>filterFrom=v],['to',v=>filterTo=v]].forEach(([id,set])=>{
+    const el=document.getElementById(id);if(!el)return;
+    el.onclick=()=>openPicker(id);
+    el.onchange=e=>{
+      if(!e.target.value)return;
+      periodMode='personalizado';
+      set(e.target.value);
+      if(filterFrom>filterTo){if(id==='from')filterTo=filterFrom;else filterFrom=filterTo}
+      render();
+    };
+  });
+  const f=document.getElementById('coFilter');if(f)f.onchange=e=>{company=e.target.value;render()}
+}
 
 // Gráfico de pizza: proporção financeira entre entradas e saídas no período.
 function pieChart(a){
@@ -971,40 +1038,39 @@ const opt=(v,l,cur)=>`<option value="${esc(v)}" ${cur===v?'selected':''}>${esc(l
 const fileSize=b=>b>=1048576?(b/1048576).toLocaleString('pt-BR',{maximumFractionDigits:1})+' MB':Math.max(1,Math.round(b/1024))+' KB';
 const PAGE=10;
 let lf={q:'',type:'',account:'',method:'',page:1},keptFiles=[],tipClosed=false,lancType='';
-const LANC_TEXT={'':['Lançamentos','Gerencie todas as entradas e saídas da sua empresa de forma organizada e segura.'],entrada:['Entradas','Histórico de todas as entradas da empresa, com os comprovantes anexados.'],saida:['Saídas','Histórico de todas as saídas da empresa, com os comprovantes anexados.']};
+const LANC_TEXT={'':['Lançamentos','Entradas e saídas no período.'],entrada:['Entradas','Recebimentos no período.'],saida:['Saídas','Pagamentos no período.']};
 const companySelect=(id,val,withAll)=>`<label class="sel-ico">${ico('building')}<select id="${id}" aria-label="Empresa atual">${withAll?'<option value="">Todas as empresas</option>':(val?'':'<option value="">Selecione a empresa</option>')}${companies.map(c=>opt(c.id,`${c.nome} - ${c.tipo}`,val)).join('')}</select></label>`;
 const allAccounts=()=>[...new Set(company?accounts[company]:Object.values(accounts).flat())];
 
 function filtered(){const q=lf.q.trim().toLowerCase();const t=lancType||lf.type;return period().filter(e=>(!t||e.type===t)&&(!lf.account||e.account===lf.account)&&(!lf.method||(lf.method==='Outro'?!METHODS.slice(0,-1).includes(e.method):e.method===lf.method))&&(!q||[e.desc,e.account,e.cc,companyName(e.company),e.method,e.created].join(' ').toLowerCase().includes(q))).sort((x,y)=>y.date.localeCompare(x.date)||String(y.createdAt||'').localeCompare(String(x.createdAt||''))||String(y.id).localeCompare(String(x.id)))}
 function renderLancamentos(type=''){
   lancType=type;const [h,sub]=LANC_TEXT[type];
-  view().innerHTML=`<div class="page-heading"><div><h1>${h}</h1><p class="sub">${sub}</p></div><div class="actions head-actions"><div class="current-co"><span class="mini-label">Empresa atual</span>${companySelect('curCo',company,true)}</div><button class="btn primary" onclick="showForm(null,'${type}')">${ico('plus')} ${type==='entrada'?'Nova entrada':type==='saida'?'Nova saída':'Novo lançamento'}</button></div></div>`
-  +`<section class="card filters-card"><div class="card-head"><span>Filtros</span></div><div class="card-body">
-    <label class="search">${ico('search')}<input id="search" placeholder="Buscar por descrição, conta, empresa..." value="${esc(lf.q)}" aria-label="Buscar"></label>
-    <div class="filter-grid">
-      <label class="field">Empresa<select id="fEmp"><option value="">Todas as empresas</option>${companies.map(c=>opt(c.id,c.nome,company)).join('')}</select></label>
-      <label class="field">Tipo<select id="fTipo" ${type?'disabled':''}>${type?opt(type,type==='entrada'?'Entrada':'Saída',type):opt('','Todos',lf.type)+opt('entrada','Entrada',lf.type)+opt('saida','Saída',lf.type)}</select></label>
-      <label class="field">Conta bancária<select id="fConta">${opt('','Todas as contas',lf.account)}${allAccounts().map(a=>opt(a,a,lf.account)).join('')}</select></label>
-      <label class="field">Forma de pagamento<select id="fForma">${opt('','Todas',lf.method)}${METHODS.map(m=>opt(m,m,lf.method)).join('')}</select></label>
+  view().innerHTML=`<div class="page-heading"><div><h1>${h}</h1><p class="sub">${sub}</p></div><div class="actions head-actions"><div class="current-co"><span class="mini-label">Empresa</span>${companySelect('curCo',company,true)}</div><button class="btn primary" onclick="showForm(null,'${type}')">${ico('plus')} ${type==='entrada'?'Nova entrada':type==='saida'?'Nova saída':'Novo lançamento'}</button></div></div>`
+  +`<div class="lanc-toolbar">
+      ${rangeBox()}
+      <label class="search">${ico('search')}<input id="search" placeholder="Buscar..." value="${esc(lf.q)}" aria-label="Buscar"></label>
+      ${type?'':`<select id="fTipo" aria-label="Tipo">${opt('','Tipo',lf.type)+opt('entrada','Entrada',lf.type)+opt('saida','Saída',lf.type)}</select>`}
+      <select id="fConta" aria-label="Conta">${opt('','Conta',lf.account)}${allAccounts().map(a=>opt(a,a,lf.account)).join('')}</select>
+      <select id="fForma" aria-label="Pagamento">${opt('','Pagamento',lf.method)}${METHODS.map(m=>opt(m,m,lf.method)).join('')}</select>
+      <button class="btn sm" type="button" onclick="clearFilters()">${ico('refresh')} Limpar</button>
+      <button class="btn sm" type="button" onclick="exportCsv(filtered())">${ico('download')} Exportar</button>
     </div>
-    <div class="filter-foot"><div class="field"><span>Período</span>${rangeBox()}</div><button class="btn" type="button" onclick="clearFilters()">${ico('refresh')} Limpar filtros</button></div>
-  </div></section>
   <div id="lancStats"></div>
-  <section class="card"><div class="card-head"><span>${h}</span><button class="btn sm" onclick="exportCsv(filtered())">${ico('download')} Exportar</button></div><div class="card-body" id="lancTable"></div></section>`;
+  <section class="card"><div class="card-body" id="lancTable"></div></section>`;
   wireDates();
-  const on=(id,fn)=>document.getElementById(id).onchange=e=>{fn(e.target.value);lf.page=1;render()};
-  on('curCo',v=>{company=v;lf.account=''});on('fEmp',v=>{company=v;lf.account=''});on('fTipo',v=>lf.type=v);on('fConta',v=>lf.account=v);on('fForma',v=>lf.method=v);
+  const on=(id,fn)=>{const el=document.getElementById(id);if(!el)return;el.onchange=e=>{fn(e.target.value);lf.page=1;render()}};
+  on('curCo',v=>{company=v;lf.account=''});on('fTipo',v=>lf.type=v);on('fConta',v=>lf.account=v);on('fForma',v=>lf.method=v);
   document.getElementById('search').oninput=e=>{lf.q=e.target.value;lf.page=1;updateLanc()};
   updateLanc();
 }
 function updateLanc(){
-  const a=filtered(),s=sums(a),nIn=a.filter(e=>e.type==='entrada').length;
+  const a=filtered(),s=sums(a),nIn=a.filter(e=>e.type==='entrada').length,nOut=a.length-nIn;
   const pages=Math.max(1,Math.ceil(a.length/PAGE));lf.page=Math.min(lf.page,pages);const start=(lf.page-1)*PAGE,rows=a.slice(start,start+PAGE);
-  document.getElementById('lancStats').innerHTML=`<div class="metric-grid">${metric('file','mi-blue','Total de lançamentos','Lançamentos',a.length,'no período selecionado')}${lancType?(lancType==='entrada'?metric('arrow-down','mi-green','Total de entradas','Entradas',`<span class="positive">${fmt(s.in)}</span>`,`${nIn} lançamentos`):metric('arrow-up','mi-red','Total de saídas','Saídas',`<span class="negative">${fmt(s.out)}</span>`,`${a.length-nIn} lançamentos`)):metric('arrow-down','mi-green','Total de entradas','Entradas',`<span class="positive">${fmt(s.in)}</span>`,`${nIn} lançamentos`)+metric('arrow-up','mi-red','Total de saídas','Saídas',`<span class="negative">${fmt(s.out)}</span>`,`${a.length-nIn} lançamentos`)}</div>`;
-  document.getElementById('lancTable').innerHTML=a.length?`<div class="table-wrap"><table class="tbl lanc"><thead><tr><th>Data</th><th>Horário</th><th>Responsável</th><th>Empresa</th>${lancType?'':'<th>Tipo</th>'}<th>Descrição</th><th>Centro de custo</th><th>Contrato</th><th>Conta de origem/destino</th><th>Forma de pagamento</th><th>Valor</th><th>Comprovante</th><th>Ações</th></tr></thead><tbody>${rows.map(e=>`<tr><td data-label="Data">${short(e.date)}</td><td data-label="Horário">${entryTime(e)}</td><td class="wrap" data-label="Responsável">${esc(e.created||'—')}</td><td class="wrap" data-label="Empresa">${esc(companyName(e.company))}</td>${lancType?'':`<td data-label="Tipo" class="${e.type==='entrada'?'type-in':'type-out'}">${e.type==='entrada'?'Entrada':'Saída'}</td>`}<td class="wrap desc c-desc">${esc(e.desc)}</td><td class="wrap" data-label="Centro de custo">${esc(e.cc||'—')}</td><td class="wrap" data-label="Contrato">${e.contract&&contractById(e.contract)?`<button class="link" onclick="openContract('${e.contract}')">${esc(contractName(e.contract))}</button>`:'<span class="muted">—</span>'}</td><td class="wrap" data-label="Conta">${esc(e.account)}</td><td class="wrap" data-label="Pagamento">${esc(e.method)}</td><td data-label="Valor" class="c-valor ${e.type==='entrada'?'positive':'negative'}">${fmt(e.value)}</td><td data-label="Comprovante">${e.files.length?e.files.map((f,i)=>`<button class="link file-link" onclick="openFile('${e.id}',${i})">${esc(f.name)}</button>`).join('<br>'):'<span class="muted">Sem anexo</span>'}</td><td class="c-acoes"><button class="icon-btn row-act" aria-label="Ações" onclick="rowMenu(event,'${e.id}')">${ico('dots')}</button></td></tr>`).join('')}</tbody></table></div><div class="pager"><span class="muted">Mostrando ${start+1} a ${start+rows.length} de ${a.length} lançamentos</span><div class="pager-btns"><button class="btn sm" ${lf.page===1?'disabled':''} onclick="goPage(${lf.page-1})">${ico('chevron-left',2)} Anterior</button>${Array.from({length:pages},(_,i)=>`<button class="btn sm ${i+1===lf.page?'current':''}" onclick="goPage(${i+1})">${i+1}</button>`).join('')}<button class="btn sm" ${lf.page===pages?'disabled':''} onclick="goPage(${lf.page+1})">Próxima ${ico('chevron-right',2)}</button></div></div>`:emptyBox('file','Nenhum lançamento encontrado','Ajuste os filtros ou o período.');
+  document.getElementById('lancStats').innerHTML=`<div class="lanc-stats-slim"><span><b>${a.length}</b> lançamento(s)</span>${lancType==='saida'?'':`<span class="pos">Entradas <b>${fmt(s.in)}</b> · ${nIn}</span>`}${lancType==='entrada'?'':`<span class="neg">Saídas <b>${fmt(s.out)}</b> · ${nOut}</span>`}<span class="muted">${short(filterFrom)} – ${short(filterTo)}</span></div>`;
+  document.getElementById('lancTable').innerHTML=a.length?`<div class="table-wrap"><table class="tbl lanc"><thead><tr><th>Data</th><th>Horário</th><th>Responsável</th><th>Empresa</th>${lancType?'':'<th>Tipo</th>'}<th>Descrição</th><th>Centro</th><th>Contrato</th><th>Conta</th><th>Pagamento</th><th>Valor</th><th>Comprovante</th><th></th></tr></thead><tbody>${rows.map(e=>`<tr><td data-label="Data">${short(e.date)}</td><td data-label="Horário">${entryTime(e)}</td><td class="wrap" data-label="Responsável">${esc(e.created||'—')}</td><td class="wrap" data-label="Empresa">${esc(companyName(e.company))}</td>${lancType?'':`<td data-label="Tipo" class="${e.type==='entrada'?'type-in':'type-out'}">${e.type==='entrada'?'Entrada':'Saída'}</td>`}<td class="wrap desc c-desc">${esc(e.desc)}</td><td class="wrap" data-label="Centro">${esc(e.cc||'—')}</td><td class="wrap" data-label="Contrato">${e.contract&&contractById(e.contract)?`<button class="link" onclick="openContract('${e.contract}')">${esc(contractName(e.contract))}</button>`:'<span class="muted">—</span>'}</td><td class="wrap" data-label="Conta">${esc(e.account||'—')}</td><td class="wrap" data-label="Pagamento">${esc(e.method||'—')}</td><td data-label="Valor" class="c-valor ${e.type==='entrada'?'positive':'negative'}">${fmt(e.value)}</td><td data-label="Comprovante">${e.files.length?e.files.map((f,i)=>`<button class="link file-link" onclick="openFile('${e.id}',${i})">${esc(f.name)}</button>`).join('<br>'):'<span class="muted">—</span>'}</td><td class="c-acoes"><button class="icon-btn row-act" aria-label="Ações" onclick="rowMenu(event,'${e.id}')">${ico('dots')}</button></td></tr>`).join('')}</tbody></table></div><div class="pager"><span class="muted">${start+1}–${start+rows.length} de ${a.length}</span><div class="pager-btns"><button class="btn sm" ${lf.page===1?'disabled':''} onclick="goPage(${lf.page-1})">${ico('chevron-left',2)}</button>${Array.from({length:pages},(_,i)=>`<button class="btn sm ${i+1===lf.page?'current':''}" onclick="goPage(${i+1})">${i+1}</button>`).join('')}<button class="btn sm" ${lf.page===pages?'disabled':''} onclick="goPage(${lf.page+1})">${ico('chevron-right',2)}</button></div></div>`:emptyBox('file','Nenhum lançamento encontrado','Ajuste os filtros ou o período.');
 }
 function goPage(p){lf.page=p;updateLanc()}
-function clearFilters(){lf={q:'',type:'',account:'',method:'',page:1};company='';filterFrom=DEFAULT_FROM;filterTo=DEFAULT_TO;render()}
+function clearFilters(){lf={q:'',type:'',account:'',method:'',page:1};company='';applyPeriodMode('mes');render()}
 function hideMenus(){document.getElementById('userMenu').classList.add('hidden');document.getElementById('rowMenu').classList.add('hidden')}
 function rowMenu(ev,id){
   ev.stopPropagation();const m=document.getElementById('rowMenu'),e=entries.find(x=>x.id===id),r=ev.currentTarget.getBoundingClientRect();
@@ -1047,10 +1113,7 @@ function showForm(id,presetType='',presetContract=''){
     ${fsec('list','Observações',`<textarea name="notes" class="notes" aria-label="Observações" placeholder="Informações adicionais sobre o lançamento...">${esc(e?.notes||'')}</textarea>`)}
     ${fsec('paperclip','Comprovantes (foto ou PDF)',`<label class="dropzone" id="drop">${ico('cloud')}<span>Clique para selecionar arquivos ou arraste aqui</span><small>JPG, PNG ou PDF • até 10 MB por arquivo</small><input id="files" type="file" accept="image/png,image/jpeg,application/pdf" multiple></label><div id="fileErr" class="field-err hidden"></div><div id="fileList"></div>`)}
     <div class="form-actions"><button type="submit" class="btn primary" value="save">${ico('save')} Salvar lançamento</button><button type="button" class="btn" onclick="navigate(formBack)">Cancelar</button></div>
-  </div><aside><section class="card rules"><div class="card-head"><span class="with-ico">${ico('bulb')} Regras e orientações</span></div><div class="card-body">
-    <div class="rule r-blue">${ico('info')}<span>As contas bancárias são filtradas de acordo com a empresa selecionada.</span></div>
-    <div class="rule r-green">${ico('shield-ok')}<span>As ações ficam registradas na auditoria do sistema.</span></div>
-  </div></section></aside></form>`;
+  </div></form>`;
   const fc=document.getElementById('fCompany'),cur=document.getElementById('curCo');
   fillAccounts(co,e?.account);fillContracts(co,kSel);fillEntryCentros(co,e?.cc||pk?.cc||'');
   const fm=document.getElementById('fMethod'),fmOther=document.getElementById('fMethodOther'),fmWrap=document.getElementById('fMethodOtherWrap');
@@ -1091,7 +1154,7 @@ function submitForm(ev){
   if(old)entries=entries.map(e=>e.id===old.id?record:e);else entries.unshift(record);
   audit.unshift({id:uuid(),date:now,user:ME.nome,action:old?'Edição':'Criação',desc:x.desc,company:x.company});
   if(draftFiles.length)audit.unshift({id:uuid(),date:now,user:ME.nome,action:'Anexo',desc:`${draftFiles.length} comprovante(s) em ${x.desc}`,company:x.company});
-  const savedYm=String(x.date).slice(0,7);filterFrom=savedYm+'-01';filterTo=new Date(Number(savedYm.slice(0,4)),Number(savedYm.slice(5,7)),0).toLocaleDateString('en-CA');
+  applyPeriodMode('mes');
   company=x.company;navigate(formBack);
   scheduleCloudSave();
 }

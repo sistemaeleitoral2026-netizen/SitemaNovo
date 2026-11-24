@@ -268,8 +268,16 @@ export async function salvarFinanceiroPessoal(
   const auditar = (t: TableName, op: string, row: Row) => {
     if (auditoria.length >= 30) return
     const d: Record<string, unknown> = {}
-    for (const k of ['descricao', 'titulo', 'nome', 'valor', 'saldo', 'periodo', 'status', 'data', 'hora']) if (row[k] != null) d[k] = row[k]
-    auditoria.push({ acao: `${ROTULO[t]}.${op}`, entidade: t, entidade_id: row.id, actor_nome: ctx.userName, detalhes: d })
+    for (const k of ['descricao', 'titulo', 'nome', 'valor', 'valor_previsto', 'saldo', 'periodo', 'status', 'data', 'hora']) if (row[k] != null) d[k] = row[k]
+    let acao = `${ROTULO[t]}.${op}`
+    if (t === 'fp_tarefas_baixas') {
+      const tarefa = estado.tasks.find((item) => item.id === row.tarefa_id)
+      if (tarefa?.title) d.titulo = tarefa.title
+      if (d.valor == null && tarefa?.expected != null) d.valor_previsto = tarefa.expected
+      const status = String(row.status || 'concluida')
+      acao = `tarefa.${status}`
+    }
+    auditoria.push({ acao, entidade: t, entidade_id: row.id, actor_nome: ctx.userName, detalhes: d })
   }
 
   // 1) Inclusões e alterações, na ordem das chaves estrangeiras

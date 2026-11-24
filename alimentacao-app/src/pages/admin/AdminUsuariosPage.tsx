@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Search, UserPlus } from 'lucide-react'
+import { Search, UserPlus } from './adminIcons'
 import { useAuth } from '../../contexts/AuthContext'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
@@ -12,7 +11,7 @@ import { Modal } from '../../components/ui/Modal'
 import { Pagination } from '../../components/ui/Pagination'
 import { supabase } from '../../lib/supabase'
 import { labelRole } from '../../lib/roles'
-import { clearSite, SITES } from '../../lib/sites'
+import { SITES } from '../../lib/sites'
 import type { Profile, UserRole } from '../../types'
 
 const PAGE_SIZE = 15
@@ -70,8 +69,7 @@ function initials(nome: string) {
 }
 
 export function AdminUsuariosPage() {
-  const { signOut, criarUsuarioExterno, editarUsuarioExterno, excluirUsuarioExterno } = useAuth()
-  const navigate = useNavigate()
+  const { criarUsuarioExterno, editarUsuarioExterno, excluirUsuarioExterno } = useAuth()
 
   const [users, setUsers] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
@@ -238,31 +236,15 @@ export function AdminUsuariosPage() {
   }
 
   return (
-    <div className="mr-demo">
-      <header className="mr-demo-bar">
-        <span>Administração · Acessos</span>
-        <div className="mr-demo-actions">
-          <button
-            type="button"
-            onClick={() => {
-              clearSite()
-              navigate('/login')
-            }}
-          >
-            Trocar sistema
-          </button>
-          <button type="button" onClick={() => void signOut()}>Sair</button>
-        </div>
-      </header>
-
-      <div className="main-content-body" style={{ flex: 1, overflow: 'auto' }}>
+    <div className="admin-users-page">
+      <div>
         <div className="page-header">
           <div>
             <h1 className="page-title">Usuários</h1>
             <p className="page-subtitle">
               Lista todo mundo cadastrado no Sistema Nerites. O Nerites continua do mesmo jeito —
               aqui você só libera (ou tira) o acesso de cada um à Assessoria MB, ao Painel do Mandato
-              e à Empresas, e cadastra logins novos que só servem pra esses outros sistemas.
+               e a Empresas, e cadastra logins novos que só servem para esses outros sistemas.
             </p>
           </div>
           <div className="page-header-actions">
