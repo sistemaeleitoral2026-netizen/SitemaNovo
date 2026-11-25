@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="css/layout.css">
 <link rel="stylesheet" href="css/tema.css">
 <link rel="stylesheet" href="css/contas.css">
+<link rel="stylesheet" href="css/pagamentos.css">
 </head>
 <body>
 <a class="skip-link" href="#mainContent">Ir para o conteúdo</a>
@@ -224,31 +225,24 @@
             <div class="seg-tabs" id="taskTabs" role="tablist" aria-label="Visualização"></div>
             <button class="btn btn-primary btn-sm" data-open="task" data-admin-only id="taskNewBtn"><svg class="i i-sm"><use href="#i-plus"/></svg><span>Novo pagamento</span></button>
           </div>
-          <div class="toolbar task-filters">
-            <div class="search"><svg class="i"><use href="#i-search"/></svg>
-              <input class="input" id="tq" placeholder="Buscar título, pessoa, conta…" aria-label="Buscar"></div>
-            <select class="select" id="tfStatus" aria-label="Situação"></select>
-            <button type="button" class="btn btn-sm" id="tfMore" aria-expanded="false" aria-controls="tfMorePanel"><svg class="i i-sm"><use href="#i-settings"/></svg>Mais filtros</button>
-            <button type="button" class="btn btn-sm" id="tfClear" title="Limpar filtros">Limpar filtros</button>
-          </div>
-          <div class="toolbar task-filters task-filters-more" id="tfMorePanel" hidden>
-            <select class="select" id="tfFreq" aria-label="Frequência">
-              <option value="all">Toda frequência</option>
-              <option value="mensal">Mensal</option>
-              <option value="periodico">A cada N meses</option>
-              <option value="anual">Anual</option>
-              <option value="unica">Única</option>
-            </select>
-            <select class="select" id="tfValor" aria-label="Valor">
-              <option value="all">Todo valor</option>
-              <option value="fixo">Valor fixo</option>
-              <option value="variavel">Valor variável</option>
-            </select>
-            <select class="select" id="tfState" aria-label="Cadastro">
-              <option value="all">Todo cadastro</option>
-              <option value="ativa">Ativos</option>
-              <option value="pausada">Pausados</option>
-            </select>
+          <div class="toolbar task-filters" id="taskFilters">
+            <label class="tf-field tf-search"><span>Buscar</span>
+              <span class="search"><svg class="i"><use href="#i-search"/></svg><input class="input" id="tq" placeholder="Buscar conta, pessoa ou conta bancária..." aria-label="Buscar"></span></label>
+            <label class="tf-field" id="tfStatusField"><span>Situação</span><select class="select" id="tfStatus" aria-label="Situação"></select></label>
+            <label class="tf-field tf-extra" id="tfFreqField"><span>Frequência</span>
+              <select class="select" id="tfFreq" aria-label="Frequência">
+                <option value="all">Todas</option><option value="mensal">Mensal</option><option value="periodico">A cada N meses</option><option value="anual">Anual</option><option value="unica">Única</option>
+              </select></label>
+            <label class="tf-field tf-extra"><span>Valor</span>
+              <select class="select" id="tfValor" aria-label="Valor">
+                <option value="all">Todos</option><option value="fixo">Valor fixo</option><option value="variavel">Valor variável</option>
+              </select></label>
+            <label class="tf-field tf-extra"><span>Cadastro</span>
+              <select class="select" id="tfState" aria-label="Cadastro">
+                <option value="all">Todos</option><option value="ativa">Ativos</option><option value="pausada">Pausados</option>
+              </select></label>
+            <button type="button" class="btn tf-btn" id="tfMore" aria-expanded="true"><svg class="i i-sm"><use href="#i-settings"/></svg>Mais filtros</button>
+            <button type="button" class="btn tf-btn" id="tfClear" title="Limpar filtros"><svg class="i i-sm"><use href="#i-x"/></svg>Limpar filtros</button>
           </div>
           <div id="taskBody"></div>
         </div>

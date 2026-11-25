@@ -254,7 +254,8 @@
   const taskTabs = { pagamento: 'open', cobranca: 'open', documentacao: 'pend' }; // aba escolhida por tipo
   let taskTab = 'open';
   let taskPage = 1;
-  const TASK_PAGE = 12;
+  const TASK_PAGE = 8;
+  let taskSort = { key: null, dir: 1 };
   let reportTab = 'pagamentos';
   let chartMode = 'line';
   try { chartMode = localStorage.getItem('mf:chart') || 'line'; } catch { /* */ }
@@ -903,7 +904,7 @@
     if (!total) return '';
     const start = (taskPage - 1) * TASK_PAGE + 1;
     const end = Math.min(taskPage * TASK_PAGE, total);
-    if (pages === 1) return `<div class="task-pager"><span class="t-muted">${total} item(ns)</span></div>`;
+    const noun = { pagamento: 'pagamentos', cobranca: 'cobranças', documentacao: 'pendências' }[taskView] || 'itens';
     const btns = [];
     for (let i = 1; i <= pages; i++) {
       if (pages > 7 && i !== 1 && i !== pages && Math.abs(i - taskPage) > 2) {
@@ -913,16 +914,33 @@
       btns.push(i);
     }
     return `<div class="task-pager">
-      <span class="t-muted">${start}–${end} de ${total}</span>
+      <span class="t-muted">Mostrando ${start}–${end} de ${total} ${noun}</span>
       <div class="task-pager-btns">
-        <button type="button" class="btn btn-sm" data-task-page="${taskPage - 1}" ${taskPage <= 1 ? 'disabled' : ''} aria-label="Anterior">‹</button>
+        <button type="button" class="pg-btn" data-task-page="${taskPage - 1}" ${taskPage <= 1 ? 'disabled' : ''} aria-label="Anterior">${icon('chevron-down', 'i-sm pg-prev')}</button>
         ${btns.map(i => i === '…'
           ? '<span class="t-muted">…</span>'
-          : `<button type="button" class="btn btn-sm ${i === taskPage ? 'on' : ''}" data-task-page="${i}">${i}</button>`).join('')}
-        <button type="button" class="btn btn-sm" data-task-page="${taskPage + 1}" ${taskPage >= pages ? 'disabled' : ''} aria-label="Próxima">›</button>
+          : `<button type="button" class="pg-btn ${i === taskPage ? 'on' : ''}" data-task-page="${i}">${i}</button>`).join('')}
+        <button type="button" class="pg-btn" data-task-page="${taskPage + 1}" ${taskPage >= pages ? 'disabled' : ''} aria-label="Próxima">${icon('chevron-down', 'i-sm pg-next')}</button>
       </div>
     </div>`;
   }
+
+  /** Ordenação pelos cabeçalhos da tabela de pagamentos/cobranças. */
+  const SORTERS = {
+    title: o => o.task.title.toLowerCase(),
+    target: o => taskTarget(o.task).toLowerCase(),
+    value: o => (isMoneyDone(o.done) && o.done.amount != null ? o.done.amount : o.task.expected ?? -1),
+    period: o => o.period,
+    due: o => o.to,
+    status: o => STATUS_LABEL[o.status] || '',
+    issuer: o => taskIssuer(o.task).toLowerCase(),
+  };
+  function sortOcc(list) {
+    const f = SORTERS[taskSort.key];
+    if (!f) return list;
+    return list.slice().sort((a, b) => { const x = f(a), y = f(b); return (x > y ? 1 : x < y ? -1 : 0) * taskSort.dir; });
+  }
+  const sortTh = (key, label, cls = '') => `<th class="th-sort ${cls} ${taskSort.key === key ? 'is-sorted' : ''}"><button type="button" data-tsort="${key}">${label}<span class="sort-ico">${taskSort.key === key ? (taskSort.dir > 0 ? '↑' : '↓') : '⇅'}</span></button></th>`;
 
   function pageSlice(list) {
     const pages = Math.max(1, Math.ceil(list.length / TASK_PAGE));
@@ -952,8 +970,8 @@
         : (lastPaidAmount(o.task.id) != null ? `≈ último ${money(lastPaidAmount(o.task.id))}` : 'valor variável');
       return `<div class="${cls}">
         <div class="due-banner-main">
-          <strong>${esc(dueHeadline(o))}</strong>
-          <span class="due-banner-meta">${esc(KIND_LABEL[kind])}${valor ? ` · ${valor}` : ''} · ${windowLabel(o)}</span>
+          ${icon('info', 'due-ico')}<strong>${esc(dueHeadline(o))}</strong>
+          <span class="due-banner-meta">— ${esc(KIND_LABEL[kind])}${valor ? ` · ${valor}` : ''} · ${o.from === o.to ? `dia ${+o.to.slice(8)} de ${MONTHS_FULL[+o.to.slice(5, 7) - 1].toLowerCase()}` : windowLabel(o)}</span>
         </div>
         <div class="due-banner-actions">${launchBtn(o)}</div>
       </div>`;
@@ -1086,10 +1104,11 @@
     return '<span class="tag st-ativa">Ativo</span>';
   }
 
-  function valueCell(o) {
+  function valueCell(o, plain = false) {
     const t = o.task, d = o.done;
-    if (isMoneyDone(d) && d.amount != null) return `<span class="num">${money(d.amount)}</span>`;
-    if (t.expected != null) return `<span class="num">${money(t.expected)}</span>`;
+    const m = v => plain ? money(v).replace(/^(-?\s*)R\$\s?/, '$1') : money(v);
+    if (isMoneyDone(d) && d.amount != null) return `<span class="num">${m(d.amount)}</span>`;
+    if (t.expected != null) return `<span class="num">${m(t.expected)}</span>`;
     const last = lastPaidAmount(t.id);
     return last != null
       ? `<span class="tag var">Variável</span> <span class="t-muted">último ${money(last)}</span>`
@@ -1141,26 +1160,26 @@
     const kind = taskView, isDoc = kind === 'documentacao';
     if (!list.length) return emptyTasks(emptyMsg);
     const st = $('#tfStatus')?.value || 'all';
-    const filtered = list.filter(o => taskMatchesFilters(o.task) && (isDoc || st === 'all' || o.status === st));
+    const filtered = sortOcc(list.filter(o => taskMatchesFilters(o.task) && (isDoc || st === 'all' || o.status === st)));
     if (!filtered.length) return `<div class="task-empty">${icon('search')}Nada com esses filtros.</div>`;
     const rows = pageSlice(filtered).map(o => {
       const t = o.task;
-      const otherMonth = !isDoc && !showMonth && o.period !== period ?` <span class="tag rec">${monthLabel(o.period)}</span>` : '';
       return `<tr class="occ-row st-${o.status}">
-        <td class="sheet-cell sheet-title">${esc(t.title)}${otherMonth}<div class="sheet-due">${esc(recLabel(t))}${t.account && !isDoc ? ` · ${esc(accName(t.account))}` : ''}</div></td>
-        <td class="sheet-cell">${esc(taskTarget(t))}</td>
-        ${isDoc ? '' : `<td class="sheet-cell t-right">${valueCell(o)}</td>`}
+        <td class="sheet-cell sheet-title">${esc(t.title)}<div class="sheet-due">${esc(recLabel(t))}${t.account && !isDoc ? ` · ${esc(accName(t.account))}` : ''}</div></td>
+        <td class="sheet-cell occ-target">${esc(taskTarget(t))}</td>
+        ${isDoc ? '' : `<td class="sheet-cell t-right occ-val">${valueCell(o, true)}</td>`}
+        ${isDoc ? '' : `<td class="sheet-cell occ-month">${monthLabel(o.period)}</td>`}
+        <td class="sheet-cell occ-due"><strong>${windowLabel(o)}</strong><div class="sheet-due">${esc(occNote(o))}</div></td>
         <td class="sheet-cell">${statusTag(o.status)}</td>
-        <td class="sheet-cell">${windowLabel(o)}<div class="sheet-due">${esc(occNote(o))}</div></td>
-        ${showMonth ? `<td class="sheet-cell t-muted">${monthLabel(o.period)}</td>` : ''}
-        <td class="sheet-cell t-muted">${esc(taskIssuer(t))}</td>
+        <td class="sheet-cell occ-issuer">${esc(taskIssuer(t)) || '—'}</td>
         <td class="sheet-cell"><div class="sheet-actions">${occActions(o)}${adminTaskActions(t)}</div></td>
       </tr>`;
     }).join('');
-    return `<div class="table-wrap sheet-wrap"><table class="sheet">
+    return `<div class="table-wrap sheet-wrap occ-wrap"><table class="sheet occ-sheet">
       <thead><tr>
-        <th>${isDoc ? 'Pendência' : 'Conta'}</th><th>${PERSON_COL[kind]}</th>${isDoc ? '' : '<th class="t-right">Valor</th>'}
-        <th>Situação</th><th>Prazo</th>${showMonth ? '<th>Mês</th>' : ''}<th>Cadastrado por</th><th>Ação</th>
+        ${sortTh('title', isDoc ? 'Pendência' : 'Conta')}${sortTh('target', PERSON_COL[kind])}
+        ${isDoc ? '' : sortTh('value', 'Valor (R$)', 't-right')}${isDoc ? '' : sortTh('period', 'Mês')}
+        ${sortTh('due', 'Prazo')}${sortTh('status', 'Situação')}${sortTh('issuer', 'Cadastrado por')}<th>Ação</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table></div>${taskPagerHtml(filtered.length)}`;
@@ -1245,8 +1264,8 @@
       .sort((a, b) => `${b.done?.date || b.to} ${b.done?.time || ''}`.localeCompare(`${a.done?.date || a.to} ${a.done?.time || ''}`));
   }
 
-  function kpi(label, value, foot, cls = '') {
-    return `<div class="kpi"><div class="kpi-label">${label}</div><div class="kpi-value num ${cls}">${value}</div><div class="kpi-foot">${foot}</div></div>`;
+  function kpi(label, value, foot, cls = '', ico = '') {
+    return `<div class="kpi">${ico ? `<span class="kpi-ico ${ico.split(':')[0]}">${icon(ico.split(':')[1])}</span>` : ''}<div class="kpi-txt"><div class="kpi-label">${label}</div><div class="kpi-value num ${cls}">${value}</div><div class="kpi-foot">${foot}</div></div></div>`;
   }
 
   function renderTaskKpis() {
@@ -1267,7 +1286,10 @@
     const inMonthL = all.filter(o => o.period === period && o.status !== 'dispensada');
     const late = all.filter(o => o.status === 'atrasada');
     const done = inMonthL.filter(o => isMoneyDone(o.done));
-    const open = inMonthL.filter(o => !o.done);
+    // No mês atual, "a pagar" é o mesmo que a aba "A fazer" (atrasados + este mês + próximo mês)
+    const open = period === currentMonth()
+      ? openOccurrences(kind).filter(o => o.status !== 'dispensada')
+      : inMonthL.filter(o => !o.done);
     const exp = l => l.reduce((s, o) => s + (o.task.expected || 0), 0);
     const doneSum = done.reduce((s, o) => s + (o.done.amount || 0), 0);
     const vars = open.filter(o => o.task.expected == null).length;
@@ -1275,13 +1297,13 @@
     const n = (c, s, p) => `${c} ${c === 1 ? s : p}`;
     $('#taskKpis').innerHTML =
       kpi(isCharge ? 'Previsto a receber' : 'Previsto no mês', money(doneSum + exp(open)),
-        `${n(inMonthL.length, isCharge ? 'cobrança' : 'conta', isCharge ? 'cobranças' : 'contas')} em ${mes}`)
+        `${n(done.length + open.length, isCharge ? 'cobrança' : 'conta', isCharge ? 'cobranças' : 'contas')}`, '', 'is-blue:cat-coins')
       + kpi(isCharge ? 'Já recebido' : 'Já pago', money(doneSum),
-        n(done.length, 'registro', 'registros'), 'delta-pos')
+        `${n(done.length, 'registro', 'registros')} em ${mes}`, 'delta-pos', 'is-green:check')
       + kpi(isCharge ? 'A receber' : 'A pagar', money(exp(open)),
-        `${n(open.length, 'pendente', 'pendentes')}${vars ? ` · ${n(vars, 'variável', 'variáveis')}` : ''}`)
+        `${n(open.length, 'pendente', 'pendentes')}${vars ? ` · ${n(vars, 'variável', 'variáveis')}` : ''}`, '', 'is-red:ph-calendar-blank')
       + kpi('Atrasados', n(late.length, isCharge ? 'cobrança' : 'pagamento', isCharge ? 'cobranças' : 'pagamentos'),
-        late.length ? `${money(exp(late))} previstos` : 'nada atrasado', late.length ? 'delta-neg' : '');
+        late.length ? `${money(exp(late))} previstos` : 'nada atrasado', late.length ? 'delta-neg' : '', 'is-red:clock');
   }
 
   function syncTaskToolbar() {
@@ -1295,20 +1317,23 @@
         : taskTab === 'done'
           ? [kind === 'cobranca' ? 'cobrada' : 'paga']
           : STATUS_BY_KIND[kind];
-      sel.innerHTML = '<option value="all">Todas as situações</option>'
+      sel.innerHTML = '<option value="all">Todas</option>'
         + opts.map(s => `<option value="${s}">${STATUS_LABEL[s]}</option>`).join('');
       sel.value = opts.includes(cur) ? cur : 'all';
       sel.dataset.kind = statusContext;
     }
-    if (sel) sel.hidden = isDoc;
+    $('#tfStatusField').hidden = isDoc;
     $('#tfMore').hidden = isDoc;
-    if (isDoc) $('#tfMorePanel').hidden = true;
-    const freq = $('#tfFreq');
-    if (freq) freq.hidden = taskTab === 'once';
+    $('#taskFilters').classList.toggle('is-doc', isDoc);
+    $('#tfFreqField').hidden = taskTab === 'once';
     $('#taskNewBtn span').textContent = NEW_LABEL[kind];
-    $('#tq').placeholder = isDoc ? 'Buscar pendência ou responsável…' : 'Buscar conta, pessoa, banco…';
+    $('#tq').placeholder = isDoc ? 'Buscar pendência ou responsável...' : 'Buscar conta, pessoa ou conta bancária...';
+    const counts = isDoc ? {} : {
+      open: openOccurrences(kind).filter(o => o.status !== 'dispensada').length,
+      done: completedOccurrences(kind).length,
+    };
     $('#taskTabs').innerHTML = TASK_TABS[kind]
-      .map(([id, label]) => `<button type="button" data-ttab="${id}" class="${id === taskTab ? 'on' : ''}">${label}</button>`).join('');
+      .map(([id, label]) => `<button type="button" data-ttab="${id}" class="${id === taskTab ? 'on' : ''}">${label}${counts[id] != null ? ` (${counts[id]})` : ''}</button>`).join('');
   }
 
   function renderTasks() {
@@ -1333,8 +1358,8 @@
       const list = openOccurrences(kind).sort(occSort);
       const next = monthLabel(addMonths(currentMonth(), 1));
       const label = kind === 'cobranca' ? 'a receber' : 'a pagar';
-      html = `<div class="task-window-note">${icon('calendar-clock', 'i-sm')}<span>Mostrando atrasados e tudo ${label} até o fim de <strong>${esc(next)}</strong>. Itens concluídos saem desta lista.</span></div>`
-        + occurrencesSheet(list, `Nada ${label} neste mês nem no próximo.`, { showMonth: true });
+      void next;
+      html = occurrencesSheet(list, `Nada ${label} neste mês nem no próximo.`, { showMonth: true });
     } else if (taskTab === 'done') {
       html = occurrencesSheet(completedOccurrences(kind), kind === 'cobranca' ? 'Nenhum recebimento concluído.' : 'Nenhum pagamento concluído.', { showMonth: true });
     } else if (taskTab === 'rec') {
@@ -2589,6 +2614,12 @@
       if (status) status.value = 'all';
       renderTasks();
     }
+    else if (b.dataset.tsort) {
+      const k = b.dataset.tsort;
+      taskSort = taskSort.key === k ? { key: k, dir: -taskSort.dir } : { key: k, dir: 1 };
+      taskPage = 1;
+      renderTasks();
+    }
     else if (b.dataset.taskPage) {
       const p = Number(b.dataset.taskPage);
       if (Number.isFinite(p) && p >= 1 && !b.disabled) { taskPage = p; renderTasks(); }
@@ -2676,8 +2707,9 @@
   $('#tfClear')?.addEventListener('click', clearTaskFilters);
   // Filtros menos usados ficam recolhidos em "Mais filtros"
   $('#tfMore')?.addEventListener('click', e => {
-    const panel = $('#tfMorePanel'), open = panel.hidden;
-    panel.hidden = !open;
+    const box = $('#taskFilters');
+    box.classList.toggle('tf-toggled');
+    const open = getComputedStyle($('#tfFreqField')).display !== 'none' || getComputedStyle(box.querySelector('.tf-extra:not(#tfFreqField)')).display !== 'none';
     e.currentTarget.setAttribute('aria-expanded', String(open));
     e.currentTarget.classList.toggle('on', open);
   });
