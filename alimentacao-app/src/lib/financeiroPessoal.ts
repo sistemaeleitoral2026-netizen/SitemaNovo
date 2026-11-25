@@ -11,7 +11,10 @@ import { supabase } from './supabase'
 const BUCKET = 'fp-comprovantes'
 
 /* ---------- Estado no formato do iframe ---------- */
-export type FpAccount = { id: string; name: string; type: string; initial: number; createdBy?: string | null }
+export type FpAccount = { id: string; name: string; type: string; initial: number; bank?: string; createdBy?: string | null }
+
+/** A coluna fp_contas.banco só existe depois do SQL 20261125_fp_contas_banco.sql; sem ela o banco é deduzido do nome. */
+let temColunaBanco = false
 export type FpCheck = { id: string; accId: string; date: string; time: string; balance: number; by: string; createdBy?: string | null }
 export type FpTx = {
   id: string; date: string; time?: string | null; amount: number; kind: 'income' | 'expense'
@@ -97,6 +100,7 @@ export function estadoParaLinhas(s: FpState): FpRows {
   return {
     fp_contas: s.accounts.map((a, i) => ({
       id: a.id, nome: a.name, tipo: a.type, saldo_inicial: Number(a.initial) || 0, ordem: i,
+      ...(temColunaBanco ? { banco: a.bank || null } : {}),
     })),
     fp_investimentos: s.investments.map((i) => ({
       id: i.id, nome: i.name, tipo: i.type, instituicao: i.institution || '',
@@ -166,6 +170,8 @@ export async function carregarFinanceiroPessoal(): Promise<{ estado: FpState; li
     supabase.from('fp_anexos').select('id,entidade,entidade_id,created_at').eq('entidade', 'lancamento').order('created_at'),
     supabase.from('fp_config').select('chave,valor'),
   ])
+  const testeBanco = await supabase.from('fp_contas').select('banco').limit(1)
+  temColunaBanco = !testeBanco.error
   const erro = res.find((r) => r.error)?.error
   if (erro) {
     const msg = String(erro.message || '')
@@ -182,6 +188,7 @@ export async function carregarFinanceiroPessoal(): Promise<{ estado: FpState; li
   const estado: FpState = {
     accounts: contas.filter((c) => c.ativo !== false).map((c) => ({
       id: String(c.id), name: String(c.nome), type: String(c.tipo), initial: Number(c.saldo_inicial) || 0, createdBy: (c.created_by as string) ?? null,
+      ...(c.banco ? { bank: String(c.banco) } : {}),
     })),
     investments: invs.filter((i) => i.ativo !== false).map((i) => ({
       id: String(i.id), name: String(i.nome), type: String(i.tipo), institution: String(i.instituicao || ''),

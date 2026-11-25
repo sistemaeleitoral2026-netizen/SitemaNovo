@@ -1,0 +1,7 @@
+Logos dos bancos (Wikimedia Commons). Marcas registradas dos respectivos bancos; usadas so para identificar a conta de cada banco.
+- caixa.svg: File:Caixa Econômica Federal logo 1997.svg
+- bb.svg: File:Banco do Brasil logo.svg
+- inter.svg: File:Inter logo 2020.svg
+- nubank.svg: File:Nubank logo 2021.svg
+- bradesco.svg: File:Banco Bradesco logo.svg
+Os arquivos *-branco.svg sao as mesmas logos com a cor trocada para branco (para o cabecalho colorido do cartao).

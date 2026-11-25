@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="css/tarefas.css">
 <link rel="stylesheet" href="css/layout.css">
 <link rel="stylesheet" href="css/tema.css">
+<link rel="stylesheet" href="css/contas.css">
 </head>
 <body>
 <a class="skip-link" href="#mainContent">Ir para o conteúdo</a>
@@ -285,27 +286,37 @@
 
       <!-- ============ CONTAS ============ -->
       <section class="view" id="view-accounts">
-        <div class="block account-overview" id="accKpis" aria-label="Resumo das contas"></div>
-        <div class="block">
-          <div class="block-head">
-            <div><div class="block-title">Contas</div><div class="block-meta">Comparação dos saldos e da última conferência de cada conta</div></div>
-            <div class="head-right">
-              <button class="btn btn-primary" data-open="account"><svg class="i"><use href="#i-plus"/></svg>Nova conta</button>
+        <div class="block acc-strip" id="accKpis" aria-label="Resumo das contas"></div>
+
+        <div class="block acc-main">
+          <div class="acc-toolbar">
+            <div class="acc-tabs" role="tablist" aria-label="Visualização">
+              <button type="button" class="acc-tab on" data-acc-tab="cards"><svg class="i"><use href="#i-ph-bank"/></svg><span>Minhas contas (<b id="accCount">0</b>)</span></button>
+              <button type="button" class="acc-tab" data-acc-tab="history"><svg class="i"><use href="#i-clock"/></svg><span>Histórico de conferências</span></button>
             </div>
+            <div class="acc-search"><svg class="i"><use href="#i-search"/></svg><input class="input" id="accQ" placeholder="Buscar conta ou instituição..." aria-label="Buscar conta ou instituição"></div>
+            <select class="select" id="accTypeFilter" aria-label="Tipo de conta">
+              <option value="all">Todas as contas</option><option>Conta corrente</option><option>Poupança</option><option>Conta digital</option><option>Dinheiro em espécie</option>
+            </select>
+            <button class="btn btn-primary" data-open="account"><svg class="i"><use href="#i-ph-plus"/></svg>Nova conta</button>
           </div>
-          <div class="account-guidance"><svg class="i i-sm"><use href="#i-info"/></svg><span><strong>Saldo atual</strong> = último saldo conferido no banco + lançamentos registrados depois da conferência.</span></div>
-          <div id="accFull"></div>
-        </div>
-        <div class="block">
-          <div class="block-head">
-            <div><div class="block-title">Histórico de conferências</div><div class="block-meta">Cada saldo informado, a diferença encontrada e quem verificou</div></div>
-            <select class="select" id="fAccCheck" aria-label="Filtrar conta"></select>
+
+          <div class="acc-cards-wrap" id="accCardsWrap">
+            <div class="bank-cards" id="accFull"></div>
+            <div class="acc-note"><svg class="i i-sm"><use href="#i-info"/></svg><span><strong>Saldo atual</strong> = último saldo conferido no banco + lançamentos registrados depois da conferência.</span></div>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Data</th><th>Hora</th><th>Conta</th><th class="t-right">Saldo informado</th><th class="t-right">Calculado pelo sistema</th><th class="t-right">Diferença</th><th>Verificado por</th><th></th></tr></thead>
-              <tbody id="accCheckRows"></tbody>
-            </table>
+
+          <div class="acc-history" id="accHistory">
+            <div class="block-head">
+              <div class="bh"><span class="bh-ico"><svg class="i"><use href="#i-clock"/></svg></span><div><div class="block-title">Histórico de conferências</div><div class="block-meta">Cada saldo informado, a diferença encontrada e quem verificou</div></div></div>
+              <select class="select" id="fAccCheck" aria-label="Filtrar conta"></select>
+            </div>
+            <div class="table-wrap acc-hist-wrap">
+              <table class="acc-hist">
+                <thead><tr><th>Data</th><th>Hora</th><th>Conta</th><th class="t-right">Saldo informado</th><th class="t-right">Calculado pelo sistema</th><th class="t-center">Diferença</th><th class="t-center">Verificado por</th><th class="t-center">Ações</th></tr></thead>
+                <tbody id="accCheckRows"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
@@ -421,7 +432,14 @@
       <button type="button" class="icon-btn" data-close aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button></div>
     <div class="modal-body">
       <input type="hidden" id="accId">
-      <div class="field full"><label for="accName">Instituição</label><input class="input" id="accName" required maxlength="40" placeholder="Ex.: Inter, Caixa, carteira"></div>
+      <div class="field full"><label for="accBank">Banco</label>
+        <select class="select" id="accBank">
+          <option value="">Escolher pelo nome da conta</option>
+          <option value="caixa">Caixa</option><option value="bb">Banco do Brasil</option><option value="inter">Inter</option>
+          <option value="nubank">Nubank</option><option value="bradesco">Bradesco</option><option value="outro">Outro banco</option>
+        </select></div>
+      <div class="field full"><div class="bank-preview" id="accPreview"></div></div>
+      <div class="field full"><label for="accName">Nome da conta</label><input class="input" id="accName" required maxlength="40" placeholder="Ex.: Caixa, Banco Inter, Carteira"></div>
       <div class="field"><label for="accType">Tipo</label>
         <select class="select" id="accType"><option>Conta corrente</option><option>Poupança</option><option>Conta digital</option><option>Dinheiro em espécie</option></select></div>
       <div class="field"><label for="accInitial">Saldo inicial (R$) <span class="opt">— para negativo, digite -</span></label><input class="input num money" id="accInitial" type="text" inputmode="numeric" autocomplete="off" data-money data-negative placeholder="0,00"></div>

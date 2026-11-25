@@ -1899,47 +1899,99 @@
   }
   const whenTxt = c => `${fullDate(c.date)} às ${c.time}`;
 
+  /* ---------- Bancos: logo e cores do cartão ---------- */
+  const BANKS = {
+    caixa: { name: 'Caixa', logo: 'caixa-branco', chip: 'caixa', color: '#0a5bb5' },
+    bb: { name: 'Banco do Brasil', logo: 'bb', chip: 'bb', color: '#f2c500' },
+    inter: { name: 'Inter', logo: 'inter-branco', chip: 'inter', color: '#ff7a00' },
+    nubank: { name: 'Nubank', logo: 'nubank-branco', chip: 'nubank', color: '#820ad1' },
+    bradesco: { name: 'Bradesco', logo: 'bradesco-branco', chip: 'bradesco', color: '#cc092f' },
+    carteira: { name: 'Carteira', color: '#13894f' },
+    outro: { name: 'Banco', color: '#1d3f7a' },
+  };
+  function bankOf(a) {
+    if (!a) return 'outro';
+    if (a.type === 'Dinheiro em espécie') return 'carteira';
+    if (a.bank && BANKS[a.bank]) return a.bank;
+    const n = (a.name || '').toLowerCase();
+    if (/caixa/.test(n)) return 'caixa';
+    if (/banco do brasil|\bbb\b/.test(n)) return 'bb';
+    if (/nubank|\bnu\b/.test(n)) return 'nubank';
+    if (/bradesco/.test(n)) return 'bradesco';
+    if (/inter\b/.test(n)) return 'inter';
+    return 'outro';
+  }
+  const bankLogo = (id, white = true) => `assets/bancos/${white ? BANKS[id].logo : BANKS[id].chip}.svg`;
+  function bankHead(id, a) {
+    const b = BANKS[id];
+    if (b.logo) return `<img class="bank-logo bank-logo-${id}" src="${bankLogo(id)}" alt="${b.name}">`;
+    return `<span class="bank-word">${icon(id === 'carteira' ? 'ph-wallet' : 'ph-bank')}<span>${id === 'carteira' ? 'Carteira' : esc(a?.name || 'Banco')}</span></span>`;
+  }
+  function bankChip(a) {
+    const id = bankOf(a), b = BANKS[id];
+    return b.chip
+      ? `<span class="bank-chip bank-chip-${id}"><img src="${bankLogo(id, false)}" alt=""></span>`
+      : `<span class="bank-chip" style="background:${b.color}">${icon(id === 'carteira' ? 'ph-wallet' : 'ph-bank', 'i-sm')}</span>`;
+  }
+  let accTab = 'cards';
+
   function renderAccounts(k) {
     const total = totalBalance(k);
     const last = state.accChecks.slice().sort((a, b) => chkStamp(b).localeCompare(chkStamp(a)))[0];
+    const list = inMonth(k);
+    const inc = sum(list, 'income'), exp = sum(list, 'expense'), net = inc - exp;
     $('#accKpis').innerHTML = `
-      <div class="account-total-panel">
-        <div class="invest-eyebrow">Saldo total em contas</div>
-        <div class="invest-total-value num ${total < 0 ? 'delta-neg' : ''}">${money(total)}</div>
-        <div class="invest-total-meta">${state.accounts.length} conta${state.accounts.length === 1 ? ' cadastrada' : 's cadastradas'}</div>
+      <div class="acc-kpi acc-kpi-main">
+        <span class="acc-kpi-big-ico">${icon('ph-bank')}</span>
+        <div><div class="acc-kpi-label">Saldo total em contas</div>
+          <div class="acc-kpi-total"><strong class="num ${total < 0 ? 'delta-neg' : ''}">${money(total)}</strong>
+          <span class="acc-kpi-chip ${net < 0 ? 'is-neg' : ''}">${icon(net < 0 ? 'arrow-down-left' : 'arrow-up-right', 'i-sm')}${net < 0 ? '−' : '+'} ${money(Math.abs(net))}</span><span class="acc-kpi-sub">no mês</span></div></div>
       </div>
-      <div class="account-update-panel">
-        <div class="invest-eyebrow">Última conferência</div>
-        <div class="invest-update-date num">${last ? whenTxt(last) : 'Nenhuma conferência'}</div>
-        <div class="invest-total-meta">${last ? `${esc(accName(last.accId))} · verificado por ${esc(last.by)}` : 'Informe o saldo de uma conta para iniciar a conferência.'}</div>
-      </div>`;
+      <div class="acc-kpi"><span class="acc-kpi-ico">${icon('ph-stack')}</span><div><div class="acc-kpi-label">Total de contas</div><div class="acc-kpi-val num">${state.accounts.length}</div></div></div>
+      <div class="acc-kpi"><span class="acc-kpi-ico is-in">${icon('arrow-up-right')}</span><div><div class="acc-kpi-label">Entradas (mês)</div><div class="acc-kpi-val num">${money(inc)}</div></div></div>
+      <div class="acc-kpi"><span class="acc-kpi-ico is-out">${icon('arrow-down-left')}</span><div><div class="acc-kpi-label">Saídas (mês)</div><div class="acc-kpi-val num">${money(exp)}</div></div></div>
+      <div class="acc-kpi acc-kpi-last"><span class="acc-kpi-ico">${icon('ph-calendar-blank')}</span><div><div class="acc-kpi-label">Última conferência</div><div class="acc-kpi-when num">${last ? whenTxt(last) : 'Nenhuma ainda'}</div></div></div>`;
 
-    const accountRows = state.accounts.map(a => {
+    $('#accCount').textContent = state.accounts.length;
+    $$('[data-acc-tab]').forEach(b => b.classList.toggle('on', b.dataset.accTab === accTab));
+    $('#accCardsWrap').hidden = accTab !== 'cards';
+
+    const q = ($('#accQ').value || '').trim().toLowerCase(), ft = $('#accTypeFilter').value || 'all';
+    const shown = state.accounts.filter(a => (ft === 'all' || a.type === ft)
+      && (!q || `${a.name} ${a.type} ${BANKS[bankOf(a)].name}`.toLowerCase().includes(q)));
+    $('#accFull').innerHTML = shown.map(a => {
+      const id = bankOf(a), b = BANKS[id];
       const bal = accBalance(a, k);
       const lc = checksOf(a.id).at(-1);
-      const after = lc ? Math.round((bal - lc.balance) * 100) / 100 : null;
-      return `<tr class="account-sheet-row">
-        <td class="sheet-cell sheet-title"><span class="account-name-cell">${icon(a.type === 'Dinheiro em espécie' ? 'wallet' : 'landmark', 'i-sm')}${esc(a.name)}</span></td>
-        <td class="sheet-cell"><span class="tag rec">${esc(a.type)}</span></td>
-        <td class="sheet-cell t-right"><strong class="num ${bal < 0 ? 'delta-neg' : ''}">${money(bal)}</strong></td>
-        <td class="sheet-cell t-right">${lc ? `<span class="num">${money(lc.balance)}</span>` : '<span class="t-muted">—</span>'}</td>
-        <td class="sheet-cell t-right">${lc ? resultMoney(after) : '<span class="t-muted">sem conferência</span>'}</td>
-        <td class="sheet-cell">${lc ? `${fullDate(lc.date)}<small>${lc.time}</small>` : '<span class="t-muted">Nunca</span>'}</td>
-        <td class="sheet-cell">${lc ? `<span class="checked">${icon('user-round', 'i-sm')}${esc(lc.by)}</span>` : '—'}</td>
-        <td class="sheet-cell"><div class="sheet-actions account-sheet-actions">
-          <button class="btn btn-sm btn-primary" data-open="acccheck" data-acc="${a.id}">${icon('pencil-line', 'i-sm')}Informar saldo</button>
-          <button class="icon-btn edit" data-edit-acc="${a.id}" title="Editar conta" aria-label="Editar conta">${icon('settings', 'i-sm')}</button>
-          <button class="icon-btn" data-del-acc="${a.id}" title="Excluir conta" aria-label="Excluir conta">${icon('trash-2', 'i-sm')}</button>
-        </div></td>
-      </tr>`;
-    }).join('');
-    $('#accFull').innerHTML = state.accounts.length
-      ? `<div class="table-wrap sheet-wrap account-sheet-wrap"><table class="sheet account-sheet">
-          <thead><tr><th>Conta</th><th>Tipo</th><th class="t-right">Saldo atual</th><th class="t-right">Último saldo informado</th><th class="t-right">Lançamentos depois</th><th>Última conferência</th><th>Editor</th><th>Ação</th></tr></thead>
-          <tbody>${accountRows}</tbody>
-          <tfoot><tr><td class="sheet-cell" colspan="2"><strong>Total em contas</strong></td><td class="sheet-cell t-right"><strong class="num">${money(total)}</strong></td><td class="sheet-cell" colspan="5"></td></tr></tfoot>
-        </table></div>`
-      : '<div class="empty">Nenhuma conta cadastrada.</div>';
+      const after = state.txs.filter(x => x.account === a.id && (!lc || txStamp(x) > chkStamp(lc))).length;
+      return `<article class="bank-card bank-${id}" style="--bank:${b.color}">
+        <header class="bank-card-head">
+          ${bankHead(id, a)}
+          <span class="bank-type">${esc(a.type)}</span>
+          <div class="bank-more">
+            <button type="button" class="bank-kebab" data-acc-menu="${a.id}" aria-label="Mais ações" aria-expanded="false">${icon('ellipsis')}</button>
+            <div class="bank-menu" hidden>
+              <button type="button" data-open="acccheck" data-acc="${a.id}">${icon('ph-arrows-down-up', 'i-sm')}Informar saldo</button>
+              <button type="button" data-edit-acc="${a.id}">${icon('pencil-line', 'i-sm')}Editar conta</button>
+              <button type="button" class="is-del" data-del-acc="${a.id}">${icon('trash-2', 'i-sm')}Excluir conta</button>
+            </div>
+          </div>
+        </header>
+        <div class="bank-card-body">
+          <div class="bank-name">${esc(a.name)}</div>
+          <div class="bank-bal num ${bal < 0 ? 'is-neg' : ''}">${money(bal)}</div>
+          <div class="bank-info">
+            <div class="bank-info-item">${icon('arrow-up-right')}<div><span>Lançamentos após<br>a conferência</span><strong class="num">${after}</strong></div></div>
+            <div class="bank-info-item">${icon('ph-calendar-blank')}<div><span>Última conferência</span>${lc ? `<strong class="num">${fullDate(lc.date)} ${lc.time}</strong><small>por ${esc(lc.by)}</small>` : '<strong>Nunca</strong><small>sem saldo informado</small>'}</div></div>
+          </div>
+          <div class="bank-actions">
+            <button type="button" class="bank-check" data-open="acccheck" data-acc="${a.id}">${icon('repeat', 'i-sm')}Informar saldo</button>
+            <button type="button" class="bank-icon-btn" data-edit-acc="${a.id}" title="Editar conta" aria-label="Editar conta">${icon('pencil-line', 'i-sm')}</button>
+            <button type="button" class="bank-icon-btn" data-del-acc="${a.id}" title="Excluir conta" aria-label="Excluir conta">${icon('trash-2', 'i-sm')}</button>
+          </div>
+        </div>
+      </article>`;
+    }).join('') || `<div class="empty">${state.accounts.length ? 'Nenhuma conta encontrada com esse filtro.' : 'Nenhuma conta cadastrada. Use “Nova conta”.'}</div>`;
 
     const fa = $('#fAccCheck').value || 'all';
     const rows = state.accChecks.filter(c => fa === 'all' || c.accId === fa)
@@ -1947,17 +1999,28 @@
     $('#accCheckRows').innerHTML = rows.map(c => {
       const a = state.accounts.find(x => x.id === c.accId);
       const calc = a ? balanceAt(a, chkStamp(c), c.id) : 0;
+      const d = Math.round((c.balance - calc) * 100) / 100;
       return `<tr>
         <td class="num">${fullDate(c.date)}</td>
-        <td class="num t-muted">${c.time}</td>
-        <td>${esc(accName(c.accId))}</td>
-        <td class="t-right num amount">${money(c.balance)}</td>
-        <td class="t-right num t-muted">${money(calc)}</td>
-        <td class="t-right">${diffChip(c.balance - calc)}</td>
-        <td><span class="checked">${icon('user-round', 'i-sm')}${esc(c.by)}</span></td>
-        <td class="t-right" style="width:44px"><button class="icon-btn" data-del-check="${c.id}" aria-label="Excluir conferência">${icon('trash-2', 'i-sm')}</button></td>
+        <td class="num">${c.time}</td>
+        <td><span class="acc-hist-name">${bankChip(a)}${esc(accName(c.accId))}</span></td>
+        <td class="t-right num"><strong>${money(c.balance)}</strong></td>
+        <td class="t-right num"><strong>${money(calc)}</strong></td>
+        <td class="t-center"><span class="diff-pill ${Math.abs(d) < 0.005 ? '' : d > 0 ? 'is-pos' : 'is-neg'} num">${Math.abs(d) < 0.005 ? money(0) : signed(d)}</span></td>
+        <td class="t-center">${esc(c.by)}</td>
+        <td class="t-center"><button class="icon-btn" data-del-check="${c.id}" aria-label="Excluir conferência">${icon('trash-2', 'i-sm')}</button></td>
       </tr>`;
     }).join('') || '<tr><td colspan="8" class="empty">Nenhum saldo informado ainda. Use “Informar saldo” para registrar o saldo real da conta.</td></tr>';
+  }
+
+  function renderBankPreview() {
+    const box = $('#accPreview');
+    if (!box) return;
+    const a = { name: $('#accName').value.trim() || 'Nova conta', type: $('#accType').value, bank: $('#accBank').value };
+    const id = bankOf(a);
+    box.style.setProperty('--bank', BANKS[id].color);
+    box.className = `bank-preview bank-${id}`;
+    box.innerHTML = `<div class="bank-card-head">${bankHead(id, a)}<span class="bank-type">${esc(a.type)}</span></div>`;
   }
 
   function updateAccCalc() {
@@ -2458,6 +2521,8 @@
       $('#accId').value = a?.id || '';
       $('#accName').value = a?.name || '';
       $('#accType').value = a?.type || 'Conta corrente';
+      $('#accBank').value = a?.bank || '';
+      renderBankPreview();
       setMoney('#accInitial', a ? a.initial || 0 : '');
     }
     if (name === 'acccheck') {
@@ -2659,7 +2724,7 @@
 
   $('#accForm').addEventListener('submit', e => {
     e.preventDefault();
-    const data = { name: $('#accName').value.trim(), type: $('#accType').value, initial: Math.round((moneyVal('#accInitial') || 0) * 100) / 100 };
+    const data = { name: $('#accName').value.trim(), type: $('#accType').value, bank: $('#accBank').value || '', initial: Math.round((moneyVal('#accInitial') || 0) * 100) / 100 };
     const id = $('#accId').value;
     if (id) Object.assign(state.accounts.find(a => a.id === id), data);
     else state.accounts.push({ ...stamp_(), id: uid(), ...data });
@@ -2680,6 +2745,16 @@
   });
   ['#acAcc', '#acDate', '#acTime', '#acBal'].forEach(s => $(s).addEventListener(s === '#acBal' ? 'input' : 'change', updateAccCalc));
   $('#fAccCheck').addEventListener('change', render);
+  ['#accName', '#accType', '#accBank'].forEach(sel => { $(sel).addEventListener('input', renderBankPreview); $(sel).addEventListener('change', renderBankPreview); });
+  $('#accQ').addEventListener('input', render);
+  $('#accTypeFilter').addEventListener('change', render);
+  document.addEventListener('click', e => {
+    const tab = e.target.closest('[data-acc-tab]');
+    if (tab) { accTab = tab.dataset.accTab; render(); return; }
+    const k = e.target.closest('[data-acc-menu]');
+    $$('.bank-menu').forEach(m => { if (!k || m !== k.nextElementSibling) { m.hidden = true; m.previousElementSibling?.setAttribute('aria-expanded', 'false'); } });
+    if (k) { const m = k.nextElementSibling; m.hidden = !m.hidden; k.setAttribute('aria-expanded', String(!m.hidden)); }
+  });
 
   $('#invForm').addEventListener('submit', e => {
     e.preventDefault();
