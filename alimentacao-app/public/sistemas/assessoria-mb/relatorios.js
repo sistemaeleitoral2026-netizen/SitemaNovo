@@ -203,11 +203,7 @@
       .join("")}</div>`;
     if (state.id)
       html += `<div class="rl-statusbar"><div>${tag(state.status)} &nbsp; <b>${esc(state.title)}</b> &nbsp; <span class="rl-muted">Criado em ${localDate(state.created)}</span></div><div class="rl-actions">${!isEdit ? btn("Criar cópia", "MBRel.cloneReport()", "", "plus") : ""}${btn("Visualizar PDF", "MBRel.printReport()", "", "print")}</div></div>`;
-    if (phase === 1)
-      html +=
-        (state.kind === "medical"
-          ? '<div class="rl-notice"><b>Relatórios médicos:</b> o PSF é referência cadastral. Classifique cada serviço e informe o valor comprovado. Plantonistas e especialistas são exportados separadamente.</div>'
-          : "") + importView();
+    if (phase === 1) html += importView();
     else if (phase === 2) html += state.kind === "medical" ? medicalEditor() : editorView();
     else html += finishView();
     el.innerHTML = html;
@@ -285,7 +281,6 @@
           : ""
       }${state.rows.length ? btn("Conferir lançamentos", "MBRel.go(2)", "", "chev") : ""}</div></div>`,
     );
-    html += `<div class="rl-notice"><b>Conferência necessária:</b> planilhas são lidas automaticamente; PDFs e imagens ficam como anexo para conferência e os lançamentos são preenchidos à mão. Nenhum valor ausente deve ser presumido.</div>`;
     return html;
   }
 
@@ -541,7 +536,6 @@
           [r.name, r.doc, r.ref, r.bank, r.account].join(" ").toLowerCase().includes(query.toLowerCase())),
     );
     let html = metrics();
-    html += `<div class="rl-notice"><b>Pré-visualização editável:</b> altere diretamente os campos da tabela. Linhas destacadas têm campos pendentes, possível duplicidade ou leitura ainda não conferida. O acréscimo segue o truncamento do relatório original.</div>`;
     html += panel(
       "Lançamentos consolidados",
       `${shown.length} de ${state.rows.length} registros · clique nos campos para corrigir`,
@@ -568,7 +562,6 @@
         (!query || [r.name, r.doc, r.ref].join(" ").toLowerCase().includes(query.toLowerCase())),
     );
     let html = metrics();
-    html += `<div class="rl-notice">Os registros de PSF são referências, sem valor contabilizado. Use "Criar plantão" ou "Criar especialidade" para gerar um pagamento a partir do cadastro; não confunda pagamento PSF com plantão ou especialidade. Confira valores e CPFs no original.</div>`;
     html += `<section class="rl-panel"><div class="rl-ph"><div><h2>Prévia editável dos relatórios médicos</h2><div class="rl-muted">Selecione o grupo e corrija os campos diretamente na tabela.</div></div><div class="rl-actions">${editable() ? btn("Adicionar lançamento", "MBRel.addMedical()", "primary", "plus") : ""}</div></div><div class="rl-pb"><div class="rl-actions">${cats
       .map(
         (k) =>
@@ -831,7 +824,6 @@
           : "Consulte os relatórios gerados, rascunhos e aprovações.",
         btn("Atualizar", "MBRel.reload()", "", "refresh") + btn("Novo relatório", "MBRel.newFromList()", "primary", "plus"),
       ) +
-      (review && !isAdmin() ? '<div class="rl-notice">Apenas o administrador pode registrar visto, aprovar ou devolver relatórios.</div>' : "") +
       panel(
         "Relatórios registrados",
         `${list.length} registro(s) encontrados`,
