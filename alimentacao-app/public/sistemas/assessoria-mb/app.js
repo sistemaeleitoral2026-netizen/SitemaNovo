@@ -3144,8 +3144,10 @@
     editing = id;
     removedAttachments = new Set();
     $("#modal-title").textContent = "Editar registro da planilha";
+    $("#modal-layer .modal").className = "modal";
     $("#modal-body").innerHTML =
       `<p class="field-note wide">Registro original ${esc(r.aba)} · linha ${r.linha}. A edição fica registrada localmente, sem alterar o arquivo Excel.</p>${["nome", "descricao", "banco", "extrato", "situacao", "observacao"].map((k) => field({ nome: "Nome", descricao: "Descrição / tarefa", banco: "Banco / origem", extrato: "Nome no extrato", situacao: "Situação original", observacao: "Observação" }[k], k, r[k] || "")).join("")}${field("Data", "data", r.data || "", "date")}<div class="field"><label>Valor (R$)</label><input class="control money-input" inputmode="numeric" name="valor" value="${inputBRL(r.valor || 0)}"></div>${anexoField(r.anexos)}`;
+    wireFinDropzones($("#modal-body"));
     $$(".money-input").forEach((el) =>
       el.addEventListener("input", () => maskBRL(el)),
     );
@@ -3180,7 +3182,7 @@
         toast("Lançamento não encontrado.");
         return;
       }
-      html += `<div class="fin-receipt-register"><div class="form-section">Registrar recebimento</div><p class="field-note wide">Informe a data e o valor recebido. O status muda para <b>Concluído</b> quando o total recebido atingir o valor a receber. O detalhe fica na aba <b>Histórico</b>.</p><div class="field"><label>Data do recebimento</label><input class="control" name="novaBaixaData" type="date" value="${esc(todayISO())}" required></div><div class="field"><label>Valor recebido (R$)</label><input class="control money-input" name="novaBaixaValor" inputmode="numeric" value="${inputBRL(finFalta(obj))}" placeholder="R$ 0,00" required></div></div>`;
+      html += `<div class="fin-info-banner wide">${FIN_ICONS.info}<span>Informe a data e o valor recebido.</span></div><div class="field"><label>Data do recebimento *</label><input class="control" name="novaBaixaData" type="date" value="${esc(todayISO())}" required></div><div class="field"><label>Valor recebido (R$) *</label><input class="control money-input fin-money" name="novaBaixaValor" inputmode="numeric" value="${inputBRL(finFalta(obj))}" placeholder="R$ 0,00" required></div>`;
     } else if (kind === "contato") {
       if (!obj) {
         toast("Lançamento não encontrado.");
@@ -3286,40 +3288,56 @@
       const selectedType = locked ? finKind(obj) : "receita";
       const rx = locked ? finRecebimentos(obj) : [];
       const finValue = (name, value, types) =>
-        `<div class="field" data-fin-types="${types}"><label>${name} (R$)</label><input class="control money-input" type="text" inputmode="numeric" autocomplete="off" name="${value}" value="${inputBRL(locked ? (value === "recebido" ? sumRecebimentos(rx) || obj.recebido || 0 : obj[value] || 0) : 0)}" placeholder="R$ 0,00"></div>`;
+        `<div class="field" data-fin-types="${types}" data-fin-value="${value}"><label>${name} (R$)${value === "previsto" ? "" : `<span data-fin-types="${value === "saida" ? "saida" : "entrada_por_fora"}"> *</span>`}</label><input class="control money-input fin-money" type="text" inputmode="numeric" autocomplete="off" name="${value}" value="${inputBRL(locked ? (value === "recebido" ? sumRecebimentos(rx) || obj.recebido || 0 : obj[value] || 0) : 0)}" placeholder="R$ 0,00"></div>`;
       if (locked) {
         window.__finHist = { obj: obj, key: "data", dir: "asc" };
         html += `<div class="fin-modal-tabs" role="tablist" aria-label="Seções do lançamento"><button type="button" class="active" data-fin-tab="dados" role="tab">Lançamento</button><button type="button" data-fin-tab="historico" data-fin-history-tab role="tab">Histórico</button></div>`;
-        html += `<div data-fin-pane="dados" id="fin-dados-pane">`;
+        html += `<div data-fin-pane="dados" id="fin-dados-pane"><div class="fin-edit-main">`;
+      } else {
+        html += `<div class="fin-kind-banner wide" id="fin-kind-banner"><span class="fin-kind-ico" id="fin-kind-ico"></span><div><b id="fin-kind-title"></b><small id="fin-kind-help"></small></div></div>`;
       }
-      html += `<div class="field wide fin-type-field"><label>Tipo de lançamento *</label><select class="control" name="tipoLancamento" id="fin-entry-type" required><option value="receita" ${selectedType === "receita" ? "selected" : ""}>Receita</option><option value="entrada_por_fora" ${selectedType === "entrada_por_fora" ? "selected" : ""}>Entrada por fora</option><option value="saida" ${selectedType === "saida" ? "selected" : ""}>Saída</option></select><small class="fin-type-help" id="fin-type-help"></small></div>`;
-      html += `<div class="form-section">Identificação</div>`;
+      html += `<div class="field wide fin-type-field"><label>Tipo de lançamento *</label><select class="control" name="tipoLancamento" id="fin-entry-type" required><option value="receita" ${selectedType === "receita" ? "selected" : ""}>Receita</option><option value="entrada_por_fora" ${selectedType === "entrada_por_fora" ? "selected" : ""}>Entrada por fora</option><option value="saida" ${selectedType === "saida" ? "selected" : ""}>Saída</option></select></div>`;
       html += `<div class="field"><label>Empresa *</label><select class="control" name="sub" required><option value="">Selecione</option>${subdivisions.map((s) => `<option value="${esc(s)}" ${(locked ? obj.sub : state.empresa) === s ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div>`;
       html += `<div class="field"><label id="fin-partner-label">Parceiro *</label><input class="control" name="parceiro" type="text" value="${esc(obj?.parceiro || "")}" required></div>`;
       html += `<div class="field" data-fin-center><label>Centro de custo</label><select class="control" name="centro"><option value="">Não informado</option>${COST_CODES.map((code) => `<option value="${code}" ${(obj?.centro || "") === code ? "selected" : ""}>${code}${db.centers[code] ? " — " + esc(db.centers[code]) : ""}</option>`).join("")}</select></div>`;
       html += field("Data *", "data", obj?.data || todayISO(), "date", true);
-      html += `<div class="field" data-fin-types="receita entrada_por_fora"><label id="fin-received-date-label">Data recebida</label><input class="control" name="dataRecebida" type="date" value="${esc(obj?.dataRecebida || "")}"><small class="field-note">Obrigatória em novos lançamentos quando houver valor recebido.</small></div>`;
+      html += `<div class="field" data-fin-types="receita entrada_por_fora"><label id="fin-received-date-label">Data recebida</label><input class="control" name="dataRecebida" type="date" value="${esc(obj?.dataRecebida || "")}"></div>`;
       html += `<div class="field" data-fin-types="receita entrada_por_fora"><label>Empresa que depositou o pagamento</label><input class="control" name="empresaDepositante" value="${esc(obj?.empresaDepositante || "")}"></div>`;
-      html += `<div class="field"><label>Conta Bancária</label><select class="control" name="contaBancaria"><option value="">Não informada</option>${[...new Set([...(obj?.contaBancaria ? [obj.contaBancaria] : []), ...(db.banks || [])])].map((x) => `<option value="${esc(x)}" ${obj?.contaBancaria === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select><small class="field-note">Controle interno — não aparece na prestação de contas.</small></div>`;
-      html += `<div class="form-section">Valores</div>`;
+      html += `<div class="field"><label>Conta Bancária</label><select class="control" name="contaBancaria"><option value="">Não informada</option>${[...new Set([...(obj?.contaBancaria ? [obj.contaBancaria] : []), ...(db.banks || [])])].map((x) => `<option value="${esc(x)}" ${obj?.contaBancaria === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></div>`;
+      html += `<div class="form-section" data-fin-types="receita">Valores</div>`;
       html += finValue("A receber", "previsto", "receita");
       html += finValue("Recebido", "recebido", "receita entrada_por_fora");
       html += finValue("Saída", "saida", "saida");
       html += `<div class="field wide"><label>Observação</label><textarea class="control" name="observacao" placeholder="Informações adicionais do lançamento">${esc(obj?.observacao || "")}</textarea></div>`;
       if (locked) {
-        html += `<div data-fin-types="receita" class="fin-receipt-register"><div class="form-section">Registrar recebimento</div><p class="field-note wide">Informe a data e o valor recebido. O status muda para <b>Concluído</b> quando o total recebido atingir o valor a receber. O detalhe fica na aba <b>Histórico</b>.</p><div class="field"><label>Data do recebimento</label><input class="control" name="novaBaixaData" type="date" value="${esc(todayISO())}"></div><div class="field"><label>Valor recebido (R$)</label><input class="control money-input" name="novaBaixaValor" inputmode="numeric" value="${inputBRL(0)}" placeholder="R$ 0,00"></div></div>`;
-        html += `</div>`;
+        html += `</div><aside class="fin-edit-side">`;
+        html += `<section class="fin-side-card" data-fin-types="receita"><h4>${FIN_ICONS.plusCircle}Registrar recebimento</h4><div class="fin-side-grid"><div class="field"><label>Data do recebimento</label><input class="control" name="novaBaixaData" type="date" value=""></div><div class="field"><label>Valor recebido (R$)</label><input class="control money-input fin-money" name="novaBaixaValor" inputmode="numeric" value="${inputBRL(0)}" placeholder="R$ 0,00"></div></div><button type="button" class="btn primary fin-side-btn" data-fin-register-receipt>Registrar recebimento</button></section>`;
+        html += `<section class="fin-side-card"><h4>${FIN_ICONS.doc}Comprovantes</h4>${attachmentsListHTML(obj?.anexos)}${finDropzoneHTML()}</section>`;
+        html += `</aside></div>`;
         html += `<div data-fin-pane="historico" id="fin-hist-pane" class="hidden">${rxSheetHTML(obj, "data", "asc")}</div>`;
       }
     }
-    if (kind !== "realizar" && kind !== "vincular" && kind !== "contato")
-      html += `<div class="form-section">Comprovantes</div><div class="field wide"><label>Anexar comprovante (foto ou PDF)</label><input class="control" name="anexo" type="file" accept="image/*,.pdf" multiple><div class="attachment-note">Os comprovantes são salvos na nuvem (Supabase) e podem ser visualizados em Comprovantes.</div>${attachmentsListHTML(obj?.anexos)}</div>`;
+    if (kind === "recebimento" || (kind === "finance" && !obj))
+      html += `<div class="field wide"><label>Anexar comprovante (foto ou PDF)</label>${finDropzoneHTML()}</div>`;
+    else if (kind === "task" || kind === "conclude")
+      html += `<div class="form-section">Comprovantes</div><div class="field wide"><label>Anexar comprovante (foto ou PDF)</label>${attachmentsListHTML(obj?.anexos)}${finDropzoneHTML()}</div>`;
+    const modalBox = $("#modal-layer .modal");
+    modalBox.className =
+      "modal" +
+      (kind === "finance"
+        ? obj
+          ? " fin-modal fin-modal-edit"
+          : " fin-modal fin-modal-new"
+        : kind === "recebimento"
+          ? " fin-modal fin-modal-receipt"
+          : "");
     $("#modal-body").innerHTML = html;
+    wireFinDropzones($("#modal-body"));
     $$(".money-input").forEach((el) =>
       el.addEventListener("input", () => maskBRL(el)),
     );
     $("#modal-layer").classList.add("open");
-    const submitBtn = $("#modal-form button[type=submit]");
+    const submitBtn = $("#modal-form .modal-foot button[type=submit]");
     if (submitBtn) {
       submitBtn.textContent =
         kind === "conclude"
@@ -3397,6 +3415,21 @@
       wireFinanceTypeForm();
       wireFinanceCapsInputs();
     }
+    $("#modal-body [data-fin-register-receipt]")?.addEventListener(
+      "click",
+      (ev) => {
+        const d = $("#modal-body [name=novaBaixaData]");
+        const v = $("#modal-body [name=novaBaixaValor]");
+        if (!d.value || money(v.value) <= 0) {
+          toast("Informe a data e o valor recebido.");
+          (d.value ? v : d).focus();
+          return;
+        }
+        $("#modal-form").requestSubmit(
+          $("#modal-form .modal-foot button[type=submit]"),
+        );
+      },
+    );
   }
   function wireFinanceTypeForm() {
     const body = $("#modal-body");
@@ -3425,14 +3458,29 @@
             : type === "entrada_por_fora"
               ? "Descrição do crédito *"
               : "Beneficiário / descrição *";
-      const help = body.querySelector("#fin-type-help");
-      if (help)
-        help.textContent =
+      body.dataset.finKind = type;
+      const banner = body.querySelector("#fin-kind-banner");
+      if (banner) {
+        banner.dataset.kind = type;
+        body.querySelector("#fin-kind-ico").innerHTML =
+          type === "receita"
+            ? FIN_ICONS.up
+            : type === "entrada_por_fora"
+              ? FIN_ICONS.plus
+              : FIN_ICONS.down;
+        body.querySelector("#fin-kind-title").textContent =
+          type === "receita"
+            ? "Receita"
+            : type === "entrada_por_fora"
+              ? "Entrada por fora"
+              : "Saída";
+        body.querySelector("#fin-kind-help").textContent =
           type === "receita"
             ? "Receita prevista, com controle de recebimentos e pendências."
             : type === "entrada_por_fora"
-              ? "Crédito direto no caixa, sem gerar valor pendente a receber."
-              : "Pagamento ou retirada que reduz o saldo da empresa.";
+              ? "Crédito recebido diretamente (sem gerar pendência a receber)."
+              : "Pagamento ou despesa realizada.";
+      }
       const historyTab = body.querySelector("[data-fin-history-tab]");
       if (historyTab) {
         historyTab.hidden = type === "saida";
@@ -4457,22 +4505,101 @@
     if (!list || !list.length) return "";
     const cards = list
       .map((f, i) => {
-        const meta = [
-          fmtBytes(f.size),
-          f.createdAt ? "Anexado em " + dateBR(f.createdAt) : "",
-        ]
+        const meta = [fmtBytes(f.size), f.createdAt ? dateBR(f.createdAt) : ""]
           .filter(Boolean)
           .join(" · ");
         const ver = f.signedUrl
-          ? `<a class='att-view' href='${esc(f.signedUrl)}' target='_blank' rel='noopener'>Ver</a>`
+          ? `<a class='att-view' href='${esc(f.signedUrl)}' target='_blank' rel='noopener'>${FIN_ICONS.eye}Visualizar</a>`
           : "";
-        return `<div class='att-card' data-attachment-index='${i}'><div class='att-icon'>${icon("clip")}</div><div class='att-info'><strong>${esc(f.name)}</strong>${meta ? `<span class='muted'>${esc(meta)}</span>` : ""}</div><div class='att-actions'>${ver}<button type='button' class='att-remove' data-remove-attachment='${i}' title='Remover anexo'>${icon("trash")}</button></div></div>`;
+        return `<div class='att-card' data-attachment-index='${i}'><div class='att-icon'>${finFileBadge(f.name)}</div><div class='att-info'><strong>${esc(f.name)}</strong>${meta ? `<span class='muted'>${esc(meta)}</span>` : ""}</div><div class='att-actions'>${ver}<button type='button' class='att-remove' data-remove-attachment='${i}' title='Remover anexo'>${FIN_ICONS.trash}</button></div></div>`;
       })
       .join("");
     return `<div class='att-list'>${cards}</div>`;
   }
   function anexoField(list) {
-    return `<div class="form-section">Comprovantes</div><div class="field wide"><label>Anexar comprovante (foto ou PDF)</label><input class="control" name="anexo" type="file" accept="image/*,.pdf" multiple><div class="attachment-note">Os comprovantes são salvos na nuvem (Supabase) e podem ser visualizados em Comprovantes.</div>${attachmentsListHTML(list)}</div>`;
+    return `<div class="form-section">Comprovantes</div><div class="field wide"><label>Anexar comprovante (foto ou PDF)</label>${attachmentsListHTML(list)}${finDropzoneHTML()}</div>`;
+  }
+  const FIN_ICONS = {
+    up: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V5m-6 6 6-6 6 6"/></svg>',
+    down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v15m-6-6 6 6 6-6"/></svg>',
+    plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+    plusCircle:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>',
+    info: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.01"/></svg>',
+    doc: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>',
+    cloud:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9"/><path d="M12 12v7m-3-4 3-3 3 3"/></svg>',
+    eye: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+    trash:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+  };
+  function finFileBadge(name) {
+    const ext = String(name || "").split(".").pop().toLowerCase();
+    const isPdf = ext === "pdf";
+    return `<span class="fin-file-badge ${isPdf ? "pdf" : "img"}">${FIN_ICONS.doc}<i>${isPdf ? "PDF" : esc(ext.slice(0, 4).toUpperCase() || "ARQ")}</i></span>`;
+  }
+  function finDropzoneHTML() {
+    return `<div class="fin-drop" data-fin-drop><div class="att-list fin-drop-files" data-fin-drop-files></div><label class="fin-drop-zone"><input type="file" name="anexo" accept="image/*,.pdf" multiple class="fin-drop-input">${FIN_ICONS.cloud}<b class="fin-drop-extra">Adicionar outro comprovante (opcional)</b><span>Clique ou arraste arquivos aqui</span><small>(PDF, JPG ou PNG)</small></label></div>`;
+  }
+  function wireFinDropzones(root) {
+    root?.querySelectorAll("[data-fin-drop]").forEach((wrap) => {
+      const input = wrap.querySelector("input[type=file]");
+      const zone = wrap.querySelector(".fin-drop-zone");
+      const list = wrap.querySelector("[data-fin-drop-files]");
+      let dt;
+      try {
+        dt = new DataTransfer();
+      } catch {
+        return;
+      }
+      const urls = [];
+      const ok = (f) =>
+        /^image\//.test(f.type) ||
+        f.type === "application/pdf" ||
+        /\.pdf$/i.test(f.name);
+      const draw = () => {
+        urls.splice(0).forEach((u) => URL.revokeObjectURL(u));
+        list.innerHTML = Array.from(dt.files)
+          .map((f, i) => {
+            const u = URL.createObjectURL(f);
+            urls.push(u);
+            return `<div class="att-card"><div class="att-icon">${finFileBadge(f.name)}</div><div class="att-info"><strong>${esc(f.name)}</strong><span class="muted">${esc(fmtBytes(f.size))}</span></div><div class="att-actions"><a class="att-view" href="${u}" target="_blank" rel="noopener">${FIN_ICONS.eye}Visualizar</a><button type="button" class="att-remove" data-fin-drop-remove="${i}" title="Remover arquivo">${FIN_ICONS.trash}</button></div></div>`;
+          })
+          .join("");
+        wrap.classList.toggle("has-files", dt.files.length > 0);
+      };
+      const add = (files) => {
+        Array.from(files || []).forEach((f) => {
+          if (ok(f)) dt.items.add(f);
+        });
+        input.files = dt.files;
+        draw();
+      };
+      input.addEventListener("change", () => {
+        const picked = Array.from(input.files);
+        add(picked);
+      });
+      list.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-fin-drop-remove]");
+        if (!b) return;
+        dt.items.remove(Number(b.dataset.finDropRemove));
+        input.files = dt.files;
+        draw();
+      });
+      ["dragenter", "dragover"].forEach((ev) =>
+        zone.addEventListener(ev, (e) => {
+          e.preventDefault();
+          zone.classList.add("drag");
+        }),
+      );
+      ["dragleave", "drop"].forEach((ev) =>
+        zone.addEventListener(ev, (e) => {
+          e.preventDefault();
+          zone.classList.remove("drag");
+        }),
+      );
+      zone.addEventListener("drop", (e) => add(e.dataTransfer?.files));
+    });
   }
   function filesFor(ref) {
     const p = ref.indexOf(":"),
