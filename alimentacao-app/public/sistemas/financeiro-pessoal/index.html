@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="css/tema.css">
 <link rel="stylesheet" href="css/contas.css">
 <link rel="stylesheet" href="css/pagamentos.css">
+<link rel="stylesheet" href="css/visao.css">
 </head>
 <body>
 <a class="skip-link" href="#mainContent">Ir para o conteúdo</a>
@@ -149,7 +150,7 @@
           <div class="block ov-next">
             <div class="block-head">
               <div class="bh"><span class="bh-ico"><svg class="i"><use href="#i-ph-calendar-blank"/></svg></span><div><div class="block-title">Próximos vencimentos</div><div class="block-meta">Pagamentos e cobranças ainda sem baixa</div></div></div>
-              <button class="link" data-go="cobrancas">Ver cobranças<svg class="i i-sm"><use href="#i-ph-arrow-right"/></svg></button>
+              <button class="link" data-go="pagamentos">Ver pagamentos<svg class="i i-sm"><use href="#i-ph-arrow-right"/></svg></button>
             </div>
             <div class="table-wrap sheet-wrap overview-sheet">
               <table class="sheet">
@@ -170,12 +171,15 @@
         <div class="row ov-row ov-row-b">
           <div class="block overview-recent">
             <div class="block-head">
-              <div class="bh"><span class="bh-ico"><svg class="i"><use href="#i-ph-arrows-down-up"/></svg></span><div><div class="block-title">Últimos lançamentos</div><div class="block-meta">Lançamentos do mês e agendamentos ainda sem baixa</div></div></div>
-              <button class="link" data-go="transactions">Ver todos<svg class="i i-sm"><use href="#i-ph-arrow-right"/></svg></button>
+              <div class="bh"><span class="bh-ico"><svg class="i"><use href="#i-ph-arrows-down-up"/></svg></span><div><div class="block-title">Últimos lançamentos</div><div class="block-meta">Movimentações, pagamentos, cobranças e documentação</div></div></div>
+              <div class="ov-tabs" id="recentTabs" role="tablist" aria-label="Tipo de lançamento">
+                <button type="button" data-ovtab="all" class="on">Todos</button><button type="button" data-ovtab="mov">Movimentações</button><button type="button" data-ovtab="pag">Pagamentos</button><button type="button" data-ovtab="cob">Cobranças</button><button type="button" data-ovtab="doc">Documentação</button>
+              </div>
+              <button class="link" data-go="transactions" id="recentMore">Ver todos<svg class="i i-sm"><use href="#i-ph-arrow-right"/></svg></button>
             </div>
             <div class="table-wrap sheet-wrap overview-sheet">
               <table class="sheet">
-                <thead><tr><th>Data</th><th>Descrição</th><th class="col-cat">Categoria</th><th class="col-acc">Conta</th><th class="col-orig">Origem</th><th>Situação</th><th class="t-right">Valor</th></tr></thead>
+                <thead><tr><th>Data</th><th>Descrição</th><th class="col-cat">Categoria</th><th class="col-acc">Conta</th><th class="col-orig">Tipo</th><th>Situação</th><th class="t-right">Valor</th></tr></thead>
                 <tbody id="recentRows"></tbody>
               </table>
             </div>

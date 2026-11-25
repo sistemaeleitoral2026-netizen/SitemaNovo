@@ -372,6 +372,21 @@
     return out;
   }
 
+  /** Documentação (pendente nos meses pedidos e concluída no mês da tela) para "Últimos lançamentos". */
+  function docEntries(monthKeys, k) {
+    const out = [];
+    monthKeys.forEach(m => occurrencesIn(m).forEach(o => {
+      if (taskKind(o.task) !== 'documentacao' || o.done) return;
+      out.push({ id: `doc:${o.key}`, doc: true, status: o.status, taskId: o.task.id, description: o.task.title || 'Documentação', category: 'Documentação', account: null, date: o.to, kind: 'doc', amount: 0 });
+    }));
+    state.taskDone.filter(d => d.status === 'concluida' && d.date && ym(d.date) === k).forEach(d => {
+      const t = taskById(d.taskId);
+      if (!t || taskKind(t) !== 'documentacao') return;
+      out.push({ id: `docok:${d.id}`, doc: true, done: true, status: 'concluida', taskId: t.id, description: t.title || 'Documentação', category: 'Documentação', account: null, date: d.date, time: d.time, kind: 'doc', amount: 0 });
+    });
+    return out;
+  }
+
   /** dd/mm/aaaa; o ano some no celular (classe .yr). */
   const sheetDate = d => { const [y, m, day] = d.split('-'); return `${day}/${m}<span class="yr">/${y}</span>`; };
 
@@ -466,14 +481,54 @@
     }).join('') : '<tr><td colspan="5" class="empty">Nenhum vencimento agendado.</td></tr>';
   }
 
+  /* Últimos lançamentos: abas Todos / Movimentações / Pagamentos / Cobranças / Documentação */
+  let ovRecent = [], ovTab = 'all';
+  const OV_TABS = {
+    all: { go: 'transactions', empty: 'Nenhum lançamento neste mês.' },
+    mov: { go: 'transactions', empty: 'Nenhuma movimentação avulsa neste mês.' },
+    pag: { go: 'pagamentos', empty: 'Nenhum pagamento neste mês nem agendado.' },
+    cob: { go: 'cobrancas', empty: 'Nenhuma cobrança neste mês nem agendada.' },
+    doc: { go: 'documentacao', empty: 'Nenhuma documentação pendente ou concluída neste mês.' },
+  };
+  function recentType(x) {
+    if (x.doc) return 'doc';
+    if (x.scheduled || x.taskId) {
+      const t = x.taskId ? taskById(x.taskId) : null;
+      return x.kind === 'income' || (t && taskKind(t) === 'cobranca') ? 'cob' : 'pag';
+    }
+    return 'mov';
+  }
+  function renderRecent() {
+    const list = ovTab === 'all' ? ovRecent : ovRecent.filter(x => recentType(x) === ovTab);
+    $$('#recentTabs [data-ovtab]').forEach(b => b.classList.toggle('on', b.dataset.ovtab === ovTab));
+    $('#recentMore').dataset.go = OV_TABS[ovTab].go;
+    $('#recentRows').innerHTML = list.slice(0, 5).map(overviewTxRow).join('')
+      || `<tr><td colspan="7" class="empty">${OV_TABS[ovTab].empty}</td></tr>`;
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-ovtab]');
+    if (b) { ovTab = b.dataset.ovtab; renderRecent(); }
+  });
+
   /** Linha da planilha "Últimos lançamentos" (lançamentos reais e agendamentos sem baixa). */
   function overviewTxRow(x) {
+    if (x.doc) {
+      const sit = x.done ? '<span class="tag sheet-done">Concluída</span>'
+        : `<span class="tag sched-tag ${x.status === 'atrasada' ? 'is-late' : ''}">${x.status === 'atrasada' ? 'Atrasada' : x.status === 'hoje' ? 'Vence hoje' : 'Pendente'}</span>`;
+      return `<tr class="${x.done ? '' : 'is-scheduled'} is-doc">
+      <td class="num">${sheetDate(x.date)}${x.time ? `<small>${x.time}</small>` : ''}</td>
+      <td class="sheet-desc"><span class="sheet-desc-in">${esc(x.description)}</span></td>
+      <td class="col-cat">Documentação</td>
+      <td class="col-acc"><span class="t-faint">—</span></td>
+      <td class="col-orig">Documentação</td>
+      <td>${sit}</td>
+      <td class="t-right"><span class="t-faint">—</span></td>
+    </tr>`;
+    }
     const inc = x.kind === 'income';
     const t = x.taskId ? taskById(x.taskId) : null;
     const cob = t && taskKind(t) === 'cobranca';
-    const origin = x.scheduled
-      ? (inc ? 'Cobrança a receber' : 'Pagamento a fazer')
-      : x.taskId ? (cob ? 'Cobrança recebida' : 'Pagamento programado') : 'Lançamento avulso';
+    const origin = x.scheduled || x.taskId ? (inc || cob ? 'Cobrança' : 'Pagamento') : 'Movimentação';
     const sit = x.scheduled
       ? `<span class="tag sched-tag ${x.status === 'atrasada' ? 'is-late' : ''}">${x.status === 'atrasada' ? 'Atrasado' : x.status === 'hoje' ? 'Vence hoje' : 'Agendado'}</span>`
       : `<span class="tag sheet-done">${inc ? 'Recebido' : 'Pago'}</span>`;
@@ -2128,8 +2183,9 @@
       ? `${monthLabel(k).split(' ')[0]}${schedMonths.length > 1 ? ` + agendados até ${nextName.toLowerCase()}` : ' + agendados'}`
       : monthLabel(k);
     $('#catTop').innerHTML = catDonut([...list, ...sched], 6);
-    const recent = [...sched, ...list].sort((a, b) => b.date.localeCompare(a.date) || (b.time || '').localeCompare(a.time || ''));
-    $('#recentRows').innerHTML = recent.slice(0, 5).map(overviewTxRow).join('') || '<tr><td colspan="7" class="empty">Nenhum lançamento neste mês.</td></tr>';
+    const recent = [...sched, ...docEntries(schedMonths.length ? schedMonths : [k], k), ...list].sort((a, b) => b.date.localeCompare(a.date) || (b.time || '').localeCompare(a.time || ''));
+    ovRecent = recent;
+    renderRecent();
     $('#accSummary').innerHTML = accRows(k);
     renderInvTop();
 
