@@ -174,6 +174,36 @@ export async function obterRelatorio(id: string): Promise<Relatorio> {
   return deLinha(data)
 }
 
+/** Apaga o relatório e os arquivos do Storage (admin / can_delete_assessoria_mb). */
+export async function excluirRelatorio(id: string): Promise<void> {
+  const rel = await obterRelatorio(id)
+  const paths = [
+    ...(rel.files || []).map((f) => f.path).filter(Boolean) as string[],
+    ...Object.values(rel.snapshot || {})
+      .map((v) => {
+        // snapshot guarda base64 às vezes; se for path de storage, remove
+        if (typeof v === 'string' && v.startsWith('relatorios/')) return v
+        return ''
+      })
+      .filter(Boolean),
+  ]
+  if (paths.length) {
+    const { error: stErr } = await supabase.storage.from(BUCKET).remove(paths)
+    if (stErr) console.warn('[assessoria-mb] storage ao excluir relatório', stErr)
+  }
+  // limpa pasta do relatório se ainda houver objetos
+  try {
+    const { data: objs } = await supabase.storage.from(BUCKET).list(`relatorios/${id}`, { limit: 100 })
+    if (objs?.length) {
+      await supabase.storage.from(BUCKET).remove(objs.map((o) => `relatorios/${id}/${o.name}`))
+    }
+  } catch (e) {
+    console.warn('[assessoria-mb] list storage ao excluir', e)
+  }
+  const { error } = await supabase.from(TABELA).delete().eq('id', id)
+  if (error) throw erroBanco(error, 'Falha ao excluir o relatório.')
+}
+
 const MIME_EXT: Record<string, string> = {
   pdf: 'application/pdf',
   png: 'image/png',
@@ -387,6 +417,7 @@ function mapearCabecalho(linha: unknown[]) {
   return mapa
 }
 
+/** Excel/CSV (síncrono). Para PDF use `extrairArquivo`. */
 export function extrairPlanilha(nome: string, dataBase64: string, kind: 'general' | 'medical') {
   const ext = extensao(nome)
   if (!['xlsx', 'xls', 'csv'].includes(ext)) {
@@ -394,7 +425,7 @@ export function extrairPlanilha(nome: string, dataBase64: string, kind: 'general
       group: kind === 'medical' ? 'PSF / referência' : 'Outros',
       method: 'Anexo',
       warnings: [
-        'Leitura automática disponível para Excel e CSV. Este arquivo fica como anexo; preencha os lançamentos manualmente.',
+        'Leitura automática disponível para Excel, CSV e PDF. Este arquivo fica como anexo; preencha os lançamentos manualmente.',
       ],
       rows: [] as Omit<RelLinha, 'id'>[],
       manual: true,
@@ -625,10 +656,27 @@ export async function tratarPedidoRelatorio(
     case 'action':
       return acaoRelatorio(String(dados.id), String(dados.action), String(dados.note || ''), user)
     case 'extract':
-      return extrairPlanilha(String(dados.name), String(dados.dataBase64), dados.kind === 'medical' ? 'medical' : 'general')
+      return extrairArquivo(
+        String(dados.name),
+        String(dados.dataBase64),
+        dados.kind === 'medical' ? 'medical' : 'general',
+      )
     case 'export':
       return exportarRelatorio(dados.report as Relatorio, String(dados.section), dados.format === 'doc' ? 'doc' : 'pdf')
+    case 'delete':
+      await excluirRelatorio(String(dados.id))
+      return { ok: true }
     default:
       throw new Error('Operação de relatório desconhecida.')
   }
+}
+
+/** Excel/CSV/PDF — PDF com texto ou OCR se for scan. */
+export async function extrairArquivo(nome: string, dataBase64: string, kind: 'general' | 'medical') {
+  const ext = extensao(nome)
+  if (ext === 'pdf') {
+    const { extrairPdf } = await import('./assessoriaMbRelatoriosPdf')
+    return extrairPdf(nome, dataBase64, kind)
+  }
+  return extrairPlanilha(nome, dataBase64, kind)
 }

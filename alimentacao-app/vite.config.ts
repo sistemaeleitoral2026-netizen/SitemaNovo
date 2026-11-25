@@ -7,6 +7,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    optimizeDeps: {
+      include: ['pdfjs-dist', 'tesseract.js'],
+    },
     server: apiProxy
       ? {
           proxy: {

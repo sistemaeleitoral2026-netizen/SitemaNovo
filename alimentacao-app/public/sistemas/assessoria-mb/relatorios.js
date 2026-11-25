@@ -256,7 +256,7 @@
       "Adicione os arquivos que compõem o relatório.",
       `<div class="rl-pb">${
         editable()
-          ? `<div class="rl-drop" id="rl-drop">${icon("upload")}<strong>Arraste os documentos para esta área</strong><span class="rl-muted">Excel (.xlsx, .xls) e CSV são lidos automaticamente · PDF e imagem ficam como anexo · até 30 MB por arquivo</span><button type="button" class="btn primary" onclick="document.getElementById('rl-file').click()">${icon("plus")} Selecionar arquivos</button><input id="rl-file" type="file" multiple accept=".pdf,.xlsx,.xls,.csv,.png,.jpg,.jpeg,.webp,.tif,.tiff" hidden></div>`
+          ? `<div class="rl-drop" id="rl-drop">${icon("upload")}<strong>Arraste os documentos para esta área</strong><span class="rl-muted">Excel, CSV e PDF são lidos automaticamente (PDF escaneado usa OCR e pode demorar) · imagens ficam como anexo · até 30 MB por arquivo</span><button type="button" class="btn primary" onclick="document.getElementById('rl-file').click()">${icon("plus")} Selecionar arquivos</button><input id="rl-file" type="file" multiple accept=".pdf,.xlsx,.xls,.csv,.png,.jpg,.jpeg,.webp,.tif,.tiff" hidden></div>`
           : ""
       }</div><div class="rl-tablewrap"><table class="rl-table"><thead><tr><th>Arquivo</th><th>Tipo identificado</th><th>Leitura</th><th>Registros</th><th class="rl-right">Valor extraído</th><th>Situação</th><th>Ações</th></tr></thead><tbody>${
         state.files.length
@@ -342,6 +342,8 @@
       f.status = "Processando";
       render();
       try {
+        if (/\.pdf$/i.test(f.name))
+          toast("Lendo PDF… se for escaneado, o OCR pode levar alguns segundos por página.");
         let data = f.data;
         if (!data && f.path) data = (await fetchFile(f.path)).dataBase64;
         const x = await api("extract", { name: f.name, dataBase64: data, kind: state.kind });
@@ -809,6 +811,7 @@
   function renderHistory() {
     const el = root();
     if (!el) return;
+    const admin = isAdmin();
     const review = view === "rel-aprovacoes";
     const list = historyRows.filter(
       (r) =>
@@ -832,12 +835,25 @@
             ? list
                 .map(
                   (r) =>
-                    `<tr><td><b>${esc(r.title)}</b><div class="rl-muted">${r.kind === "medical" ? "Relatórios médicos" : "Relatório geral"}${r.company ? " · " + esc(r.company) : ""}</div></td><td>${dateBR(r.start)} a ${dateBR(r.end)}</td><td>${localDate(r.created)}</td><td>${esc(r.author)}</td><td>${r.count}</td><td class="rl-right"><b>${fmt(r.total)}</b></td><td>${tag(r.status)}</td><td>${btn("Visualizar", `MBRel.openReport('${r.id}')`, "", "eye")}</td></tr>`,
+                    `<tr><td><b>${esc(r.title)}</b><div class="rl-muted">${r.kind === "medical" ? "Relatórios médicos" : "Relatório geral"}${r.company ? " · " + esc(r.company) : ""}</div></td><td>${dateBR(r.start)} a ${dateBR(r.end)}</td><td>${localDate(r.created)}</td><td>${esc(r.author)}</td><td>${r.count}</td><td class="rl-right"><b>${fmt(r.total)}</b></td><td>${tag(r.status)}</td><td><div class="rl-actions">${btn("Visualizar", `MBRel.openReport('${r.id}')`, "", "eye")}${admin ? btn("Excluir", `MBRel.deleteReport('${r.id}')`, "rl-danger") : ""}</div></td></tr>`,
                 )
                 .join("")
             : `<tr><td colspan="8" class="rl-empty">${historyLoaded ? "Nenhum relatório nesta situação." : "Carregando…"}</td></tr>`
         }</tbody></table></div>`,
       );
+  }
+  async function deleteReport(id) {
+    const r = historyRows.find((x) => x.id === id);
+    if (!r || !isAdmin()) return;
+    if (!confirm(`Excluir o relatório “${r.title}”? Esta ação não tem volta.`)) return;
+    try {
+      await api("delete", { id });
+      historyRows = historyRows.filter((x) => x.id !== id);
+      toast("Relatório excluído.");
+      render();
+    } catch (e) {
+      toast(e.message || "Não foi possível excluir.");
+    }
   }
   async function openReport(id) {
     try {
@@ -1004,6 +1020,7 @@
     action,
     cloneReport,
     openReport,
+    deleteReport,
     printReport,
     showPreview,
     previewAction,
