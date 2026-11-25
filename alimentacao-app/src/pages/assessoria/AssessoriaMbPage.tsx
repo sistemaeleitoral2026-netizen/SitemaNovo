@@ -15,6 +15,7 @@ import {
   salvarEstadoAssessoria,
   type MbDbPayload,
 } from '../../lib/assessoriaMb'
+import { tratarPedidoRelatorio } from '../../lib/assessoriaMbRelatorios'
 
 type MbMensagem = {
   type?: string
@@ -22,6 +23,8 @@ type MbMensagem = {
   requestId?: string
   payload?: MbDbPayload
   path?: string
+  op?: string
+  data?: Record<string, unknown>
 }
 
 export function AssessoriaMbPage() {
@@ -116,6 +119,23 @@ export function AssessoriaMbPage() {
         }
         return
       }
+      if (dados.type === 'mb-rel' && dados.requestId && dados.op) {
+        try {
+          if (!podeEditar || !userId) throw new Error('Sem permissão para relatórios.')
+          const resultado = await tratarPedidoRelatorio(dados.op, dados.data || {}, { userId, nome })
+          postar({ type: 'mb-rel-res', requestId: dados.requestId, ok: true, data: resultado })
+        } catch (e) {
+          const o = e as { message?: string } | null
+          console.error('[assessoria-mb] relatorios', e)
+          postar({
+            type: 'mb-rel-res',
+            requestId: dados.requestId,
+            ok: false,
+            erro: (e instanceof Error && e.message) || o?.message || 'Falha na operação do relatório.',
+          })
+        }
+        return
+      }
       if (dados.type === 'mb-file-get' && dados.path && dados.requestId) {
         try {
           const blob = await baixarAnexoAssessoria(dados.path)
@@ -191,7 +211,7 @@ export function AssessoriaMbPage() {
           ref={frameRef}
           className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
           title="Financeiro Corporativo"
-          src="/sistemas/assessoria-mb/index.html?v=modular-39"
+          src="/sistemas/assessoria-mb/index.html?v=modular-40"
           onLoad={() => window.setTimeout(() => setPronto(true), 4000)}
         />
       </div>

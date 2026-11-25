@@ -118,6 +118,9 @@
     "sem-data-recebida": "Sem Data Recebida",
     duplicados: "Lançamentos duplicados",
     configuracoes: "Configurações",
+    "rel-novo": "Novo relatório",
+    "rel-historico": "Histórico de relatórios",
+    "rel-aprovacoes": "Aprovações",
   };
   let monthlyHistory = [];
   const raw = [];
@@ -3110,12 +3113,16 @@
       drawDuplicates();
     } else if (page === "configuracoes") {
       drawSettings();
+    } else if (page.startsWith("rel-")) {
+      window.MBRel?.render(page);
     }
     updateCounts();
     updateBell();
   }
   function goto(p) {
     if (p === "demandas" && !MB.admin) p = "minhas";
+    if (p === "rel-aprovacoes" && !MB.admin) p = "rel-historico";
+    if (window.MBRel && !window.MBRel.canLeave(p)) return;
     page = p;
     $$(".page-section").forEach((e) =>
       e.classList.toggle("active", e.id === "page-" + p),
@@ -6982,6 +6989,7 @@
     userId: "",
     embed: window.parent !== window,
   };
+  window.MBApp = { MB, toast: (t) => toast(t), goto: (p) => goto(p) };
   function toParent(msg) {
     if (!MB.embed) return;
     try {
@@ -7007,6 +7015,8 @@
     // edição/exclusão de tarefas de qualquer pessoa).
     $$('[data-open="task"]').forEach((el) => (el.hidden = !MB.admin));
     $$('[data-page="demandas"]').forEach((el) => (el.hidden = !MB.admin));
+    $$('[data-page="rel-aprovacoes"]').forEach((el) => (el.hidden = !MB.admin));
+    if (!MB.admin && page === "rel-aprovacoes") goto("rel-historico");
     if (!MB.admin && page === "demandas") goto("minhas");
   }
   const userMenu = (open) => {

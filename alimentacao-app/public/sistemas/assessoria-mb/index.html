@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="./styles/painel.css?v=2" />
     <link rel="stylesheet" href="./styles/pendentes.css?v=1" />
     <link rel="stylesheet" href="./styles/lancamento.css?v=2" />
+    <link rel="stylesheet" href="./styles/relatorios.css?v=1" />
   </head>
   <body>
     <svg style="display: none" xmlns="http://www.w3.org/2000/svg">
@@ -364,6 +365,14 @@
               class="nav-count"
               id="count-minhas"
             ></span>
+          </button>
+          <div class="nav-label">Relatórios</div>
+          <button class="nav-btn" data-page="rel-novo" data-group="Relatórios">
+            <svg><use href="#i-plus"></use></svg>Novo relatório</button
+          ><button class="nav-btn" data-page="rel-historico" data-group="Relatórios">
+            <svg><use href="#i-folder"></use></svg>Histórico</button
+          ><button class="nav-btn" data-page="rel-aprovacoes" data-group="Relatórios" hidden>
+            <svg><use href="#i-check"></use></svg>Aprovações
           </button>
           <div class="nav-label">Sistema</div>
           <button
@@ -1125,6 +1134,15 @@
             </div>
             <div id="dup-groups"></div>
           </section>
+          <section id="page-rel-novo" class="page-section rl-page" data-screen-label="Novo relatório">
+            <div id="rl-root-novo"></div>
+          </section>
+          <section id="page-rel-historico" class="page-section rl-page" data-screen-label="Histórico de relatórios">
+            <div id="rl-root-historico"></div>
+          </section>
+          <section id="page-rel-aprovacoes" class="page-section rl-page" data-screen-label="Aprovações">
+            <div id="rl-root-aprovacoes"></div>
+          </section>
           <section
             id="page-configuracoes"
             class="page-section"
@@ -1312,5 +1330,6 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="./app.js"></script>
+    <script src="./relatorios.js?v=1"></script>
   </body>
 </html>

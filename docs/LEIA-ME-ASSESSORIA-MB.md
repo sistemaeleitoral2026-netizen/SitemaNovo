@@ -36,6 +36,7 @@ O script é idempotente (pode rodar de novo). Ele **aborta** se não existir `pu
 | `mb_prestacao_contas` | Planilha histórica (prestação de contas) |
 | `mb_auditoria` | Log de ações do painel |
 | `mb_anexos` | Metadados dos comprovantes |
+| `mb_relatorios` | Relatórios (geral e médicos): lançamentos, documentos de origem e histórico de envio/visto/aprovação. Migração `20261128_assessoria_mb_relatorios.sql` (cria a tabela, as funções `mb_relatorio_acao`/`mb_relatorio_snapshot` e libera Excel/CSV/TIFF até 30 MB no bucket). Arquivos em `mb-comprovantes/relatorios/<id>/`. |
 
 Arquivos: Storage bucket **`mb-comprovantes`** (privado).
 
