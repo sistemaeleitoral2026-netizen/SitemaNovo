@@ -1383,7 +1383,9 @@
 
     $$('[data-task-badge]').forEach(b => {
       const k = b.dataset.taskBadge;
-      const mine = k && k !== 'all' ? list.filter(o => taskKind(o.task) === k) : list;
+      // Igual à aba "A fazer": atrasados + este mês + próximo mês ainda sem baixa
+      const aFazer = kk => openOccurrences(kk).filter(o => o.status !== 'dispensada');
+      const mine = k && k !== 'all' ? aFazer(k) : ['pagamento', 'cobranca', 'documentacao'].flatMap(aFazer);
       b.hidden = !mine.length;
       b.textContent = mine.length;
       b.classList.toggle('soft', !mine.some(o => o.status === 'atrasada'));
@@ -2039,7 +2041,7 @@
       : monthLabel(k);
     $('#catTop').innerHTML = catDonut([...list, ...sched], 6);
     const recent = [...sched, ...list].sort((a, b) => b.date.localeCompare(a.date) || (b.time || '').localeCompare(a.time || ''));
-    $('#recentRows').innerHTML = recent.slice(0, 10).map(overviewTxRow).join('') || '<tr><td colspan="7" class="empty">Nenhum lançamento neste mês.</td></tr>';
+    $('#recentRows').innerHTML = recent.slice(0, 5).map(overviewTxRow).join('') || '<tr><td colspan="7" class="empty">Nenhum lançamento neste mês.</td></tr>';
     $('#accSummary').innerHTML = accRows(k);
     renderInvTop();
 
@@ -2844,7 +2846,7 @@
   }
 
   /* ---------- Início ---------- */
-  $('#today').textContent = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+  $('#today').textContent = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
     .replace(/^./, c => c.toUpperCase());
   refresh();
   avisarPai({ type: 'fp-pronto' });
