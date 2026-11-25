@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="css/contas.css">
 <link rel="stylesheet" href="css/pagamentos.css">
 <link rel="stylesheet" href="css/visao.css">
+<link rel="stylesheet" href="css/investimentos.css">
 </head>
 <body>
 <a class="skip-link" href="#mainContent">Ir para o conteúdo</a>
@@ -319,37 +320,61 @@
 
       <!-- ============ INVESTIMENTOS ============ -->
       <section class="view" id="view-investments">
-        <div class="block invest-overview" id="invKpis" aria-label="Resumo dos investimentos"></div>
+        <div class="inv-kpis" id="invKpis" aria-label="Resumo dos investimentos"></div>
 
-        <div class="block">
-          <div class="block-head">
-            <div><div class="block-title">Aplicações</div><div class="block-meta">Organizadas pelo banco onde estão. Cada cartão mostra o último saldo informado.</div></div>
-            <div class="head-right">
-              <button class="btn btn-primary" data-open="invest"><svg class="i"><use href="#i-plus"/></svg>Nova aplicação</button>
+        <div class="row inv-split">
+          <div class="block inv-inst">
+            <div class="inv-block-title">Por instituição <small>(saldo investido)</small></div>
+            <div id="invByBank"></div>
+          </div>
+          <div class="block inv-evo">
+            <div class="inv-evo-head">
+              <div class="inv-block-title">Evolução do patrimônio investido</div>
+              <div class="inv-evo-tools">
+                <select class="select" id="invChartPick" aria-label="Escolher conta ou aplicação" hidden></select>
+                <div class="ov-tabs" id="invChartTabs" role="tablist" aria-label="Série do gráfico">
+                  <button type="button" data-invchart="all" class="on">Todos</button><button type="button" data-invchart="acc">Por conta</button><button type="button" data-invchart="app">Por aplicação</button>
+                </div>
+              </div>
+            </div>
+            <svg class="chart invest-chart" id="investChart" role="img" aria-label="Evolução do total investido"></svg>
+          </div>
+        </div>
+
+        <div class="block inv-main">
+          <div class="inv-toolbar">
+            <div class="acc-tabs" role="tablist" aria-label="Visualização">
+              <button type="button" class="acc-tab on" data-inv-tab="apps"><svg class="i"><use href="#i-ph-stack"/></svg><span>Aplicações (<b id="invAppsN">0</b>)</span></button>
+              <button type="button" class="acc-tab" data-inv-tab="hist"><svg class="i"><use href="#i-clock"/></svg><span>Histórico de atualizações (<b id="invHistN">0</b>)</span></button>
+            </div>
+            <button type="button" class="btn inv-batch-btn" data-open="snapbatch"><svg class="i i-sm"><use href="#i-repeat"/></svg>Atualizar saldos (em lote)</button>
+            <button class="btn btn-primary inv-new-btn" data-open="invest"><svg class="i"><use href="#i-ph-plus"/></svg>Nova aplicação</button>
+          </div>
+
+          <div class="inv-filters" id="invFilters">
+            <div class="acc-search"><svg class="i"><use href="#i-search"/></svg><input class="input" id="invQ" placeholder="Buscar aplicação, banco ou conta..." aria-label="Buscar aplicação"></div>
+            <label class="inv-sel"><span>Conta (Banco):</span><select class="select" id="invFAcc"></select></label>
+            <label class="inv-sel inv-apps-only"><span>Tipo:</span><select class="select" id="invFType"></select></label>
+            <label class="inv-sel inv-apps-only"><span>Situação:</span><select class="select" id="invFSit"><option value="all">Todas</option><option value="ativa">Ativa</option><option value="zerada">Zerada</option><option value="sem">Sem saldo informado</option></select></label>
+            <label class="inv-sel inv-hist-only" hidden><span>Aplicação:</span><select class="select" id="fInv" aria-label="Filtrar aplicação"></select></label>
+            <button type="button" class="btn tf-btn" id="invMore"><svg class="i i-sm"><use href="#i-settings"/></svg>Mais filtros</button>
+            <button type="button" class="btn tf-btn" id="invClear"><svg class="i i-sm"><use href="#i-x"/></svg>Limpar</button>
+          </div>
+          <div class="inv-filters inv-filters-more" id="invMorePanel" hidden>
+            <label class="inv-sel"><span>Rendimento:</span><select class="select" id="invFRes"><option value="all">Todos</option><option value="pos">Positivo</option><option value="neg">Negativo</option><option value="zero">Sem rendimento</option></select></label>
+            <label class="inv-sel"><span>Última verificação:</span><select class="select" id="invFAge"><option value="all">Qualquer data</option><option value="30">Há mais de 30 dias</option><option value="7">Nos últimos 7 dias</option></select></label>
+          </div>
+
+          <div id="invGroups"></div>
+          <div id="invHistBox" hidden>
+            <div class="table-wrap inv-table-wrap">
+              <table class="inv-table">
+                <thead><tr><th>Data</th><th>Hora</th><th>Aplicação</th><th>Conta (Banco)</th><th class="t-right">Saldo</th><th class="t-right">Rendimento</th><th class="t-right">Média/dia</th><th>Verificado por</th><th class="t-center">Ação</th></tr></thead>
+                <tbody id="snapRows"></tbody>
+              </table>
             </div>
           </div>
-          <div class="invest-guidance"><svg class="i i-sm"><use href="#i-info"/></svg><span>Use <strong>Atualizar saldo</strong> sempre que conferir o valor no banco. O rendimento é estimado pela diferença entre duas verificações; se houve aporte ou resgate no intervalo, essa diferença também inclui a movimentação.</span></div>
-          <div id="invGroups"></div>
-        </div>
-
-        <div class="block">
-          <div class="block-head">
-            <div><div class="block-title">Evolução do patrimônio investido</div><div class="block-meta">Soma dos saldos registrados ao longo do tempo</div></div>
-          </div>
-          <div class="block-body"><svg class="chart invest-chart" id="investChart" role="img" aria-label="Evolução diária do total investido"></svg></div>
-        </div>
-
-        <div class="block">
-          <div class="block-head">
-            <div><div class="block-title">Histórico de atualizações</div><div class="block-meta">Registro de cada saldo informado, com data e responsável</div></div>
-            <select class="select" id="fInv" aria-label="Filtrar aplicação"></select>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Data</th><th>Hora</th><th>Aplicação</th><th>Conta</th><th class="t-right">Saldo</th><th class="t-right">Rendimento</th><th class="t-right">Média/dia</th><th>Verificado por</th><th></th></tr></thead>
-              <tbody id="snapRows"></tbody>
-            </table>
-          </div>
+          <div id="invPager"></div>
         </div>
       </section>
 
@@ -493,6 +518,19 @@
       <div class="field full"><div class="calc-box" id="snapPrev"></div></div>
     </div>
     <div class="modal-foot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary">Registrar</button></div>
+  </form>
+</div>
+<div class="modal-backdrop" id="modal-snapbatch">
+  <form class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="sbTitle" id="snapBatchForm">
+    <div class="modal-head"><h2 id="sbTitle">Atualizar saldos (em lote)</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div class="modal-body">
+      <div class="field"><label for="sbDate">Data da verificação</label><input class="input" id="sbDate" type="date" required></div>
+      <div class="field"><label for="sbTime">Hora da verificação</label><input class="input" id="sbTime" type="time" required></div>
+      <div class="field full"><p class="field-hint">Preencha só as aplicações que você conferiu. As vazias ficam como estão.</p></div>
+      <div class="field full"><div class="sb-list" id="sbList"></div></div>
+    </div>
+    <div class="modal-foot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary">Registrar saldos</button></div>
   </form>
 </div>
 <!-- Programação (admin) -->

@@ -705,34 +705,59 @@
     svg.innerHTML = out;
   }
 
+  let invChartMode = 'all';
+  /** Série do gráfico: total, uma conta ou uma aplicação. */
+  function invChartApps() {
+    const pick = $('#invChartPick')?.value;
+    if (invChartMode === 'acc' && pick) return state.investments.filter(i => i.account === pick);
+    if (invChartMode === 'app' && pick) return state.investments.filter(i => i.id === pick);
+    return state.investments;
+  }
   function investChart() {
     const svg = $('#investChart');
-    const dates = [...new Set(state.snapshots.map(s => s.date))].sort().slice(-20);
-    if (!dates.length) { svg.innerHTML = ''; svg.style.height = '0'; svg.insertAdjacentHTML('afterend', ''); return; }
-    const W = svg.clientWidth || 600, H = Math.round(Math.min(320, Math.max(220, W * 0.3))), pad = { l: 56, r: 14, t: 16, b: 26 };
-    // Total do dia = soma do último saldo conhecido de cada aplicação até aquele dia
-    const data = dates.map(d => ({
-      d, v: state.investments.reduce((s, inv) => {
-        const l = snapsOf(inv.id).filter(x => x.date <= d);
-        return s + (l.at(-1)?.balance ?? 0);
-      }, 0),
-    }));
+    if (!svg) return;
+    const apps = invChartApps(), ids = new Set(apps.map(a => a.id));
+    const snaps = state.snapshots.filter(x => ids.has(x.invId));
+    if (!snaps.length) { svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" class="empty-txt">Nenhum saldo registrado ainda.</text>'; svg.setAttribute('viewBox', '0 0 600 200'); svg.style.height = '200px'; return; }
+    const allDates = [...new Set(snaps.map(x => x.date))].sort();
+    // Mais de 2 meses de histórico: um ponto por mês (fim do mês); senão, um ponto por data verificada
+    const first = allDates[0], last = allDates.at(-1);
+    const monthly = monthDiff(ym(first), ym(last)) >= 2;
+    let keys;
+    if (monthly) { keys = []; for (let m = ym(first); m <= ym(last); m = addMonths(m, 1)) keys.push(m); keys = keys.slice(-8); }
+    else keys = allDates.slice(-12);
+    const limit = k => monthly ? `${k}-31` : k;
+    const data = keys.map(k => ({ k, v: apps.reduce((t, inv) => t + (snapsOf(inv.id).filter(x => x.date <= limit(k)).at(-1)?.balance ?? 0), 0) }));
+    const W = svg.clientWidth || 700, H = Math.max(210, Math.min(260, Math.round(W * 0.34))), pad = { l: 92, r: 24, t: 26, b: 30 };
     const vals = data.map(x => x.v), lo = Math.min(...vals), hi = Math.max(...vals);
-    const spread = Math.max(hi - lo, hi * 0.002, 10);
-    const { y, out: grid } = axes(svg, W, H, pad, lo - spread * 0.4, hi + spread * 0.4);
+    const spread = Math.max(hi - lo, hi * 0.05, 10);
+    const lo2 = data.length === 1 ? 0 : Math.max(0, lo - spread * 0.35), hi2 = data.length === 1 ? (hi * 1.25 || 100) : hi + spread * 0.35;
+    const stepY = niceStep(Math.max((hi2 - lo2) / 5, 1));
+    const minY = Math.floor(lo2 / stepY) * stepY, maxY = Math.max(Math.ceil(hi2 / stepY) * stepY, minY + stepY);
+    const y = v => pad.t + (H - pad.t - pad.b) * (1 - (v - minY) / (maxY - minY));
+    let grid = '';
+    for (let v = minY; v <= maxY + 1e-6; v += stepY) {
+      const yy = Math.round(y(v)) + .5;
+      grid += `<line class="grid" x1="${pad.l}" x2="${W - pad.r}" y1="${yy}" y2="${yy}"/><text x="${pad.l - 12}" y="${yy + 4}" text-anchor="end">R$ ${v.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</text>`;
+    }
     const n = data.length, span = W - pad.l - pad.r;
-    const x = i => n === 1 ? pad.l + span / 2 : pad.l + 8 + (span - 16) * i / (n - 1);
+    const x = i => n === 1 ? pad.l + span / 2 : pad.l + 16 + (span - 32) * i / (n - 1);
     const pts = data.map((p, i) => [x(i), y(p.v)]);
     const base = H - pad.b;
-    let out = grid + `<path class="area-acc" d="${smooth(pts)} L${pts.at(-1)[0]},${base} L${pts[0][0]},${base} Z"/><path class="line-acc" d="${smooth(pts)}"/>`;
-    const every = Math.ceil(n / 8);
+    const line = n > 1 ? `M${pts.map(p => p.join(',')).join(' L')}` : '';
+    let out = `<defs><linearGradient id="invGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1f6fe5" stop-opacity=".45"/><stop offset="1" stop-color="#1f6fe5" stop-opacity=".05"/></linearGradient></defs>` + grid;
+    if (n > 1) out += `<path d="${line} L${pts.at(-1)[0]},${base} L${pts[0][0]},${base} Z" fill="url(#invGrad)"/><path d="${line}" fill="none" stroke="#1f6fe5" stroke-width="2.5"/>`;
+    const lbl = k => monthly ? `${MONTHS[+k.slice(5) - 1].toLowerCase()}/${k.slice(2, 4)}` : shortDate(k);
+    const badge = (px, py, txt, anchorEnd) => {
+      const w = txt.length * 7.4 + 16, bx = anchorEnd ? px - w + 18 : px - 18, by = py - 34;
+      return `<g class="inv-badge"><rect x="${bx}" y="${by}" width="${w}" height="24" rx="5"/><text x="${bx + w / 2}" y="${by + 16}" text-anchor="middle">${txt}</text></g>`;
+    };
     data.forEach((p, i) => {
-      const prev = data[i - 1];
-      out += `<circle class="pt pt-acc" cx="${pts[i][0]}" cy="${pts[i][1]}" r="${i === n - 1 ? 4.5 : 3}"/>
-        <rect class="hit" x="${pts[i][0] - span / n / 2}" y="${pad.t}" width="${span / n}" height="${H - pad.t - pad.b}"><title>${fullDate(p.d)}\nTotal investido: ${money(p.v)}${prev ? `\nVariação no dia: ${signed(p.v - prev.v)}` : ''}</title></rect>`;
-      if (i % every === 0 || i === n - 1) out += `<text x="${pts[i][0]}" y="${H - 6}" text-anchor="middle">${shortDate(p.d)}</text>`;
+      out += `<circle cx="${pts[i][0]}" cy="${pts[i][1]}" r="5.5" fill="#1f6fe5" stroke="#fff" stroke-width="2"><title>${monthly ? monthLabel(p.k) : fullDate(p.k)}\n${money(p.v)}</title></circle>
+        <text x="${pts[i][0]}" y="${H - 8}" text-anchor="middle" class="inv-xl">${lbl(p.k)}</text>`;
     });
-    out += `<text class="val" style="fill:var(--chart-line)" x="${pts.at(-1)[0]}" y="${pts.at(-1)[1] - 10}" text-anchor="end">${money(data.at(-1).v)}</text>`;
+    if (n > 1) out += badge(pts[0][0], pts[0][1], money(data[0].v), false);
+    out += badge(pts.at(-1)[0], pts.at(-1)[1], money(data.at(-1).v), true);
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.style.height = H + 'px';
     svg.innerHTML = out;
@@ -2375,75 +2400,163 @@
     frame.srcdoc = html;
   }
 
-  function renderInvestments() {
-    if (view === 'investments') investChart();
+  /* ---------- Investimentos ---------- */
+  let invTab = 'apps', invPage = 1, invPer = 5, invSort = { key: null, dir: 1 };
+  const INV_TYPE_CLS = { 'CDB': 't-blue', 'Poupança': 't-blue', 'Tesouro Direto': 't-orange', 'LCI / LCA': 't-orange', 'Renda fixa': 't-green', 'Fundos': 't-blue', 'Ações': 't-purple', 'Previdência': 't-purple', 'Outro': 't-gray' };
+  const INV_TYPE_ICO = { 'CDB': 'circle-dollar-sign', 'Tesouro Direto': 'landmark', 'LCI / LCA': 'shield-check', 'Fundos': 'briefcase', 'Poupança': 'piggy-bank', 'Ações': 'trending-up', 'Previdência': 'clock', 'Renda fixa': 'chart-line' };
+  function invInfo(i) {
+    const l = snapsOf(i.id), cur = l.at(-1), ini = l[0];
+    const gain = cur && ini ? Math.round((cur.balance - ini.balance) * 100) / 100 : null;
+    const rate = cur && ini && ini.balance ? gain / ini.balance : null;
+    const sit = !cur ? 'sem' : cur.balance > 0 ? 'ativa' : 'zerada';
+    return { i, cur, ini, gain, rate, sit, acc: state.accounts.find(a => a.id === i.account) };
+  }
+  const INV_SORT = {
+    name: x => x.i.name.toLowerCase(), acc: x => invAccName(x.i).toLowerCase(), type: x => x.i.type,
+    bal: x => x.cur?.balance ?? -1, ini: x => x.ini?.balance ?? -1, gain: x => x.gain ?? -Infinity, rate: x => x.rate ?? -Infinity,
+    last: x => x.cur ? stamp(x.cur) : '', sit: x => x.sit,
+  };
+  const invTh = (k, label, cls = '') => `<th class="th-sort ${cls} ${invSort.key === k ? 'is-sorted' : ''}"><button type="button" data-isort="${k}">${label}<span class="sort-ico">${invSort.key === k ? (invSort.dir > 0 ? '↑' : '↓') : '⇅'}</span></button></th>`;
+  const pctSigned = r => `${r >= 0 ? '+ ' : '− '}${pct2(Math.abs(r))}`;
 
-    // Resumo: uma leitura principal, sem repetir a meta em blocos diferentes.
+  function invPagerHtml(total, noun) {
+    const pages = Math.max(1, Math.ceil(total / invPer));
+    invPage = Math.min(Math.max(1, invPage), pages);
+    if (!total) return '';
+    const start = (invPage - 1) * invPer + 1, end = Math.min(invPage * invPer, total);
+    const btns = [];
+    for (let i = 1; i <= pages; i++) {
+      if (pages > 7 && i > 5 && i !== pages && Math.abs(i - invPage) > 1) { if (btns.at(-1) !== '…') btns.push('…'); continue; }
+      btns.push(i);
+    }
+    return `<div class="task-pager inv-pager">
+      <span class="t-muted">Mostrando ${start}–${end} de ${total} ${noun}</span>
+      <div class="task-pager-btns">
+        <label class="inv-per">Exibir: <select class="select" id="invPer">${[5, 10, 20, 50].map(n => `<option ${n === invPer ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+        <button type="button" class="pg-btn" data-inv-page="${invPage - 1}" ${invPage <= 1 ? 'disabled' : ''} aria-label="Anterior">${icon('chevron-down', 'i-sm pg-prev')}</button>
+        ${btns.map(i => i === '…' ? '<span class="t-muted">…</span>' : `<button type="button" class="pg-btn ${i === invPage ? 'on' : ''}" data-inv-page="${i}">${i}</button>`).join('')}
+        <button type="button" class="pg-btn" data-inv-page="${invPage + 1}" ${invPage >= pages ? 'disabled' : ''} aria-label="Próxima">${icon('chevron-down', 'i-sm pg-next')}</button>
+      </div>
+    </div>`;
+  }
+
+  function renderInvestments() {
+    const infos = state.investments.map(invInfo);
     const total = invTotal();
     const lc = lastCheck();
+    const accN = new Set(state.investments.map(i => i.account || i.institution)).size;
+    const withHist = infos.filter(x => x.gain != null);
+    const gainSum = withHist.reduce((t, x) => t + x.gain, 0);
+    const iniSum = withHist.reduce((t, x) => t + (x.ini?.balance || 0), 0);
+    const rated = infos.filter(x => x.sit === 'ativa' && x.rate != null);
+    const avgRate = rated.length ? rated.reduce((t, x) => t + x.rate, 0) / rated.length : null;
+    const n = (c, a, b) => `${c} ${c === 1 ? a : b}`;
     $('#invKpis').innerHTML = `
-      <div class="invest-total-panel">
-        <div class="invest-eyebrow">Patrimônio investido</div>
-        <div class="invest-total-value num">${money(total)}</div>
-        <div class="invest-total-meta">${state.investments.length} aplicaç${state.investments.length === 1 ? 'ão cadastrada' : 'ões cadastradas'}</div>
-      </div>
-      <div class="invest-update-panel">
-        <div class="invest-eyebrow">Última atualização</div>
-        <div class="invest-update-date num">${lc ? `${fullDate(lc.date)} · ${lc.time}` : 'Nenhuma atualização'}</div>
-        <div class="invest-total-meta">${lc ? `${esc(invName(lc.invId))} · ${esc(lc.by)}` : 'Informe o saldo de uma aplicação para começar.'}</div>
-      </div>`;
+      <div class="block inv-kpi"><span class="inv-kpi-ico is-blue">${icon('ph-stack')}</span><div><div class="inv-kpi-label">Patrimônio investido</div><div class="inv-kpi-val num">${money(total)}</div><div class="inv-kpi-sub">${n(state.investments.length, 'aplicação', 'aplicações')} em ${n(accN, 'conta', 'contas')}</div></div></div>
+      <div class="block inv-kpi"><span class="inv-kpi-ico is-green">${icon('ph-chart-line-up')}</span><div><div class="inv-kpi-label">Rendimento acumulado</div><div class="inv-kpi-val num ${gainSum < 0 ? 'delta-neg' : 'delta-pos'}">${signed(gainSum)}</div><div class="inv-kpi-sub">${iniSum ? `${pctSigned(gainSum / iniSum)} no período` : 'sem histórico ainda'}</div></div></div>
+      <div class="block inv-kpi"><span class="inv-kpi-ico is-purple"><b>%</b></span><div><div class="inv-kpi-label">Rentabilidade média</div><div class="inv-kpi-val num">${avgRate == null ? '—' : pct2(avgRate)}</div><div class="inv-kpi-sub">das aplicações ativas</div></div></div>
+      <div class="block inv-kpi"><span class="inv-kpi-ico is-orange">${icon('repeat')}</span><div><div class="inv-kpi-label">Última atualização</div><div class="inv-kpi-val inv-kpi-when num">${lc ? `${fullDate(lc.date)} às ${lc.time}` : 'Nenhuma'}</div><div class="inv-kpi-sub">${n(state.snapshots.length, 'verificação registrada', 'verificações registradas')}</div></div></div>`;
 
-    // Planilha de aplicações: uma linha por aplicação, com resultado derivado das verificações reais.
-    const applications = state.investments.slice().sort((a, b) =>
-      invAccName(a).localeCompare(invAccName(b), 'pt-BR') || a.name.localeCompare(b.name, 'pt-BR'));
-    const applicationRows = applications.map(i => {
-      const records = snapsOf(i.id), cur = records.at(-1), before = records.at(-2);
-      const result = snapshotResult(cur, before);
-      const variation = result
-        ? `${resultMoney(result.difference)}${result.percent != null ? `<small>${pct2(result.percent)} no período</small>` : ''}`
-        : '<span class="t-muted">—</span>';
-      return `<tr class="invest-sheet-row">
-        <td class="sheet-cell"><span class="invest-bank">${icon('landmark', 'i-sm')}${esc(invAccName(i))}</span></td>
-        <td class="sheet-cell sheet-title">${esc(i.name)}</td>
-        <td class="sheet-cell"><span class="tag rec">${esc(i.type)}</span></td>
-        <td class="sheet-cell t-right"><strong class="num">${cur ? money(cur.balance) : '—'}</strong></td>
-        <td class="sheet-cell t-right invest-result-cell">${variation}</td>
-        <td class="sheet-cell t-right invest-result-cell">${dailyResultLabel(result)}</td>
-        <td class="sheet-cell">${cur ? `${fullDate(cur.date)}<small>${cur.time}</small>` : '<span class="t-muted">Nunca</span>'}</td>
-        <td class="sheet-cell">${cur ? `<span class="checked">${icon('user-round', 'i-sm')}${esc(cur.by)}</span>` : '—'}</td>
-        <td class="sheet-cell"><div class="sheet-actions invest-sheet-actions">
-          <button class="btn btn-sm btn-primary" data-open="snap" data-inv="${i.id}">${icon('pencil-line', 'i-sm')}Atualizar saldo</button>
-          <button class="icon-btn edit" data-edit-inv="${i.id}" title="Editar dados" aria-label="Editar dados da aplicação">${icon('settings', 'i-sm')}</button>
-          <button class="icon-btn" data-del-inv="${i.id}" title="Excluir aplicação" aria-label="Excluir aplicação">${icon('trash-2', 'i-sm')}</button>
+    // Por instituição (conta/banco onde está a aplicação)
+    const groups = {};
+    infos.forEach(x => { const key = x.i.account || `inst:${x.i.institution || ''}`; (groups[key] ||= { acc: x.acc, name: invAccName(x.i), v: 0 }).v += x.cur?.balance || 0; });
+    let gl = Object.values(groups).sort((a, b) => b.v - a.v);
+    if (gl.length > 5) { const rest = gl.slice(4); gl = [...gl.slice(0, 4), { name: `Outros (${rest.length})`, v: rest.reduce((t, g) => t + g.v, 0), other: true }]; }
+    $('#invByBank').innerHTML = gl.length ? gl.map(g => `<div class="inv-bank-row">
+        <span class="inv-bank-name">${g.other ? `<span class="bank-chip bank-chip-plain">${icon('ph-bank', 'i-sm')}</span>` : bankChip(g.acc || { name: g.name, type: '' })}<span>${esc(g.name)}</span></span>
+        <div class="inv-bank-bar"><div class="inv-bank-top"><strong class="num">${money(g.v)}</strong><span class="num">${total ? pct2(g.v / total).replace(/,(\d)\d%$/, ',$1%') : '0%'}</span></div><div class="inv-bar"><i style="width:${total ? (g.v / total) * 100 : 0}%"></i></div></div>
+      </div>`).join('') : '<div class="empty">Nenhuma aplicação cadastrada.</div>';
+
+    // gráfico
+    $$('#invChartTabs [data-invchart]').forEach(b => b.classList.toggle('on', b.dataset.invchart === invChartMode));
+    const pick = $('#invChartPick');
+    pick.hidden = invChartMode === 'all';
+    if (invChartMode !== 'all') {
+      const opts = invChartMode === 'acc'
+        ? [...new Map(state.investments.filter(i => i.account).map(i => [i.account, invAccName(i)])).entries()]
+        : state.investments.map(i => [i.id, i.name]);
+      const cur = pick.value, sig = invChartMode + opts.map(o => o[0]).join();
+      if (pick.dataset.sig !== sig) { pick.innerHTML = opts.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join(''); pick.dataset.sig = sig; if (opts.some(o => o[0] === cur)) pick.value = cur; }
+    }
+    if (view === 'investments') investChart();
+
+    // filtros
+    const fAcc = $('#invFAcc'), fType = $('#invFType');
+    const accOpts = [...new Map(state.investments.map(i => [i.account || '', invAccName(i)])).entries()];
+    const keepA = fAcc.value || 'all', keepT = fType.value || 'all';
+    fAcc.innerHTML = '<option value="all">Todas</option>' + accOpts.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
+    fAcc.value = accOpts.some(o => o[0] === keepA) ? keepA : 'all';
+    const types = [...new Set(state.investments.map(i => i.type))].sort();
+    fType.innerHTML = '<option value="all">Todos</option>' + types.map(t => `<option>${esc(t)}</option>`).join('');
+    fType.value = types.includes(keepT) ? keepT : 'all';
+
+    $('#invAppsN').textContent = state.investments.length;
+    $('#invHistN').textContent = state.snapshots.length;
+    $$('[data-inv-tab]').forEach(b => b.classList.toggle('on', b.dataset.invTab === invTab));
+    $$('.inv-apps-only').forEach(el => { el.hidden = invTab !== 'apps'; });
+    $$('.inv-hist-only').forEach(el => { el.hidden = invTab !== 'hist'; });
+    $('#invMore').hidden = invTab !== 'apps';
+    if (invTab !== 'apps') $('#invMorePanel').hidden = true;
+    $('#invGroups').hidden = invTab !== 'apps';
+    $('#invHistBox').hidden = invTab !== 'hist';
+
+    const q = $('#invQ').value.trim().toLowerCase(), fa = fAcc.value, today = todayISO();
+    if (invTab === 'apps') {
+      const ft = fType.value, fs = $('#invFSit').value, fr = $('#invFRes').value, fg = $('#invFAge').value;
+      let list = infos.filter(x => (fa === 'all' || (x.i.account || '') === fa) && (ft === 'all' || x.i.type === ft) && (fs === 'all' || x.sit === fs)
+        && (!q || `${x.i.name} ${x.i.type} ${invAccName(x.i)} ${x.i.institution || ''}`.toLowerCase().includes(q))
+        && (fr === 'all' || (fr === 'pos' ? x.gain > 0.004 : fr === 'neg' ? x.gain < -0.004 : !x.gain))
+        && (fg === 'all' || (x.cur && (fg === '30' ? daysBetween(x.cur.date, today) > 30 : daysBetween(x.cur.date, today) <= 7))));
+      const f = INV_SORT[invSort.key];
+      list = f ? list.slice().sort((a, b) => { const p = f(a), r = f(b); return (p > r ? 1 : p < r ? -1 : 0) * invSort.dir; })
+        : list.slice().sort((a, b) => (b.cur?.balance || 0) - (a.cur?.balance || 0));
+      const pages = Math.max(1, Math.ceil(list.length / invPer)); invPage = Math.min(Math.max(1, invPage), pages);
+      const rows = list.slice((invPage - 1) * invPer, invPage * invPer).map(x => `<tr>
+        <td class="inv-app"><span>${icon(INV_TYPE_ICO[x.i.type] || 'circle-dollar-sign', 'i-sm')}<strong>${esc(x.i.name)}</strong></span></td>
+        <td class="inv-acc">${esc(invAccName(x.i))}</td>
+        <td><span class="inv-type ${INV_TYPE_CLS[x.i.type] || 't-gray'}">${esc(x.i.type)}</span></td>
+        <td class="t-right num"><strong>${x.cur ? money(x.cur.balance) : '—'}</strong></td>
+        <td class="t-right num">${x.ini ? money(x.ini.balance) : '—'}</td>
+        <td class="t-right num"><strong class="${x.gain > 0 ? 'delta-pos' : x.gain < 0 ? 'delta-neg' : 't-muted'}">${x.gain == null ? '—' : signed(x.gain)}</strong></td>
+        <td class="t-center">${x.rate == null ? '<span class="t-muted">—</span>' : `<span class="diff-pill ${x.rate < 0 ? 'is-neg' : ''} num">${pctSigned(x.rate)}</span>`}</td>
+        <td class="num">${x.cur ? `${fullDate(x.cur.date)} ${x.cur.time}` : '<span class="t-muted">Nunca</span>'}</td>
+        <td class="t-center"><span class="inv-sit s-${x.sit}">${x.sit === 'ativa' ? 'Ativa' : x.sit === 'zerada' ? 'Zerada' : 'Sem saldo'}</span></td>
+        <td><div class="inv-actions">
+          <button type="button" class="inv-upd" data-open="snap" data-inv="${x.i.id}">${icon('repeat', 'i-sm')}Atualizar saldo</button>
+          <button class="icon-btn" data-edit-inv="${x.i.id}" title="Editar aplicação" aria-label="Editar aplicação">${icon('pencil-line', 'i-sm')}</button>
+          <button class="icon-btn" data-del-inv="${x.i.id}" title="Excluir aplicação" aria-label="Excluir aplicação">${icon('trash-2', 'i-sm')}</button>
         </div></td>
-      </tr>`;
-    }).join('');
-    $('#invGroups').innerHTML = applications.length
-      ? `<div class="table-wrap sheet-wrap invest-sheet-wrap"><table class="sheet invest-sheet">
-          <thead><tr><th>Banco</th><th>Aplicação</th><th>Tipo</th><th class="t-right">Saldo atual</th><th class="t-right">Rendimento</th><th class="t-right">Média/dia</th><th>Última verificação</th><th>Editor</th><th>Ação</th></tr></thead>
-          <tbody>${applicationRows}</tbody>
-          <tfoot><tr><td class="sheet-cell" colspan="3"><strong>Total investido</strong></td><td class="sheet-cell t-right"><strong class="num">${money(total)}</strong></td><td class="sheet-cell" colspan="5"></td></tr></tfoot>
-        </table></div>`
-      : `<div class="inv-empty">${icon('piggy-bank')}<strong>Nenhuma aplicação ainda</strong><span>${state.accounts.length ? 'Clique em “Nova aplicação”, escolha a conta e informe o saldo.' : 'Cadastre uma conta em “Contas” e depois adicione a aplicação aqui.'}</span></div>`;
-
-    const fi = $('#fInv').value || 'all';
-    const hist = state.snapshots.filter(s => fi === 'all' || s.invId === fi)
-      .sort((a, b) => stamp(b).localeCompare(stamp(a))).slice(0, 60);
-    $('#snapRows').innerHTML = hist.map(s => {
-      const before = prevSnap(s);
-      const result = snapshotResult(s, before);
-      return `<tr>
-        <td class="num">${fullDate(s.date)}</td>
-        <td class="num t-muted">${s.time}</td>
-        <td>${esc(invName(s.invId))}</td>
-        <td class="t-muted">${esc(invAccName(state.investments.find(i => i.id === s.invId)))}</td>
-        <td class="t-right num amount">${money(s.balance)}</td>
-        <td class="t-right invest-result-cell">${result ? `${resultMoney(result.difference)}${result.percent != null ? `<small>${pct2(result.percent)}</small>` : ''}` : '<span class="t-muted">base inicial</span>'}</td>
-        <td class="t-right invest-result-cell">${dailyResultLabel(result)}</td>
-        <td><span class="checked">${icon('user-round', 'i-sm')}${esc(s.by)}</span></td>
-        <td class="t-right" style="width:44px"><button class="icon-btn" data-del-snap="${s.id}" aria-label="Excluir registro">${icon('trash-2', 'i-sm')}</button></td>
-      </tr>`;
-    }).join('') || '<tr><td colspan="9" class="empty">Nenhum saldo registrado ainda.</td></tr>';
+      </tr>`).join('');
+      $('#invGroups').innerHTML = !state.investments.length
+        ? `<div class="inv-empty">${icon('piggy-bank')}<strong>Nenhuma aplicação ainda</strong><span>${state.accounts.length ? 'Clique em “Nova aplicação”, escolha a conta e informe o saldo.' : 'Cadastre uma conta em “Contas” e depois adicione a aplicação aqui.'}</span></div>`
+        : list.length ? `<div class="table-wrap inv-table-wrap"><table class="inv-table">
+            <thead><tr>${invTh('name', 'Aplicação')}${invTh('acc', 'Conta (Banco)')}${invTh('type', 'Tipo')}${invTh('bal', 'Saldo atual', 't-right')}${invTh('ini', 'Saldo inicial', 't-right')}${invTh('gain', 'Rendimento', 't-right')}${invTh('rate', 'Rentabilidade', 't-center')}${invTh('last', 'Última verificação')}<th class="t-center">Situação</th><th>Ação</th></tr></thead>
+            <tbody>${rows}</tbody></table></div>`
+          : `<div class="task-empty">${icon('search')}Nada com esses filtros.</div>`;
+      $('#invPager').innerHTML = invPagerHtml(list.length, list.length === 1 ? 'aplicação' : 'aplicações');
+    } else {
+      const fi = $('#fInv').value || 'all';
+      const hist = state.snapshots.filter(x => {
+        const inv = state.investments.find(i => i.id === x.invId);
+        return (fi === 'all' || x.invId === fi) && (fa === 'all' || (inv?.account || '') === fa)
+          && (!q || `${invName(x.invId)} ${invAccName(inv)} ${x.by}`.toLowerCase().includes(q));
+      }).sort((a, b) => stamp(b).localeCompare(stamp(a)));
+      const pages = Math.max(1, Math.ceil(hist.length / invPer)); invPage = Math.min(Math.max(1, invPage), pages);
+      $('#snapRows').innerHTML = hist.slice((invPage - 1) * invPer, invPage * invPer).map(x => {
+        const result = snapshotResult(x, prevSnap(x));
+        return `<tr>
+          <td class="num">${fullDate(x.date)}</td><td class="num">${x.time}</td>
+          <td><strong>${esc(invName(x.invId))}</strong></td>
+          <td>${esc(invAccName(state.investments.find(i => i.id === x.invId)))}</td>
+          <td class="t-right num"><strong>${money(x.balance)}</strong></td>
+          <td class="t-right">${result ? `${resultMoney(result.difference)}${result.percent != null ? ` <small class="t-muted">${pct2(result.percent)}</small>` : ''}` : '<span class="t-muted">base inicial</span>'}</td>
+          <td class="t-right">${dailyResultLabel(result)}</td>
+          <td>${esc(x.by)}</td>
+          <td class="t-center"><button class="icon-btn" data-del-snap="${x.id}" aria-label="Excluir registro">${icon('trash-2', 'i-sm')}</button></td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="9" class="empty">Nenhum saldo registrado ainda.</td></tr>';
+      $('#invPager').innerHTML = invPagerHtml(hist.length, hist.length === 1 ? 'atualização' : 'atualizações');
+    }
   }
 
   function fillPeriod() {
@@ -2572,6 +2685,15 @@
       fillCategories();
       const t = todayISO();
       $('#txDate').value = ym(t) === period ? t : `${period}-01`;
+    }
+    if (name === 'snapbatch') {
+      if (!state.investments.length) { m.classList.remove('open'); alert('Cadastre uma aplicação antes.'); return; }
+      $('#sbDate').value = todayISO();
+      $('#sbTime').value = nowTime();
+      $('#sbList').innerHTML = state.investments.map((i, k) => `<div class="sb-row">
+          <div><strong>${esc(i.name)}</strong><small>${esc(invAccName(i))} · último ${latest(i.id) ? money(latest(i.id).balance) : '—'}</small></div>
+          <input class="input num money" id="sbV${k}" data-sb="${i.id}" type="text" inputmode="numeric" autocomplete="off" data-money placeholder="Novo saldo">
+        </div>`).join('');
     }
     if (name === 'snap') {
       if (btn?.dataset.inv) $('#snapInv').value = btn.dataset.inv;
@@ -2770,7 +2892,38 @@
     e.currentTarget.classList.toggle('on', open);
   });
   $('#reportPdfBtn')?.addEventListener('click', exportReportPdf);
-  $('#fInv').addEventListener('change', renderInvestments);
+  $('#fInv').addEventListener('change', () => { invPage = 1; renderInvestments(); });
+  ['#invQ', '#invFAcc', '#invFType', '#invFSit', '#invFRes', '#invFAge'].forEach(sel => $(sel).addEventListener(sel === '#invQ' ? 'input' : 'change', () => { invPage = 1; renderInvestments(); }));
+  $('#invChartPick').addEventListener('change', investChart);
+  $('#invMore').addEventListener('click', e => { const p = $('#invMorePanel'); p.hidden = !p.hidden; e.currentTarget.classList.toggle('on', !p.hidden); });
+  $('#invClear').addEventListener('click', () => {
+    $('#invQ').value = ''; ['#invFAcc', '#invFType', '#invFSit', '#invFRes', '#invFAge', '#fInv'].forEach(sel => { $(sel).value = 'all'; });
+    invPage = 1; renderInvestments();
+  });
+  document.addEventListener('change', e => { if (e.target.id === 'invPer') { invPer = +e.target.value || 5; invPage = 1; renderInvestments(); } });
+  document.addEventListener('click', e => {
+    const t = e.target.closest('[data-inv-tab]');
+    if (t) { invTab = t.dataset.invTab; invPage = 1; renderInvestments(); return; }
+    const c = e.target.closest('[data-invchart]');
+    if (c) { invChartMode = c.dataset.invchart; renderInvestments(); return; }
+    const s2 = e.target.closest('[data-isort]');
+    if (s2) { const k = s2.dataset.isort; invSort = invSort.key === k ? { key: k, dir: -invSort.dir } : { key: k, dir: 1 }; invPage = 1; renderInvestments(); return; }
+    const pg = e.target.closest('[data-inv-page]');
+    if (pg && !pg.disabled) { invPage = +pg.dataset.invPage; renderInvestments(); }
+  });
+  $('#snapBatchForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const date = $('#sbDate').value, time = $('#sbTime').value, by = (userName || state.people[0] || '').trim();
+    if (!by) { alert('Não foi possível identificar o editor conectado. Recarregue a página.'); return; }
+    const filled = $$('#sbList [data-sb]').map(el => ({ invId: el.dataset.sb, v: moneyVal(`#${el.id}`) })).filter(x => !Number.isNaN(x.v) && x.v >= 0);
+    if (!filled.length) { alert('Preencha o saldo de pelo menos uma aplicação.'); return; }
+    filled.forEach(({ invId, v }) => {
+      state.snapshots = state.snapshots.filter(x => !(x.invId === invId && x.date === date && x.time === time));
+      state.snapshots.push({ ...stamp_(), id: uid(), invId, date, time, balance: Math.round(v * 100) / 100, by });
+    });
+    rememberPerson(by);
+    save(); closeModals(); refresh();
+  });
   ['#snapInv', '#snapDate', '#snapTime', '#snapBal'].forEach(s => $(s).addEventListener(s === '#snapBal' ? 'input' : 'change', updateSnapPrev));
   $$('input[name="kind"]').forEach(r => r.addEventListener('change', fillCategories));
 
