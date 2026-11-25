@@ -20,9 +20,17 @@
     'Recebimentos': 'cat-coins', 'Demais categorias': 'cat-squares-four',
   };
   const TITLES = {
-    overview: 'Visão geral', transactions: 'Movimentações',
+    overview: 'Visão Geral', transactions: 'Movimentações',
     pagamentos: 'Pagamentos', cobrancas: 'Cobranças', documentacao: 'Documentação',
     accounts: 'Contas', investments: 'Investimentos', reports: 'Relatórios',
+  };
+  const SUBTITLES = {
+    overview: 'Resumo financeiro, compromissos e <span class="sub-x">situação do seu </span>patrimônio',
+    transactions: 'Tudo o que entrou e saiu no mês',
+    pagamentos: 'Contas a pagar e o que já foi pago', cobrancas: 'Valores a receber e o que já entrou',
+    documentacao: 'Documentos e prazos a cumprir',
+    accounts: 'Saldos das contas e carteiras', investments: 'Aplicações e evolução do patrimônio',
+    reports: 'Resumo por período e por categoria',
   };
   const KIND_LABEL = { pagamento: 'Pagamento', documentacao: 'Documentação', cobranca: 'Cobrança' };
   const taskKind = t => (t && (t.kind === 'documentacao' || t.kind === 'cobranca') ? t.kind : 'pagamento');
@@ -381,41 +389,64 @@
       const receber = [...(tipo === 'atual' ? overdue.filter(x => x.kind === 'income') : []), ...doMes.filter(x => x.kind === 'income')];
       const atrasadas = dividas.filter(x => x.status === 'atrasada').length;
       const saldo = tot(receber) - tot(dividas);
-      return `<div class="block ov-month ${tipo === 'atual' ? 'is-current' : 'is-next'}">
+      return `<div class="ov-month ${tipo === 'atual' ? 'is-current' : 'is-next'}">
         <div class="ov-month-head">
-          <div><span class="ov-month-tag">${tipo === 'atual' ? 'Este mês' : 'Próximo mês'}</span><h3>${mes(m)}</h3></div>
-          <button class="link" data-go="pagamentos">Ver contas</button>
+          <span class="ov-mh-title">${icon('ph-calendar-blank')}<span>${tipo === 'atual' ? 'Este mês' : 'Próximo mês'} <em>—</em> ${mes(m)}</span></span>
+          <button class="link" data-go="pagamentos">Ver contas${icon('ph-arrow-right', 'i-sm')}</button>
         </div>
         <div class="ov-line is-debt ${tot(dividas) ? '' : 'is-zero'}">
-          <div><div class="ov-line-label">${tipo === 'atual' ? 'Dívidas deste mês' : `Dívidas para ${mes(m).toLowerCase()}`}</div>
+          <span class="ov-line-ico">${icon('ph-receipt')}</span>
+          <div class="ov-line-main"><div class="ov-line-label">${tipo === 'atual' ? 'Dívidas deste mês' : `Dívidas para ${mes(m).toLowerCase()}`}</div>
             <div class="ov-line-sub">${dividas.length ? plural(dividas.length, 'conta a pagar', 'contas a pagar') : 'nenhuma conta'}${semValor(dividas)}${atrasadas ? ` · <b>${plural(atrasadas, 'atrasada', 'atrasadas')}</b>` : ''}</div></div>
           <div class="ov-line-val num">${money(tot(dividas))}</div>
         </div>
         <div class="ov-line is-get ${tot(receber) ? '' : 'is-zero'}">
-          <div><div class="ov-line-label">${tipo === 'atual' ? 'A receber este mês' : `A receber em ${mes(m).toLowerCase()}`}</div>
+          <span class="ov-line-ico">${icon('ph-hand-coins')}</span>
+          <div class="ov-line-main"><div class="ov-line-label">${tipo === 'atual' ? 'A receber este mês' : `A receber em ${mes(m).toLowerCase()}`}</div>
             <div class="ov-line-sub">${receber.length ? plural(receber.length, 'cobrança', 'cobranças') : 'nenhuma cobrança'}</div></div>
           <div class="ov-line-val num">${money(tot(receber))}</div>
         </div>
         ${extra}
-        <div class="ov-line is-total ${saldo < 0 ? 'neg' : saldo > 0 ? 'pos' : 'is-zero'}">
-          <div><div class="ov-line-label">${saldo < 0 ? 'Falta (receber − dívidas)' : 'Sobra (receber − dívidas)'}</div></div>
-          <div class="ov-line-val num">${signed(saldo)}</div>
+        <div class="ov-line is-total ${saldo < 0 ? 'neg' : 'pos'}">
+          <div class="ov-line-main"><div class="ov-line-label">${saldo < 0 ? 'Falta (receber − dívidas)' : 'Sobra (receber − dívidas)'}</div></div>
+          <div class="ov-line-val num">${Math.abs(saldo) < 0.005 ? money(0) : signed(saldo)}</div>
         </div>
       </div>`;
     };
 
     const pago = list.filter(x => x.kind === 'expense'), recebido = list.filter(x => x.kind === 'income');
     const jaFeito = `<div class="ov-line is-done">
-          <div><div class="ov-line-label">Já pago / recebido</div>
+          <span class="ov-line-ico">${icon('ph-check-circle')}</span>
+          <div class="ov-line-main"><div class="ov-line-label">Já pago / recebido</div>
             <div class="ov-line-sub">${plural(pago.length + recebido.length, 'lançamento com baixa', 'lançamentos com baixa')}</div></div>
           <div class="ov-line-val num"><span class="delta-neg">${money(tot(pago))}</span> / <span class="delta-pos">${money(tot(recebido))}</span></div>
         </div>`;
     const saldoContas = `<div class="ov-line is-done">
-          <div><div class="ov-line-label">Saldo em contas hoje</div>
+          <span class="ov-line-ico">${icon('ph-bank')}</span>
+          <div class="ov-line-main"><div class="ov-line-label">Saldo em contas hoje</div>
             <div class="ov-line-sub">${plural(state.accounts.length, 'conta', 'contas')}</div></div>
           <div class="ov-line-val num">${money(totalBalance(k))}</div>
         </div>`;
     box.innerHTML = card(k, 'atual', jaFeito) + card(next, 'proximo', saldoContas);
+
+    // Saldo em contas e patrimônio investido
+    const stats = $('#ovStats');
+    if (stats) {
+      let varInv = 0, temVar = false;
+      state.investments.forEach(inv => { const l = snapsOf(inv.id); if (l.length > 1) { temVar = true; varInv += l.at(-1).balance - l.at(-2).balance; } });
+      const chipInv = temVar && Math.abs(varInv) > 0.004 ? `<span class="ov-stat-chip ${varInv < 0 ? 'is-neg' : ''}">${varInv < 0 ? '−' : '+'} ${money(Math.abs(varInv))}</span>` : '';
+      stats.innerHTML = `
+        <button type="button" class="ov-stat is-green" data-go="accounts">
+          <span class="ov-stat-ico">${icon('ph-chart-line-up')}</span>
+          <span class="ov-stat-txt"><span class="ov-stat-label">Saldo total em contas</span><strong class="num">${money(totalBalance(k))}</strong></span>
+          <span class="ov-stat-go">${icon('ph-caret-right')}</span>
+        </button>
+        <button type="button" class="ov-stat is-purple" data-go="investments">
+          <span class="ov-stat-ico">${icon('ph-stack')}</span>
+          <span class="ov-stat-txt"><span class="ov-stat-label">Patrimônio investido</span><strong class="num">${money(invTotal())}</strong>${chipInv}</span>
+          <span class="ov-stat-go">${icon('ph-caret-right')}</span>
+        </button>`;
+    }
 
     const today = todayISO();
     const prox = sched.slice().sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6);
@@ -498,11 +529,49 @@
   }
 
 
+  /** Despesas por categoria da visão geral: rosca + tabela. */
+  const DONUT_COLORS = ['#1f6fe5', '#16a34a', '#f59e0b', '#e8457f', '#8b5cf6', '#14b8a6'];
+  function catDonut(list, limit = 6) {
+    const exp = list.filter(x => x.kind === 'expense');
+    const total = sum(exp, 'expense');
+    if (!total) return '<div class="empty">Sem despesas neste período.</div>';
+    const groups = {}, count = {};
+    exp.forEach(x => { groups[x.category] = (groups[x.category] || 0) + x.amount; count[x.category] = (count[x.category] || 0) + 1; });
+    let rows = Object.entries(groups).map(([c, v]) => [c, v, count[c]]).sort((a, b) => b[1] - a[1]);
+    if (rows.length > limit) {
+      const rest = rows.slice(limit - 1);
+      rows = [...rows.slice(0, limit - 1), ['Demais categorias', rest.reduce((t, r) => t + r[1], 0), rest.reduce((t, r) => t + r[2], 0)]];
+    }
+    const R = 46, C = 2 * Math.PI * R, gap = rows.length > 1 ? 1.2 : 0;
+    let off = 0;
+    const arcs = rows.map(([c, v], i) => {
+      const len = (v / total) * C;
+      const a = `<circle cx="60" cy="60" r="${R}" fill="none" stroke="${DONUT_COLORS[i % DONUT_COLORS.length]}" stroke-width="17"
+        stroke-dasharray="${Math.max(len - gap, 0.01)} ${C}" stroke-dashoffset="${-off}"><title>${esc(c)}: ${money(v)}</title></circle>`;
+      off += len;
+      return a;
+    }).join('');
+    const pctR = v => `${Math.round((v / total) * 100)}%`;
+    return `<div class="donut">
+        <svg viewBox="0 0 120 120" aria-hidden="true"><g transform="rotate(-90 60 60)">${arcs}</g></svg>
+        <div class="donut-center"><strong class="num">${money(total)}</strong><span>Total</span></div>
+      </div>
+      <table class="donut-table">
+        <thead><tr><th>Categoria</th><th class="col-n">Contas</th><th class="t-right">Valor</th><th class="t-right">%</th></tr></thead>
+        <tbody>${rows.map(([c, v, n], i) => `<tr>
+          <td><span class="donut-cat"><i style="background:${DONUT_COLORS[i % DONUT_COLORS.length]}"></i>${icon(CAT_ICON[c] || 'cat-dots-three-outline', 'i-sm')}<span>${esc(c)}</span></span></td>
+          <td class="col-n">${n} ${n === 1 ? 'conta' : 'contas'}</td>
+          <td class="t-right num">${money(v)}</td>
+          <td class="t-right num donut-pct">${pctR(v)}</td>
+        </tr>`).join('')}</tbody>
+      </table>`;
+  }
+
   function accRows(k, withDelete) {
     if (!state.accounts.length) return '<div class="empty">Nenhuma conta cadastrada.</div>';
     const rows = state.accounts.map(a => `
       <div class="acc-row">
-        <div class="acc-ico">${icon(a.type === 'Dinheiro em espécie' ? 'wallet' : 'landmark', 'i-sm')}</div>
+        <div class="acc-ico">${icon(a.type === 'Dinheiro em espécie' ? 'ph-wallet' : 'ph-bank', 'i-sm')}</div>
         <div class="acc-info"><div class="acc-name">${esc(a.name)}</div><div class="acc-type">${esc(a.type)}</div></div>
         <div class="acc-bal num">${money(accBalance(a, k))}</div>
         ${withDelete ? `<button class="icon-btn" data-del-acc="${a.id}" aria-label="Excluir conta">${icon('trash-2', 'i-sm')}</button>` : ''}
@@ -1914,7 +1983,7 @@
     $('#invTop').innerHTML = list.slice(0, 3).map(({ i, v, l }) => {
       const cur = l.at(-1), before = l.at(-2);
       return `<div class="inv-row">
-        <div class="acc-ico">${icon('piggy-bank', 'i-sm')}</div>
+        <div class="acc-ico">${icon('ph-stack', 'i-sm')}</div>
         <div class="acc-info">
           <div class="acc-name">${esc(i.name)}</div>
           <div class="acc-type">${esc(invAccName(i))}${cur ? ` · ${icon('clock', 'i-xs')} ${fullDate(cur.date)} às ${cur.time}` : ' · sem atualização'}</div>
@@ -1968,7 +2037,7 @@
     $('#catMeta').textContent = sched.some(x => x.kind === 'expense')
       ? `${monthLabel(k).split(' ')[0]}${schedMonths.length > 1 ? ` + agendados até ${nextName.toLowerCase()}` : ' + agendados'}`
       : monthLabel(k);
-    $('#catTop').innerHTML = catBreakdown([...list, ...sched], 6);
+    $('#catTop').innerHTML = catDonut([...list, ...sched], 6);
     const recent = [...sched, ...list].sort((a, b) => b.date.localeCompare(a.date) || (b.time || '').localeCompare(a.time || ''));
     $('#recentRows').innerHTML = recent.slice(0, 10).map(overviewTxRow).join('') || '<tr><td colspan="7" class="empty">Nenhum lançamento neste mês.</td></tr>';
     $('#accSummary').innerHTML = accRows(k);
@@ -2315,6 +2384,7 @@
     $$('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === v || (!!tk && 'tabTasks' in b.dataset)));
     $$('#taskKindSwitch button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
     $('#pageTitle').textContent = TITLES[v];
+    $('#pageSub').innerHTML = SUBTITLES[v] || '';
     document.title = `${TITLES[v]} · Matheus do Beiju`;
     window.scrollTo({ top: 0 });
     if (growOn) avisarPai({ type: 'fp-top' });
@@ -2721,6 +2791,8 @@
       $('#userName').textContent = nome;
       $('#userAvatar').textContent = nome.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase();
       $('#userBox').hidden = false;
+      $('#userRole').textContent = d.admin ? 'Admin' : 'Editor';
+      $('#mUserName').textContent = nome;
       const mudou = isAdmin !== !!d.admin || userName !== nome;
       isAdmin = !!d.admin;
       userName = nome;
@@ -2730,6 +2802,11 @@
   });
   $('#btnSair').addEventListener('click', () => avisarPai({ type: 'fp-sair' }));
   $('#btnTrocarSistema').addEventListener('click', () => avisarPai({ type: 'fp-trocar-sistema' }));
+  $('#mSair').addEventListener('click', () => avisarPai({ type: 'fp-sair' }));
+  $('#mTrocar').addEventListener('click', () => avisarPai({ type: 'fp-trocar-sistema' }));
+  const mMenu = (abrir) => { $('#mUserMenu').hidden = !abrir; $('#mUserBtn').setAttribute('aria-expanded', String(abrir)); };
+  $('#mUserBtn').addEventListener('click', e => { e.stopPropagation(); mMenu($('#mUserMenu').hidden); });
+  document.addEventListener('click', e => { if (!e.target.closest('.m-user')) mMenu(false); });
 
   /* Comprovantes no modo banco: upload/download pela página React (bucket fp-comprovantes) */
   const fileWaiters = new Map();

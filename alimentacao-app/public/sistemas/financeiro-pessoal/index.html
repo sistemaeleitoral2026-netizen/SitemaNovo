@@ -7,10 +7,11 @@
 <title>Matheus do Beiju · Financeiro</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
 <link rel="stylesheet" href="css/tarefas.css">
 <link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/tema.css">
 </head>
 <body>
 <a class="skip-link" href="#mainContent">Ir para o conteúdo</a>
@@ -18,6 +19,7 @@
 <!-- Ícones: Lucide v0.460.0 (licença ISC) -->
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
 <!-- Ícones: Phosphor Icons (MIT, phosphoricons.com) — duotone; setas/ações em bold -->
+<!-- ui-icons --><symbol id="i-ph-arrow-right" viewBox="0 0 256 256"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></symbol><symbol id="i-ph-arrows-down-up" viewBox="0 0 256 256"><path d="M117.66,170.34a8,8,0,0,1,0,11.32l-32,32a8,8,0,0,1-11.32,0l-32-32a8,8,0,0,1,11.32-11.32L72,188.69V48a8,8,0,0,1,16,0V188.69l18.34-18.35A8,8,0,0,1,117.66,170.34Zm96-96-32-32a8,8,0,0,0-11.32,0l-32,32a8,8,0,0,0,11.32,11.32L168,67.31V208a8,8,0,0,0,16,0V67.31l18.34,18.35a8,8,0,0,0,11.32-11.32Z"/></symbol><symbol id="i-ph-arrows-left-right" viewBox="0 0 256 256"><path d="M213.66,181.66l-32,32a8,8,0,0,1-11.32-11.32L188.69,184H48a8,8,0,0,1,0-16H188.69l-18.35-18.34a8,8,0,0,1,11.32-11.32l32,32A8,8,0,0,1,213.66,181.66Zm-139.32-64a8,8,0,0,0,11.32-11.32L67.31,88H208a8,8,0,0,0,0-16H67.31L85.66,53.66A8,8,0,0,0,74.34,42.34l-32,32a8,8,0,0,0,0,11.32Z"/></symbol><symbol id="i-ph-bank" viewBox="0 0 256 256"><path d="M24,104H48v64H32a8,8,0,0,0,0,16H224a8,8,0,0,0,0-16H208V104h24a8,8,0,0,0,4.19-14.81l-104-64a8,8,0,0,0-8.38,0l-104,64A8,8,0,0,0,24,104Zm40,0H96v64H64Zm80,0v64H112V104Zm48,64H160V104h32ZM128,41.39,203.74,88H52.26ZM248,208a8,8,0,0,1-8,8H16a8,8,0,0,1,0-16H240A8,8,0,0,1,248,208Z"/></symbol><symbol id="i-ph-bell" viewBox="0 0 256 256"><path d="M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216ZM48,184c7.7-13.24,16-43.92,16-80a64,64,0,1,1,128,0c0,36.05,8.28,66.73,16,80Z"/></symbol><symbol id="i-ph-calendar-blank" viewBox="0 0 256 256"><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM72,48v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24V80H48V48ZM208,208H48V96H208V208Z"/></symbol><symbol id="i-ph-caret-right" viewBox="0 0 256 256"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></symbol><symbol id="i-ph-chart-bar" viewBox="0 0 256 256"><path d="M224,200h-8V40a8,8,0,0,0-8-8H152a8,8,0,0,0-8,8V80H96a8,8,0,0,0-8,8v40H48a8,8,0,0,0-8,8v64H32a8,8,0,0,0,0,16H224a8,8,0,0,0,0-16ZM160,48h40V200H160ZM104,96h40V200H104ZM56,144H88v56H56Z"/></symbol><symbol id="i-ph-chart-donut" viewBox="0 0 256 256"><path d="M128,24a8,8,0,0,0-8,8V88a8,8,0,0,0,8,8,32,32,0,1,1-27.72,16,8,8,0,0,0-2.93-10.93l-48.5-28A8,8,0,0,0,37.92,76,104,104,0,1,0,128,24ZM48.09,91.1,83,111.26A48.09,48.09,0,0,0,80,128c0,1.53.08,3,.22,4.52L41.28,143A88.16,88.16,0,0,1,48.09,91.1Zm-2.67,67.31,39-10.44A48.1,48.1,0,0,0,120,175.32v40.31A88.2,88.2,0,0,1,45.42,158.41ZM136,215.63V175.32a48,48,0,0,0,0-94.65V40.36a88,88,0,0,1,0,175.27Z"/></symbol><symbol id="i-ph-chart-line-up" viewBox="0 0 256 256"><path d="M232,208a8,8,0,0,1-8,8H32a8,8,0,0,1-8-8V48a8,8,0,0,1,16,0V156.69l50.34-50.35a8,8,0,0,1,11.32,0L128,132.69,180.69,80H160a8,8,0,0,1,0-16h40a8,8,0,0,1,8,8v40a8,8,0,0,1-16,0V91.31l-58.34,58.35a8,8,0,0,1-11.32,0L96,123.31l-56,56V200H224A8,8,0,0,1,232,208Z"/></symbol><symbol id="i-ph-check-circle" viewBox="0 0 256 256"><path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></symbol><symbol id="i-ph-clipboard-text" viewBox="0 0 256 256"><path d="M168,152a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,152Zm-8-40H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16Zm56-64V216a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V48A16,16,0,0,1,56,32H92.26a47.92,47.92,0,0,1,71.48,0H200A16,16,0,0,1,216,48ZM96,64h64a32,32,0,0,0-64,0ZM200,48H173.25A47.93,47.93,0,0,1,176,64v8a8,8,0,0,1-8,8H88a8,8,0,0,1-8-8V64a47.93,47.93,0,0,1,2.75-16H56V216H200Z"/></symbol><symbol id="i-ph-credit-card" viewBox="0 0 256 256"><path d="M224,48H32A16,16,0,0,0,16,64V192a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V64A16,16,0,0,0,224,48Zm0,16V88H32V64Zm0,128H32V104H224v88Zm-16-24a8,8,0,0,1-8,8H168a8,8,0,0,1,0-16h32A8,8,0,0,1,208,168Zm-64,0a8,8,0,0,1-8,8H120a8,8,0,0,1,0-16h16A8,8,0,0,1,144,168Z"/></symbol><symbol id="i-ph-currency-circle-dollar" viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm40-68a28,28,0,0,1-28,28h-4v8a8,8,0,0,1-16,0v-8H104a8,8,0,0,1,0-16h36a12,12,0,0,0,0-24H116a28,28,0,0,1,0-56h4V72a8,8,0,0,1,16,0v8h16a8,8,0,0,1,0,16H116a12,12,0,0,0,0,24h24A28,28,0,0,1,168,148Z"/></symbol><symbol id="i-ph-file-text" viewBox="0 0 256 256"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-32-80a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,136Zm0,32a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,168Z"/></symbol><symbol id="i-ph-hand-coins" viewBox="0 0 256 256"><path d="M230.33,141.06a24.43,24.43,0,0,0-21.24-4.23l-41.84,9.62A28,28,0,0,0,140,112H89.94a31.82,31.82,0,0,0-22.63,9.37L44.69,144H16A16,16,0,0,0,0,160v40a16,16,0,0,0,16,16H120a7.93,7.93,0,0,0,1.94-.24l64-16a6.94,6.94,0,0,0,1.19-.4L226,182.82l.44-.2a24.6,24.6,0,0,0,3.93-41.56ZM16,160H40v40H16Zm203.43,8.21-38,16.18L119,200H56V155.31l22.63-22.62A15.86,15.86,0,0,1,89.94,128H140a12,12,0,0,1,0,24H112a8,8,0,0,0,0,16h32a8.32,8.32,0,0,0,1.79-.2l67-15.41.31-.08a8.6,8.6,0,0,1,6.3,15.9ZM164,96a36,36,0,0,0,5.9-.48,36,36,0,1,0,28.22-47A36,36,0,1,0,164,96Zm60-12a20,20,0,1,1-20-20A20,20,0,0,1,224,84ZM164,40a20,20,0,0,1,19.25,14.61,36,36,0,0,0-15,24.93A20.42,20.42,0,0,1,164,80a20,20,0,0,1,0-40Z"/></symbol><symbol id="i-ph-house" viewBox="0 0 256 256"><path d="M219.31,108.68l-80-80a16,16,0,0,0-22.62,0l-80,80A15.87,15.87,0,0,0,32,120v96a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V160h32v56a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V120A15.87,15.87,0,0,0,219.31,108.68ZM208,208H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48V120l80-80,80,80Z"/></symbol><symbol id="i-ph-list-bullets" viewBox="0 0 256 256"><path d="M80,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H88A8,8,0,0,1,80,64Zm136,56H88a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Zm0,64H88a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16ZM44,52A12,12,0,1,0,56,64,12,12,0,0,0,44,52Zm0,64a12,12,0,1,0,12,12A12,12,0,0,0,44,116Zm0,64a12,12,0,1,0,12,12A12,12,0,0,0,44,180Z"/></symbol><symbol id="i-ph-plus" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></symbol><symbol id="i-ph-presentation-chart" viewBox="0 0 256 256"><path d="M216,40H136V24a8,8,0,0,0-16,0V40H40A16,16,0,0,0,24,56V176a16,16,0,0,0,16,16H79.36L57.75,219a8,8,0,0,0,12.5,10l29.59-37h56.32l29.59,37a8,8,0,1,0,12.5-10l-21.61-27H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,136H40V56H216V176ZM104,120v24a8,8,0,0,1-16,0V120a8,8,0,0,1,16,0Zm32-16v40a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm32-16v56a8,8,0,0,1-16,0V88a8,8,0,0,1,16,0Z"/></symbol><symbol id="i-ph-receipt" viewBox="0 0 256 256"><path d="M72,104a8,8,0,0,1,8-8h96a8,8,0,0,1,0,16H80A8,8,0,0,1,72,104Zm8,40h96a8,8,0,0,0,0-16H80a8,8,0,0,0,0,16ZM232,56V208a8,8,0,0,1-11.58,7.15L192,200.94l-28.42,14.21a8,8,0,0,1-7.16,0L128,200.94,99.58,215.15a8,8,0,0,1-7.16,0L64,200.94,35.58,215.15A8,8,0,0,1,24,208V56A16,16,0,0,1,40,40H216A16,16,0,0,1,232,56Zm-16,0H40V195.06l20.42-10.22a8,8,0,0,1,7.16,0L96,199.06l28.42-14.22a8,8,0,0,1,7.16,0L160,199.06l28.42-14.22a8,8,0,0,1,7.16,0L216,195.06Z"/></symbol><symbol id="i-ph-seal-check" viewBox="0 0 256 256"><path d="M225.86,102.82c-3.77-3.94-7.67-8-9.14-11.57-1.36-3.27-1.44-8.69-1.52-13.94-.15-9.76-.31-20.82-8-28.51s-18.75-7.85-28.51-8c-5.25-.08-10.67-.16-13.94-1.52-3.56-1.47-7.63-5.37-11.57-9.14C146.28,23.51,138.44,16,128,16s-18.27,7.51-25.18,14.14c-3.94,3.77-8,7.67-11.57,9.14C88,40.64,82.56,40.72,77.31,40.8c-9.76.15-20.82.31-28.51,8S41,67.55,40.8,77.31c-.08,5.25-.16,10.67-1.52,13.94-1.47,3.56-5.37,7.63-9.14,11.57C23.51,109.72,16,117.56,16,128s7.51,18.27,14.14,25.18c3.77,3.94,7.67,8,9.14,11.57,1.36,3.27,1.44,8.69,1.52,13.94.15,9.76.31,20.82,8,28.51s18.75,7.85,28.51,8c5.25.08,10.67.16,13.94,1.52,3.56,1.47,7.63,5.37,11.57,9.14C109.72,232.49,117.56,240,128,240s18.27-7.51,25.18-14.14c3.94-3.77,8-7.67,11.57-9.14,3.27-1.36,8.69-1.44,13.94-1.52,9.76-.15,20.82-.31,28.51-8s7.85-18.75,8-28.51c.08-5.25.16-10.67,1.52-13.94,1.47-3.56,5.37-7.63,9.14-11.57C232.49,146.28,240,138.44,240,128S232.49,109.73,225.86,102.82Zm-11.55,39.29c-4.79,5-9.75,10.17-12.38,16.52-2.52,6.1-2.63,13.07-2.73,19.82-.1,7-.21,14.33-3.32,17.43s-10.39,3.22-17.43,3.32c-6.75.1-13.72.21-19.82,2.73-6.35,2.63-11.52,7.59-16.52,12.38S132,224,128,224s-9.15-4.92-14.11-9.69-10.17-9.75-16.52-12.38c-6.1-2.52-13.07-2.63-19.82-2.73-7-.1-14.33-.21-17.43-3.32s-3.22-10.39-3.32-17.43c-.1-6.75-.21-13.72-2.73-19.82-2.63-6.35-7.59-11.52-12.38-16.52S32,132,32,128s4.92-9.15,9.69-14.11,9.75-10.17,12.38-16.52c2.52-6.1,2.63-13.07,2.73-19.82.1-7,.21-14.33,3.32-17.43S70.51,56.9,77.55,56.8c6.75-.1,13.72-.21,19.82-2.73,6.35-2.63,11.52-7.59,16.52-12.38S124,32,128,32s9.15,4.92,14.11,9.69,10.17,9.75,16.52,12.38c6.1,2.52,13.07,2.63,19.82,2.73,7,.1,14.33.21,17.43,3.32s3.22,10.39,3.32,17.43c.1,6.75.21,13.72,2.73,19.82,2.63,6.35,7.59,11.52,12.38,16.52S224,124,224,128,219.08,137.15,214.31,142.11ZM173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34Z"/></symbol><symbol id="i-ph-sign-out" viewBox="0 0 256 256"><path d="M120,216a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V40a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H56V208h56A8,8,0,0,1,120,216Zm109.66-93.66-40-40a8,8,0,0,0-11.32,11.32L204.69,120H112a8,8,0,0,0,0,16h92.69l-26.35,26.34a8,8,0,0,0,11.32,11.32l40-40A8,8,0,0,0,229.66,122.34Z"/></symbol><symbol id="i-ph-stack" viewBox="0 0 256 256"><path d="M230.91,172A8,8,0,0,1,228,182.91l-96,56a8,8,0,0,1-8.06,0l-96-56A8,8,0,0,1,36,169.09l92,53.65,92-53.65A8,8,0,0,1,230.91,172ZM220,121.09l-92,53.65L36,121.09A8,8,0,0,0,28,134.91l96,56a8,8,0,0,0,8.06,0l96-56A8,8,0,1,0,220,121.09ZM24,80a8,8,0,0,1,4-6.91l96-56a8,8,0,0,1,8.06,0l96,56a8,8,0,0,1,0,13.82l-96,56a8,8,0,0,1-8.06,0l-96-56A8,8,0,0,1,24,80Zm23.88,0L128,126.74,208.12,80,128,33.26Z"/></symbol><symbol id="i-ph-user" viewBox="0 0 256 256"><path d="M230.92,212c-15.23-26.33-38.7-45.21-66.09-54.16a72,72,0,1,0-73.66,0C63.78,166.78,40.31,185.66,25.08,212a8,8,0,1,0,13.85,8c18.84-32.56,52.14-52,89.07-52s70.23,19.44,89.07,52a8,8,0,1,0,13.85-8ZM72,96a56,56,0,1,1,56,56A56.06,56.06,0,0,1,72,96Z"/></symbol><symbol id="i-ph-wallet" viewBox="0 0 256 256"><path d="M216,64H56a8,8,0,0,1,0-16H192a8,8,0,0,0,0-16H56A24,24,0,0,0,32,56V184a24,24,0,0,0,24,24H216a16,16,0,0,0,16-16V80A16,16,0,0,0,216,64Zm0,128H56a8,8,0,0,1-8-8V78.63A23.84,23.84,0,0,0,56,80H216Zm-48-60a12,12,0,1,1,12,12A12,12,0,0,1,168,132Z"/></symbol><!-- /ui-icons -->
 <!-- cat-icons --><symbol id="i-cat-house" viewBox="0 0 256 256"><path d="M219.31,108.68l-80-80a16,16,0,0,0-22.62,0l-80,80A15.87,15.87,0,0,0,32,120v96a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V160h32v56a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V120A15.87,15.87,0,0,0,219.31,108.68ZM208,208H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48V120l80-80,80,80Z"/></symbol><symbol id="i-cat-fork-knife" viewBox="0 0 256 256"><path d="M72,88V40a8,8,0,0,1,16,0V88a8,8,0,0,1-16,0ZM216,40V224a8,8,0,0,1-16,0V176H152a8,8,0,0,1-8-8,268.75,268.75,0,0,1,7.22-56.88c9.78-40.49,28.32-67.63,53.63-78.47A8,8,0,0,1,216,40ZM200,53.9c-32.17,24.57-38.47,84.42-39.7,106.1H200ZM119.89,38.69a8,8,0,1,0-15.78,2.63L112,88.63a32,32,0,0,1-64,0l7.88-47.31a8,8,0,1,0-15.78-2.63l-8,48A8.17,8.17,0,0,0,32,88a48.07,48.07,0,0,0,40,47.32V224a8,8,0,0,0,16,0V135.32A48.07,48.07,0,0,0,128,88a8.17,8.17,0,0,0-.11-1.31Z"/></symbol><symbol id="i-cat-car" viewBox="0 0 256 256"><path d="M240,104H229.2L201.42,41.5A16,16,0,0,0,186.8,32H69.2a16,16,0,0,0-14.62,9.5L26.8,104H16a8,8,0,0,0,0,16h8v80a16,16,0,0,0,16,16H64a16,16,0,0,0,16-16V184h96v16a16,16,0,0,0,16,16h24a16,16,0,0,0,16-16V120h8a8,8,0,0,0,0-16ZM69.2,48H186.8l24.89,56H44.31ZM64,200H40V184H64Zm128,0V184h24v16Zm24-32H40V120H216ZM56,144a8,8,0,0,1,8-8H80a8,8,0,0,1,0,16H64A8,8,0,0,1,56,144Zm112,0a8,8,0,0,1,8-8h16a8,8,0,0,1,0,16H176A8,8,0,0,1,168,144Z"/></symbol><symbol id="i-cat-heartbeat" viewBox="0 0 256 256"><path d="M72,144H32a8,8,0,0,1,0-16H67.72l13.62-20.44a8,8,0,0,1,13.32,0l25.34,38,9.34-14A8,8,0,0,1,136,128h24a8,8,0,0,1,0,16H140.28l-13.62,20.44a8,8,0,0,1-13.32,0L88,126.42l-9.34,14A8,8,0,0,1,72,144ZM178,40c-20.65,0-38.73,8.88-50,23.89C116.73,48.88,98.65,40,78,40a62.07,62.07,0,0,0-62,62c0,.75,0,1.5,0,2.25a8,8,0,1,0,16-.5c0-.58,0-1.17,0-1.75A46.06,46.06,0,0,1,78,56c19.45,0,35.78,10.36,42.6,27a8,8,0,0,0,14.8,0c6.82-16.67,23.15-27,42.6-27a46.06,46.06,0,0,1,46,46c0,53.61-77.76,102.15-96,112.8-10.83-6.31-42.63-26-66.68-52.21a8,8,0,1,0-11.8,10.82c31.17,34,72.93,56.68,74.69,57.63a8,8,0,0,0,7.58,0C136.21,228.66,240,172,240,102A62.07,62.07,0,0,0,178,40Z"/></symbol><symbol id="i-cat-game-controller" viewBox="0 0 256 256"><path d="M176,112H152a8,8,0,0,1,0-16h24a8,8,0,0,1,0,16ZM104,96H96V88a8,8,0,0,0-16,0v8H72a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0v-8h8a8,8,0,0,0,0-16ZM241.48,200.65a36,36,0,0,1-54.94,4.81c-.12-.12-.24-.24-.35-.37L146.48,160h-37L69.81,205.09l-.35.37A36.08,36.08,0,0,1,44,216,36,36,0,0,1,8.56,173.75a.68.68,0,0,1,0-.14L24.93,89.52A59.88,59.88,0,0,1,83.89,40H172a60.08,60.08,0,0,1,59,49.25c0,.06,0,.12,0,.18l16.37,84.17a.68.68,0,0,1,0,.14A35.74,35.74,0,0,1,241.48,200.65ZM172,144a44,44,0,0,0,0-88H83.89A43.9,43.9,0,0,0,40.68,92.37l0,.13L24.3,176.59A20,20,0,0,0,58,194.3l41.92-47.59a8,8,0,0,1,6-2.71Zm59.7,32.59-8.74-45A60,60,0,0,1,172,160h-4.2L198,194.31a20.09,20.09,0,0,0,17.46,5.39,20,20,0,0,0,16.23-23.11Z"/></symbol><symbol id="i-cat-shopping-bag" viewBox="0 0 256 256"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,160H40V56H216V200ZM176,88a48,48,0,0,1-96,0,8,8,0,0,1,16,0,32,32,0,0,0,64,0,8,8,0,0,1,16,0Z"/></symbol><symbol id="i-cat-receipt" viewBox="0 0 256 256"><path d="M72,104a8,8,0,0,1,8-8h96a8,8,0,0,1,0,16H80A8,8,0,0,1,72,104Zm8,40h96a8,8,0,0,0,0-16H80a8,8,0,0,0,0,16ZM232,56V208a8,8,0,0,1-11.58,7.15L192,200.94l-28.42,14.21a8,8,0,0,1-7.16,0L128,200.94,99.58,215.15a8,8,0,0,1-7.16,0L64,200.94,35.58,215.15A8,8,0,0,1,24,208V56A16,16,0,0,1,40,40H216A16,16,0,0,1,232,56Zm-16,0H40V195.06l20.42-10.22a8,8,0,0,1,7.16,0L96,199.06l28.42-14.22a8,8,0,0,1,7.16,0L160,199.06l28.42-14.22a8,8,0,0,1,7.16,0L216,195.06Z"/></symbol><symbol id="i-cat-dots-three-outline" viewBox="0 0 256 256"><path d="M128,96a32,32,0,1,0,32,32A32,32,0,0,0,128,96Zm0,48a16,16,0,1,1,16-16A16,16,0,0,1,128,144ZM48,96a32,32,0,1,0,32,32A32,32,0,0,0,48,96Zm0,48a16,16,0,1,1,16-16A16,16,0,0,1,48,144ZM208,96a32,32,0,1,0,32,32A32,32,0,0,0,208,96Zm0,48a16,16,0,1,1,16-16A16,16,0,0,1,208,144Z"/></symbol><symbol id="i-cat-briefcase" viewBox="0 0 256 256"><path d="M216,56H176V48a24,24,0,0,0-24-24H104A24,24,0,0,0,80,48v8H40A16,16,0,0,0,24,72V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V72A16,16,0,0,0,216,56ZM96,48a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96ZM216,72v41.61A184,184,0,0,1,128,136a184.07,184.07,0,0,1-88-22.38V72Zm0,128H40V131.64A200.19,200.19,0,0,0,128,152a200.25,200.25,0,0,0,88-20.37V200ZM104,112a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H112A8,8,0,0,1,104,112Z"/></symbol><symbol id="i-cat-coins" viewBox="0 0 256 256"><path d="M184,89.57V84c0-25.08-37.83-44-88-44S8,58.92,8,84v40c0,20.89,26.25,37.49,64,42.46V172c0,25.08,37.83,44,88,44s88-18.92,88-44V132C248,111.3,222.58,94.68,184,89.57ZM232,132c0,13.22-30.79,28-72,28-3.73,0-7.43-.13-11.08-.37C170.49,151.77,184,139,184,124V105.74C213.87,110.19,232,122.27,232,132ZM72,150.25V126.46A183.74,183.74,0,0,0,96,128a183.74,183.74,0,0,0,24-1.54v23.79A163,163,0,0,1,96,152,163,163,0,0,1,72,150.25Zm96-40.32V124c0,8.39-12.41,17.4-32,22.87V123.5C148.91,120.37,159.84,115.71,168,109.93ZM96,56c41.21,0,72,14.78,72,28s-30.79,28-72,28S24,97.22,24,84,54.79,56,96,56ZM24,124V109.93c8.16,5.78,19.09,10.44,32,13.57v23.37C36.41,141.4,24,132.39,24,124Zm64,48v-4.17c2.63.1,5.29.17,8,.17,3.88,0,7.67-.13,11.39-.35A121.92,121.92,0,0,0,120,171.41v23.46C100.41,189.4,88,180.39,88,172Zm48,26.25V174.4a179.48,179.48,0,0,0,24,1.6,183.74,183.74,0,0,0,24-1.54v23.79a165.45,165.45,0,0,1-48,0Zm64-3.38V171.5c12.91-3.13,23.84-7.79,32-13.57V172C232,180.39,219.59,189.4,200,194.87Z"/></symbol><symbol id="i-cat-trend-up" viewBox="0 0 256 256"><path d="M240,56v64a8,8,0,0,1-16,0V75.31l-82.34,82.35a8,8,0,0,1-11.32,0L96,123.31,29.66,189.66a8,8,0,0,1-11.32-11.32l72-72a8,8,0,0,1,11.32,0L136,140.69,212.69,64H168a8,8,0,0,1,0-16h64A8,8,0,0,1,240,56Z"/></symbol><symbol id="i-cat-hand-coins" viewBox="0 0 256 256"><path d="M230.33,141.06a24.43,24.43,0,0,0-21.24-4.23l-41.84,9.62A28,28,0,0,0,140,112H89.94a31.82,31.82,0,0,0-22.63,9.37L44.69,144H16A16,16,0,0,0,0,160v40a16,16,0,0,0,16,16H120a7.93,7.93,0,0,0,1.94-.24l64-16a6.94,6.94,0,0,0,1.19-.4L226,182.82l.44-.2a24.6,24.6,0,0,0,3.93-41.56ZM16,160H40v40H16Zm203.43,8.21-38,16.18L119,200H56V155.31l22.63-22.62A15.86,15.86,0,0,1,89.94,128H140a12,12,0,0,1,0,24H112a8,8,0,0,0,0,16h32a8.32,8.32,0,0,0,1.79-.2l67-15.41.31-.08a8.6,8.6,0,0,1,6.3,15.9ZM164,96a36,36,0,0,0,5.9-.48,36,36,0,1,0,28.22-47A36,36,0,1,0,164,96Zm60-12a20,20,0,1,1-20-20A20,20,0,0,1,224,84ZM164,40a20,20,0,0,1,19.25,14.61,36,36,0,0,0-15,24.93A20.42,20.42,0,0,1,164,80a20,20,0,0,1,0-40Z"/></symbol><symbol id="i-cat-squares-four" viewBox="0 0 256 256"><path d="M104,40H56A16,16,0,0,0,40,56v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,104,40Zm0,64H56V56h48v48Zm96-64H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm0,64H152V56h48v48Zm-96,32H56a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,104,136Zm0,64H56V152h48v48Zm96-64H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,200,136Zm0,64H152V152h48v48Z"/></symbol><!-- /cat-icons -->
 <symbol id="i-arrow-down-left" viewBox="0 0 256 256"><path d="M200.49,72.48,93,180h75a12,12,0,0,1,0,24H64a12,12,0,0,1-12-12V88a12,12,0,0,1,24,0v75L183.51,55.51a12,12,0,0,1,17,17Z"/></symbol>
 <symbol id="i-arrow-left-right" viewBox="0 0 256 256"><path d="M208,80v96H48V80Z" opacity="0.2"/><path d="M213.66,181.66l-32,32a8,8,0,0,1-11.32-11.32L188.69,184H48a8,8,0,0,1,0-16H188.69l-18.35-18.34a8,8,0,0,1,11.32-11.32l32,32A8,8,0,0,1,213.66,181.66Zm-139.32-64a8,8,0,0,0,11.32-11.32L67.31,88H208a8,8,0,0,0,0-16H67.31L85.66,53.66A8,8,0,0,0,74.34,42.34l-32,32a8,8,0,0,0,0,11.32Z"/></symbol>
@@ -77,43 +79,60 @@
 <div class="app">
   <aside class="sidebar">
     <div class="brand">
-      <div><div class="brand-name">MATHEUS DO BEIJU</div><div class="brand-sub">Controle financeiro</div></div>
+      <span class="brand-ico"><svg class="i"><use href="#i-ph-wallet"/></svg></span>
+      <div><div class="brand-name">MATHEUS DO BEIJU</div><div class="brand-sub">Controle Financeiro</div></div>
     </div>
 
     <nav class="nav" id="sideNav" aria-label="Navegação principal">
-      <button data-view="overview" class="active"><svg class="i"><use href="#i-layout-dashboard"/></svg>Visão geral</button>
-      <button data-view="transactions"><svg class="i"><use href="#i-arrow-left-right"/></svg>Movimentações</button>
+      <button data-view="overview" class="active"><svg class="i"><use href="#i-ph-house"/></svg>Visão geral</button>
+      <button data-view="transactions"><svg class="i"><use href="#i-ph-arrows-left-right"/></svg>Movimentações</button>
       <div class="nav-group">Compromissos e prazos</div>
-      <button data-view="pagamentos"><svg class="i"><use href="#i-credit-card"/></svg>Pagamentos<span class="nav-badge" data-task-badge="pagamento" hidden></span></button>
-      <button data-view="cobrancas"><svg class="i"><use href="#i-circle-dollar-sign"/></svg>Cobranças<span class="nav-badge" data-task-badge="cobranca" hidden></span></button>
-      <button data-view="documentacao"><svg class="i"><use href="#i-file-text"/></svg>Documentação<span class="nav-badge" data-task-badge="documentacao" hidden></span></button>
+      <button data-view="pagamentos"><svg class="i"><use href="#i-ph-credit-card"/></svg>Pagamentos<span class="nav-badge" data-task-badge="pagamento" hidden></span></button>
+      <button data-view="cobrancas"><svg class="i"><use href="#i-ph-currency-circle-dollar"/></svg>Cobranças<span class="nav-badge" data-task-badge="cobranca" hidden></span></button>
+      <button data-view="documentacao"><svg class="i"><use href="#i-ph-file-text"/></svg>Documentação<span class="nav-badge" data-task-badge="documentacao" hidden></span></button>
       <div class="nav-group">Patrimônio</div>
-      <button data-view="accounts"><svg class="i"><use href="#i-landmark"/></svg>Contas</button>
-      <button data-view="investments"><svg class="i"><use href="#i-piggy-bank"/></svg>Investimentos</button>
+      <button data-view="accounts"><svg class="i"><use href="#i-ph-bank"/></svg>Contas</button>
+      <button data-view="investments"><svg class="i"><use href="#i-ph-chart-bar"/></svg>Investimentos</button>
       <div class="nav-group">Análise</div>
-      <button data-view="reports"><svg class="i"><use href="#i-chart-column"/></svg>Relatórios</button>
+      <button data-view="reports"><svg class="i"><use href="#i-ph-presentation-chart"/></svg>Relatórios</button>
     </nav>
 
     <div class="sidebar-foot">
       <div class="user-box" id="userBox" hidden>
         <div class="user-avatar" id="userAvatar"></div>
-        <div class="user-name" id="userName"></div>
-        <button type="button" class="user-exit" id="btnSair" title="Sair" aria-label="Sair"><svg class="i i-sm"><use href="#i-log-out"/></svg></button>
+        <div class="user-info"><div class="user-name" id="userName"></div><div class="user-role" id="userRole"></div></div>
+        <svg class="i i-sm user-caret"><use href="#i-ph-caret-right"/></svg>
       </div>
-      <button type="button" class="nav-back" id="btnTrocarSistema"><svg class="i i-sm"><use href="#i-arrow-left-right"/></svg>Trocar sistema</button>
+      <button type="button" class="nav-back" id="btnTrocarSistema"><svg class="i i-sm"><use href="#i-ph-arrows-left-right"/></svg>Trocar sistema</button>
+      <button type="button" class="nav-exit" id="btnSair"><svg class="i i-sm"><use href="#i-ph-sign-out"/></svg>Sair</button>
     </div>
   </aside>
 
   <main class="main" id="mainContent" tabindex="-1">
     <div class="content">
 
+      <div class="m-top">
+        <span class="brand-ico"><svg class="i"><use href="#i-ph-wallet"/></svg></span>
+        <div class="m-brand"><div class="brand-name">MATHEUS DO BEIJU</div><div class="brand-sub">Controle Financeiro</div></div>
+        <button type="button" class="m-icon" data-go="pagamentos" aria-label="Compromissos pendentes"><svg class="i"><use href="#i-ph-bell"/></svg><span class="nav-badge" data-task-badge="all" hidden></span></button>
+        <div class="m-user">
+          <button type="button" class="m-icon" id="mUserBtn" aria-label="Conta" aria-expanded="false" aria-controls="mUserMenu"><svg class="i"><use href="#i-ph-user"/></svg></button>
+          <div class="m-user-menu" id="mUserMenu" hidden>
+            <div class="m-user-name" id="mUserName"></div>
+            <button type="button" id="mTrocar"><svg class="i i-sm"><use href="#i-ph-arrows-left-right"/></svg>Trocar sistema</button>
+            <button type="button" id="mSair" class="is-exit"><svg class="i i-sm"><use href="#i-ph-sign-out"/></svg>Sair</button>
+          </div>
+        </div>
+      </div>
+
       <header class="page-head">
         <div>
-          <div class="page-date" id="today"></div>
-          <h1 id="pageTitle">Visão geral</h1>
+          <div class="page-date"><svg class="i i-sm"><use href="#i-ph-calendar-blank"/></svg><span id="today"></span></div>
+          <h1 id="pageTitle">Visão Geral</h1>
+          <p class="page-sub" id="pageSub">Resumo financeiro, compromissos e <span class="sub-x">situação do seu </span>patrimônio</p>
         </div>
         <div class="head-actions">
-          <select class="select" id="period" aria-label="Período"></select>
+          <label class="select-ico"><svg class="i i-sm"><use href="#i-ph-calendar-blank"/></svg><select class="select" id="period" aria-label="Período"></select></label>
           <button type="button" class="btn" id="periodNow" hidden><svg class="i i-sm"><use href="#i-calendar"/></svg>Voltar ao mês atual</button>
           <button class="btn btn-primary" data-open="tx" id="headTxBtn"><svg class="i"><use href="#i-plus"/></svg>Lançamento</button>
         </div>
@@ -121,13 +140,16 @@
 
       <!-- ============ VISÃO GERAL ============ -->
       <section class="view active" id="view-overview">
-        <div class="ov-months" id="ovMonths"></div>
+        <div class="ov-top">
+          <div class="ov-months" id="ovMonths"></div>
+          <div class="ov-stats" id="ovStats"></div>
+        </div>
 
         <div class="row ov-row">
           <div class="block ov-next">
             <div class="block-head">
-              <div><div class="block-title">Próximos vencimentos</div><div class="block-meta">Pagamentos e cobranças ainda sem baixa</div></div>
-              <button class="link" data-go="cobrancas">Ver cobranças</button>
+              <div class="bh"><span class="bh-ico"><svg class="i"><use href="#i-ph-calendar-blank"/></svg></span><div><div class="block-title">Próximos vencimentos</div><div class="block-meta">Pagamentos e cobranças ainda sem baixa</div></div></div>
+              <button class="link" data-go="cobrancas">Ver cobranças<svg class="i i-sm"><use href="#i-ph-arrow-right"/></svg></button>
             </div>
             <div class="table-wrap sheet-wrap overview-sheet">
               <table class="sheet">
@@ -139,47 +161,47 @@
 
           <div class="block ov-cat">
             <div class="block-head">
-              <div><div class="block-title">Despesas por categoria</div><div class="block-meta" id="catMeta"></div></div>
+              <div class="bh"><span class="bh-ico"><svg class="i"><use href="#i-ph-seal-check"/></svg></span><div><div class="block-title">Despesas por categoria</div><div class="block-meta" id="catMeta"></div></div></div>
             </div>
-            <div class="cat-total" id="catTotal"></div>
-            <div class="block-body"><div class="cat-list cat-plain" id="catTop"></div></div>
-            <div class="cat-legend"><span><i class="lg-paid"></i>Pago</span><span><i class="lg-sched"></i>Agendado</span></div>
+            <div class="donut-box" id="catTop"></div>
           </div>
         </div>
 
-        <div class="block overview-recent">
-          <div class="block-head">
-            <div><div class="block-title">Últimos lançamentos</div><div class="block-meta">Lançamentos do mês e agendamentos ainda sem baixa</div></div>
-            <button class="link" data-go="transactions">Ver todos</button>
-          </div>
-          <div class="table-wrap sheet-wrap overview-sheet">
-            <table class="sheet">
-              <thead><tr><th>Data</th><th>Descrição</th><th class="col-cat">Categoria</th><th class="col-acc">Conta</th><th class="col-orig">Origem</th><th>Situação</th><th class="t-right">Valor</th></tr></thead>
-              <tbody id="recentRows"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="block overview-pending">
-          <div class="block-head">
-            <div><div class="block-title">Compromissos pendentes</div><div class="block-meta" id="pendingMeta"></div></div>
-          </div>
-          <div class="commit-sum" id="commitSum"></div>
-          <div class="task-list" id="pendingList"></div>
-        </div>
-
-        <div class="row row-1-1">
-          <div class="block">
+        <div class="row ov-row ov-row-b">
+          <div class="block overview-recent">
             <div class="block-head">
-              <div class="block-title">Contas</div>
-              <button class="link" data-go="accounts">Gerenciar</button>
+              <div class="bh"><span class="bh-ico"><svg class="i"><use href="#i-ph-arrows-down-up"/></svg></span><div><div class="block-title">Últimos lançamentos</div><div class="block-meta">Lançamentos do mês e agendamentos ainda sem baixa</div></div></div>
+              <button class="link" data-go="transactions">Ver todos<svg class="i i-sm"><use href="#i-ph-arrow-right"/></svg></button>
+            </div>
+            <div class="table-wrap sheet-wrap overview-sheet">
+              <table class="sheet">
+                <thead><tr><th>Data</th><th>Descrição</th><th class="col-cat">Categoria</th><th class="col-acc">Conta</th><th class="col-orig">Origem</th><th>Situação</th><th class="t-right">Valor</th></tr></thead>
+                <tbody id="recentRows"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="block overview-pending">
+            <div class="block-head">
+              <div class="bh"><span class="bh-ico"><svg class="i"><use href="#i-ph-clipboard-text"/></svg></span><div><div class="block-title">Compromissos pendentes</div><div class="block-meta" id="pendingMeta"></div></div></div>
+            </div>
+            <div class="commit-sum" id="commitSum"></div>
+            <div class="task-list" id="pendingList"></div>
+          </div>
+        </div>
+
+        <div class="row ov-row ov-row-c">
+          <div class="block ov-acc">
+            <div class="block-head">
+              <div class="bh"><span class="bh-ico"><svg class="i"><use href="#i-ph-bank"/></svg></span><div><div class="block-title">Contas</div></div></div>
+              <button class="link" data-go="accounts">Gerenciar<svg class="i i-sm"><use href="#i-ph-arrow-right"/></svg></button>
             </div>
             <div class="acc-list" id="accSummary"></div>
           </div>
-          <div class="block">
+          <div class="block ov-inv">
             <div class="block-head">
-              <div><div class="block-title">Investimentos</div><div class="block-meta" id="invTopMeta"></div></div>
-              <button class="link" data-go="investments">Ver todos</button>
+              <div class="bh"><span class="bh-ico"><svg class="i"><use href="#i-ph-chart-bar"/></svg></span><div><div class="block-title">Investimentos</div><div class="block-meta" id="invTopMeta"></div></div></div>
+              <button class="link" data-go="investments">Ver todos<svg class="i i-sm"><use href="#i-ph-arrow-right"/></svg></button>
             </div>
             <div class="inv-top" id="invTop"></div>
           </div>
@@ -360,12 +382,13 @@
 </button>
 
 <nav class="tabbar" id="tabbar" aria-label="Navegação principal no celular">
-  <button data-view="overview" class="active"><svg class="i"><use href="#i-layout-dashboard"/></svg>Início</button>
-  <button data-view="transactions"><svg class="i"><use href="#i-arrow-left-right"/></svg>Lançamentos</button>
-  <button data-view="pagamentos" data-tab-tasks><svg class="i"><use href="#i-list-checks"/></svg>Prazos<span class="nav-badge" data-task-badge="all" hidden></span></button>
-  <button data-view="accounts"><svg class="i"><use href="#i-landmark"/></svg>Contas</button>
-  <button data-view="investments"><svg class="i"><use href="#i-piggy-bank"/></svg>Investir</button>
-  <button data-view="reports"><svg class="i"><use href="#i-chart-column"/></svg>Relatórios</button>
+  <button data-view="overview" class="active"><svg class="i"><use href="#i-ph-house"/></svg><span>Início</span></button>
+  <button data-view="transactions"><svg class="i"><use href="#i-ph-list-bullets"/></svg><span>Lançamentos</span></button>
+  <button data-view="pagamentos" data-tab-tasks><svg class="i"><use href="#i-ph-calendar-blank"/></svg><span>Prazos</span><span class="nav-badge" data-task-badge="all" hidden></span></button>
+  <button type="button" class="tab-add" data-open="tx" aria-label="Novo lançamento"><span class="tab-add-in"><svg class="i"><use href="#i-ph-plus"/></svg></span></button>
+  <button data-view="accounts"><svg class="i"><use href="#i-ph-bank"/></svg><span>Contas</span></button>
+  <button data-view="investments"><svg class="i"><use href="#i-ph-chart-bar"/></svg><span>Investir</span></button>
+  <button data-view="reports"><svg class="i"><use href="#i-ph-file-text"/></svg><span>Relatórios</span></button>
 </nav>
 
 <!-- ============ MODAIS ============ -->
