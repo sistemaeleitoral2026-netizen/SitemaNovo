@@ -12,6 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
     <link rel="stylesheet" href="./styles/fonts.css" />
     <link rel="stylesheet" href="./styles/app.css" />
+    <link rel="stylesheet" href="./styles/painel.css?v=1" />
   </head>
   <body>
     <svg style="display: none" xmlns="http://www.w3.org/2000/svg">
@@ -225,9 +226,37 @@
           d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
         ></path>
       </symbol>
+      <symbol id="i-coins" viewBox="0 0 24 24">
+        <ellipse cx="12" cy="5.5" rx="8" ry="3"></ellipse>
+        <path d="M4 5.5v4c0 1.7 3.6 3 8 3s8-1.3 8-3v-4"></path>
+        <path d="M4 9.5v4.5c0 1.7 3.6 3 8 3s8-1.3 8-3V9.5"></path>
+        <path d="M4 14v4.5c0 1.7 3.6 3 8 3s8-1.3 8-3V14"></path>
+      </symbol>
+      <symbol id="i-filter" viewBox="0 0 24 24">
+        <path d="M3 5h18l-7 8.5V19l-4 2v-7.5z"></path>
+      </symbol>
+      <symbol id="i-sort" viewBox="0 0 24 24">
+        <path d="M8 4v16M4 8l4-4 4 4M16 20V4M12 16l4 4 4-4"></path>
+      </symbol>
+      <symbol id="i-print" viewBox="0 0 24 24">
+        <path d="M6 9V3h12v6"></path>
+        <rect x="3" y="9" width="18" height="8" rx="2"></rect>
+        <path d="M6 14h12v7H6z"></path>
+      </symbol>
+      <symbol id="i-scale" viewBox="0 0 24 24">
+        <path d="M12 3v18M7 21h10M5 7h14M12 5 5 7M12 5l7 2"></path>
+        <path d="M5 7 2 14a3.5 3.5 0 0 0 6 0zM19 7l-3 7a3.5 3.5 0 0 0 6 0z"></path>
+      </symbol>
+      <symbol id="i-doclist" viewBox="0 0 24 24">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <path d="M14 2v6h6M8 13h8M8 17h5"></path>
+      </symbol>
     </svg>
     <div class="app">
       <aside class="sidebar" id="sidebar" aria-label="Menu principal">
+        <div class="pn-brand">
+          <div class="pn-brand-text">Assessoria MB</div>
+        </div>
         <nav class="nav">
           <div class="nav-label">Visão geral</div>
           <button
@@ -331,6 +360,12 @@
             >
               <svg><use href="#i-menu"></use></svg>
             </button>
+          <div class="page-crumb">
+            <svg><use href="#i-house"></use></svg
+            ><span id="crumb-group">Financeiro</span
+            ><svg class="sep"><use href="#i-chev"></use></svg
+            ><b id="crumb">Painel</b>
+          </div>
           </div>
           <div class="topbar-right">
             <nav
@@ -369,12 +404,6 @@
           </div>
         </header>
         <div class="content">
-          <div class="page-crumb">
-            <svg><use href="#i-house"></use></svg
-            ><span id="crumb-group">Financeiro</span
-            ><svg class="sep"><use href="#i-chev"></use></svg
-            ><b id="crumb">Painel</b>
-          </div>
           <section
             id="page-dashboard"
             class="page-section active dash-v2"
@@ -383,42 +412,101 @@
             <div class="dash-head">
               <div class="dash-title">
                 <div>
-                  <h1>Painel financeiro</h1>
+                  <h1>Painel Financeiro</h1>
                   <p id="dash-sub">Consolidado · Todo o período</p>
                 </div>
               </div>
               <div class="dash-head-actions">
-                <label class="comp-picker"
-                  ><span>Competência</span
-                  ><select
-                    class="control"
-                    id="dash-comp"
-                    data-comp
-                    aria-label="Competência"
-                  ></select></label
-                ><button class="btn primary" data-open="finance">
+                <label class="pn-field"
+                  ><span class="pn-field-lbl">Competência</span
+                  ><span class="pn-select"
+                    ><svg><use href="#i-calendar"></use></svg
+                    ><select class="control" id="dash-comp" aria-label="Competência"></select
+                    ><svg class="pn-caret"><use href="#i-chevdown"></use></svg></span
+                ></label>
+                <div class="pn-field">
+                  <span class="pn-field-lbl">Período personalizado</span>
+                  <div class="pn-range">
+                    <label class="pn-date"
+                      ><span>De:</span
+                      ><input type="date" id="dash-de" aria-label="Período: de"
+                    /></label>
+                    <label class="pn-date"
+                      ><span>Até:</span
+                      ><input type="date" id="dash-ate" aria-label="Período: até"
+                    /></label>
+                  </div>
+                </div>
+                <button class="btn primary pn-new" data-open="finance">
                   <svg><use href="#i-plus"></use></svg>Novo lançamento
                 </button>
               </div>
             </div>
-            <div
-              class="dash-tabs"
-              id="company-picker-dashboard"
-              aria-label="Empresa"
-            ></div>
+            <div class="pn-tools">
+              <div
+                class="dash-tabs"
+                id="company-picker-dashboard"
+                aria-label="Empresa"
+              ></div>
+              <label class="pn-search pn-emp-search"
+                ><svg><use href="#i-search"></use></svg
+                ><input
+                  type="search"
+                  id="dash-emp-q"
+                  placeholder="Buscar empresa..."
+                  autocomplete="off"
+                  aria-label="Buscar empresa no resumo"
+              /></label>
+              <button type="button" class="btn pn-tool" id="dash-manage">
+                <svg><use href="#i-building"></use></svg>Gerenciar empresas
+              </button>
+              <div class="pn-drop">
+                <button
+                  type="button"
+                  class="btn pn-tool"
+                  id="dash-export"
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                >
+                  <svg><use href="#i-dl"></use></svg>Exportar<svg class="pn-caret">
+                    <use href="#i-chevdown"></use>
+                  </svg>
+                </button>
+                <div class="pn-menu" id="dash-export-menu" role="menu" hidden>
+                  <button type="button" role="menuitem" data-dash-export="summary">
+                    <svg><use href="#i-building"></use></svg>Resumo por empresa
+                    <small>Planilha (.csv)</small>
+                  </button>
+                  <button type="button" role="menuitem" data-dash-export="period">
+                    <svg><use href="#i-list"></use></svg>Lançamentos do período
+                    <small>Planilha (.csv)</small>
+                  </button>
+                  <button type="button" role="menuitem" data-dash-export="recent">
+                    <svg><use href="#i-doclist"></use></svg>Lançamentos recentes
+                    <small>Planilha (.csv)</small>
+                  </button>
+                </div>
+              </div>
+              <button type="button" class="btn pn-tool" id="dash-print">
+                <svg><use href="#i-print"></use></svg>Imprimir
+              </button>
+            </div>
             <div class="kpi-grid" id="dash-metrics"></div>
             <div class="dash-row">
               <div class="card dash-sum-card">
                 <div class="card-head">
-                  <div class="dash-card-title">
-                    <h2>Resumo por empresa</h2>
-                    <small
-                      ><span id="dash-sum-month"></span> · clique em uma linha
-                      para filtrar</small
-                    >
+                  <div class="dash-card-title with-ico">
+                    <svg><use href="#i-building"></use></svg>
+                    <div>
+                      <h2>Resumo por empresa</h2>
+                      <small
+                        ><span id="dash-sum-month"></span> · clique em uma linha
+                        para filtrar</small
+                      >
+                    </div>
                   </div>
                   <button class="section-link" data-goto="empresas">
-                    Ver empresas
+                    Ver empresas<svg><use href="#i-chev"></use></svg>
                   </button>
                 </div>
                 <div class="sum-wrap table-wrap" id="dash-summary"></div>
@@ -426,28 +514,41 @@
               <div class="card dash-mov-card">
                 <div class="card-head">
                   <div class="dash-card-title with-ico">
-                    <svg><use href="#i-wallet"></use></svg>
+                    <svg><use href="#i-layers"></use></svg>
                     <div>
                       <h2>Movimentação do período</h2>
                       <small id="dash-mov-sub"></small>
                     </div>
                   </div>
+                  <div id="dash-mov-warn"></div>
                 </div>
                 <div id="dash-chart"></div>
               </div>
             </div>
             <div class="card dash-recent-card">
               <div class="card-head">
-                <div class="dash-card-title">
-                  <h2>Lançamentos recentes</h2>
-                  <small id="dash-recent-sub"
-                    >Últimos lançamentos de todas as empresas</small
-                  >
+                <div class="dash-card-title with-ico">
+                  <svg><use href="#i-doclist"></use></svg>
+                  <div>
+                    <h2>Lançamentos recentes</h2>
+                    <small id="dash-recent-sub"
+                      >Últimos lançamentos de todas as empresas</small
+                    >
+                  </div>
                 </div>
                 <div class="dash-recent-actions">
+                  <label class="pn-search"
+                    ><svg><use href="#i-search"></use></svg
+                    ><input
+                      type="search"
+                      id="dash-rec-q"
+                      placeholder="Buscar lançamento..."
+                      autocomplete="off"
+                      aria-label="Buscar lançamento recente"
+                  /></label>
                   <div class="dash-seg" id="dash-tipo"></div>
                   <button class="section-link" data-goto="financeiro">
-                    Ver todos
+                    Ver todos<svg><use href="#i-chev"></use></svg>
                   </button>
                 </div>
               </div>

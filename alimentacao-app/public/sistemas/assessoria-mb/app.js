@@ -263,6 +263,13 @@
     dashSummarySortBy: "",
     dashSummarySort: "asc",
     dashMenuOpen: false,
+    dashDe: "",
+    dashAte: "",
+    dashEmpQ: "",
+    dashRecQ: "",
+    dashRecSortBy: "",
+    dashRecSort: "desc",
+    dashColF: {},
     historyQuery: "",
     finHistPeriod: "all",
     finHistMonth: "",
@@ -670,7 +677,7 @@
     const source = button.dataset.finKpiSource || "finance";
     const records = financeKpiRecords(
       financeAuditScope(source),
-      state.mes,
+      source === "dashboard" ? dashRef() : state.mes,
       key,
     );
     state.finReconcileIds = new Set(records.map((record) => record.id));
@@ -850,6 +857,113 @@
   };
   const noRows = (s, col = 5) =>
     `<tr><td colspan="${col}" class="empty">${esc(s)}</td></tr>`;
+  /** Período do painel: competência ou intervalo De/Até. */
+  const dashRef = () =>
+    state.dashDe || state.dashAte
+      ? `R:${state.dashDe}:${state.dashAte}`
+      : state.mes;
+  const launchedDateTimeBR = (iso) => {
+    const date = launchedAt(iso);
+    if (!date) return "—";
+    return `${date.toLocaleDateString("pt-BR")} ${date.toLocaleTimeString(
+      "pt-BR",
+      { hour: "2-digit", minute: "2-digit" },
+    )}`;
+  };
+  const fold = (v) =>
+    String(v ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+  /* Colunas filtráveis das tabelas do painel */
+  const DASH_COLS = {
+    sum: {
+      empresa: { label: "Empresa", type: "text" },
+      prior: { label: "Saldo Anterior", type: "num" },
+      entries: { label: "Entradas", type: "num" },
+      exits: { label: "Saídas", type: "num" },
+      final: { label: "Saldo Final", type: "num" },
+    },
+    rec: {
+      when: { label: "Data/hora do lançamento", type: "text" },
+      user: { label: "Usuário", type: "list" },
+      sub: { label: "Empresa", type: "list" },
+      desc: { label: "Descrição", type: "text" },
+      comp: { label: "Competência", type: "text" },
+      tipo: { label: "Tipo", type: "list" },
+      valor: { label: "Valor (R$)", type: "num" },
+      status: { label: "Status", type: "list" },
+    },
+  };
+  const NUM_FILTERS = [
+    ["", "Todos os valores"],
+    ["pos", "Somente positivos"],
+    ["neg", "Somente negativos"],
+    ["zero", "Somente zerados"],
+    ["nz", "Diferentes de zero"],
+  ];
+  const numPass = (value, rule) => {
+    const v = Number(value) || 0;
+    if (rule === "pos") return v >= 0.005;
+    if (rule === "neg") return v <= -0.005;
+    if (rule === "zero") return Math.abs(v) < 0.005;
+    if (rule === "nz") return Math.abs(v) >= 0.005;
+    return true;
+  };
+  const recValue = (r) =>
+    finTipo(r) === "Saída"
+      ? money(r.saida)
+      : money(r.previsto) || money(r.recebido);
+  /** Texto exibido (para busca/filtro) e chave de ordenação de cada coluna. */
+  function recCell(r, key) {
+    if (key === "when") return launchedDateTimeBR(r.criadoEm);
+    if (key === "user") return String(r.criadoPor || "—").toUpperCase();
+    if (key === "sub") return r.sub || "—";
+    if (key === "desc") return `${r.parceiro || ""} ${r.centro || ""}`.trim();
+    if (key === "comp") return dateBR(r.data);
+    if (key === "tipo") return finTipo(r);
+    if (key === "valor") return n2(recValue(r));
+    if (key === "status") return finStatus(r)[0];
+    return "";
+  }
+  function recSortKey(r, key) {
+    if (key === "when") return String(r.criadoEm || "");
+    if (key === "comp") return String(r.data || "");
+    if (key === "valor") return recValue(r);
+    return fold(recCell(r, key));
+  }
+  function colPass(table, key, text, num) {
+    const rule = (state.dashColF[table] || {})[key];
+    if (!rule) return true;
+    const type = DASH_COLS[table][key].type;
+    if (type === "num") return numPass(num, rule);
+    if (type === "list") return text === rule;
+    return fold(text).includes(fold(rule));
+  }
+  const colActive = (table, key) => !!(state.dashColF[table] || {})[key];
+  function dashTh(table, key, sortAttr, sortBy, direction, extraClass = "") {
+    const col = DASH_COLS[table][key];
+    const selected = sortBy === key;
+    const ariaSort = selected
+      ? ` aria-sort="${direction === 1 ? "ascending" : "descending"}"`
+      : "";
+    const arrow = selected
+      ? `<span class="pn-arrow">${direction === 1 ? "↑" : "↓"}</span>`
+      : `<svg class="pn-sort-ico"><use href="#i-sort"></use></svg>`;
+    return `<th class="${extraClass}"${ariaSort}><div class="pn-th"><button type="button" class="fin-th-sort${selected ? " is-active" : ""}" ${sortAttr}="${key}" title="Ordenar por ${esc(col.label)}">${esc(col.label)}${arrow}</button><button type="button" class="pn-fbtn${colActive(table, key) ? " on" : ""}" data-dash-filter="${table}:${key}" title="Filtrar ${esc(col.label)}" aria-label="Filtrar ${esc(col.label)}">${icon("filter")}</button></div></th>`;
+  }
+  const DASH_KPI_ICONS = {
+    in: "calendar",
+    ok: "database",
+    "cash-in": "database",
+    out: "database",
+    bal: "scale",
+    carry: "history",
+  };
+  let dashSummaryShown = [];
+  let dashSummaryTotal = null;
+  let dashRecentShown = [];
+  let dashRecentPool = [];
   function financeRowsByCompany() {
     const grouped = new Map(subdivisions.map((company) => [company, []]));
     db.finance.forEach((record) => {
@@ -861,7 +975,7 @@
     return new Map(
       subdivisions.map((company) => [
         company,
-        cashSnapshot(companyRows.get(company) || [], state.mes),
+        cashSnapshot(companyRows.get(company) || [], dashRef()),
       ]),
     );
   }
@@ -869,14 +983,26 @@
     companyRows = financeRowsByCompany(),
     snapshots = companySnapshots(companyRows),
   ) {
+    const ref = dashRef();
+    const isRange = /^R:/.test(ref);
     const sel = $("#dash-comp");
     if (sel)
-      sel.innerHTML = `<option value="" ${!state.mes ? "selected" : ""}>Todo o período</option>${compOptions()
+      sel.innerHTML = `${isRange ? '<option value="__range" selected>Período personalizado</option>' : ""}<option value="" ${!ref ? "selected" : ""}>Todo o período</option>${compOptions()
         .map(
           (m) =>
-            `<option value="${m}" ${m === state.mes ? "selected" : ""}>${compLabel(m)}</option>`,
+            `<option value="${m}" ${!isRange && m === state.mes ? "selected" : ""}>${compLabel(m)}</option>`,
         )
         .join("")}`;
+    const deEl = $("#dash-de"),
+      ateEl = $("#dash-ate");
+    if (deEl && deEl.value !== state.dashDe) deEl.value = state.dashDe;
+    if (ateEl && ateEl.value !== state.dashAte) ateEl.value = state.dashAte;
+    if (deEl) deEl.max = state.dashAte || "";
+    if (ateEl) ateEl.min = state.dashDe || "";
+    const empQ = $("#dash-emp-q");
+    if (empQ && document.activeElement !== empQ) empQ.value = state.dashEmpQ;
+    const recQ = $("#dash-rec-q");
+    if (recQ && document.activeElement !== recQ) recQ.value = state.dashRecQ;
     const scopeRows = state.empresa
       ? companyRows.get(state.empresa) || []
       : [...companyRows.values()].flat();
@@ -893,11 +1019,11 @@
       : `Consolidado de ${subdivisions.length} empresas`;
     const dashSub = $("#dash-sub");
     if (dashSub)
-      dashSub.textContent = `${scopeLabel} · ${compLabel(state.mes)}`;
-    $("#dash-sum-month").textContent = compLabel(state.mes);
+      dashSub.textContent = `${scopeLabel} · ${compLabel(ref)}`;
+    $("#dash-sum-month").textContent = compLabel(ref);
     const movSub = $("#dash-mov-sub");
     if (movSub)
-      movSub.textContent = `${state.empresa || "Todas as empresas"} · ${compLabel(state.mes)}`;
+      movSub.textContent = `${state.empresa || "Todas as empresas"} · ${compLabel(ref)}`;
     $("#dash-summary").innerHTML = cashSummaryTable(companyRows, snapshots);
     const recentSub = $("#dash-recent-sub");
     if (recentSub)
@@ -916,42 +1042,63 @@
             `<button type="button" class="${state.dashTipo === k ? "on" : ""}" data-dash-tipo="${k}">${l}</button>`,
         )
         .join("");
-    const recent = [...recentRows]
-      .filter((r) => {
-        if (!state.dashTipo) return true;
-        const isOut = finKind(r) === "saida";
-        return state.dashTipo === "out" ? isOut : !isOut;
-      })
-      .sort((a, b) => {
-        const byCreated = String(b.criadoEm || "").localeCompare(
-          String(a.criadoEm || ""),
-        );
-        if (byCreated) return byCreated;
-        return String(b.data || "").localeCompare(String(a.data || ""));
-      })
-      .slice(0, 12);
-    const launchedDateTimeBR = (iso) => {
-      const date = launchedAt(iso);
-      if (!date) return "—";
-      return `${date.toLocaleDateString("pt-BR")} ${date.toLocaleTimeString(
-        "pt-BR",
-        {
-          hour: "2-digit",
-          minute: "2-digit",
-        },
-      )}`;
-    };
-    $("#dash-fin-table").innerHTML =
-      `<table class="recent-table dash-grid-table"><thead><tr><th>Data/hora do lançamento</th><th>Usuário</th><th>Empresa</th><th>Descrição</th><th>Competência</th><th>Tipo</th><th class="num">Valor (R$)</th><th>Status</th></tr></thead><tbody>${recent
+    dashRecentPool = [...recentRows].filter((r) => {
+      if (!state.dashTipo) return true;
+      const isOut = finKind(r) === "saida";
+      return state.dashTipo === "out" ? isOut : !isOut;
+    });
+    drawDashRecent();
+  }
+  function drawDashRecent() {
+    const el = $("#dash-fin-table");
+    if (!el) return;
+    const q = fold(state.dashRecQ.trim());
+    const keys = Object.keys(DASH_COLS.rec);
+    const filtered = dashRecentPool.filter((r) => {
+      if (
+        q &&
+        !keys.some((k) => fold(recCell(r, k)).includes(q)) &&
+        !fold(r.observacao).includes(q)
+      )
+        return false;
+      return keys.every((k) =>
+        colPass("rec", k, recCell(r, k), recValue(r)),
+      );
+    });
+    const sortBy = keys.includes(state.dashRecSortBy) ? state.dashRecSortBy : "";
+    const direction = state.dashRecSort === "asc" ? 1 : -1;
+    filtered.sort((a, b) => {
+      if (sortBy) {
+        const av = recSortKey(a, sortBy),
+          bv = recSortKey(b, sortBy);
+        const c =
+          typeof av === "number"
+            ? av - bv
+            : String(av).localeCompare(String(bv), "pt-BR", { numeric: true });
+        if (c) return c * direction;
+      }
+      const byCreated = String(b.criadoEm || "").localeCompare(
+        String(a.criadoEm || ""),
+      );
+      if (byCreated) return byCreated;
+      return String(b.data || "").localeCompare(String(a.data || ""));
+    });
+    const recent = filtered.slice(0, 12);
+    dashRecentShown = recent;
+    const th = (key, cls = "") =>
+      dashTh("rec", key, "data-dash-rec-sort", sortBy, direction, cls);
+    const hasFilter =
+      q || Object.values(state.dashColF.rec || {}).some(Boolean);
+    el.innerHTML =
+      `<table class="recent-table dash-grid-table"><thead><tr>${th("when")}${th("user")}${th("sub")}${th("desc")}${th("comp")}${th("tipo")}${th("valor", "num")}${th("status")}</tr></thead><tbody>${recent
         .map((r) => {
           const tp = finTipo(r),
-            out = tp === "Saída",
-            v = out ? money(r.saida) : money(r.previsto) || money(r.recebido);
-          return `<tr data-edit-fin="${esc(r.id)}" title="Editar lançamento"><td class="recent-col-when" data-label="Data/hora do lançamento">${launchedDateTimeBR(r.criadoEm)}</td><td data-label="Usuário">${esc(String(r.criadoPor || "—").toUpperCase())}</td><td data-label="Empresa"><b>${esc(r.sub || "—")}</b></td><td class="recent-col-desc" data-label="Descrição">${esc(r.parceiro)}${r.centro ? `<div class="muted">${esc(r.centro)}</div>` : ""}</td><td class="nowrap" data-label="Competência">${dateBR(r.data)}</td><td data-label="Tipo"><span class="dash-tipo ${out ? "out" : "in"}">${icon(out ? "out" : "in")}${tp}</span></td><td class="amount" data-label="Valor (R$)">${n2(v)}</td><td data-label="Status">${finStatusHTML(r)}</td></tr>`;
+            out = tp === "Saída";
+          return `<tr data-edit-fin="${esc(r.id)}" title="Editar lançamento"><td class="recent-col-when" data-label="Data/hora do lançamento">${launchedDateTimeBR(r.criadoEm)}</td><td data-label="Usuário">${esc(String(r.criadoPor || "—").toUpperCase())}</td><td data-label="Empresa"><b>${esc(r.sub || "—")}</b></td><td class="recent-col-desc" data-label="Descrição">${esc(r.parceiro)}${r.centro ? `<div class="muted">${esc(r.centro)}</div>` : ""}</td><td class="nowrap" data-label="Competência">${dateBR(r.data)}</td><td data-label="Tipo"><span class="dash-tipo ${out ? "out" : "in"}">${icon(out ? "out" : "in")}${tp}</span></td><td class="amount" data-label="Valor (R$)">${n2(recValue(r))}</td><td data-label="Status">${finStatusHTML(r)}</td></tr>`;
         })
         .join(
           "",
-        )}${recent.length ? "" : `<tr><td colspan="8" class="empty">Nenhum lançamento recente para este filtro.</td></tr>`}</tbody></table>`;
+        )}${recent.length ? "" : `<tr><td colspan="8" class="empty">${hasFilter ? "Nenhum lançamento para esta busca ou filtro." : "Nenhum lançamento recente para este filtro."}</td></tr>`}</tbody></table>`;
   }
   function drawFinance() {
     if (awaitingCloudHydrate) {
@@ -4890,6 +5037,11 @@
   ];
   const compLabel = (m) => {
     if (!m) return "Todo o período";
+    if (/^R:/.test(String(m))) {
+      const [, de, ate] = String(m).split(":");
+      if (de && ate) return `${dateBR(de)} a ${dateBR(ate)}`;
+      return de ? `A partir de ${dateBR(de)}` : `Até ${dateBR(ate)}`;
+    }
     const p = String(m).split("-");
     return (MESES[Number(p[1]) - 1] || p[1]) + " / " + p[0];
   };
@@ -5034,7 +5186,20 @@
     });
     return { entries, exits };
   }
+  function nextDayISO(iso) {
+    const date = new Date(`${iso}T12:00:00`);
+    date.setDate(date.getDate() + 1);
+    return date.toLocaleDateString("en-CA");
+  }
   function monthBounds(reference) {
+    if (/^R:/.test(String(reference || ""))) {
+      const [, de, ate] = String(reference).split(":");
+      return {
+        start: de || "0000-01-01",
+        end: ate ? nextDayISO(ate) : "9999-12-31",
+        range: true,
+      };
+    }
     if (!/^\d{4}-\d{2}$/.test(String(reference || ""))) return null;
     let [year, monthNumber] = String(reference).split("-").map(Number);
     const start = `${year}-${String(monthNumber).padStart(2, "0")}-01`;
@@ -5402,30 +5567,41 @@
           state.finReconcileIds && state.finSelectionKey === x[5]
             ? " is-active"
             : "";
-        return `<button type="button" class="kpi ${x[0]}${active}" data-fin-kpi="${x[5]}" data-fin-kpi-source="dashboard" data-fin-kpi-label="${esc(x[2])}" title="Ver lançamentos deste indicador"><span class="kpi-ico">${icon(x[1])}</span><span class="kpi-body"><span class="label">${x[2]}</span><strong class="${x[0] === "bal" && saldo < 0 ? "neg" : ""}" title="${x[3]}">${x[3]}</strong>${x[4]}</span></button>`;
+        return `<button type="button" class="kpi ${x[0]}${active}" data-fin-kpi="${x[5]}" data-fin-kpi-source="dashboard" data-fin-kpi-label="${esc(x[2])}" title="Ver lançamentos deste indicador"><span class="kpi-ico">${icon(container === "#dash-metrics" ? DASH_KPI_ICONS[x[0]] || x[1] : x[1])}</span><span class="kpi-body"><span class="label">${x[2]}</span><strong class="${x[0] === "bal" && saldo < 0 ? "neg" : ""}" title="${x[3]}">${x[3]}</strong>${x[4]}</span></button>`;
       })
       .join("");
   }
   function drawDashboardKpis(rows) {
     const root = $("#dash-metrics");
-    if (!state.mes) {
+    const ref = dashRef();
+    if (!ref) {
       root.classList.remove("is-month");
       kpis("#dash-metrics", rows);
       return;
     }
-    const snapshot = cashSnapshot(rows, state.mes);
-    const stats = dashboardPeriodStats(rows, state.mes);
-    const selectedLabel = compLabel(state.mes).split(" /")[0];
-    const previous = previousMonth(state.mes);
-    const previousParts = previous.split("-");
-    const previousLabel =
-      previousParts[0] === state.mes.split("-")[0]
-        ? MESES[Number(previousParts[1]) - 1]
-        : compLabel(previous);
-    const entryLines = [
-      `${fmt(snapshot.entriesFromMonth)} de lançamentos de ${selectedLabel.toLowerCase()}`,
-      `${fmt(snapshot.entriesFromPrior)} de lançamentos de meses anteriores`,
-    ];
+    const isRange = /^R:/.test(ref);
+    const snapshot = cashSnapshot(rows, ref);
+    const stats = dashboardPeriodStats(rows, ref);
+    const selectedLabel = isRange ? "" : compLabel(ref).split(" /")[0];
+    let previousLabel = "";
+    if (!isRange) {
+      const previous = previousMonth(ref);
+      const previousParts = previous.split("-");
+      previousLabel =
+        previousParts[0] === ref.split("-")[0]
+          ? MESES[Number(previousParts[1]) - 1]
+          : compLabel(previous);
+    }
+    const inLabel = isRange ? "no período" : `em ${selectedLabel}`;
+    const entryLines = isRange
+      ? [
+          `${fmt(snapshot.entriesFromMonth)} de lançamentos do período`,
+          `${fmt(snapshot.entriesFromPrior)} de lançamentos anteriores`,
+        ]
+      : [
+          `${fmt(snapshot.entriesFromMonth)} de lançamentos de ${selectedLabel.toLowerCase()}`,
+          `${fmt(snapshot.entriesFromPrior)} de lançamentos de meses anteriores`,
+        ];
     if (Math.abs(snapshot.entriesFromOther) >= 0.005)
       entryLines.push(
         `${fmt(snapshot.entriesFromOther)} de outros lançamentos`,
@@ -5434,27 +5610,37 @@
       [
         "carry",
         "history",
-        `Ficou em ${previousLabel}`,
+        isRange
+          ? state.dashDe
+            ? `Saldo antes de ${dateBR(state.dashDe)}`
+            : "Saldo anterior"
+          : `Ficou em ${previousLabel}`,
         fmt(snapshot.prior),
-        esc(`Saldo transportado para ${selectedLabel}`),
+        esc(
+          isRange
+            ? "Saldo transportado para o período"
+            : `Saldo transportado para ${selectedLabel}`,
+        ),
         "carry",
       ],
       [
         "in",
         "down",
-        `A Receber em ${selectedLabel}`,
+        `A Receber ${inLabel}`,
         fmt(stats.pending),
         esc(
-          `${fmt(stats.pendingMonth)} referente aos lançamentos de ${selectedLabel}`,
+          isRange
+            ? `${fmt(stats.pendingMonth)} referente aos lançamentos do período`
+            : `${fmt(stats.pendingMonth)} referente aos lançamentos de ${selectedLabel}`,
         ),
         "pending",
       ],
       [
         "cash-in",
         "arrow",
-        `Recebido em ${selectedLabel}`,
+        `Recebido ${inLabel}`,
         fmt(snapshot.entries),
-        `${esc("Dinheiro efetivamente recebido no mês")}${entryLines
+        `${esc(isRange ? "Dinheiro efetivamente recebido no período" : "Dinheiro efetivamente recebido no mês")}${entryLines
           .map((line) => `<span class="kpi-break">${esc(line)}</span>`)
           .join("")}`,
         "received",
@@ -5462,19 +5648,19 @@
       [
         "out",
         "arrow",
-        `Saídas em ${selectedLabel}`,
+        `Saídas ${inLabel}`,
         fmt(snapshot.exits),
         esc(
           snapshot.exitCount
-            ? `Total geral que saiu no mês · ${snapshot.exitCount} saída(s)`
-            : "Nenhuma saída registrada no mês",
+            ? `Total geral que saiu ${isRange ? "no período" : "no mês"} · ${snapshot.exitCount} saída(s)`
+            : `Nenhuma saída registrada ${isRange ? "no período" : "no mês"}`,
         ),
         "out",
       ],
       [
         "bal",
         "database",
-        `Total em ${selectedLabel}`,
+        isRange ? "Saldo no fim do período" : `Total em ${selectedLabel}`,
         fmt(snapshot.final),
         esc("Saldo anterior mais recebimentos menos saídas"),
         "total",
@@ -5487,7 +5673,7 @@
           state.finReconcileIds && state.finSelectionKey === item[5]
             ? " is-active"
             : "";
-        return `<button type="button" class="kpi ${item[0]}${active}" data-fin-kpi="${item[5]}" data-fin-kpi-source="dashboard" data-fin-kpi-label="${esc(item[2])}" title="Ver lançamentos deste indicador"><span class="kpi-ico">${icon(item[1])}</span><span class="kpi-body"><span class="label">${esc(item[2])}</span><strong class="${item[0] === "bal" && snapshot.final < 0 ? "neg" : ""}" title="${esc(item[3])}">${item[3]}</strong><small>${item[4]}</small></span></button>`;
+        return `<button type="button" class="kpi ${item[0]}${active}" data-fin-kpi="${item[5]}" data-fin-kpi-source="dashboard" data-fin-kpi-label="${esc(item[2])}" title="Ver lançamentos deste indicador"><span class="kpi-ico">${icon(DASH_KPI_ICONS[item[0]] || item[1])}</span><span class="kpi-body"><span class="label">${esc(item[2])}</span><strong class="${item[0] === "bal" && snapshot.final < 0 ? "neg" : ""}" title="${esc(item[3])}">${item[3]}</strong><small>${item[4]}</small></span></button>`;
       })
       .join("");
   }
@@ -5498,7 +5684,7 @@
     const rows = subdivisions.map((company) => {
       return [company, snapshots.get(company)];
     });
-    const total = cashSnapshot([...companyRows.values()].flat(), state.mes);
+    const total = cashSnapshot([...companyRows.values()].flat(), dashRef());
     const priorCell = (value) =>
       value == null ? '<span class="muted">—</span>' : fmt(value);
     const isZero = ([company, snapshot]) =>
@@ -5522,19 +5708,29 @@
         difference || a[0].localeCompare(b[0], "pt-BR", { sensitivity: "base" })
       );
     };
-    const shown = [...(state.dashShowZero ? rows : active)];
+    const empQ = fold(state.dashEmpQ.trim());
+    const filtering =
+      !!empQ || Object.values(state.dashColF.sum || {}).some(Boolean);
+    const passes = ([company, snapshot]) =>
+      (!empQ || fold(company).includes(empQ)) &&
+      colPass("sum", "empresa", company) &&
+      ["prior", "entries", "exits", "final"].every((k) =>
+        colPass("sum", k, "", snapshot[k]),
+      );
+    const shown = [
+      ...active,
+      ...zero,
+    ].filter(passes);
     if (sortBy) shown.sort((a, b) => compareRows(a, b) * direction);
-    const summaryTh = (key, label, extraClass = "") => {
-      const selected = sortBy === key;
-      const mark = selected ? (direction === 1 ? " ↑" : " ↓") : "";
-      const ariaSort = selected
-        ? ` aria-sort="${direction === 1 ? "ascending" : "descending"}"`
+    dashSummaryShown = shown;
+    dashSummaryTotal = total;
+    const summaryTh = (key, label, extraClass = "") =>
+      dashTh("sum", key, "data-dash-summary-sort", sortBy, direction, extraClass);
+    const emptyRow =
+      !shown.length && filtering
+        ? `<tr class="dash-zero-row"><td colspan="5" class="empty">Nenhuma empresa para esta busca ou filtro.</td></tr>`
         : "";
-      return `<th class="${extraClass}"${ariaSort}><button type="button" class="fin-th-sort${selected ? " is-active" : ""}" data-dash-summary-sort="${key}" title="Ordenar por ${label}">${label}${mark}</button></th>`;
-    };
-    const zeroRow = zero.length
-      ? `<tr class="dash-zero-row"><td colspan="5"><button type="button" class="dash-zero-btn" data-dash-toggle-zero>${icon("eye")}${state.dashShowZero ? "Ocultar empresas sem movimentação" : `Mostrar ${zero.length} ${zero.length === 1 ? "empresa" : "empresas"} sem movimentação`}</button></td></tr>`
-      : "";
+    const zeroRow = emptyRow;
     return `<table class="sum-table data-table cash-summary-table dash-grid-table"><thead><tr>${summaryTh("empresa", "Empresa")}${summaryTh("prior", "Saldo Anterior", "num")}${summaryTh("entries", "Entradas", "num")}${summaryTh("exits", "Saídas", "num")}${summaryTh("final", "Saldo Final", "num")}</tr></thead><tbody>${shown
       .map(
         ([company, snapshot]) =>
@@ -5584,8 +5780,10 @@
   function drawCashMovement(rows) {
     const el = $("#dash-chart");
     if (!el) return;
-    const snapshot = cashSnapshot(rows, state.mes);
-    const stats = dashboardPeriodStats(rows, state.mes);
+    const ref = dashRef();
+    const isRange = /^R:/.test(ref);
+    const snapshot = cashSnapshot(rows, ref);
+    const stats = dashboardPeriodStats(rows, ref);
     const touched = rows.filter((record) => stats.rowIds.has(record.id));
     const receitas = touched.filter(
       (record) => finKind(record) === "receita",
@@ -5615,21 +5813,22 @@
     const porFora = stats.entradaPorFora
       ? ` · ${n2(stats.entradaPorFora)} por fora`
       : "";
-    const valueRows = state.mes
-      ? line("is-forecast", "calendar", "Previsto no mês", n2(stats.previsto)) +
+    const per = isRange ? "período" : "mês";
+    const valueRows = ref
+      ? line("is-forecast", "calendar", `Previsto no ${per}`, n2(stats.previsto)) +
         line(
           "is-received",
           "check",
-          "Recebido no mês",
+          `Recebido no ${per}`,
           n2(stats.recebido),
-          `Inclui meses anteriores${porFora}`,
+          `${isRange ? "Inclui lançamentos anteriores" : "Inclui meses anteriores"}${porFora}`,
         ) +
         line(
           "is-pending",
           "clock",
-          "Pendente do mês",
+          `Pendente do ${per}`,
           n2(stats.pendingMonth),
-          `Acumulado até o fim do mês: ${n2(stats.pending)}`,
+          `Acumulado até o fim do ${per}: ${n2(stats.pending)}`,
         )
       : line("is-forecast", "calendar", "Previsto", n2(stats.previsto)) +
         line(
@@ -5650,8 +5849,12 @@
         ${line("is-received", "banknote", "Entradas por fora", entradasFora)}
         ${line("is-expense", "out", "Saídas", saidas)}
       </tbody><tfoot>${line("is-total", "layers", "Total", stats.rowCount)}</tfoot></table>
-      ${unknownCount ? `<button type="button" class="dash-warn" data-reconcile-go="${esc(unknownIds.join(","))}" title="Ver em Lançamentos">${icon("info")}<span><b>${unknownCount} ${unknownCount === 1 ? "registro sem data financeira" : "registros sem data financeira"}.</b> <u>Revisar</u></span></button>` : ""}
     </div>`;
+    const warnEl = $("#dash-mov-warn");
+    if (warnEl)
+      warnEl.innerHTML = unknownCount
+        ? `<button type="button" class="dash-warn" data-reconcile-go="${esc(unknownIds.join(","))}" title="${unknownCount} ${unknownCount === 1 ? "registro sem data financeira" : "registros sem data financeira"} · ver em Lançamentos">${icon("info")}<span><b>${unknownCount} sem data</b> <u>Revisar</u></span></button>`
+        : "";
   }
   let lastDashTabsWidth = 0;
   let dashResizeFrame = 0;
@@ -5731,6 +5934,67 @@
       $("#dash-summary").innerHTML = cashSummaryTable();
       return;
     }
+    const recSort = e.target.closest("[data-dash-rec-sort]");
+    if (recSort) {
+      const key = recSort.dataset.dashRecSort;
+      if (!DASH_COLS.rec[key]) return;
+      if (state.dashRecSortBy === key) {
+        state.dashRecSort = state.dashRecSort === "asc" ? "desc" : "asc";
+      } else {
+        state.dashRecSortBy = key;
+        state.dashRecSort =
+          key === "when" || key === "comp" || key === "valor" ? "desc" : "asc";
+      }
+      drawDashRecent();
+      return;
+    }
+    const fbtn = e.target.closest("[data-dash-filter]");
+    if (fbtn) {
+      openDashFilter(fbtn);
+      return;
+    }
+    if (e.target.closest("[data-dash-filter-clear]")) {
+      const [table, key] = dashFilterOpen.split(":");
+      if (state.dashColF[table]) delete state.dashColF[table][key];
+      closeDashFilter();
+      redrawDashTable(table);
+      return;
+    }
+    if (dashFilterOpen && !e.target.closest("#pn-filter-pop")) closeDashFilter();
+    if (e.target.closest("#dash-export")) {
+      const menu = $("#dash-export-menu");
+      menu.hidden = !menu.hidden;
+      $("#dash-export").setAttribute("aria-expanded", String(!menu.hidden));
+      return;
+    }
+    const exp = e.target.closest("[data-dash-export]");
+    if (exp) {
+      $("#dash-export-menu").hidden = true;
+      $("#dash-export").setAttribute("aria-expanded", "false");
+      dashExport(exp.dataset.dashExport);
+      return;
+    }
+    if (!e.target.closest(".pn-drop") && $("#dash-export-menu")) {
+      $("#dash-export-menu").hidden = true;
+      $("#dash-export")?.setAttribute("aria-expanded", "false");
+    }
+    if (e.target.closest("#dash-print")) {
+      document.body.classList.add("printing-dashboard");
+      window.print();
+      setTimeout(() => document.body.classList.remove("printing-dashboard"), 500);
+      return;
+    }
+    if (e.target.closest("#dash-manage")) {
+      const cfg = document.querySelector('.nav-btn[data-page="configuracoes"]');
+      if (cfg && !cfg.hidden && cfg.offsetParent !== null) {
+        goto("configuracoes");
+        setTimeout(
+          () => document.querySelector('.sn-btn[data-set="companies"]')?.click(),
+          0,
+        );
+      } else goto("empresas");
+      return;
+    }
     if (e.target.closest("[data-dash-toggle-zero]")) {
       state.dashShowZero = !state.dashShowZero;
       $("#dash-summary").innerHTML = cashSummaryTable();
@@ -5745,7 +6009,80 @@
       dashCompanyTabs();
     }
   });
+  /* Filtro por coluna (funil) das tabelas do painel */
+  let dashFilterOpen = "";
+  function redrawDashTable(table) {
+    if (table === "sum") $("#dash-summary").innerHTML = cashSummaryTable();
+    else drawDashRecent();
+  }
+  function closeDashFilter() {
+    dashFilterOpen = "";
+    $("#pn-filter-pop")?.remove();
+  }
+  function openDashFilter(btn) {
+    const id = btn.dataset.dashFilter;
+    if (dashFilterOpen === id) {
+      closeDashFilter();
+      return;
+    }
+    closeDashFilter();
+    const [table, key] = id.split(":");
+    const col = DASH_COLS[table]?.[key];
+    if (!col) return;
+    const current = (state.dashColF[table] || {})[key] || "";
+    let control;
+    if (col.type === "text") {
+      control = `<input type="search" class="control" data-dash-filter-input placeholder="Contém..." value="${esc(current)}" autocomplete="off">`;
+    } else {
+      let options = NUM_FILTERS;
+      if (col.type === "list") {
+        const values = [
+          ...new Set(dashRecentPool.map((r) => recCell(r, key))),
+        ].sort((a, b) => a.localeCompare(b, "pt-BR"));
+        options = [["", "Todos"], ...values.map((v) => [v, v])];
+      }
+      control = `<select class="control" data-dash-filter-input>${options
+        .map(
+          ([v, l]) =>
+            `<option value="${esc(v)}" ${v === current ? "selected" : ""}>${esc(l)}</option>`,
+        )
+        .join("")}</select>`;
+    }
+    const pop = document.createElement("div");
+    pop.id = "pn-filter-pop";
+    pop.className = "pn-filter-pop";
+    pop.innerHTML = `<div class="pn-filter-head">${icon("filter")}<b>${esc(col.label)}</b></div>${control}<div class="pn-filter-foot"><button type="button" class="section-link" data-dash-filter-clear>Limpar</button></div>`;
+    document.body.appendChild(pop);
+    const r = btn.getBoundingClientRect();
+    const w = pop.offsetWidth;
+    pop.style.top = `${r.bottom + window.scrollY + 6}px`;
+    pop.style.left = `${Math.max(8, Math.min(r.right - w, document.documentElement.clientWidth - w - 8)) + window.scrollX}px`;
+    dashFilterOpen = id;
+    setTimeout(() => pop.querySelector("[data-dash-filter-input]")?.focus(), 0);
+  }
+  function applyDashFilter(input) {
+    if (!dashFilterOpen) return;
+    const [table, key] = dashFilterOpen.split(":");
+    state.dashColF[table] = state.dashColF[table] || {};
+    if (input.value) state.dashColF[table][key] = input.value;
+    else delete state.dashColF[table][key];
+    redrawDashTable(table);
+  }
   document.addEventListener("input", (e) => {
+    if (e.target.matches?.("[data-dash-filter-input]")) {
+      applyDashFilter(e.target);
+      return;
+    }
+    if (e.target.id === "dash-emp-q") {
+      state.dashEmpQ = e.target.value;
+      $("#dash-summary").innerHTML = cashSummaryTable();
+      return;
+    }
+    if (e.target.id === "dash-rec-q") {
+      state.dashRecQ = e.target.value;
+      drawDashRecent();
+      return;
+    }
     if (e.target.id !== "dash-menu-q") return;
     const q = e.target.value.trim().toUpperCase();
     let visible = 0;
@@ -5757,7 +6094,106 @@
     const empty = $(".dash-menu-empty");
     if (empty) empty.hidden = visible > 0;
   });
+  /* Exportar (CSV) a partir do painel */
+  function downloadCsv(name, columns, rows) {
+    const csv =
+      "\ufeff" +
+      [columns, ...rows]
+        .map((row) =>
+          row
+            .map((v) => '"' + String(v ?? "").replaceAll('"', '""') + '"')
+            .join(";"),
+        )
+        .join("\r\n");
+    const url = URL.createObjectURL(
+      new Blob([csv], { type: "text/csv;charset=utf-8" }),
+    );
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 500);
+  }
+  function dashExport(kind) {
+    const ref = dashRef();
+    const tag = (ref || "todo-periodo").replace(/^R:/, "").replace(/:/g, "_a_");
+    const scope = state.empresa ? `-${state.empresa}` : "";
+    const num = (v) => (v == null ? "" : n2(v));
+    if (kind === "summary") {
+      const rows = dashSummaryShown.map(([company, snap]) => [
+        company,
+        num(snap.prior),
+        num(snap.entries),
+        num(snap.exits),
+        num(snap.final),
+      ]);
+      if (dashSummaryTotal)
+        rows.push([
+          "Total",
+          num(dashSummaryTotal.prior),
+          num(dashSummaryTotal.entries),
+          num(dashSummaryTotal.exits),
+          num(dashSummaryTotal.final),
+        ]);
+      downloadCsv(
+        `resumo-por-empresa-${tag}.csv`,
+        ["Empresa", "Saldo Anterior", "Entradas", "Saídas", "Saldo Final"],
+        rows,
+      );
+    } else if (kind === "recent") {
+      downloadCsv(
+        `lancamentos-recentes${scope}.csv`,
+        Object.values(DASH_COLS.rec).map((c) => c.label),
+        dashRecentShown.map((r) =>
+          Object.keys(DASH_COLS.rec).map((k) => recCell(r, k)),
+        ),
+      );
+    } else {
+      const scopeRows = db.finance.filter(
+        (r) => !state.empresa || r.sub === state.empresa,
+      );
+      const ids = ref ? dashboardPeriodStats(scopeRows, ref).rowIds : null;
+      const rows = scopeRows
+        .filter((r) => !ids || ids.has(r.id))
+        .sort((a, b) => String(a.data || "").localeCompare(String(b.data || "")));
+      downloadCsv(
+        `lancamentos-${tag}${scope}.csv`,
+        [
+          "Tipo de lançamento",
+          "Data",
+          "Data recebida",
+          "Parceiro",
+          "Centro de custo",
+          "Conta Bancária",
+          "Empresa",
+          "A receber",
+          "Recebido",
+          "Saída",
+          "Situação",
+          "Lançado por",
+          "Observação",
+        ],
+        rows.map((r) => [
+          finTipo(r),
+          dateBR(r.data),
+          r.dataRecebida ? dateBR(r.dataRecebida) : "",
+          r.parceiro || "",
+          r.centro || "",
+          r.contaBancaria || "",
+          r.sub || "",
+          n2(r.previsto),
+          n2(r.recebido),
+          n2(r.saida),
+          finStatus(r)[0],
+          r.criadoPor || "",
+          r.observacao || "",
+        ]),
+      );
+    }
+    toast("Planilha gerada");
+  }
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && dashFilterOpen) closeDashFilter();
     if (e.key === "Escape" && state.dashMenuOpen) {
       state.dashMenuOpen = false;
       dashCompanyTabs();
@@ -6220,8 +6656,27 @@
   document.addEventListener("change", (e) => {
     const t = e.target;
     if (!t.matches) return;
-    if (t.matches("[data-comp]")) {
+    if (t.id === "dash-comp") {
+      if (t.value === "__range") return;
       state.mes = t.value;
+      state.dashDe = "";
+      state.dashAte = "";
+      clearFinanceAuditFilter();
+      render();
+    } else if (t.id === "dash-de" || t.id === "dash-ate") {
+      if (t.id === "dash-de") state.dashDe = t.value;
+      else state.dashAte = t.value;
+      if (state.dashDe && state.dashAte && state.dashDe > state.dashAte) {
+        if (t.id === "dash-de") state.dashAte = state.dashDe;
+        else state.dashDe = state.dashAte;
+      }
+      if (state.dashDe || state.dashAte) state.mes = "";
+      clearFinanceAuditFilter();
+      render();
+    } else if (t.matches("[data-comp]")) {
+      state.mes = t.value;
+      state.dashDe = "";
+      state.dashAte = "";
       clearFinanceAuditFilter();
       render();
     } else if (t.matches("[data-contas-mes]")) {
