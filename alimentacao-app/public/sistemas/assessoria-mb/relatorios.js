@@ -100,11 +100,37 @@
   const editable = () => ["Rascunho", "Devolvido"].includes(state.status);
   const included = () =>
     state.rows.filter((r) => state.kind !== "medical" || MEDICAS.includes(r.category));
+  const psfRows = () =>
+    state.rows.filter((r) => (r.category || "") === "PSF / referência");
+  const unclassRows = () =>
+    state.rows.filter((r) => (r.category || "") === "Não classificado");
   const subtotal = () => included().reduce((s, r) => s + (r.value || 0), 0);
-  const sectionTotal = (k) =>
-    included()
+  const sectionTotal = (k) => {
+    if (k === "PSF / referência")
+      return psfRows().reduce((s, r) => s + (Number(r.referenceValue) || 0), 0);
+    if (k === "Não classificado")
+      return unclassRows().reduce((s, r) => s + (r.value || 0), 0);
+    return included()
       .filter((r) => r.category === k)
       .reduce((s, r) => s + (r.value || 0), 0);
+  };
+  /** Abre a aba que tem registros (Não classificados / PSF / plantão / especialidade). */
+  function preferMedicalTab() {
+    if (state.kind !== "medical") return;
+    const counts = {
+      "Não classificado": unclassRows().length,
+      Plantonistas: state.rows.filter((r) => r.category === "Plantonistas").length,
+      Especialistas: state.rows.filter((r) => r.category === "Especialistas").length,
+      "PSF / referência": psfRows().length,
+    };
+    // Prioriza o que precisa de ação: não classificados primeiro se houver
+    if (counts["Não classificado"] > 0) {
+      medicalTab = "Não classificado";
+      return;
+    }
+    const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    if (best && best[1] > 0) medicalTab = best[0];
+  }
   const addition = () =>
     state.kind === "medical"
       ? MEDICAS.reduce(
@@ -112,16 +138,20 @@
           0,
         )
       : Math.trunc((subtotal() * Number(state.percent || 0)) / 100);
-  const warnings = (r) =>
-    !r.name ||
-    !r.doc ||
-    !r.ref ||
-    !r.bank ||
-    !r.account ||
-    r.value === null ||
-    r.value === undefined ||
-    r.value < 0 ||
-    (!r.checked && r.method === "Planilha");
+  const warnings = (r) => {
+    const psf = r.category === "PSF / referência";
+    const unc = r.category === "Não classificado";
+    return (
+      !r.name ||
+      !r.doc ||
+      unc ||
+      (!psf && !r.ref) ||
+      !r.bank ||
+      !r.account ||
+      (!psf && (r.value === null || r.value === undefined || r.value < 0)) ||
+      (!r.checked && (r.method === "Planilha" || r.method === "OCR"))
+    );
+  };
   const duplicate = (r) =>
     state.rows.some(
       (s) =>
@@ -154,13 +184,28 @@
   const panel = (title, sub, body, actions = "") =>
     `<section class="rl-panel"><div class="rl-ph"><div><h2>${title}</h2>${sub ? `<div class="rl-muted">${sub}</div>` : ""}</div><div class="rl-actions">${actions}</div></div>${body}</section>`;
   function metrics() {
-    return `<div class="rl-totals"><div class="rl-metric"><div class="rl-muted">Lançamentos</div><strong id="rl-mcount">${included().length}</strong><span class="rl-muted" id="rl-mreview">${included().filter((r) => warnings(r) || duplicate(r)).length} para revisar</span></div><div class="rl-metric"><div class="rl-muted">Subtotal</div><strong id="rl-msub">${fmt(subtotal())}</strong></div><div class="rl-metric"><div class="rl-muted" id="rl-maddl">Acréscimo (${esc(state.percent)}%)</div><strong id="rl-madd">${fmt(addition())}</strong></div><div class="rl-metric final"><div class="rl-muted">Total geral</div><strong id="rl-mtotal">${fmt(subtotal() + addition())}</strong></div></div>`;
+    const pay = included().length;
+    const refs = psfRows().length;
+    const unc = unclassRows().length;
+    const countLabel =
+      state.kind === "medical"
+        ? `${pay} pag. · ${refs} PSF · ${unc} sem classificar`
+        : String(pay || state.rows.length);
+    const reviewPool = state.kind === "medical" ? state.rows : included();
+    return `<div class="rl-totals"><div class="rl-metric"><div class="rl-muted">Registros</div><strong id="rl-mcount">${esc(countLabel)}</strong><span class="rl-muted" id="rl-mreview">${reviewPool.filter((r) => warnings(r) || duplicate(r)).length} para revisar</span></div><div class="rl-metric"><div class="rl-muted">Subtotal</div><strong id="rl-msub">${fmt(subtotal())}</strong></div><div class="rl-metric"><div class="rl-muted" id="rl-maddl">Acréscimo (${esc(state.percent)}%)</div><strong id="rl-madd">${fmt(addition())}</strong></div><div class="rl-metric final"><div class="rl-muted">Total geral</div><strong id="rl-mtotal">${fmt(subtotal() + addition())}</strong></div></div>`;
   }
   function updateTotals() {
     if (!$("#rl-msub")) return;
-    $("#rl-mcount").textContent = included().length;
+    const pay = included().length;
+    const refs = psfRows().length;
+    const unc = unclassRows().length;
+    $("#rl-mcount").textContent =
+      state.kind === "medical"
+        ? `${pay} pag. · ${refs} PSF · ${unc} sem classificar`
+        : String(pay || state.rows.length);
+    const reviewPool = state.kind === "medical" ? state.rows : included();
     $("#rl-mreview").textContent =
-      included().filter((r) => warnings(r) || duplicate(r)).length + " para revisar";
+      reviewPool.filter((r) => warnings(r) || duplicate(r)).length + " para revisar";
     $("#rl-msub").textContent = fmt(subtotal());
     $("#rl-maddl").textContent = `Acréscimo (${state.percent}%)`;
     $("#rl-madd").textContent = fmt(addition());
@@ -256,24 +301,25 @@
       "Adicione os arquivos que compõem o relatório.",
       `<div class="rl-pb">${
         editable()
-          ? `<div class="rl-drop" id="rl-drop">${icon("upload")}<strong>Arraste os documentos para esta área</strong><span class="rl-muted">Excel, CSV e PDF são lidos automaticamente (PDF escaneado usa OCR e pode demorar) · imagens ficam como anexo · até 30 MB por arquivo</span><button type="button" class="btn primary" onclick="document.getElementById('rl-file').click()">${icon("plus")} Selecionar arquivos</button><input id="rl-file" type="file" multiple accept=".pdf,.xlsx,.xls,.csv,.png,.jpg,.jpeg,.webp,.tif,.tiff" hidden></div>`
+          ? `<div class="rl-drop" id="rl-drop">${icon("upload")}<strong>Arraste os documentos para esta área</strong><span class="rl-muted">PDF, Excel, CSV e imagens são lidos no navegador (OCR local para scan) · até 30 MB por arquivo</span><button type="button" class="btn primary" onclick="document.getElementById('rl-file').click()">${icon("plus")} Selecionar arquivos</button><input id="rl-file" type="file" multiple accept=".pdf,.xlsx,.xls,.csv,.png,.jpg,.jpeg,.webp,.tif,.tiff" hidden></div>`
           : ""
-      }</div><div class="rl-tablewrap"><table class="rl-table"><thead><tr><th>Arquivo</th><th>Tipo identificado</th><th>Leitura</th><th>Registros</th><th class="rl-right">Valor extraído</th><th>Situação</th><th>Ações</th></tr></thead><tbody>${
+      }</div><div class="rl-tablewrap"><table class="rl-table"><thead><tr><th>Arquivo</th><th>Formato</th><th>Tipo identificado</th><th>Leitura</th><th>Registros</th><th class="rl-right">Valor extraído</th><th>Situação</th><th>Ações</th></tr></thead><tbody>${
         state.files.length
           ? state.files
-              .map(
-                (f) =>
-                  `<tr><td><b>${esc(f.name)}</b><div class="rl-muted">${((f.size || 0) / 1024).toFixed(0)} KB</div>${f.warnings?.length ? `<div class="rl-small rl-warn-text">${esc([...new Set(f.warnings)].join(" · "))}</div>` : ""}</td><td>${esc(f.group || "—")}</td><td>${esc(f.method || "—")}</td><td>${f.count ?? "—"}</td><td class="rl-right">${f.count !== undefined && f.count !== null ? fmt(f.total) : "—"}</td><td>${tag(f.status)}</td><td><div class="rl-actions">${btn("Ver", `MBRel.openSource('${f.id}')`, "", "eye")}${
-                    editable()
-                      ? btn("Remover", `MBRel.removeFile('${f.id}')`, "rl-danger", "trash") +
-                        (!["Extraído", "Revisar", "Anexo manual"].includes(f.status)
-                          ? btn("Usar como anexo", `MBRel.manualFile('${f.id}')`)
-                          : "")
-                      : ""
-                  }</div></td></tr>`,
-              )
+              .map((f) => {
+                const ext = String(f.name || "").split(".").pop()?.toUpperCase() || "—";
+                return `<tr><td><b>${esc(f.name)}</b><div class="rl-muted">${((f.size || 0) / 1024).toFixed(0)} KB${f.pages ? " · " + f.pages + " pág." : ""}</div>${f.warnings?.length ? `<div class="rl-small rl-warn-text">${esc([...new Set(f.warnings)].join(" · "))}</div>` : ""}</td><td>${esc(ext)}</td><td>${esc(f.group || "—")}</td><td>${esc(f.method || "—")}</td><td>${f.count ?? "—"}</td><td class="rl-right">${f.count !== undefined && f.count !== null ? fmt(f.total) : "—"}</td><td>${tag(f.status)}</td><td><div class="rl-actions">${btn("Ver", `MBRel.openSource('${f.id}')`, "", "eye")}${
+                  editable()
+                    ? btn("Tentar novamente", `MBRel.retryFile('${f.id}')`) +
+                      btn("Remover", `MBRel.removeFile('${f.id}')`, "rl-danger", "trash") +
+                      (!["Reconhecido", "Necessita conferência"].includes(f.status)
+                        ? btn("Usar como anexo", `MBRel.manualFile('${f.id}')`)
+                        : "")
+                    : ""
+                }</div></td></tr>`;
+              })
               .join("")
-          : `<tr><td colspan="7" class="rl-empty">Nenhum documento anexado.</td></tr>`
+          : `<tr><td colspan="8" class="rl-empty">Nenhum documento anexado.</td></tr>`
       }</tbody></table></div><div class="rl-foot"><span class="rl-muted">${state.files.length} arquivo(s) · ${state.rows.length} lançamento(s)</span><div class="rl-actions">${
         editable()
           ? btn("Inserir manualmente", "MBRel.manualFromImport()", "", "plus") +
@@ -323,16 +369,25 @@
         size: f.size,
         type: f.type,
         data: await readData(f),
-        status: "Aguardando",
+        status: "Aguardando processamento",
       });
     }
     mark();
     render();
   }
 
+  function situacaoExtracao(x) {
+    if (!x?.rows?.length) return "Não reconhecido";
+    if (x.manual) return "Não reconhecido";
+    if (x.warnings?.length) return "Necessita conferência";
+    return "Reconhecido";
+  }
+
   async function extractAll() {
     if (busy || !editable()) return;
-    const list = state.files.filter((f) => ["Aguardando", "Falha"].includes(f.status));
+    const list = state.files.filter((f) =>
+      ["Aguardando processamento", "Aguardando", "Falha", "Não reconhecido", "Necessita conferência"].includes(f.status),
+    );
     if (!list.length) {
       toast("Nenhum documento pendente de reconhecimento.");
       return;
@@ -342,8 +397,8 @@
       f.status = "Processando";
       render();
       try {
-        if (/\.pdf$/i.test(f.name))
-          toast("Lendo PDF… se for escaneado, o OCR pode levar alguns segundos por página.");
+        if (/\.pdf$/i.test(f.name) || /\.(png|jpe?g|webp|tiff?)$/i.test(f.name))
+          toast("Lendo documento… OCR local pode levar alguns segundos por página.");
         let data = f.data;
         if (!data && f.path) data = (await fetchFile(f.path)).dataBase64;
         const x = await api("extract", { name: f.name, dataBase64: data, kind: state.kind });
@@ -354,7 +409,8 @@
           count: x.rows.length,
           total: x.rows.reduce((s, r) => s + (r.value || 0), 0),
           manual: !!x.manual,
-          status: x.manual ? "Anexo manual" : x.warnings.length || !x.rows.length ? "Revisar" : "Extraído",
+          pages: x.pages,
+          status: situacaoExtracao(x),
         });
         state.rows = state.rows.filter((r) => r.fileId !== f.id);
         for (const r of x.rows)
@@ -368,8 +424,11 @@
             checked: false,
           });
       } catch (e) {
-        f.status = "Falha";
-        f.warnings = ["Não foi possível reconhecer este arquivo. Tente novamente ou use o preenchimento manual."];
+        f.status = "Não reconhecido";
+        f.warnings = [
+          "Não foi possível reconhecer este arquivo. Tente novamente ou use o preenchimento manual.",
+          e?.message || "",
+        ].filter(Boolean);
         toast(e.message);
       }
       mark();
@@ -380,13 +439,23 @@
       (a, b) =>
         ((groupOrder.indexOf(a.source) + 10) % 10) - ((groupOrder.indexOf(b.source) + 10) % 10),
     );
+    preferMedicalTab();
     toast(
-      list.some((f) => f.status === "Falha")
+      list.some((f) => f.status === "Não reconhecido")
         ? "Alguns documentos não foram reconhecidos. Revise os anexos ou preencha manualmente."
-        : "Reconhecimento concluído. Confira os registros antes de encaminhar.",
+        : state.kind === "medical"
+          ? `Reconhecimento concluído: ${state.rows.filter((r) => r.category === "Plantonistas").length} plantonista(s) · ${state.rows.filter((r) => r.category === "Especialistas").length} especialista(s) · ${unclassRows().length} sem classificar · ${psfRows().length} PSF.`
+          : "Reconhecimento concluído. Confira os registros antes de encaminhar.",
     );
     if (state.rows.length) phase = 2;
     render();
+  }
+  function retryFile(id) {
+    const f = state.files.find((x) => x.id === id);
+    if (!f || !editable() || busy) return;
+    f.status = "Aguardando processamento";
+    mark();
+    extractAll();
   }
   function removeFile(id) {
     if (!editable() || busy) return;
@@ -400,7 +469,7 @@
     const f = state.files.find((x) => x.id === id);
     if (f && editable()) {
       f.manual = true;
-      f.status = "Anexo manual";
+      f.status = "Não reconhecido";
       mark();
       render();
     }
@@ -469,27 +538,85 @@
     } else addRow();
   }
   function addRow() {
+    openEntry();
+  }
+
+  function cloneRow(id) {
     if (!editable()) return;
+    const r = state.rows.find((x) => x.id === id);
+    if (!r) return;
     state.rows.push({
+      ...JSON.parse(JSON.stringify(r)),
       id: makeId(),
-      name: "",
-      doc: "",
-      ref: "",
-      bank: "",
-      account: "",
-      value: null,
-      profession: "",
-      location: "",
-      address: "",
-      notes: "",
-      source: "Manual",
-      method: "Manual",
       checked: false,
+      source: r.source || "Manual",
+      method: "Manual",
+      fileId: undefined,
     });
     mark();
-    filter = "";
-    query = "";
     render();
+    toast("Lançamento duplicado.");
+  }
+
+  function openEntry(id) {
+    if (!editable()) return;
+    const r = state.rows.find((x) => x.id === id) || {};
+    const med = state.kind === "medical";
+    const cat = r.category || medicalTab;
+    const plant = med && cat === "Plantonistas";
+    let d = document.getElementById("rl-entry");
+    if (!d) {
+      d = document.createElement("dialog");
+      d.id = "rl-entry";
+      d.className = "rl-dialog rl-entry";
+      document.body.append(d);
+    }
+    const f = (k, label, wide = false, req = false, placeholder = "", area = false, val = r[k] || "") =>
+      `<div class="${wide ? "rl-entry-wide" : ""}"><label for="en_${k}">${label}${req ? " *" : ""}</label>${
+        area
+          ? `<textarea id="en_${k}" name="${k}" rows="2" ${req ? "required" : ""} placeholder="${esc(placeholder)}">${esc(val)}</textarea>`
+          : `<input id="en_${k}" name="${k}" ${req ? "required" : ""} placeholder="${esc(placeholder)}" value="${esc(val)}" ${k === "value" ? 'inputmode="decimal"' : ""}>`
+      }</div>`;
+    d.innerHTML = `<form id="rl-entry-form"><div class="rl-ph"><div><h2>${id ? "Editar lançamento" : "Adicionar lançamento"}</h2><div class="rl-muted">${med ? esc(cat) : "Relatório geral"} · Campos com * são obrigatórios</div></div><button type="button" class="btn" onclick="document.getElementById('rl-entry').close()">Fechar</button></div><div class="rl-entry-body"><div class="rl-entry-sec">Identificação</div><div class="rl-entry-grid">${f("name", med ? "Nome do médico" : "Nome do titular", true, true)}${f("doc", med ? "CPF" : "CPF / CNPJ", false, true, "000.000.000-00")}${med ? f("address", "Endereço", true, false) : ""}</div><div class="rl-entry-sec">Informações do pagamento</div><div class="rl-entry-grid">${plant ? f("profession", "Profissão", false, true) + f("location", "Local", false, true, "Hospital Municipal") : ""}${f("ref", plant ? "Descrição do plantão" : med ? "Especialidade / procedimento" : "Referência / descrição", true, true, "", true)}</div><div class="rl-entry-sec">Dados bancários</div><div class="rl-entry-grid">${f("bank", "Banco / agência", false, true, "Ex.: Banco do Brasil – 2314-0", false, r.bank || "")}${f("account", "Conta", false, true, "Ex.: C/C 12345-6")}${f("value", "Valor (R$)", false, true, "0,00", false, r.value == null ? "" : (r.value / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}${f("notes", "Observações", true, false, "Opcional", true)}</div><div id="rl-entry-error" class="rl-entry-error" role="alert"></div></div><div class="rl-entry-foot"><button type="button" class="btn" onclick="document.getElementById('rl-entry').close()">Cancelar</button><div class="rl-actions">${id ? "" : '<button class="btn" type="submit" value="again">Salvar e adicionar outro</button>'}<button class="btn primary" type="submit" value="close">${id ? "Salvar alterações" : "Adicionar lançamento"}</button></div></div></form>`;
+    d.showModal();
+    document.getElementById("rl-entry-form").onsubmit = (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target));
+      for (const k in data) data[k] = String(data[k]).trim();
+      const raw = String(data.value || "").replace(/\s|R\$/g, "");
+      let value = raw.includes(",")
+        ? Number(raw.replace(/\./g, "").replace(",", "."))
+        : Number(raw);
+      const err = document.getElementById("rl-entry-error");
+      if (!raw || !Number.isFinite(value) || value < 0) {
+        err.textContent = "Informe um valor válido, maior ou igual a zero.";
+        return;
+      }
+      const reqs = ["name", "doc", "ref", "bank", "account", ...(plant ? ["profession", "location"] : [])];
+      if (reqs.some((k) => !data[k])) {
+        err.textContent = "Preencha os campos obrigatórios.";
+        return;
+      }
+      const row = {
+        ...r,
+        ...data,
+        id: id || makeId(),
+        category: med ? cat : undefined,
+        value: Math.round(value * 100),
+        source: r.source || "Manual",
+        method: r.method || "Manual",
+        checked: true,
+      };
+      if (duplicate(row) && !confirm("Existe um lançamento semelhante. Deseja manter este registro?")) return;
+      if (id) state.rows = state.rows.map((x) => (x.id === id ? row : x));
+      else state.rows.push(row);
+      mark();
+      query = "";
+      d.close();
+      render();
+      toast(id ? "Lançamento atualizado." : "Lançamento adicionado.");
+      if (e.submitter?.value === "again") openEntry();
+    };
   }
   function delRow(id) {
     if (!editable() || !confirm("Excluir este lançamento?")) return;
@@ -531,97 +658,110 @@
 
   function editorView() {
     const groups = [...new Set(state.rows.map((r) => r.source))];
-    const shown = state.rows.filter(
-      (r) =>
-        (!filter || filter === "review" ? filter !== "review" || warnings(r) || duplicate(r) : r.source === filter) &&
-        (!query ||
-          [r.name, r.doc, r.ref, r.bank, r.account].join(" ").toLowerCase().includes(query.toLowerCase())),
-    );
+    const shown = state.rows.filter((r) => {
+      const qok =
+        !query ||
+        [r.name, r.doc, r.ref, r.bank, r.account].join(" ").toLowerCase().includes(query.toLowerCase());
+      if (!qok) return false;
+      if (!filter) return true;
+      if (filter === "review") return warnings(r) || duplicate(r);
+      if (filter === "auto") return !!r.fileId;
+      if (filter === "manual") return !r.fileId;
+      return r.source === filter;
+    });
     let html = metrics();
     html += panel(
       "Lançamentos consolidados",
-      `${shown.length} de ${state.rows.length} registros · clique nos campos para corrigir`,
-      `<div class="rl-pb rl-filterbar"><input class="control" style="max-width:300px" placeholder="Buscar nome, CPF ou referência..." value="${esc(query)}" onchange="MBRel.setQuery(this.value)"><select class="control" style="max-width:220px" onchange="MBRel.setFilter(this.value)"><option value="">Todos os documentos</option><option value="review" ${filter === "review" ? "selected" : ""}>Somente pendências</option>${groups.map((g) => `<option ${filter === g ? "selected" : ""} value="${esc(g)}">${esc(g)}</option>`).join("")}</select><span class="rl-muted">${state.rows.filter((r) => r.checked).length} conferido(s)</span></div><div class="rl-tablewrap"><table class="rl-table rl-editor"><thead><tr><th>#</th><th>Nome titular</th><th>CPF/CNPJ</th><th>Referência</th><th>Banco / agência</th><th>Conta</th><th class="rl-right">Valor (R$)</th><th>Origem</th><th>Conferido</th><th></th></tr></thead><tbody>${
+      `${shown.length} de ${state.rows.length} registros · edite pelo pop-up`,
+      `<div class="rl-pb rl-filterbar"><input class="control" style="max-width:300px" placeholder="Buscar nome, CPF ou referência..." value="${esc(query)}" onchange="MBRel.setQuery(this.value)"><select class="control" style="max-width:220px" onchange="MBRel.setFilter(this.value)"><option value="">Todos os documentos</option><option value="review" ${filter === "review" ? "selected" : ""}>Somente pendências</option><option value="auto" ${filter === "auto" ? "selected" : ""}>Só importados</option><option value="manual" ${filter === "manual" ? "selected" : ""}>Só manuais</option>${groups.map((g) => `<option ${filter === g ? "selected" : ""} value="${esc(g)}">${esc(g)}</option>`).join("")}</select><span class="rl-muted">${state.rows.filter((r) => r.checked).length} conferido(s)</span></div><div class="rl-tablewrap"><table class="rl-table rl-editor"><thead><tr><th>#</th><th>Nome titular</th><th>CPF/CNPJ</th><th>Referência</th><th>Banco / agência</th><th>Conta</th><th class="rl-right">Valor (R$)</th><th>Origem</th><th>Conferido</th><th></th></tr></thead><tbody>${
         shown.length
           ? shown
-              .map(
-                (r) =>
-                  `<tr data-rl-row="${r.id}" class="${warnings(r) || duplicate(r) ? "flag" : ""}"><td>${state.rows.indexOf(r) + 1}</td><td>${field(r, "name", "name")}</td><td>${field(r, "doc")}</td><td>${field(r, "ref", "ref")}</td><td>${field(r, "bank", "bank")}</td><td>${field(r, "account", "account")}</td><td>${moneyInput(r)}</td><td class="source">${r.fileId ? `<button type="button" class="btn" onclick="MBRel.openSource('${r.fileId}')">${icon("eye")} ${esc(r.source)}</button>` : "Manual"}<div class="rl-muted">${r.page ? "Pág. " + r.page : esc(r.sheet || r.method || "")}</div>${duplicate(r) ? '<div class="rl-warn-text">Possível duplicado</div>' : ""}</td><td style="text-align:center"><input aria-label="Conferir lançamento" type="checkbox" ${r.checked ? "checked" : ""} ${editable() ? "" : "disabled"} onchange="MBRel.checkRow('${r.id}',this.checked)"></td><td>${editable() ? btn("", `MBRel.delRow('${r.id}')`, "rl-danger", "trash") : ""}</td></tr>`,
-              )
+              .map((r) => {
+                const cell = (v) => `<div class="rl-cell">${esc(v || "—")}</div>`;
+                return `<tr data-rl-row="${r.id}" class="${warnings(r) || duplicate(r) ? "flag" : ""}"><td>${state.rows.indexOf(r) + 1}</td><td>${cell(r.name)}</td><td>${cell(r.doc)}</td><td>${cell(r.ref)}</td><td>${cell(r.bank)}</td><td>${cell(r.account)}</td><td class="rl-right">${r.value == null ? "—" : fmt(r.value)}</td><td class="source">${r.fileId ? `<button type="button" class="btn" onclick="MBRel.openSource('${r.fileId}')">${icon("eye")} ${esc(r.source)}</button>` : "Manual"}<div class="rl-muted">${r.page ? "Pág. " + r.page : esc(r.sheet || r.method || "")}</div>${duplicate(r) ? '<div class="rl-warn-text">Possível duplicado</div>' : ""}</td><td style="text-align:center"><input aria-label="Conferir lançamento" type="checkbox" ${r.checked ? "checked" : ""} ${editable() ? "" : "disabled"} onchange="MBRel.checkRow('${r.id}',this.checked)"></td><td><div class="rl-actions">${editable() ? btn("Editar", `MBRel.openEntry('${r.id}')`) + btn("Duplicar", `MBRel.cloneRow('${r.id}')`) + btn("", `MBRel.delRow('${r.id}')`, "rl-danger", "trash") : ""}</div></td></tr>`;
+              })
               .join("")
           : `<tr><td colspan="10" class="rl-empty">Nenhum lançamento encontrado.</td></tr>`
       }</tbody></table></div><div class="rl-foot"><div class="rl-actions">${btn("Voltar aos documentos", "MBRel.go(1)")}</div><div class="rl-actions">${btn("Prévia para impressão", "MBRel.printReport()", "", "print")}${editable() ? btn("Salvar rascunho", "MBRel.save(false)") : ""}${btn("Continuar", "MBRel.go(3)", "primary", "chev")}</div></div>`,
-      editable() ? btn("Adicionar lançamento", "MBRel.addRow()", "", "plus") : "",
+      editable() ? btn("Adicionar lançamento", "MBRel.openEntry()", "primary", "plus") : "",
     );
     return html;
   }
 
   function medicalEditor() {
-    const cats = ["Plantonistas", "Especialistas", "PSF / referência"];
+    const cats = ["Plantonistas", "Especialistas", "Não classificado", "PSF / referência"];
+    const catLabel = (k) =>
+      k === "Não classificado" ? "Não classificados" : k === "PSF / referência" ? "PSF (referência)" : k;
     const rows = state.rows.filter(
       (r) =>
-        (r.category || "PSF / referência") === medicalTab &&
+        (r.category || "Não classificado") === medicalTab &&
         (!query || [r.name, r.doc, r.ref].join(" ").toLowerCase().includes(query.toLowerCase())),
     );
     let html = metrics();
-    html += `<section class="rl-panel"><div class="rl-ph"><div><h2>Prévia editável dos relatórios médicos</h2><div class="rl-muted">Selecione o grupo e corrija os campos diretamente na tabela.</div></div><div class="rl-actions">${editable() ? btn("Adicionar lançamento", "MBRel.addMedical()", "primary", "plus") : ""}</div></div><div class="rl-pb"><div class="rl-actions">${cats
+    if (unclassRows().length)
+      html += `<div class="rl-notice"><b>Classificação por lançamento:</b> o mesmo CPF pode ter plantão e especialidade. ${unclassRows().length} registro(s) precisam que você escolha Plantonista ou Especialista (sem redigitar os dados).</div>`;
+    else if (psfRows().length && !included().length)
+      html += `<div class="rl-notice"><b>PSF é só referência cadastral.</b> Importe MEDICOS_PLANTONISTAS / MEDICOS_ESPECIALISTAS ou use “Criar plantão/especialidade” a partir do PSF. A classificação é pelo serviço de cada linha, não pelo médico.</div>`;
+    html += `<section class="rl-panel"><div class="rl-ph"><div><h2>Conferência dos registros importados</h2><div class="rl-muted">Plantonistas · Especialistas · Não classificados · PSF referência</div></div><div class="rl-actions">${editable() && medicalTab !== "PSF / referência" ? btn("Adicionar lançamento", "MBRel.openEntry()", "primary", "plus") : ""}</div></div><div class="rl-pb"><div class="rl-actions">${cats
       .map(
         (k) =>
-          `<button type="button" class="btn ${medicalTab === k ? "primary" : ""}" onclick="MBRel.setMedicalTab('${k}')">${k} (${state.rows.filter((r) => (r.category || "PSF / referência") === k).length})</button>`,
+          `<button type="button" class="btn ${medicalTab === k ? "primary" : ""}" onclick="MBRel.setMedicalTab('${k}')">${catLabel(k)} (${state.rows.filter((r) => (r.category || "Não classificado") === k).length})</button>`,
       )
-      .join("")}</div><div class="rl-filterbar" style="margin-top:12px"><input class="control" style="max-width:320px" placeholder="Buscar nome ou CPF" value="${esc(query)}" onchange="MBRel.setQuery(this.value)"><b>Subtotal do grupo: ${fmt(sectionTotal(medicalTab))}</b></div></div><div class="rl-tablewrap"><table class="rl-table rl-editor"><thead><tr><th>Nome / CPF</th><th>${medicalTab === "Especialistas" ? "Especialidade" : "Serviço / plantão / UBS"}</th><th>Profissão / local</th><th>Endereço</th><th>Banco / conta</th><th>Valor (R$)</th><th>Observações / origem</th><th>Conferido</th><th>Ações</th></tr></thead><tbody>${
+      .join("")}</div><div class="rl-filterbar" style="margin-top:12px"><input class="control" style="max-width:320px" placeholder="Buscar nome ou CPF" value="${esc(query)}" onchange="MBRel.setQuery(this.value)"><b>${medicalTab === "PSF / referência" ? "Total origem PSF" : "Subtotal do grupo"}: ${fmt(sectionTotal(medicalTab))}</b></div></div><div class="rl-tablewrap"><table class="rl-table rl-editor"><thead><tr><th>Nome / CPF</th><th>${medicalTab === "Especialistas" ? "Especialidade / exames" : medicalTab === "Plantonistas" ? "Plantão / serviço" : medicalTab === "Não classificado" ? "Serviço (classificar)" : "UBS / referência"}</th><th>Profissão / local</th><th>Endereço</th><th>Banco / conta</th><th>Valor (R$)</th><th>Observações / origem</th><th>Conferido</th><th>Classificação</th></tr></thead><tbody>${
       rows
-        .map(
-          (r) =>
-            `<tr data-rl-row="${r.id}" class="${warnings(r) ? "flag" : ""}"><td>${field(r, "name", "name")}${field(r, "doc")}</td><td>${field(r, "ref", "ref")}</td><td>${field(r, "profession")}${field(r, "location")}</td><td>${field(r, "address", "ref")}</td><td>${field(r, "bank", "bank")}${field(r, "account", "account")}</td><td>${medicalTab === "PSF / referência" ? `<span class="rl-muted">Origem: ${r.referenceValue == null ? "—" : fmt(r.referenceValue)}</span>` : moneyInput(r)}</td><td>${field(r, "notes", "ref")}${r.fileId ? btn("Original", `MBRel.openSource('${r.fileId}')`) : "Manual"}<div class="rl-muted">${r.sheet ? esc(r.sheet) : ""}</div></td><td><input type="checkbox" aria-label="Conferir lançamento" ${r.checked ? "checked" : ""} ${editable() ? "" : "disabled"} onchange="MBRel.checkRow('${r.id}',this.checked)"></td><td><div class="rl-actions">${
-              editable()
-                ? (medicalTab === "PSF / referência"
-                    ? btn("Criar plantão", `MBRel.copyPSF('${r.id}','Plantonistas')`) +
-                      btn("Criar especialidade", `MBRel.copyPSF('${r.id}','Especialistas')`)
-                    : `<select class="control" onchange="MBRel.moveMedical('${r.id}',this.value)">${cats.map((k) => `<option ${medicalTab === k ? "selected" : ""}>${k}</option>`).join("")}</select>`) +
-                  btn("Excluir", `MBRel.delRow('${r.id}')`, "rl-danger")
-                : ""
-            }</div></td></tr>`,
-        )
+        .map((r) => {
+          const cell = (v) => `<div class="rl-cell">${esc(v || "—")}</div>`;
+          const classSelect = `<select class="control" aria-label="Classificação do lançamento" onchange="MBRel.moveMedical('${r.id}',this.value)">${cats
+            .filter((k) => k !== "PSF / referência" || medicalTab === "PSF / referência")
+            .map((k) => `<option value="${k}" ${(r.category || "Não classificado") === k ? "selected" : ""}>${catLabel(k)}</option>`)
+            .join("")}</select>`;
+          return `<tr data-rl-row="${r.id}" class="${warnings(r) ? "flag" : ""}"><td>${cell(r.name)}${cell(r.doc)}</td><td>${cell(r.ref)}</td><td>${cell(r.profession)}${cell(r.location)}</td><td>${cell(r.address)}</td><td>${cell(r.bank)}${cell(r.account)}</td><td>${medicalTab === "PSF / referência" ? `<span class="rl-muted">Origem: ${r.referenceValue == null ? "—" : fmt(r.referenceValue)}</span>` : r.value == null ? "—" : fmt(r.value)}</td><td>${cell(r.notes)}${r.fileId ? btn("Original", `MBRel.openSource('${r.fileId}')`) : "Manual"}<div class="rl-muted">${r.sheet ? esc(r.sheet) : ""}</div></td><td><input type="checkbox" aria-label="Conferir lançamento" ${r.checked ? "checked" : ""} ${editable() ? "" : "disabled"} onchange="MBRel.checkRow('${r.id}',this.checked)"></td><td><div class="rl-actions">${
+            editable()
+              ? (medicalTab === "PSF / referência"
+                  ? btn("Criar plantão", `MBRel.copyPSF('${r.id}','Plantonistas')`) +
+                    btn("Criar especialidade", `MBRel.copyPSF('${r.id}','Especialistas')`)
+                  : btn("Editar", `MBRel.openEntry('${r.id}')`) +
+                    btn("Duplicar", `MBRel.cloneRow('${r.id}')`) +
+                    classSelect) +
+                btn("Excluir", `MBRel.delRow('${r.id}')`, "rl-danger")
+              : esc(catLabel(r.category || "Não classificado"))
+          }</div></td></tr>`;
+        })
         .join("") ||
       '<tr><td colspan="9" class="rl-empty">Nenhum registro neste grupo. Importe um documento ou adicione manualmente.</td></tr>'
     }</tbody></table></div><div class="rl-foot"><div class="rl-actions">${btn("Voltar", "MBRel.go(1)")}${btn("Prévia A4", "MBRel.printReport()")}${btn("Baixar PDF", "MBRel.downloadDoc('pdf')")}${btn("Baixar Word", "MBRel.downloadDoc('doc')")}</div><div class="rl-actions">${editable() ? btn("Salvar rascunho", "MBRel.save(false)") : ""}${btn("Continuar", "MBRel.go(3)", "primary")}</div></div></section>`;
     return html;
   }
   function addMedical() {
-    if (!editable()) return;
-    state.rows.push({
-      id: makeId(),
-      name: "",
-      doc: "",
-      ref: "",
-      bank: "",
-      account: "",
-      address: "",
-      profession: "",
-      location: "",
-      notes: "",
-      value: null,
-      category: medicalTab,
-      source: "Manual",
-      method: "Manual",
-      checked: false,
-    });
-    mark();
-    render();
+    openEntry();
   }
   function moveMedical(id, k) {
     if (!editable()) return;
     const r = state.rows.find((x) => x.id === id);
     if (!r) return;
+    const prev = r.category;
     r.category = k;
     r.checked = false;
     if (k === "PSF / referência") {
-      r.referenceValue = r.value;
+      if (r.value != null && r.referenceValue == null) r.referenceValue = r.value;
+      r.value = null;
+    } else if (prev === "PSF / referência" && (r.value == null || r.value === undefined) && r.referenceValue != null) {
+      // ao classificar a partir do PSF, o valor do serviço ainda precisa ser informado
       r.value = null;
     }
     mark();
+    // Se estava em "Não classificados" e classificou, permanece na aba atual só se ainda houver itens
+    if (medicalTab === "Não classificado" && !unclassRows().length) medicalTab = k;
     render();
+    toast(
+      k === "Plantonistas"
+        ? "Lançamento classificado como médico plantonista."
+        : k === "Especialistas"
+          ? "Lançamento classificado como médico especialista."
+          : k === "Não classificado"
+            ? "Lançamento marcado para classificação manual."
+            : "Categoria atualizada.",
+    );
   }
   function copyPSF(id, k) {
     if (!editable()) return;
@@ -699,6 +839,15 @@
       return;
     }
     if (submit) {
+      if (state.kind === "medical" && unclassRows().length) {
+        medicalTab = "Não classificado";
+        phase = 2;
+        render();
+        toast(
+          `Há ${unclassRows().length} lançamento(s) sem classificação. Defina Plantonista ou Especialista antes de enviar.`,
+        );
+        return;
+      }
       if (
         state.kind === "medical" &&
         included().some(
@@ -863,6 +1012,7 @@
       query = "";
       filter = "";
       medicalTab = "Plantonistas";
+      preferMedicalTab();
       app().goto?.("rel-novo");
       render("rel-novo");
     } catch (e) {
@@ -1006,10 +1156,13 @@
     enableImport,
     manualFromImport,
     extractAll,
+    retryFile,
     removeFile,
     manualFile,
     openSource,
     addRow,
+    openEntry,
+    cloneRow,
     delRow,
     editRow,
     checkRow,

@@ -1,6 +1,11 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
+import {
+  aplicarClassificacaoMedica,
+  detectarModeloMedico,
+} from './assessoriaMbClassificacaoMedica'
 import { supabase } from './supabase'
 
 /**
@@ -425,34 +430,44 @@ export function extrairPlanilha(nome: string, dataBase64: string, kind: 'general
       group: kind === 'medical' ? 'PSF / referência' : 'Outros',
       method: 'Anexo',
       warnings: [
-        'Leitura automática disponível para Excel, CSV e PDF. Este arquivo fica como anexo; preencha os lançamentos manualmente.',
+        'Leitura automática disponível para Excel, CSV, PDF e imagens. Este arquivo fica como anexo; preencha os lançamentos manualmente.',
       ],
       rows: [] as Omit<RelLinha, 'id'>[],
       manual: true,
     }
   }
   const bytes = base64ParaBytes(dataBase64)
-  let wb: XLSX.WorkBook
+  const sheets: { name: string; matriz: unknown[][] }[] = []
   if (ext === 'csv') {
-    // CSV como texto puro: o leitor padrão entende "1.500,00" como 1,5.
     let texto: string
     try {
       texto = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
     } catch {
       texto = new TextDecoder('windows-1252').decode(bytes)
     }
-    wb = XLSX.read(texto.replace(/^﻿/, ''), { type: 'string', raw: true })
+    texto = texto.replace(/^\uFEFF/, '')
+    const parsed = Papa.parse<string[]>(texto, {
+      delimiter: '',
+      skipEmptyLines: false,
+      dynamicTyping: false,
+    })
+    sheets.push({ name: 'CSV', matriz: (parsed.data || []) as unknown[][] })
   } else {
-    wb = XLSX.read(bytes, { type: 'array', cellDates: false })
+    const wb = XLSX.read(bytes, { type: 'array', cellDates: false })
+    for (const aba of wb.SheetNames) {
+      const ws = wb.Sheets[aba]
+      sheets.push({
+        name: aba,
+        matriz: XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: true, defval: '' }),
+      })
+    }
   }
   const rows: Omit<RelLinha, 'id'>[] = []
   const warnings: string[] = []
   let grupoGeral = 'Outros'
   for (const [re, g] of GRUPOS) if (re.test(nome)) grupoGeral = g
 
-  for (const aba of wb.SheetNames) {
-    const ws = wb.Sheets[aba]
-    const matriz = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: true, defval: '' })
+  for (const { name: aba, matriz } of sheets) {
     let cab = -1
     let mapa: Partial<Record<keyof RelLinha, number>> = {}
     for (let i = 0; i < Math.min(matriz.length, 40); i++) {
@@ -466,11 +481,8 @@ export function extrairPlanilha(nome: string, dataBase64: string, kind: 'general
     if (cab < 0) continue
     let grupo = grupoGeral
     for (const [re, g] of GRUPOS) if (re.test(aba)) grupo = g
-    const categoriaAba = /plant/i.test(aba + ' ' + nome)
-      ? 'Plantonistas'
-      : /especial/i.test(aba + ' ' + nome)
-        ? 'Especialistas'
-        : 'PSF / referência'
+    const cabTexto = (matriz[cab] || []).map(String).join(' ')
+    const modeloAba = kind === 'medical' ? detectarModeloMedico(`${nome} ${aba}`, cabTexto) : 'Outros'
     for (let i = cab + 1; i < matriz.length; i++) {
       const l = matriz[i] || []
       const pega = (k: keyof RelLinha) => (mapa[k] === undefined ? '' : l[mapa[k]!])
@@ -492,15 +504,27 @@ export function extrairPlanilha(nome: string, dataBase64: string, kind: 'general
         sheet: aba,
       }
       if (kind === 'medical') {
-        linha.category = categoriaAba
-        if (categoriaAba === 'PSF / referência') {
+        linha.category = modeloAba === 'Não classificado' ? undefined : modeloAba
+        if (modeloAba === 'PSF / referência') {
           linha.referenceValue = valor
           linha.value = null
+          linha.category = 'PSF / referência'
         }
       }
       rows.push(linha)
     }
     if (kind === 'general') grupoGeral = grupo
+  }
+  if (kind === 'medical') {
+    const modelo = detectarModeloMedico(nome, rows.map((r) => r.ref).join(' ').slice(0, 400))
+    const classificados = aplicarClassificacaoMedica(rows, modelo)
+    rows.length = 0
+    rows.push(...classificados)
+    const nU = rows.filter((r) => r.category === 'Não classificado').length
+    if (nU)
+      warnings.push(
+        `${nU} lançamento(s) sem classificação automática — escolha Plantonista ou Especialista na conferência.`,
+      )
   }
   if (!rows.length)
     warnings.push('Não encontrei uma tabela com nome e valor/CPF na planilha. Confira o arquivo ou preencha manualmente.')
@@ -508,7 +532,7 @@ export function extrairPlanilha(nome: string, dataBase64: string, kind: 'general
   if (semCampos) warnings.push(`${semCampos} linha(s) sem CPF/CNPJ ou dados bancários.`)
   const categorias = [...new Set(rows.map((r) => r.category).filter(Boolean))]
   return {
-    group: kind === 'medical' ? categorias.join(', ') || 'PSF / referência' : grupoGeral,
+    group: kind === 'medical' ? categorias.join(', ') || 'Médicos' : grupoGeral,
     method: 'Planilha',
     warnings,
     rows,
@@ -527,34 +551,38 @@ const brl = (c: number | null | undefined) =>
 const dataBR = (d: string) => (d ? d.split('-').reverse().join('/') : '—')
 
 function colunas(sec: string): [string, (x: RelLinha) => string][] {
-  const v = (x: RelLinha) => (x.value === null || x.value === undefined ? '—' : brl(x.value))
+  const v = (x: RelLinha) =>
+    x.value === null || x.value === undefined ? 'Pendente' : brl(x.value)
+  const identity = (x: RelLinha) => [x.name, x.doc].filter(Boolean).join('\n')
   if (sec === 'Plantonistas')
     return [
-      ['Nome', (x) => x.name],
-      ['CPF', (x) => x.doc],
-      ['Serviço / plantão', (x) => x.ref],
+      ['Nome / CPF', identity],
       ['Profissão', (x) => x.profession || ''],
       ['Local', (x) => x.location || ''],
-      ['Banco / agência', (x) => x.bank],
-      ['Conta', (x) => x.account],
+      ['Plantão / serviço', (x) => x.ref],
+      ['Endereço', (x) => x.address || ''],
+      ['Dados bancários', (x) => [x.bank, x.account].filter(Boolean).join('\n')],
       ['Valor', v],
     ]
   if (sec === 'Especialistas')
     return [
-      ['Nome', (x) => x.name],
-      ['CPF', (x) => x.doc],
-      ['Especialidade', (x) => x.ref],
+      ['Nome / CPF', identity],
+      [
+        'Especialidade',
+        (x) => (x.notes ? `${x.ref}\n${x.notes}` : x.ref),
+      ],
+      ['Endereço', (x) => x.address || ''],
       ['Banco / agência', (x) => x.bank],
       ['Conta', (x) => x.account],
-      ['Valor', v],
+      ['Valor líquido', v],
     ]
   return [
     ['Nome titular', (x) => x.name],
     ['CPF/CNPJ', (x) => x.doc],
     ['Referência', (x) => x.ref],
-    ['Banco / agência', (x) => x.bank],
+    ['Banco/agência', (x) => x.bank],
     ['Conta', (x) => x.account],
-    ['Restante por fora', v],
+    ['Valor', v],
   ]
 }
 
@@ -574,54 +602,70 @@ function rodapeSituacao(r: Relatorio) {
   }`
 }
 
+function tituloSecao(sec: string) {
+  if (sec === 'Plantonistas') return 'RELATÓRIO DE MÉDICOS PLANTONISTAS'
+  if (sec === 'Especialistas') return 'RELATÓRIO DE MÉDICOS ESPECIALISTAS'
+  return 'RELATÓRIO'
+}
+
 function gerarPdf(r: Relatorio, sec: string) {
   const d = dadosSecao(r, sec)
   const cols = colunas(sec)
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
   const w = doc.internal.pageSize.getWidth()
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(14)
-  doc.text(d.titulo.toUpperCase(), w / 2, 14, { align: 'center' })
-  doc.setFillColor(82, 123, 173)
-  doc.rect(12, 18, w - 24, 7, 'F')
-  doc.setFontSize(10)
-  doc.text(`Competência: ${dataBR(r.start)} a ${dataBR(r.end)}${r.company ? ' · ' + r.company : ''}`, w / 2, 23, {
-    align: 'center',
-  })
+  const h = doc.internal.pageSize.getHeight()
+  const periodo = `Competência: ${dataBR(r.start)} a ${dataBR(r.end)}${r.company ? ' | ' + r.company : ''}`
+  const desenharCabecalho = () => {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.text('RELATÓRIO ASSESSORIA MB', w / 2, 11, { align: 'center' })
+    doc.setFontSize(10)
+    doc.text(tituloSecao(sec), w / 2, 17, { align: 'center' })
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.text(periodo, w / 2, 22, { align: 'center' })
+  }
+  desenharCabecalho()
   autoTable(doc, {
-    startY: 28,
-    margin: { left: 12, right: 12 },
+    startY: 26,
+    margin: { left: 12, right: 12, top: 27, bottom: 15 },
     head: [cols.map(([t]) => t)],
     body: d.rows.map((x) => cols.map(([, f]) => f(x) || '')),
-    styles: { fontSize: 8, cellPadding: 1.6, lineColor: [101, 113, 129], lineWidth: 0.1, valign: 'top' },
-    headStyles: { fillColor: [198, 216, 234], textColor: 20, fontStyle: 'bold' },
-    bodyStyles: { fillColor: [225, 234, 243] },
+    styles: { fontSize: 8, cellPadding: 1.8, lineColor: [101, 117, 138], lineWidth: 0.15, valign: 'top' },
+    headStyles: { fillColor: [23, 54, 93], textColor: 255, fontStyle: 'bold' },
+    bodyStyles: { fillColor: [255, 255, 255] },
+    alternateRowStyles: { fillColor: [240, 244, 248] },
     columnStyles: { [cols.length - 1]: { halign: 'right' } },
+    rowPageBreak: 'avoid',
+    didDrawPage: () => {
+      desenharCabecalho()
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      doc.text(rodapeSituacao(r), 12, h - 8)
+      doc.text(`Página ${doc.getNumberOfPages()}`, w - 12, h - 8, { align: 'right' })
+    },
   })
   const fim = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 40
   let y = fim + 8
-  if (y > doc.internal.pageSize.getHeight() - 30) {
+  if (y > h - 30) {
     doc.addPage()
-    y = 20
+    y = 30
   }
   doc.setFontSize(10)
   const linhaSoma = (rotulo: string, valor: string, destaque = false) => {
     if (destaque) {
-      doc.setFillColor(240, 222, 222)
+      doc.setFillColor(220, 230, 241)
       doc.rect(w - 112, y - 5, 100, 7, 'F')
     }
-    doc.setFont('helvetica', 'normal')
+    doc.setFont('helvetica', destaque ? 'bold' : 'normal')
     doc.text(rotulo, w - 108, y)
     doc.setFont('helvetica', 'bold')
     doc.text(valor, w - 14, y, { align: 'right' })
     y += 8
   }
-  linhaSoma('SUBTOTAL', brl(d.subtotal))
-  linhaSoma(`MAIS ${Number(r.percent) || 0}%`, brl(d.acrescimo))
-  linhaSoma('TOTAL GERAL', brl(d.total), true)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.text(rodapeSituacao(r), 12, y + 2)
+  linhaSoma('Subtotal', brl(d.subtotal))
+  linhaSoma(`Acréscimo ${Number(r.percent) || 0}%`, brl(d.acrescimo))
+  linhaSoma('Total geral', brl(d.total), true)
   return doc
 }
 
@@ -631,8 +675,8 @@ const escHtml = (s: unknown) =>
 function gerarWord(r: Relatorio, sec: string) {
   const d = dadosSecao(r, sec)
   const cols = colunas(sec)
-  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>${escHtml(d.titulo)}</title><style>@page Section1{size:841.9pt 595.3pt;mso-page-orientation:landscape;margin:36pt}div.Section1{page:Section1}body{font-family:Arial;font-size:9pt}table{border-collapse:collapse;width:100%}th,td{border:1px solid #657181;padding:4px;vertical-align:top}th{background:#c6d8ea}td{background:#e1eaf3}.r{text-align:right}h1{text-align:center;font-size:14pt}.p{text-align:center;background:#527bad;font-weight:bold;padding:5px}</style></head><body><div class="Section1"><h1>${escHtml(d.titulo.toUpperCase())}</h1><div class="p">Competência: ${dataBR(r.start)} a ${dataBR(r.end)}${r.company ? ' · ' + escHtml(r.company) : ''}</div><br><table><tr>${cols.map(([t], i) => `<th${i === cols.length - 1 ? ' class="r"' : ''}>${escHtml(t)}</th>`).join('')}</tr>${d.rows.map((x) => `<tr>${cols.map(([, f], i) => `<td${i === cols.length - 1 ? ' class="r"' : ''}>${escHtml(f(x))}</td>`).join('')}</tr>`).join('')}</table><br><table style="width:45%;margin-left:55%"><tr><td>SUBTOTAL</td><td class="r"><b>${brl(d.subtotal)}</b></td></tr><tr><td>MAIS ${Number(r.percent) || 0}%</td><td class="r"><b>${brl(d.acrescimo)}</b></td></tr><tr><td style="background:#f0dede">TOTAL GERAL</td><td class="r" style="background:#f0dede"><b>${brl(d.total)}</b></td></tr></table><p style="font-size:8pt">${escHtml(rodapeSituacao(r))}</p></div></body></html>`
-  return new TextEncoder().encode('﻿' + html)
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>${escHtml(tituloSecao(sec))}</title><style>@page Section1{size:841.9pt 595.3pt;mso-page-orientation:landscape;margin:36pt 34pt}div.Section1{page:Section1}body{font-family:Arial;font-size:8pt}table{border-collapse:collapse;width:100%}th,td{border:1px solid #65758a;padding:5px;vertical-align:top;white-space:pre-wrap}th{background:#17365d;color:#fff}.r{text-align:right}h1,h2,h3{text-align:center;margin:2pt 0}h1{font-size:12pt}h2{font-size:10pt}h3{font-size:8pt;font-weight:normal}</style></head><body><div class="Section1"><h1>RELATÓRIO ASSESSORIA MB</h1><h2>${escHtml(tituloSecao(sec))}</h2><h3>Competência: ${dataBR(r.start)} a ${dataBR(r.end)}${r.company ? ' | ' + escHtml(r.company) : ''}</h3><br><table><tr>${cols.map(([t], i) => `<th${i === cols.length - 1 ? ' class="r"' : ''}>${escHtml(t)}</th>`).join('')}</tr>${d.rows.map((x) => `<tr>${cols.map(([, f], i) => `<td${i === cols.length - 1 ? ' class="r"' : ''}>${escHtml(f(x))}</td>`).join('')}</tr>`).join('')}</table><br><table style="width:45%;margin-left:55%"><tr><td>Subtotal</td><td class="r"><b>${brl(d.subtotal)}</b></td></tr><tr><td>Acréscimo ${Number(r.percent) || 0}%</td><td class="r"><b>${brl(d.acrescimo)}</b></td></tr><tr><td style="background:#dce6f1">Total geral</td><td class="r" style="background:#dce6f1"><b>${brl(d.total)}</b></td></tr></table><p style="font-size:8pt">${escHtml(rodapeSituacao(r))}</p></div></body></html>`
+  return new TextEncoder().encode('\uFEFF' + html)
 }
 
 export function exportarRelatorio(r: Relatorio, sec: string, formato: 'pdf' | 'doc') {
@@ -671,12 +715,16 @@ export async function tratarPedidoRelatorio(
   }
 }
 
-/** Excel/CSV/PDF — PDF com texto ou OCR se for scan. */
+/** Excel/CSV/PDF/imagem — tudo no navegador, sem /api/extract. */
 export async function extrairArquivo(nome: string, dataBase64: string, kind: 'general' | 'medical') {
   const ext = extensao(nome)
   if (ext === 'pdf') {
     const { extrairPdf } = await import('./assessoriaMbRelatoriosPdf')
     return extrairPdf(nome, dataBase64, kind)
+  }
+  if (['png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff'].includes(ext)) {
+    const { extrairImagem } = await import('./assessoriaMbRelatoriosPdf')
+    return extrairImagem(nome, dataBase64, kind)
   }
   return extrairPlanilha(nome, dataBase64, kind)
 }

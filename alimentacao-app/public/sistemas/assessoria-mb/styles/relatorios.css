@@ -404,6 +404,63 @@
 .rl-dialog::backdrop {
   background: #14213780;
 }
+.rl-entry {
+  width: min(720px, 94vw);
+}
+.rl-entry-body {
+  padding: 16px;
+  max-height: 65vh;
+  overflow: auto;
+}
+.rl-entry-sec {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 14px 0 8px;
+}
+.rl-entry-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+}
+.rl-entry-wide {
+  grid-column: 1 / -1;
+}
+.rl-entry label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.rl-entry input,
+.rl-entry textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: inherit;
+}
+.rl-entry-error {
+  color: var(--neg);
+  font-size: 12.5px;
+  margin-top: 10px;
+  min-height: 1.2em;
+}
+.rl-entry-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+}
+.rl-cell {
+  white-space: pre-wrap;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
 .rl-docview {
   display: block;
   width: 100%;
