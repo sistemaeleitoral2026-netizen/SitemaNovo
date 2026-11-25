@@ -370,6 +370,58 @@ body { font-size: 16px; }
 table { font-size: 14px; }
 .block-title { font-size: 15px; }
 
+/* Novo lançamento: modal central, consistente e legível */
+#modal-tx {
+  align-items: center;
+  padding: 24px;
+}
+#modal-tx .modal-tx {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 70px rgba(9, 24, 49, .24);
+}
+#modal-tx .modal-head { padding: 18px 22px; }
+#modal-tx .modal-head > div { min-width: 0; }
+#modal-tx .modal-head h2 { font-size: 19px; line-height: 1.25; }
+#modal-tx .modal-head p { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; }
+#modal-tx .modal-head .icon-btn { flex: none; border: 1px solid transparent; }
+#modal-tx .modal-head .icon-btn:hover { border-color: var(--line); }
+#modal-tx .modal-body {
+  padding: 22px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px 18px;
+  overflow-y: auto;
+}
+#modal-tx .field { align-content: start; gap: 7px; min-width: 0; }
+#modal-tx .field label { font-size: 13px; font-weight: 600; }
+#modal-tx .input, #modal-tx .select {
+  min-height: 44px;
+  border-radius: 8px;
+  background-color: #fff;
+}
+#modal-tx .seg { padding: 3px; border-radius: 9px; background: var(--surface-2); }
+#modal-tx .seg label { min-height: 40px; border-radius: 6px; font-weight: 600; }
+#modal-tx #kExp:checked + label { color: var(--neg); background: var(--neg-soft); }
+#modal-tx #kInc:checked + label { color: var(--pos); background: var(--pos-soft); }
+#modal-tx .money-input { position: relative; }
+#modal-tx .money-input > span {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  z-index: 1;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  pointer-events: none;
+}
+#modal-tx .money-input .input { padding-left: 42px; text-align: right; font-size: 15px; font-weight: 600; }
+#modal-tx .upload { border-radius: 9px; }
+#modal-tx .modal-foot { padding: 14px 22px; border-radius: 0; }
+#modal-tx .modal-foot .btn { min-width: 128px; justify-content: center; }
+
 /* Menus e tabelas continuam úteis em notebooks de pouca altura */
 .sidebar { overflow: hidden; }
 .sidebar .nav { min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #5e78a1 transparent; }
@@ -456,6 +508,13 @@ tbody tr:focus-within td { background: #f2f6fc; }
     box-shadow: 0 -8px 24px rgba(15, 29, 51, .08);
   }
   .modal-foot .btn { flex: 1; justify-content: center; min-height: 46px; }
+
+  #modal-tx { align-items: center; padding: 12px; }
+  #modal-tx .modal-tx { width: 100%; max-height: calc(100dvh - 24px); border-radius: 14px; }
+  #modal-tx .modal-head { padding: 16px; }
+  #modal-tx .modal-body { grid-template-columns: 1fr; padding: 16px; gap: 14px; }
+  #modal-tx .modal-foot { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
+  #modal-tx .modal-foot .btn { min-width: 0; }
 
   .mobile-quick-add {
     position: fixed;

@@ -47,8 +47,9 @@
 
   /* ---------- Formatação ---------- */
   const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-  const money = n => brl.format(n);
-  const signed = n => (n >= 0 ? '+ ' : '− ') + brl.format(Math.abs(n));
+  const finiteMoney = n => Number.isFinite(Number(n)) ? Number(n) : 0;
+  const money = n => brl.format(finiteMoney(n));
+  const signed = n => (finiteMoney(n) >= 0 ? '+ ' : '− ') + brl.format(Math.abs(finiteMoney(n)));
 
   /* Campos de valor: máscara brasileira enquanto digita (1.234,56) */
   const fmtMoneyInput = n => (n < 0 ? '-' : '') + Math.abs(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -243,9 +244,11 @@
         payload: JSON.parse(JSON.stringify({ accounts, accChecks, txs, tasks, taskDone, investments, snapshots, goal })) }, location.origin);
     }, 250);
   };
-  // Quem pode excluir no modo banco: admin, ou quem criou o registro
-  // Fora de Tarefas, qualquer pessoa com acesso exclui. Lançamento de tarefa (desfazer baixa) só admin.
-  const canDelete = item => !REMOTE || isAdmin || !item?.taskId;
+  // Quem pode excluir no modo banco: admin ou quem criou o registro.
+  const canDeleteOwned = item => !REMOTE || isAdmin || (!!userId && item?.createdBy === userId);
+  // Baixas de programações só podem ser desfeitas por admin. Lançamentos
+  // avulsos seguem a mesma regra do banco: admin ou autor do registro.
+  const canDelete = item => !REMOTE || isAdmin || (!item?.taskId && canDeleteOwned(item));
   const stamp_ = () => (REMOTE && userId ? { createdBy: userId } : {});
 
   let period = null;
@@ -286,6 +289,7 @@
     }
     return Math.round(b * 100) / 100;
   }
+  // Usa o mesmo fechamento mensal na Visão Geral, em Contas e nos relatórios.
   const accBalance = (a, k) => balanceAt(a, `${k}-31T23:59`);
   const checksOf = id => state.accChecks.filter(c => c.accId === id).sort((a, b) => chkStamp(a).localeCompare(chkStamp(b)));
   const checkDiff = c => { const a = state.accounts.find(x => x.id === c.accId); return a ? Math.round((c.balance - balanceAt(a, chkStamp(c), c.id)) * 100) / 100 : 0; };
@@ -341,7 +345,7 @@
       <td class="t-muted">${esc(accName(x.account))}</td>
       <td class="t-muted num">${shortDate(x.date)}${x.time ? ` · ${x.time}` : ''}</td>
       <td class="t-right num amount ${x.kind === 'income' ? 'in' : 'out'}">${signed(value(x))}</td>
-      ${withDelete ? `<td class="t-right" style="width:44px"><button class="icon-btn" data-del-tx="${x.id}" aria-label="Excluir lançamento">${icon('trash-2', 'i-sm')}</button></td>` : ''}
+      ${withDelete ? `<td class="t-right" style="width:44px">${canDelete(x) ? `<button class="icon-btn" data-del-tx="${x.id}" aria-label="Excluir lançamento">${icon('trash-2', 'i-sm')}</button>` : ''}</td>` : ''}
     </tr>`;
   }
 
@@ -1083,7 +1087,7 @@
     let actions = '';
     if (!d) {
       actions += launchBtn(o);
-      if (isAdmin) actions += `<button class="icon-btn" data-skip="${o.key}" title="Dispensar neste mês" aria-label="Dispensar neste mês">${icon('ban', 'i-sm')}</button>`;
+      if (isAdmin && kind !== 'pagamento') actions += `<button class="icon-btn" data-skip="${o.key}" title="Dispensar neste mês" aria-label="Dispensar neste mês">${icon('ban', 'i-sm')}</button>`;
     } else if (d.status === 'paga' || d.status === 'cobrada') {
       if (d.receiptId) actions += `<button class="btn btn-sm" data-receipt="${d.receiptId}" data-rtx="${d.txId}">${icon('paperclip', 'i-sm')}Comprovante</button>`;
       if (isAdmin) actions += `<button class="icon-btn danger" data-undo="${o.key}" title="Desfazer" aria-label="Desfazer">${icon('undo-2', 'i-sm')}</button>`;
@@ -1141,12 +1145,12 @@
     if (o.period > cur && occursIn(o.task, cur) && doneOf(o.task.id, cur)) return '';
     const kind = taskKind(o.task);
     if (kind === 'documentacao') {
-      return `<button type="button" class="btn btn-sm btn-action btn-doc" title="Concluir pendência" data-pay="${o.key}" data-pay-mode="documentacao">${icon('check', 'i-sm')}Concluir pendência</button>`;
+      return `<button type="button" class="btn btn-sm btn-action btn-doc" title="Registrar a conclusão desta documentação" data-pay="${o.key}" data-pay-mode="documentacao">${icon('file-text', 'i-sm')}Registrar conclusão</button>`;
     }
     if (kind === 'cobranca') {
-      return `<button type="button" class="btn btn-sm btn-action btn-charge" title="Registrar recebimento" data-pay="${o.key}" data-pay-mode="cobranca">${icon('circle-dollar-sign', 'i-sm')}Registrar recebimento</button>`;
+      return `<button type="button" class="btn btn-sm btn-action btn-charge" title="Lançar o valor recebido desta cobrança" data-pay="${o.key}" data-pay-mode="cobranca">${icon('circle-dollar-sign', 'i-sm')}Lançar recebimento</button>`;
     }
-    return `<button type="button" class="btn btn-sm btn-action btn-pay" title="Registrar pagamento" data-pay="${o.key}" data-pay-mode="pagamento">${icon('check', 'i-sm')}Registrar pagamento</button>`;
+    return `<button type="button" class="btn btn-sm btn-action btn-pay" title="Lançar o pagamento realizado como despesa" data-pay="${o.key}" data-pay-mode="pagamento">${icon('check', 'i-sm')}Lançar pagamento</button>`;
   }
 
   function nextPrazoLabel(t, nd) {
@@ -1204,20 +1208,20 @@
   }
 
   function occActions(o) {
-    const d = o.done;
+    const d = o.done, kind = taskKind(o.task);
     let a = launchBtn(o);
-    if (isMoneyDone(d) && d.receiptId) a += `<button class="btn btn-sm" data-receipt="${d.receiptId}" data-rtx="${d.txId}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip', 'i-sm')}</button>`;
+    if (isMoneyDone(d) && d.receiptId) a += `<button class="btn btn-sm" data-receipt="${d.receiptId}" data-rtx="${d.txId}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip', 'i-sm')}Comprovante</button>`;
     if (d && isAdmin) a += `<button class="icon-btn" data-undo="${o.key}" title="${d.status === 'dispensada' ? 'Reabrir' : 'Desfazer registro'}" aria-label="Desfazer">${icon('undo-2', 'i-sm')}</button>`;
-    if (!d && isAdmin) a += `<button class="icon-btn" data-skip="${o.key}" title="Dispensar neste mês" aria-label="Dispensar neste mês">${icon('ban', 'i-sm')}</button>`;
+    if (!d && isAdmin && kind !== 'pagamento') a += `<button class="icon-btn" data-skip="${o.key}" title="Dispensar neste mês" aria-label="Dispensar neste mês">${icon('ban', 'i-sm')}</button>`;
     return a;
   }
 
   function adminTaskActions(t) {
     if (!isAdmin) return '';
-    const once = (t.rec || {}).type === 'once';
+    const once = (t.rec || {}).type === 'once', kind = taskKind(t);
     const editTitle = once ? 'Editar' : 'Editar o cadastro (vale para os próximos meses; registros já feitos não mudam)';
     return `<button class="icon-btn" data-edit-task="${t.id}" title="${editTitle}" aria-label="Editar">${icon('pencil-line', 'i-sm')}</button>`
-      + (once ? '' : `<button class="icon-btn" data-pause-task="${t.id}" title="${t.paused ? 'Retomar' : 'Pausar'}" aria-label="${t.paused ? 'Retomar' : 'Pausar'}">${icon(t.paused ? 'play' : 'pause', 'i-sm')}</button>`)
+      + (once || kind === 'pagamento' ? '' : `<button class="icon-btn" data-pause-task="${t.id}" title="${t.paused ? 'Retomar' : 'Pausar'}" aria-label="${t.paused ? 'Retomar' : 'Pausar'}">${icon(t.paused ? 'play' : 'pause', 'i-sm')}</button>`)
       + `<button class="icon-btn danger" data-del-task="${t.id}" title="Excluir cadastro" aria-label="Excluir">${icon('trash-2', 'i-sm')}</button>`;
   }
 
@@ -1366,6 +1370,7 @@
     const inMonthL = all.filter(o => o.period === period && o.status !== 'dispensada');
     const late = all.filter(o => o.status === 'atrasada');
     const done = inMonthL.filter(o => isMoneyDone(o.done));
+    const openInMonth = inMonthL.filter(o => !o.done);
     // No mês atual, "a pagar" é o mesmo que a aba "A fazer" (atrasados + este mês + próximo mês)
     const open = period === currentMonth()
       ? openOccurrences(kind).filter(o => o.status !== 'dispensada')
@@ -1376,8 +1381,8 @@
     const mes = monthLabel(period).split(' ')[0].toLowerCase();
     const n = (c, s, p) => `${c} ${c === 1 ? s : p}`;
     $('#taskKpis').innerHTML =
-      kpi(isCharge ? 'Previsto a receber' : 'Previsto no mês', money(doneSum + exp(open)),
-        `${n(done.length + open.length, isCharge ? 'cobrança' : 'conta', isCharge ? 'cobranças' : 'contas')}`, '', 'is-blue:cat-coins')
+      kpi(isCharge ? 'Previsto a receber no mês' : 'Previsto no mês', money(doneSum + exp(openInMonth)),
+        `${n(done.length + openInMonth.length, isCharge ? 'cobrança' : 'conta', isCharge ? 'cobranças' : 'contas')}`, '', 'is-blue:cat-coins')
       + kpi(isCharge ? 'Já recebido' : 'Já pago', money(doneSum),
         `${n(done.length, 'registro', 'registros')} em ${mes}`, 'delta-pos', 'is-green:check')
       + kpi(isCharge ? 'A receber' : 'A pagar', money(exp(open)),
@@ -1630,7 +1635,15 @@
   function fillTaskForm(id) {
     const t = id ? taskById(id) : null;
     const kind = t ? taskKind(t) : taskView;
+    const taskModal = $('#modal-task');
+    taskModal.classList.remove('is-payment', 'is-charge', 'is-document');
+    taskModal.classList.add(kind === 'documentacao' ? 'is-document' : kind === 'cobranca' ? 'is-charge' : 'is-payment');
     $('#tkTitle').textContent = t ? `Editar ${KIND_LABEL[kind].toLowerCase()}` : NEW_LABEL[kind];
+    $('#tkSubtitle').textContent = kind === 'cobranca'
+      ? 'Cadastre somente os dados da cobrança e de quem deverá pagar'
+      : kind === 'documentacao'
+        ? 'Cadastre somente a pendência, o responsável e o prazo final'
+        : 'Cadastre somente os dados da conta que deverá ser paga';
     $('#tkSubmit').textContent = t ? 'Salvar alterações' : 'Cadastrar';
     $('#tkCat').innerHTML = CATEGORIES.expense.map(c => `<option>${c}</option>`).join('');
     $('#tkMonth').innerHTML = MONTHS_FULL.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
@@ -1762,9 +1775,19 @@
     }
     const o = occurrence(t, k);
     $('#pyMode').value = mode;
-    $('#pyTitle').textContent = mode === 'documentacao' ? 'Concluir documentação'
-      : mode === 'cobranca' ? 'Registrar recebimento' : 'Registrar pagamento';
-    $('#pySubmit').innerHTML = `<svg class="i i-sm"><use href="#i-check"/></svg>${mode === 'documentacao' ? 'Concluir pendência' : mode === 'cobranca' ? 'Confirmar recebimento' : 'Confirmar pagamento'}`;
+    const payModal = $('#modal-pay');
+    payModal.classList.remove('is-payment', 'is-charge', 'is-document');
+    payModal.classList.add(mode === 'documentacao' ? 'is-document' : mode === 'cobranca' ? 'is-charge' : 'is-payment');
+    $('#pyTitle').textContent = mode === 'documentacao' ? 'Registrar conclusão da documentação'
+      : mode === 'cobranca' ? 'Lançar recebimento da cobrança' : 'Lançar pagamento realizado';
+    $('#pySubtitle').textContent = mode === 'documentacao' ? 'Informe quando e por quem a pendência foi concluída'
+      : mode === 'cobranca' ? 'Informe os dados do valor que entrou na conta' : 'Informe os dados do valor que saiu da conta';
+    $('#pySubmit').innerHTML = `<svg class="i i-sm"><use href="#i-check"/></svg>${mode === 'documentacao' ? 'Registrar conclusão' : mode === 'cobranca' ? 'Lançar recebimento' : 'Lançar pagamento'}`;
+    $('#payEffect').innerHTML = mode === 'documentacao'
+      ? `${icon('info', 'i-sm')}<span>Esta ação marcará a pendência como concluída e registrará a data e o responsável.</span>`
+      : mode === 'cobranca'
+        ? `${icon('info', 'i-sm')}<span>Ao confirmar, a cobrança será marcada como recebida e uma <strong>receita</strong> será criada em Lançamentos na conta escolhida.</span>`
+        : `${icon('info', 'i-sm')}<span>Ao confirmar, a conta será marcada como paga e uma <strong>despesa</strong> será criada em Lançamentos, reduzindo o saldo da conta escolhida.</span>`;
     $$('[data-py="pagamento"]').forEach(el => { el.hidden = mode !== 'pagamento'; });
     $$('[data-py="cobranca"]').forEach(el => { el.hidden = mode !== 'cobranca'; });
     $('#pyAmount').required = mode === 'pagamento';
@@ -2078,7 +2101,7 @@
             <div class="bank-menu" hidden>
               <button type="button" data-open="acccheck" data-acc="${a.id}">${icon('ph-arrows-down-up', 'i-sm')}Informar saldo</button>
               <button type="button" data-edit-acc="${a.id}">${icon('pencil-line', 'i-sm')}Editar conta</button>
-              <button type="button" class="is-del" data-del-acc="${a.id}">${icon('trash-2', 'i-sm')}Excluir conta</button>
+              ${isAdmin ? `<button type="button" class="is-del" data-del-acc="${a.id}">${icon('trash-2', 'i-sm')}Excluir conta</button>` : ''}
             </div>
           </div>
         </header>
@@ -2092,7 +2115,7 @@
           <div class="bank-actions">
             <button type="button" class="bank-check" data-open="acccheck" data-acc="${a.id}">${icon('repeat', 'i-sm')}Informar saldo</button>
             <button type="button" class="bank-icon-btn" data-edit-acc="${a.id}" title="Editar conta" aria-label="Editar conta">${icon('pencil-line', 'i-sm')}</button>
-            <button type="button" class="bank-icon-btn" data-del-acc="${a.id}" title="Excluir conta" aria-label="Excluir conta">${icon('trash-2', 'i-sm')}</button>
+            ${isAdmin ? `<button type="button" class="bank-icon-btn" data-del-acc="${a.id}" title="Excluir conta" aria-label="Excluir conta">${icon('trash-2', 'i-sm')}</button>` : ''}
           </div>
         </div>
       </article>`;
@@ -2113,7 +2136,7 @@
         <td class="t-right num"><strong>${money(calc)}</strong></td>
         <td class="t-center"><span class="diff-pill ${Math.abs(d) < 0.005 ? '' : d > 0 ? 'is-pos' : 'is-neg'} num">${Math.abs(d) < 0.005 ? money(0) : signed(d)}</span></td>
         <td class="t-center">${esc(c.by)}</td>
-        <td class="t-center"><button class="icon-btn" data-del-check="${c.id}" aria-label="Excluir conferência">${icon('trash-2', 'i-sm')}</button></td>
+        <td class="t-center">${canDeleteOwned(c) ? `<button class="icon-btn" data-del-check="${c.id}" aria-label="Excluir conferência">${icon('trash-2', 'i-sm')}</button>` : ''}</td>
       </tr>`;
     }).join('') || '<tr><td colspan="8" class="empty">Nenhum saldo informado ainda. Use “Informar saldo” para registrar o saldo real da conta.</td></tr>';
   }
@@ -2524,7 +2547,7 @@
         <td><div class="inv-actions">
           <button type="button" class="inv-upd" data-open="snap" data-inv="${x.i.id}">${icon('repeat', 'i-sm')}Atualizar saldo</button>
           <button class="icon-btn" data-edit-inv="${x.i.id}" title="Editar aplicação" aria-label="Editar aplicação">${icon('pencil-line', 'i-sm')}</button>
-          <button class="icon-btn" data-del-inv="${x.i.id}" title="Excluir aplicação" aria-label="Excluir aplicação">${icon('trash-2', 'i-sm')}</button>
+          ${isAdmin ? `<button class="icon-btn" data-del-inv="${x.i.id}" title="Excluir aplicação" aria-label="Excluir aplicação">${icon('trash-2', 'i-sm')}</button>` : ''}
         </div></td>
       </tr>`).join('');
       $('#invGroups').innerHTML = !state.investments.length
@@ -2552,7 +2575,7 @@
           <td class="t-right">${result ? `${resultMoney(result.difference)}${result.percent != null ? ` <small class="t-muted">${pct2(result.percent)}</small>` : ''}` : '<span class="t-muted">base inicial</span>'}</td>
           <td class="t-right">${dailyResultLabel(result)}</td>
           <td>${esc(x.by)}</td>
-          <td class="t-center"><button class="icon-btn" data-del-snap="${x.id}" aria-label="Excluir registro">${icon('trash-2', 'i-sm')}</button></td>
+          <td class="t-center">${canDeleteOwned(x) ? `<button class="icon-btn" data-del-snap="${x.id}" aria-label="Excluir registro">${icon('trash-2', 'i-sm')}</button>` : ''}</td>
         </tr>`;
       }).join('') || '<tr><td colspan="9" class="empty">Nenhum saldo registrado ainda.</td></tr>';
       $('#invPager').innerHTML = invPagerHtml(hist.length, hist.length === 1 ? 'atualização' : 'atualizações');
@@ -2956,11 +2979,6 @@
   $('#taskForm').addEventListener('submit', e => { e.preventDefault(); saveTaskForm(); });
   $('#taskForm').addEventListener('input', updateTaskForm);
   $('#taskForm').addEventListener('change', updateTaskForm);
-  $('#tkKind').addEventListener('change', () => {
-    if (taskFormKind() === 'documentacao' && userName) $('#tkPerson').value = userName;
-    else if (!$('#tkId').value) $('#tkPerson').value = '';
-    updateTaskForm();
-  });
   $('#payForm').addEventListener('submit', e => { e.preventDefault(); savePay(); });
 
   $('#accForm').addEventListener('submit', e => {

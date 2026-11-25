@@ -35,6 +35,8 @@ export type FpTask = {
   docOwner?: string
   /** Nome de quem cadastrou a programação */
   createdByName?: string
+  /** Data original do cadastro, usada na tela de documentação. */
+  createdAt?: string
   expected: number | null; account: string | null; rec: FpRec; start: string | null; end: string | null
   paused: boolean; notes: string; createdBy?: string | null
 }
@@ -211,6 +213,7 @@ export async function carregarFinanceiroPessoal(): Promise<{ estado: FpState; li
         chargeTo: String(t.cobrado || ''),
         docOwner: String(t.responsavel_doc || ''),
         createdByName: String(t.emitido_por || ''),
+        createdAt: typeof t.created_at === 'string' ? t.created_at : undefined,
         category: String(t.categoria || 'Outros'),
         kind,
         expected: num(t.valor_previsto),
@@ -319,8 +322,6 @@ export async function salvarFinanceiroPessoal(
     (r) => !lancsRemovidos.has(String(r.lancamento_id)) && !tarefasRemovidas.has(String(r.tarefa_id)),
   )
 
-  if (lancsRemovidos.size) await apagarComprovantesDe([...lancsRemovidos])
-
   for (const t of [...TABLES].reverse()) {
     const ids = removidos[t].map((r) => r.id)
     if (!ids.length) continue
@@ -334,6 +335,11 @@ export async function salvarFinanceiroPessoal(
     }
     removidos[t].forEach((r) => auditar(t, 'excluir', r))
   }
+
+  // Só remove os arquivos depois de o banco confirmar a exclusão dos
+  // lançamentos. Assim, uma recusa da RLS não deixa um lançamento válido sem
+  // seu comprovante.
+  if (lancsRemovidos.size) await apagarComprovantesDe([...lancsRemovidos])
 
   if (auditoria.length) {
     const { error } = await supabase.from('fp_auditoria').insert(auditoria)

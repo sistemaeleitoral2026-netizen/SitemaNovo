@@ -312,6 +312,85 @@
 .pay-head-notes { font-size: 12.5px; color: var(--ink-2); background: #fff; border: 1px solid var(--line); border-radius: 6px;
   padding: 8px 10px; display: flex; gap: 8px; }
 .pay-head-notes .i { margin-top: 2px; color: var(--accent); flex: none; }
+.pay-effect {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 14px 18px 0;
+  padding: 11px 12px;
+  border: 1px solid #c7d8f4;
+  border-radius: 8px;
+  background: #f3f7fd;
+  color: #284568;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.pay-effect .i { flex: none; margin-top: 2px; color: var(--accent); }
+.pay-effect strong { color: var(--ink); }
+
+/* Janela exclusiva para cada tipo de baixa */
+#modal-pay {
+  --pay-accent: var(--pos);
+  --pay-soft: var(--pos-soft);
+  align-items: center;
+  padding: 24px;
+}
+#modal-pay.is-charge { --pay-accent: #1769aa; --pay-soft: #eaf4fc; }
+#modal-pay.is-document { --pay-accent: #7157a8; --pay-soft: #f2eefb; }
+#modal-pay .modal {
+  width: min(620px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 70px rgba(9, 24, 49, .24);
+}
+#modal-pay .modal-head { padding: 18px 22px; border-top: 4px solid var(--pay-accent); }
+#modal-pay .modal-head > div { min-width: 0; }
+#modal-pay .modal-head h2 { margin: 0; font-size: 19px; line-height: 1.25; }
+#modal-pay .modal-head p { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; }
+#modal-pay .pay-head { border-left: 3px solid var(--pay-accent); }
+#modal-pay .pay-effect { border-color: color-mix(in srgb, var(--pay-accent) 25%, white); background: var(--pay-soft); }
+#modal-pay .pay-effect .i { color: var(--pay-accent); }
+#modal-pay .modal-body { padding: 20px 22px 22px; gap: 16px 18px; }
+#modal-pay .field { align-content: start; gap: 7px; min-width: 0; }
+#modal-pay .field label { font-size: 13px; font-weight: 600; }
+#modal-pay .input, #modal-pay .select { min-height: 44px; border-radius: 8px; background: #fff; }
+#modal-pay .pay-money-input { position: relative; }
+#modal-pay .pay-money-input > span {
+  position: absolute; left: 13px; top: 50%; z-index: 1; transform: translateY(-50%);
+  color: var(--muted); font-size: 14px; font-weight: 600; pointer-events: none;
+}
+#modal-pay .pay-money-input .input { padding-left: 42px; text-align: right; font-size: 15px; font-weight: 600; }
+#modal-pay .modal-foot { padding: 14px 22px; border-radius: 0; }
+#modal-pay .modal-foot .btn { min-width: 150px; justify-content: center; }
+#modal-pay .modal-foot .btn-primary { background: var(--pay-accent); border-color: var(--pay-accent); }
+
+/* Cadastro exclusivo conforme o menu de origem (sem seletor de tipo). */
+#modal-task {
+  --task-accent: var(--pos);
+  align-items: center;
+  padding: 24px;
+}
+#modal-task.is-charge { --task-accent: #1769aa; }
+#modal-task.is-document { --task-accent: #7157a8; }
+#modal-task .modal {
+  width: min(620px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 70px rgba(9, 24, 49, .24);
+}
+#modal-task .modal-head { padding: 18px 22px; border-top: 4px solid var(--task-accent); }
+#modal-task .modal-head > div { min-width: 0; }
+#modal-task .modal-head h2 { margin: 0; font-size: 19px; line-height: 1.25; }
+#modal-task .modal-head p { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; }
+#modal-task .modal-body { padding: 20px 22px 22px; gap: 16px 18px; }
+#modal-task .field { align-content: start; gap: 7px; min-width: 0; }
+#modal-task .field > label:not(.check) { font-size: 13px; font-weight: 600; }
+#modal-task .input, #modal-task .select { min-height: 44px; border-radius: 8px; background: #fff; }
+#modal-task .modal-foot { padding: 14px 22px; border-radius: 0; }
+#modal-task .modal-foot .btn { min-width: 140px; justify-content: center; }
+#modal-task .modal-foot .btn-primary { background: var(--task-accent); border-color: var(--task-accent); }
 
 /* Upload de comprovante */
 .upload { border: 1.5px dashed var(--line-strong); border-radius: var(--radius); background: var(--surface-2); transition: border-color .15s, background .15s; }
@@ -353,6 +432,19 @@ a.btn { text-decoration: none; }
   .modal-backdrop { padding: 0; align-items: flex-end; }
   .modal { max-height: 94vh; border-radius: 14px 14px 0 0; }
   .modal-foot { border-radius: 0; }
+  .pay-effect { margin: 12px 16px 0; }
+  #modal-pay { align-items: center; padding: 12px; }
+  #modal-pay .modal { width: 100%; max-height: calc(100dvh - 24px); border-radius: 14px; }
+  #modal-pay .modal-head { padding: 14px 16px; }
+  #modal-pay .modal-body { padding: 16px; gap: 14px; }
+  #modal-pay .modal-foot { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
+  #modal-pay .modal-foot .btn { min-width: 0; }
+  #modal-task { align-items: center; padding: 12px; }
+  #modal-task .modal { width: 100%; max-height: calc(100dvh - 24px); border-radius: 14px; }
+  #modal-task .modal-head { padding: 14px 16px; }
+  #modal-task .modal-body { padding: 16px; gap: 14px; }
+  #modal-task .modal-foot { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
+  #modal-task .modal-foot .btn { min-width: 0; }
   #taskTabs { overflow-x: auto; max-width: 100%; }
   .tabbar button { font-size: 9.5px; }
   #taskBody + *, #view-tasks .block-head { flex-wrap: wrap; }

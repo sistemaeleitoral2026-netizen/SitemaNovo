@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
-<link rel="stylesheet" href="css/tarefas.css">
-<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/tarefas.css?v=64">
+<link rel="stylesheet" href="css/layout.css?v=61">
 <link rel="stylesheet" href="css/tema.css">
 <link rel="stylesheet" href="css/contas.css">
 <link rel="stylesheet" href="css/pagamentos.css">
@@ -425,8 +425,8 @@
 
 <!-- ============ MODAIS ============ -->
 <div class="modal-backdrop" id="modal-tx">
-  <form class="modal" role="dialog" aria-modal="true" aria-labelledby="tTitle" id="txForm">
-    <div class="modal-head"><h2 id="tTitle">Novo lançamento</h2>
+  <form class="modal modal-tx" role="dialog" aria-modal="true" aria-labelledby="tTitle" id="txForm">
+    <div class="modal-head"><div><h2 id="tTitle">Novo lançamento</h2><p>Registre uma receita ou despesa</p></div>
       <button type="button" class="icon-btn" data-close aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button></div>
     <div class="modal-body">
       <div class="field full">
@@ -436,14 +436,14 @@
         </div>
       </div>
       <div class="field full"><label for="txDesc">Descrição</label><input class="input" id="txDesc" required maxlength="60" placeholder="Ex.: Mercado, salário, aluguel"></div>
-      <div class="field"><label for="txAmount">Valor (R$)</label><input class="input num money" id="txAmount" required type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div>
+      <div class="field"><label for="txAmount">Valor</label><div class="money-input"><span aria-hidden="true">R$</span><input class="input num money" id="txAmount" required type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div></div>
       <div class="field"><label for="txDate">Data</label><input class="input" id="txDate" type="date" required></div>
       <div class="field"><label for="txCat">Categoria</label><select class="select" id="txCat"></select></div>
       <div class="field"><label for="txAcc">Conta</label><select class="select" id="txAcc"></select></div>
       <div class="field full"><label for="txPayee">Recebedor / pagador <span class="opt">(opcional)</span></label><input class="input" id="txPayee" maxlength="60" list="payeeList" placeholder="Pessoa ou empresa"></div>
       <div class="field full"><label>Comprovante <span class="opt">(opcional)</span></label><div class="upload" data-upload="tx"></div></div>
     </div>
-    <div class="modal-foot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary">Salvar</button></div>
+    <div class="modal-foot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary"><svg class="i i-sm"><use href="#i-check"/></svg>Salvar lançamento</button></div>
   </form>
 </div>
 
@@ -536,17 +536,12 @@
 <!-- Programação (admin) -->
 <div class="modal-backdrop" id="modal-task">
   <form class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="tkTitle" id="taskForm">
-    <div class="modal-head"><h2 id="tkTitle">Nova programação</h2>
+    <div class="modal-head"><div><h2 id="tkTitle">Nova programação</h2><p id="tkSubtitle"></p></div>
       <button type="button" class="icon-btn" data-close aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button></div>
     <div class="modal-body">
       <input type="hidden" id="tkId">
-      <div class="field full"><label for="tkKind">Tipo</label>
-        <select class="select" id="tkKind">
-          <option value="pagamento">Pagamento</option>
-          <option value="documentacao">Documentação</option>
-          <option value="cobranca">Cobrança</option>
-        </select>
-      </div>
+      <!-- O tipo vem do menu de origem; não é escolhido novamente no formulário. -->
+      <input type="hidden" id="tkKind" value="pagamento">
       <div class="field full"><label for="tkName" id="tkNameLabel">O que precisa ser pago</label><input class="input" id="tkName" required maxlength="80" placeholder="Ex.: Netflix, Aluguel, Conta de luz"></div>
 
       <!-- Pessoa: rótulo muda por tipo (recebe / responsável / cobrado) -->
@@ -603,22 +598,23 @@
 
 <!-- Lançar pagamento / documentação / cobrança -->
 <div class="modal-backdrop" id="modal-pay">
-  <form class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="pyTitle" id="payForm">
-    <div class="modal-head"><h2 id="pyTitle">Dar baixa no pagamento</h2>
+  <form class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="pyTitle" aria-describedby="payEffect" id="payForm">
+    <div class="modal-head"><div><h2 id="pyTitle">Lançar pagamento</h2><p id="pySubtitle">Informe os dados do pagamento realizado</p></div>
       <button type="button" class="icon-btn" data-close aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button></div>
     <div class="pay-head" id="payHead"></div>
+    <div class="pay-effect" id="payEffect" role="note"></div>
     <div class="modal-body">
       <input type="hidden" id="pyTask"><input type="hidden" id="pyPeriod"><input type="hidden" id="pyMode" value="pagamento">
 
       <!-- Pagamento -->
-      <div class="field" data-py="pagamento"><label for="pyAmount">Valor pago (R$)</label><input class="input num money" id="pyAmount" type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div>
+      <div class="field" data-py="pagamento"><label for="pyAmount">Valor pago</label><div class="pay-money-input"><span aria-hidden="true">R$</span><input class="input num money" id="pyAmount" type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div></div>
       <div class="field" data-py="pagamento"><label for="pyAcc">Conta de onde saiu</label><select class="select" id="pyAcc"></select></div>
       <div class="field" data-py="pagamento"><label for="pyPayee">Quem recebeu</label><input class="input" id="pyPayee" maxlength="60" list="payeeList"></div>
       <div class="field" data-py="pagamento"><label for="pyTime">Hora</label><input class="input" id="pyTime" type="time"></div>
       <div class="field full" data-py="pagamento"><label>Comprovante bancário <span class="opt">(se tiver)</span></label><div class="upload" data-upload="pay"></div></div>
 
       <!-- Cobrança (campos próprios) -->
-      <div class="field" data-py="cobranca"><label for="pyChargeAmount">Valor recebido (R$)</label><input class="input num money" id="pyChargeAmount" type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div>
+      <div class="field" data-py="cobranca"><label for="pyChargeAmount">Valor recebido</label><div class="pay-money-input"><span aria-hidden="true">R$</span><input class="input num money" id="pyChargeAmount" type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div></div>
       <div class="field" data-py="cobranca"><label for="pyChargeAcc">Conta que recebeu</label><select class="select" id="pyChargeAcc"></select></div>
       <div class="field" data-py="cobranca"><label for="pyChargeTo">Recebido de</label><input class="input" id="pyChargeTo" maxlength="60" list="payeeList"></div>
       <div class="field" data-py="cobranca"><label for="pyChargeTime">Hora</label><input class="input" id="pyChargeTime" type="time"></div>
@@ -651,6 +647,6 @@
 <datalist id="payeeList"></datalist>
 
 <script src="js/comprovantes.js"></script>
-<script src="js/app.js"></script>
+<script src="js/app.js?v=65"></script>
 </body>
 </html>

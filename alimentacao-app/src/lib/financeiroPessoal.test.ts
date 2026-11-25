@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 type Op = { tabela: string; op: string; dados?: unknown; ids?: string[] }
 const ops: Op[] = []
 let recusarDelete = false
+let anexosEncontrados = false
 
 vi.mock('./supabase', () => {
   const builder = (tabela: string) => {
@@ -18,14 +19,19 @@ vi.mock('./supabase', () => {
     b.select = () => b
     // Resolve quando o código faz "await" na cadeia (select().eq().in() etc.)
     b.then = (ok: (v: unknown) => unknown) => {
-      if (!atual) return Promise.resolve({ data: [], error: null }).then(ok) // consultas: nada encontrado
+      if (!atual) {
+        const data = tabela === 'fp_anexos' && anexosEncontrados
+          ? [{ id: 'anexo-1', storage_path: 'lancamento/teste/anexo.pdf' }]
+          : []
+        return Promise.resolve({ data, error: null }).then(ok)
+      }
       ops.push({ ...atual, ids })
       const n = atual.op === 'delete' && recusarDelete ? 0 : ids.length
       return Promise.resolve({ data: ids.slice(0, n).map((id) => ({ id })), error: null }).then(ok)
     }
     return b
   }
-  return { supabase: { from: (t: string) => builder(t), storage: { from: () => ({ remove: () => Promise.resolve({}) }) } } }
+  return { supabase: { from: (t: string) => builder(t), storage: { from: () => ({ remove: (dados: unknown) => { ops.push({ tabela: 'storage', op: 'delete', dados }); return Promise.resolve({}) } }) } } }
 })
 
 import { estadoParaLinhas, salvarFinanceiroPessoal, type FpState } from './financeiroPessoal'
@@ -46,11 +52,21 @@ function estadoBase(): FpState {
 }
 
 describe('Controle Financeiro Pessoal — sincronização com o banco', () => {
-  beforeEach(() => { ops.length = 0; recusarDelete = false })
+  beforeEach(() => { ops.length = 0; recusarDelete = false; anexosEncontrados = false })
 
   it('converte tarefa mensal para as colunas do banco', () => {
     const t = estadoParaLinhas(estadoBase()).fp_tarefas[0]
     expect(t).toMatchObject({ recorrencia: 'mensal', a_cada_meses: 1, dia_inicio: 10, dia_fim: 15, comeca_em: '2026-11-01', valor_previsto: 55.9, conta_id: C })
+  })
+
+  it('não tenta apagar comprovante antes de o banco autorizar a exclusão', async () => {
+    recusarDelete = true
+    anexosEncontrados = true
+    const s = estadoBase()
+    s.txs.push({ id: L, date: '2026-11-12', amount: 55.9, kind: 'expense', description: 'Netflix', category: 'Lazer', account: C, receiptId: 'anexo-1' })
+    const antes = estadoParaLinhas(s)
+    await expect(salvarFinanceiroPessoal(antes, { ...s, txs: [] }, { userName: 'Ana' })).rejects.toThrow(/Sem permissão/)
+    expect(ops.some((o) => o.tabela === 'storage' || (o.tabela === 'fp_anexos' && o.op === 'delete'))).toBe(false)
   })
 
   it('converte tarefa única e anual', () => {
