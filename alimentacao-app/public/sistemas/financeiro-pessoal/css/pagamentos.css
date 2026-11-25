@@ -153,3 +153,22 @@
 .occ-sheet td.occ-val { white-space: nowrap; }
 .occ-sheet th, .occ-sheet td { border-color: var(--line); }
 .occ-sheet td:first-child, .occ-sheet th:first-child { border-left: 0; }
+
+/* Notebook: a tabela se ajusta sem rolar para o lado */
+.occ-wrap { container-type: inline-size; }
+#taskFilters .tf-search { flex: 2 1 240px; }
+#taskFilters .tf-field:not(.tf-search) { flex: 1 1 130px; max-width: 180px; }
+@container (max-width: 1350px) {
+  .occ-sheet .col-issuer, .occ-sheet .occ-issuer { display: none; }
+  .occ-sheet td, .occ-sheet th > button { padding-left: 12px !important; padding-right: 12px !important; }
+}
+@container (max-width: 1180px) {
+  .occ-sheet .col-month, .occ-sheet .occ-month { display: none; }
+}
+@container (max-width: 1040px) {
+  .occ-sheet .btn-action { font-size: 0 !important; gap: 0; width: 34px; min-width: 34px; padding: 0 !important; justify-content: center; overflow: hidden; }
+  .occ-sheet .btn-action .i { width: 16px; height: 16px; }
+  .occ-sheet .sheet-title { min-width: 180px; }
+  .occ-sheet .sheet-actions { gap: 2px; }
+}
+@media (min-width: 761px) { .occ-sheet { min-width: 0 !important; } }

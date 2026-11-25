@@ -1061,12 +1061,12 @@
     if (o.period > cur && occursIn(o.task, cur) && doneOf(o.task.id, cur)) return '';
     const kind = taskKind(o.task);
     if (kind === 'documentacao') {
-      return `<button type="button" class="btn btn-sm btn-action btn-doc" data-pay="${o.key}" data-pay-mode="documentacao">${icon('check', 'i-sm')}Concluir pendência</button>`;
+      return `<button type="button" class="btn btn-sm btn-action btn-doc" title="Concluir pendência" data-pay="${o.key}" data-pay-mode="documentacao">${icon('check', 'i-sm')}Concluir pendência</button>`;
     }
     if (kind === 'cobranca') {
-      return `<button type="button" class="btn btn-sm btn-action btn-charge" data-pay="${o.key}" data-pay-mode="cobranca">${icon('circle-dollar-sign', 'i-sm')}Registrar recebimento</button>`;
+      return `<button type="button" class="btn btn-sm btn-action btn-charge" title="Registrar recebimento" data-pay="${o.key}" data-pay-mode="cobranca">${icon('circle-dollar-sign', 'i-sm')}Registrar recebimento</button>`;
     }
-    return `<button type="button" class="btn btn-sm btn-action btn-pay" data-pay="${o.key}" data-pay-mode="pagamento">${icon('check', 'i-sm')}Registrar pagamento</button>`;
+    return `<button type="button" class="btn btn-sm btn-action btn-pay" title="Registrar pagamento" data-pay="${o.key}" data-pay-mode="pagamento">${icon('check', 'i-sm')}Registrar pagamento</button>`;
   }
 
   function nextPrazoLabel(t, nd) {
@@ -1178,8 +1178,8 @@
     return `<div class="table-wrap sheet-wrap occ-wrap"><table class="sheet occ-sheet">
       <thead><tr>
         ${sortTh('title', isDoc ? 'Pendência' : 'Conta')}${sortTh('target', PERSON_COL[kind])}
-        ${isDoc ? '' : sortTh('value', 'Valor (R$)', 't-right')}${isDoc ? '' : sortTh('period', 'Mês')}
-        ${sortTh('due', 'Prazo')}${sortTh('status', 'Situação')}${sortTh('issuer', 'Cadastrado por')}<th>Ação</th>
+        ${isDoc ? '' : sortTh('value', 'Valor (R$)', 't-right')}${isDoc ? '' : sortTh('period', 'Mês', 'col-month')}
+        ${sortTh('due', 'Prazo')}${sortTh('status', 'Situação')}${sortTh('issuer', 'Cadastrado por', 'col-issuer')}<th>Ação</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table></div>${taskPagerHtml(filtered.length)}`;
