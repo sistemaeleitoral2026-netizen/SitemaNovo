@@ -270,6 +270,13 @@
     dashRecSortBy: "",
     dashRecSort: "desc",
     dashColF: {},
+    pendCost: "",
+    pendSit: "",
+    pendQ: "",
+    pendSort: "falta:desc",
+    pendPage: 1,
+    pendPer: "10",
+    pendFiltersOpen: true,
     historyQuery: "",
     finHistPeriod: "all",
     finHistMonth: "",
@@ -883,6 +890,20 @@
       entries: { label: "Entradas", type: "num" },
       exits: { label: "Saídas", type: "num" },
       final: { label: "Saldo Final", type: "num" },
+    },
+    pend: {
+      data: { label: "Data", type: "text" },
+      sub: { label: "Empresa", type: "list" },
+      parceiro: { label: "Parceiro", type: "text" },
+      contato: { label: "Contato", type: "list" },
+      centro: { label: "Centro de custo", type: "list" },
+      conta: { label: "Conta Bancária", type: "list" },
+      prev: { label: "A receber (R$)", type: "num" },
+      rec: { label: "Recebido (R$)", type: "num" },
+      falta: { label: "Falta receber (R$)", type: "num" },
+      sit: { label: "Situação", type: "list" },
+      quem: { label: "Quem lançou", type: "list" },
+      comp: { label: "Comprovante", type: "list" },
     },
     rec: {
       when: { label: "Data/hora do lançamento", type: "text" },
@@ -6013,7 +6034,10 @@
   let dashFilterOpen = "";
   function redrawDashTable(table) {
     if (table === "sum") $("#dash-summary").innerHTML = cashSummaryTable();
-    else drawDashRecent();
+    else if (table === "pend") {
+      state.pendPage = 1;
+      drawPendentes();
+    } else drawDashRecent();
   }
   function closeDashFilter() {
     dashFilterOpen = "";
@@ -6037,7 +6061,11 @@
       let options = NUM_FILTERS;
       if (col.type === "list") {
         const values = [
-          ...new Set(dashRecentPool.map((r) => recCell(r, key))),
+          ...new Set(
+            table === "pend"
+              ? pendPool.map((r) => pendCell(r, key))
+              : dashRecentPool.map((r) => recCell(r, key)),
+          ),
         ].sort((a, b) => a.localeCompare(b, "pt-BR"));
         options = [["", "Todos"], ...values.map((v) => [v, v])];
       }
@@ -6412,31 +6440,354 @@
       (r) => r && finKind(r) === "receita" && finFalta(r) > 0.009,
     );
   }
+  /* ---------- Pendentes ---------- */
+  let pendPool = [];
+  let pendFiltered = [];
+  const PEND_SORTS = [
+    ["falta:desc", "Maior valor faltante"],
+    ["falta:asc", "Menor valor faltante"],
+    ["data:asc", "Data mais antiga"],
+    ["data:desc", "Data mais recente"],
+    ["prev:desc", "Maior valor a receber"],
+    ["sub:asc", "Empresa (A–Z)"],
+    ["parceiro:asc", "Parceiro (A–Z)"],
+  ];
+  function pendNum(r, key) {
+    if (key === "prev") return money(r.previsto);
+    if (key === "rec") return money(r.recebido);
+    if (key === "falta") return finFalta(r);
+    return 0;
+  }
+  function pendCell(r, key) {
+    if (key === "data") return dateBR(r.data);
+    if (key === "sub") return r.sub || "—";
+    if (key === "parceiro") return r.parceiro || "—";
+    if (key === "contato") return ultimoContato(r) ? "Com contato" : "Sem contato";
+    if (key === "centro") return r.centro || "—";
+    if (key === "conta") return r.contaBancaria || "—";
+    if (key === "sit") return finStatus(r)[0];
+    if (key === "quem") return r.criadoPor || "—";
+    if (key === "comp")
+      return (r.anexos || []).length ? "Com comprovante" : "Sem comprovante";
+    return n2(pendNum(r, key));
+  }
+  function pendSortKey(r, key) {
+    if (["prev", "rec", "falta"].includes(key)) return pendNum(r, key);
+    if (key === "data") return String(r.data || "");
+    if (key === "comp") return (r.anexos || []).length;
+    return fold(pendCell(r, key));
+  }
+  const PEND_SORT_ICON = ["prev", "rec", "falta", "comp"];
+  function pendTh(key, cls = "") {
+    const col = DASH_COLS.pend[key];
+    const [by, dir] = state.pendSort.split(":");
+    const selected = by === key;
+    const ariaSort = selected
+      ? ` aria-sort="${dir === "asc" ? "ascending" : "descending"}"`
+      : "";
+    const mark = selected
+      ? `<span class="pn-arrow">${dir === "asc" ? "↑" : "↓"}</span>`
+      : PEND_SORT_ICON.includes(key)
+        ? `<svg class="pend-sort-ico"><use href="#i-sort"></use></svg>`
+        : "";
+    const label = esc(col.label.replace(" (R$)", "")) + (col.type === "num" ? " (R$)" : "");
+    const filter = PEND_SORT_ICON.includes(key) && key !== "comp"
+      ? ""
+      : `<button type="button" class="pn-fbtn${colActive("pend", key) ? " on" : ""}" data-dash-filter="pend:${key}" title="Filtrar ${esc(col.label)}" aria-label="Filtrar ${esc(col.label)}">${icon("filter")}</button>`;
+    return `<th class="${cls}"${ariaSort}><div class="pn-th"><button type="button" class="fin-th-sort${selected ? " is-active" : ""}" data-pend-sort="${key}" title="Ordenar por ${esc(col.label)}">${label}${mark}</button>${key === "comp" ? "" : filter}</div></th>`;
+  }
+  function pendFiltersHTML() {
+    const cm = state.contasMes ?? state.mes;
+    const base = pendingRecords();
+    const centros = [...new Set(base.map((r) => r.centro).filter(Boolean))].sort(
+      (a, b) => a.localeCompare(b, "pt-BR", { numeric: true }),
+    );
+    const sel = (ico, attrs, options) =>
+      `<span class="pend-select">${icon(ico)}<select class="control" ${attrs}>${options}</select>${icon("chevdown")}</span>`;
+    const opt = (v, l, cur) =>
+      `<option value="${esc(v)}" ${v === cur ? "selected" : ""}>${esc(l)}</option>`;
+    return `<label class="pend-field"><span>Competência</span>${sel(
+      "calendar",
+      'data-contas-mes aria-label="Competência"',
+      opt("", "Todos os meses", cm || "") +
+        compOptions()
+          .map((m) => opt(m, compLabel(m), cm))
+          .join(""),
+    )}</label><label class="pend-field"><span>Empresa</span>${sel(
+      "building",
+      'data-contas-emp aria-label="Empresa"',
+      opt("", "Todas", state.empresa) +
+        subdivisions.map((n) => opt(n, n, state.empresa)).join(""),
+    )}</label><label class="pend-field"><span>Centro de custo</span>${sel(
+      "layers",
+      'id="pend-cost" aria-label="Centro de custo"',
+      opt("", "Todos", state.pendCost) +
+        centros.map((c) => opt(c, c, state.pendCost)).join(""),
+    )}</label><label class="pend-field"><span>Situação</span>${sel(
+      "tag",
+      'id="pend-sit" aria-label="Situação"',
+      opt("", "Todas", state.pendSit) +
+        opt("Pendente", "Pendente (nada recebido)", state.pendSit) +
+        opt("Em aberto", "Em aberto (recebido em parte)", state.pendSit),
+    )}</label><span class="pend-sep" aria-hidden="true"></span><label class="pend-search">${icon("search")}<input type="search" id="pend-q" placeholder="Buscar parceiro, contato ou valor..." value="${esc(state.pendQ)}" autocomplete="off" aria-label="Buscar parceiro, contato ou valor"></label><button type="button" class="btn primary pend-go" id="pend-go">${icon("filter")}Filtrar</button><button type="button" class="btn pn-tool pend-clear" id="pend-clear">${icon("refresh")}Limpar</button>`;
+  }
+  function pendPagerHTML(page, pages) {
+    if (pages <= 1) return "";
+    const btn = (p, label, cls = "", aria = "") =>
+      `<button type="button" class="pend-pg ${cls}" data-pend-page="${p}" ${p < 1 || p > pages || p === page ? "disabled" : ""} ${aria ? `aria-label="${aria}"` : ""}>${label}</button>`;
+    let from = Math.max(1, page - 2);
+    let to = Math.min(pages, from + 4);
+    from = Math.max(1, to - 4);
+    let nums = "";
+    for (let i = from; i <= to; i++)
+      nums += `<button type="button" class="pend-pg num ${i === page ? "on" : ""}" data-pend-page="${i}" ${i === page ? 'aria-current="page"' : ""}>${i}</button>`;
+    return `<div class="pend-pager">${btn(1, icon("dchevleft"), "", "Primeira página")}${btn(page - 1, icon("chevleft"), "", "Página anterior")}${nums}${btn(page + 1, icon("chev"), "", "Próxima página")}${btn(pages, icon("dchev"), "", "Última página")}</div>`;
+  }
   function drawPendentes() {
     const el = $("#pend-table");
     if (!el) return;
-    contasFilters("#pend-filters");
+    const filterRoot = $("#pend-filters");
+    const qFocused = document.activeElement?.id === "pend-q";
+    if (!qFocused) filterRoot.innerHTML = pendFiltersHTML();
+    $("#pend-filter-card").classList.toggle("closed", !state.pendFiltersOpen);
+    $("#pend-filter-toggle").setAttribute(
+      "aria-expanded",
+      String(state.pendFiltersOpen),
+    );
     const ids = new Set(pendingRecords().map((r) => r.id));
-    const rows = contasRows()
-      .filter((r) => ids.has(r.id))
-      .sort((a, b) => String(a.data).localeCompare(String(b.data)));
+    pendPool = contasRows().filter((r) => ids.has(r.id));
+    const q = fold(state.pendQ.trim());
+    const qNum = state.pendQ.replace(/[^\d,]/g, "");
+    const keys = Object.keys(DASH_COLS.pend);
+    const rows = pendPool.filter((r) => {
+      if (state.pendCost && r.centro !== state.pendCost) return false;
+      if (state.pendSit && finStatus(r)[0] !== state.pendSit) return false;
+      if (q) {
+        const contatos = finContatos(r)
+          .map((c) => c.nota)
+          .join(" ");
+        const hay = fold(
+          [r.parceiro, r.sub, r.centro, r.contaBancaria, r.observacao, r.criadoPor, contatos].join(" "),
+        );
+        const values = [r.previsto, r.recebido, finFalta(r)].map((v) => n2(v));
+        if (
+          !hay.includes(q) &&
+          !(qNum && values.some((v) => v.includes(qNum) || v.replace(/\./g, "").includes(qNum)))
+        )
+          return false;
+      }
+      return keys.every((k) => colPass("pend", k, pendCell(r, k), pendNum(r, k)));
+    });
+    const [by, dir] = state.pendSort.split(":");
+    const direction = dir === "asc" ? 1 : -1;
+    rows.sort((a, b) => {
+      const av = pendSortKey(a, by),
+        bv = pendSortKey(b, by);
+      const c =
+        typeof av === "number"
+          ? av - bv
+          : String(av).localeCompare(String(bv), "pt-BR", { numeric: true });
+      return c * direction || String(a.data).localeCompare(String(b.data));
+    });
+    pendFiltered = rows;
     const prev = rows.reduce((n, r) => n + money(r.previsto), 0),
-      rec = rows.reduce((n, r) => n + money(r.recebido), 0);
+      rec = rows.reduce((n, r) => n + money(r.recebido), 0),
+      falta = rows.reduce((n, r) => n + finFalta(r), 0);
+    const kpi = (cls, ico, label, value) =>
+      `<div class="pend-kpi ${cls}"><span class="pend-kpi-ico">${icon(ico)}</span><div><span>${label}</span><strong>${value}</strong></div></div>`;
     $("#pend-summary").innerHTML =
-      hs("Lançamentos pendentes", rows.length) +
-      hs("A receber", fmt(prev)) +
-      hs("Já recebido", fmt(rec)) +
-      hs("Falta receber", fmt(prev - rec));
-    el.innerHTML = `<table class="pend-table"><thead><tr><th>Data</th><th>Empresa</th><th>Parceiro / descrição</th><th>Contato</th><th>Centro de custo</th><th>Conta bancária</th><th class="num">A receber (R$)</th><th class="num">Recebido (R$)</th><th class="num">Falta receber (R$)</th><th>Situação</th><th>Quem lançou</th><th>Comprovante</th><th class="action-cell">Ações</th></tr></thead><tbody>${
-      rows
-        .map((r) => {
-          const st = finStatus(r);
-          return `<tr><td data-label="Data" class="nowrap">${dateBR(r.data)}</td><td data-label="Empresa"><b>${esc(r.sub || "—")}</b></td><td data-label="Parceiro / descrição">${esc(r.parceiro || "—")}${r.observacao ? `<div class="muted">${esc(r.observacao)}</div>` : ""}</td><td data-label="Contato" class="contato-cell">${contatoCell(r)}</td><td data-label="Centro de custo">${esc(r.centro || "—")}</td><td data-label="Conta bancária">${esc(r.contaBancaria || "—")}</td><td data-label="A receber (R$)" class="amount">${fmt(r.previsto)}</td><td data-label="Recebido (R$)" class="amount">${fmt(r.recebido)}</td><td data-label="Falta receber (R$)" class="amount"><b>${fmt(finFalta(r))}</b></td><td data-label="Situação"><span class="pill ${st[1]}">${st[0]}</span></td><td data-label="Quem lançou">${esc(r.criadoPor || "—")}</td><td data-label="Comprovante">${fileCell(r.anexos, "fin:" + r.id)}</td><td data-label="Ações" class="action-cell"><div class="row-actions pend-actions"><button type="button" class="btn primary pend-launch" data-lancar-pendente="${esc(r.id)}">${icon("plus")}Lançar recebimento</button><button type="button" class="edit-action" data-edit-fin="${esc(r.id)}">${icon("edit")}Editar</button></div></td></tr>`;
-        })
+      kpi("count", "clipcheck", "Lançamentos pendentes", rows.length) +
+      kpi("prev", "down", "A receber", fmt(prev)) +
+      kpi("rec", "check", "Já recebido", fmt(rec)) +
+      kpi("falta", "database", "Falta receber", fmt(falta));
+    $("#pend-count").textContent = `${rows.length} registro(s)`;
+    const sortSel = $("#pend-sort");
+    const known = PEND_SORTS.some(([v]) => v === state.pendSort);
+    sortSel.innerHTML =
+      (known
+        ? ""
+        : `<option value="${esc(state.pendSort)}" selected>${esc(DASH_COLS.pend[by]?.label || by)} (${dir === "asc" ? "crescente" : "decrescente"})</option>`) +
+      PEND_SORTS.map(
+        ([v, l]) =>
+          `<option value="${v}" ${v === state.pendSort ? "selected" : ""}>${l}</option>`,
+      ).join("");
+    $("#pend-per").value = state.pendPer;
+    const per = state.pendPer === "all" ? rows.length || 1 : Number(state.pendPer) || 10;
+    const pages = Math.max(1, Math.ceil(rows.length / per));
+    state.pendPage = Math.min(Math.max(1, state.pendPage), pages);
+    const start = (state.pendPage - 1) * per;
+    const pageRows = document.body.classList.contains("printing-pendentes")
+      ? rows
+      : rows.slice(start, start + per);
+    const sitPill = (r) => {
+      const st = finStatus(r)[0];
+      const cls = st === "Em aberto" ? "open" : st === "Pendente" ? "wait" : "other";
+      return `<span class="pend-pill ${cls}"><i></i>${esc(st)}</span>`;
+    };
+    const faltaCls = (r) => {
+      const f = finFalta(r),
+        p = money(r.previsto);
+      if (p && f / p < 0.01) return "tiny";
+      return "due";
+    };
+    el.innerHTML = `<table class="pend-table pend-grid"><thead><tr>${pendTh("data")}${pendTh("sub")}${pendTh("parceiro")}${pendTh("contato")}${pendTh("centro")}${pendTh("conta")}${pendTh("prev", "num")}${pendTh("rec", "num")}${pendTh("falta", "num")}${pendTh("sit")}${pendTh("quem")}${pendTh("comp")}<th class="pend-th-actions">Ações</th></tr></thead><tbody>${
+      pageRows
+        .map(
+          (r) =>
+            `<tr><td data-label="Data" class="nowrap">${dateBR(r.data)}</td><td data-label="Empresa"><b>${esc(r.sub || "—")}</b></td><td data-label="Parceiro" class="pend-col-partner">${esc(r.parceiro || "—")}${r.observacao ? `<div class="muted">${esc(r.observacao)}</div>` : ""}</td><td data-label="Contato" class="contato-cell">${contatoCell(r)}</td><td data-label="Centro de custo">${esc(r.centro || "—")}</td><td data-label="Conta Bancária">${esc(r.contaBancaria || "—")}</td><td data-label="A receber (R$)" class="amount">${fmt(r.previsto)}</td><td data-label="Recebido (R$)" class="amount">${fmt(r.recebido)}</td><td data-label="Falta receber (R$)" class="amount pend-falta ${faltaCls(r)}">${fmt(finFalta(r))}</td><td data-label="Situação">${sitPill(r)}</td><td data-label="Quem lançou" class="pend-col-who">${esc(r.criadoPor || "—")}</td><td data-label="Comprovante">${fileCell(r.anexos, "fin:" + r.id)}</td><td data-label="Ações" class="pend-actions-cell"><div class="pend-actions"><button type="button" class="btn primary pend-launch" data-lancar-pendente="${esc(r.id)}">${icon("plus")}Lançar recebimento</button><button type="button" class="pend-kebab" data-pend-menu="${esc(r.id)}" aria-label="Mais ações" title="Mais ações">${icon("dots")}</button></div></td></tr>`,
+        )
         .join("") ||
       noRows("Nenhum valor pendente para os filtros selecionados.", 13)
     }</tbody></table>`;
+    const shownTo = Math.min(rows.length, start + pageRows.length);
+    $("#pend-foot").innerHTML = `<span class="pend-showing">${rows.length ? `Mostrando ${start + 1} a ${shownTo} de ${rows.length} registros` : "Nenhum registro"}</span><div class="pend-totals"><b>Totais (pendentes):</b><span>A receber: <b>${fmt(prev)}</b></span><i></i><span>Já recebido: <b>${fmt(rec)}</b></span><i></i><span>Falta receber: <b class="neg">${fmt(falta)}</b></span></div>${pendPagerHTML(state.pendPage, pages)}`;
   }
+  function closePendMenu() {
+    $("#pend-row-menu")?.remove();
+  }
+  function openPendMenu(btn) {
+    const id = btn.dataset.pendMenu;
+    const open = $("#pend-row-menu");
+    if (open && open.dataset.for === id) {
+      closePendMenu();
+      return;
+    }
+    closePendMenu();
+    const r = db.finance.find((x) => x.id === id);
+    if (!r) return;
+    const menu = document.createElement("div");
+    menu.id = "pend-row-menu";
+    menu.className = "pn-menu pend-row-menu";
+    menu.dataset.for = id;
+    menu.innerHTML = `<button type="button" data-edit-fin="${esc(id)}">${icon("edit")}Editar lançamento</button><button type="button" data-contato-pendente="${esc(id)}">${icon("users")}Registrar contato</button>${(r.anexos || []).length ? `<button type="button" data-view-files="fin:${esc(id)}">${icon("clip")}Ver comprovantes</button>` : ""}`;
+    menu.addEventListener("pointerup", (ev) => {
+      if (ev.target.closest("button")) setTimeout(closePendMenu, 0);
+    });
+    document.body.appendChild(menu);
+    const b = btn.getBoundingClientRect();
+    const w = menu.offsetWidth;
+    menu.style.top = `${b.bottom + window.scrollY + 4}px`;
+    menu.style.left = `${Math.max(8, b.right - w) + window.scrollX}px`;
+  }
+  function pendExport() {
+    downloadCsv(
+      `pendentes${state.empresa ? "-" + state.empresa : ""}.csv`,
+      [
+        "Data",
+        "Empresa",
+        "Parceiro",
+        "Último contato",
+        "Centro de custo",
+        "Conta Bancária",
+        "A receber",
+        "Recebido",
+        "Falta receber",
+        "Situação",
+        "Quem lançou",
+        "Comprovantes",
+        "Observação",
+      ],
+      pendFiltered.map((r) => [
+        dateBR(r.data),
+        r.sub || "",
+        r.parceiro || "",
+        ultimoContato(r)?.nota || "",
+        r.centro || "",
+        r.contaBancaria || "",
+        n2(r.previsto),
+        n2(r.recebido),
+        n2(finFalta(r)),
+        finStatus(r)[0],
+        r.criadoPor || "",
+        (r.anexos || []).length,
+        r.observacao || "",
+      ]),
+    );
+    toast("Planilha gerada");
+  }
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest("#pend-row-menu") && !e.target.closest("[data-pend-menu]"))
+      closePendMenu();
+    else if (e.target.closest("#pend-row-menu button")) setTimeout(closePendMenu, 0);
+    const kebab = e.target.closest("[data-pend-menu]");
+    if (kebab) {
+      openPendMenu(kebab);
+      return;
+    }
+    const sortBtn = e.target.closest("[data-pend-sort]");
+    if (sortBtn) {
+      const key = sortBtn.dataset.pendSort;
+      const [by, dir] = state.pendSort.split(":");
+      state.pendSort =
+        by === key
+          ? `${key}:${dir === "asc" ? "desc" : "asc"}`
+          : `${key}:${["prev", "rec", "falta", "comp", "data"].includes(key) ? "desc" : "asc"}`;
+      drawPendentes();
+      return;
+    }
+    const pg = e.target.closest("[data-pend-page]");
+    if (pg && !pg.disabled) {
+      state.pendPage = Number(pg.dataset.pendPage) || 1;
+      drawPendentes();
+      $("#pend-table")?.scrollIntoView({ block: "nearest" });
+      return;
+    }
+    if (e.target.closest("#pend-filter-toggle")) {
+      state.pendFiltersOpen = !state.pendFiltersOpen;
+      drawPendentes();
+      return;
+    }
+    if (e.target.closest("#pend-go")) {
+      state.pendQ = $("#pend-q")?.value || "";
+      state.pendPage = 1;
+      drawPendentes();
+      return;
+    }
+    if (e.target.closest("#pend-clear")) {
+      state.pendCost = "";
+      state.pendSit = "";
+      state.pendQ = "";
+      state.pendPage = 1;
+      state.contasMes = "";
+      state.empresa = "";
+      delete state.dashColF.pend;
+      $("#pend-q") && ($("#pend-q").value = "");
+      render();
+      return;
+    }
+    if (e.target.closest("#pend-export")) {
+      pendExport();
+      return;
+    }
+    if (e.target.closest("#pend-report")) {
+      document.body.classList.add("printing-pendentes");
+      drawPendentes();
+      window.print();
+      setTimeout(() => {
+        document.body.classList.remove("printing-pendentes");
+        drawPendentes();
+      }, 500);
+    }
+  });
+  document.addEventListener("change", (e) => {
+    const t = e.target;
+    if (t.id === "pend-cost") state.pendCost = t.value;
+    else if (t.id === "pend-sit") state.pendSit = t.value;
+    else if (t.id === "pend-sort") state.pendSort = t.value;
+    else if (t.id === "pend-per") state.pendPer = t.value;
+    else return;
+    state.pendPage = 1;
+    drawPendentes();
+  });
+  document.addEventListener("input", (e) => {
+    if (e.target.id !== "pend-q") return;
+    state.pendQ = e.target.value;
+    state.pendPage = 1;
+    drawPendentes();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closePendMenu();
+  });
   /** Abre só o formulário de recebimento (data, valor e comprovante). */
   function lancarPendente(id) {
     const r = db.finance.find((x) => x.id === id);
@@ -6681,6 +7032,7 @@
       render();
     } else if (t.matches("[data-contas-mes]")) {
       state.contasMes = t.value;
+      state.pendPage = 1;
       render();
     } else if (t.matches("[data-contas-emp]")) {
       state.empresa = t.value;

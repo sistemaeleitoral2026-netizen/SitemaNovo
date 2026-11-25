@@ -12,7 +12,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
     <link rel="stylesheet" href="./styles/fonts.css" />
     <link rel="stylesheet" href="./styles/app.css" />
-    <link rel="stylesheet" href="./styles/painel.css?v=1" />
+    <link rel="stylesheet" href="./styles/painel.css?v=2" />
+    <link rel="stylesheet" href="./styles/pendentes.css?v=1" />
   </head>
   <body>
     <svg style="display: none" xmlns="http://www.w3.org/2000/svg">
@@ -246,6 +247,30 @@
       <symbol id="i-scale" viewBox="0 0 24 24">
         <path d="M12 3v18M7 21h10M5 7h14M12 5 5 7M12 5l7 2"></path>
         <path d="M5 7 2 14a3.5 3.5 0 0 0 6 0zM19 7l-3 7a3.5 3.5 0 0 0 6 0z"></path>
+      </symbol>
+      <symbol id="i-tag" viewBox="0 0 24 24">
+        <path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"></path>
+        <circle cx="8" cy="8" r="1.5"></circle>
+      </symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24">
+        <path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v5h-5"></path>
+      </symbol>
+      <symbol id="i-bars" viewBox="0 0 24 24">
+        <path d="M4 20h16M7 17v-5M11 17V8M15 17v-7M19 17V5"></path>
+      </symbol>
+      <symbol id="i-dots" viewBox="0 0 24 24">
+        <circle cx="12" cy="5" r="1.4"></circle>
+        <circle cx="12" cy="12" r="1.4"></circle>
+        <circle cx="12" cy="19" r="1.4"></circle>
+      </symbol>
+      <symbol id="i-chevleft" viewBox="0 0 24 24">
+        <path d="m15 6-6 6 6 6"></path>
+      </symbol>
+      <symbol id="i-dchevleft" viewBox="0 0 24 24">
+        <path d="m12 6-6 6 6 6M19 6l-6 6 6 6"></path>
+      </symbol>
+      <symbol id="i-dchev" viewBox="0 0 24 24">
+        <path d="m5 6 6 6-6 6M12 6l6 6-6 6"></path>
       </symbol>
       <symbol id="i-doclist" viewBox="0 0 24 24">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -581,11 +606,12 @@
           </section>
           <section
             id="page-pendentes"
-            class="page-section"
+            class="page-section pend-page"
             data-screen-label="Pendentes"
           >
-            <div class="heading">
-              <div>
+            <div class="pend-head">
+              <span class="pend-head-ico"><svg><use href="#i-database"></use></svg></span>
+              <div class="pend-head-text">
                 <h1>Pendentes</h1>
                 <p>
                   Receitas com valor a receber que ainda não foi recebido por
@@ -593,12 +619,54 @@
                   entrou.
                 </p>
               </div>
+              <div class="pend-head-actions">
+                <button type="button" class="btn pn-tool" id="pend-export">
+                  <svg><use href="#i-dl"></use></svg>Exportar
+                </button>
+                <button type="button" class="btn pn-tool" id="pend-report">
+                  <svg><use href="#i-bars"></use></svg>Relatório
+                </button>
+              </div>
             </div>
-            <div class="filters" id="pend-filters"></div>
-            <div class="history-summary" id="pend-summary"></div>
-            <div class="panel">
-              <div class="table-wrap" id="pend-table"></div>
+            <div class="pend-kpis" id="pend-summary"></div>
+            <div class="pend-card pend-filter-card" id="pend-filter-card">
+              <button
+                type="button"
+                class="pend-filter-title"
+                id="pend-filter-toggle"
+                aria-expanded="true"
+              >
+                <span><svg><use href="#i-filter"></use></svg>Filtros de Consulta</span
+                ><svg class="pend-chev"><use href="#i-chevdown"></use></svg>
+              </button>
+              <div class="pend-filters" id="pend-filters"></div>
             </div>
+            <div class="pend-card pend-list-card">
+              <div class="pend-list-head">
+                <div class="pend-list-title">
+                  <svg><use href="#i-list"></use></svg>
+                  <h2>Lançamentos Pendentes</h2>
+                  <span class="pend-chip" id="pend-count"></span>
+                </div>
+                <div class="pend-list-controls">
+                  <label class="pend-ctl"
+                    ><span>Ordenar por</span
+                    ><select class="control" id="pend-sort"></select
+                  ></label>
+                  <label class="pend-ctl"
+                    ><span>Itens por página</span
+                    ><select class="control" id="pend-per">
+                      <option value="10">10</option>
+                      <option value="20">20</option>
+                      <option value="50">50</option>
+                      <option value="all">Tudo</option>
+                    </select></label
+                  >
+                </div>
+              </div>
+              <div class="pend-table-wrap" id="pend-table"></div>
+            </div>
+            <div class="pend-foot" id="pend-foot"></div>
           </section>
           <section
             id="page-receber"
