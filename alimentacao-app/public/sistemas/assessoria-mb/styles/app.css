@@ -8162,3 +8162,119 @@ td.contato-cell {
 .td-grid tr.td-row {
   cursor: pointer;
 }
+
+/* Demandas e Tarefas: visual alinhado ao layout aprovado */
+#crumb-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.td-kpi {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  column-gap: 10px;
+  padding: 16px 18px;
+  border-color: color-mix(in srgb, var(--tone) 22%, #fff);
+  background: var(--tone-soft);
+}
+.td-kpi.amber {
+  --tone-soft: #fff;
+  border-color: var(--line);
+}
+.td-kpi.red {
+  --tone: #c2410c;
+  --tone-soft: #fff4ec;
+}
+.td-kpi.blue {
+  --tone-soft: #eef4fc;
+}
+.td-kpi.green,
+.td-kpi.ok {
+  --tone-soft: #f0f9f3;
+}
+.td-kpi.sky {
+  --tone-soft: #eef6fd;
+}
+.td-kpi-ico {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  padding-top: 1px;
+}
+.td-kpi-ico svg {
+  width: 26px;
+  height: 26px;
+}
+.td-kpi-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.td-kpi.red .td-kpi-label {
+  color: var(--tone);
+}
+.td-kpi-txt b {
+  margin-top: 6px;
+  font-size: 28px;
+  color: var(--text);
+}
+.td-kpi.red .td-kpi-txt b {
+  color: var(--tone);
+}
+.td-kpi-txt small {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.td-tabs {
+  gap: 0;
+}
+.td-tabs button {
+  padding: 12px 34px;
+  margin-bottom: 0;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: #fff;
+  font-size: 14.5px;
+  color: var(--text);
+}
+.td-tabs button + button {
+  margin-left: -1px;
+}
+.td-tabs button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.td-grid th {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+  background: #f3f5f8;
+  padding: 12px 14px;
+}
+.td-grid th + th,
+.td-grid td + td {
+  border-left: 1px solid var(--line) !important;
+}
+@media (max-width: 760px) {
+  .td-tabs {
+    overflow-x: auto;
+  }
+  .td-tabs button {
+    padding: 10px 16px;
+    font-size: 13.5px;
+    white-space: nowrap;
+  }
+  .td-kpi {
+    padding: 12px 14px;
+  }
+}
+.td-grid tbody tr:nth-child(even) td {
+  background: transparent;
+}

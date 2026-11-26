@@ -111,7 +111,7 @@
     dashboard: "Painel",
     financeiro: "Lançamentos",
     pendentes: "Pendentes",
-    demandas: "Demandas e tarefas",
+    demandas: "Demandas e Tarefas",
     minhas: "Minhas tarefas",
     tarefa: "Detalhes da tarefa",
     anexos: "Comprovantes",
@@ -1707,16 +1707,12 @@
     } else {
       a += `<button type="button" class="td-act" data-td-open="${id}">${icon("eye")}Detalhes</button>`;
     }
-    let menu = `<button type="button" data-td-open="${id}">${icon("eye")}Ver detalhes</button>`;
     if (MB.admin)
-      menu += `<button type="button" data-edit-task="${id}">${icon("edit")}Editar</button>`;
-    if (MB.editor || canWorkTask(t) || MB.canCreateTasks)
-      menu += `<button type="button" data-td-anexar="${id}">${icon("upload")}Anexar arquivos</button>`;
-    if ((t.anexos || []).length)
-      menu += `<button type="button" data-view-files="task:${id}">${icon("clip")}Ver anexos</button>`;
+      a += `<button type="button" class="td-act" data-edit-task="${id}">${icon("edit")}Editar</button>`;
+    else if (MB.editor || canWorkTask(t) || MB.canCreateTasks)
+      a += `<button type="button" class="td-act" data-td-anexar="${id}">${icon("upload")}Anexar</button>`;
     if (MB.admin && canDeleteRec(t))
-      menu += `<button type="button" class="danger" data-delete-task="${id}">${icon("trash")}Excluir</button>`;
-    a += `<button type="button" class="td-act td-more-btn" data-td-more aria-label="Mais ações" aria-haspopup="menu">⋯</button><div class="td-menu" role="menu" hidden>${menu}</div>`;
+      a += `<button type="button" class="td-act danger" data-delete-task="${id}">${icon("trash")}Excluir</button>`;
     return a;
   }
   function taskRowHTML(t, hoje) {
@@ -3502,11 +3498,11 @@
     document.title = names[p] + " · Financeiro";
     document.body.classList.remove("nav-open");
     const gb = document.querySelector('.nav-btn[data-page="' + p + '"]');
-    $("#crumb-group").textContent = gb
-      ? gb.dataset.group
-      : p === "tarefa"
-        ? "Tarefas"
-        : "";
+    const crumbGroup = $("#crumb-group");
+    if (p === "tarefa") {
+      const back = state.taskBack || "demandas";
+      crumbGroup.innerHTML = `Tarefas<svg class="sep"><use href="#i-chev"></use></svg>${esc(names[back] || "Demandas e Tarefas")}`;
+    } else crumbGroup.textContent = gb ? gb.dataset.group : "";
     window.scrollTo({ top: 0, behavior: "smooth" });
     render();
   }
