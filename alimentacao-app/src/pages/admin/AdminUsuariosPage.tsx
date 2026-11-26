@@ -83,7 +83,7 @@ export function AdminUsuariosPage() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [createForm, setCreateForm] = useState({
-    cargo: 'externo' as NovoCargo, nome: '', email: '', password: '', confirm: '', acessos: acessosVazios(),
+    cargo: 'visualizador' as NovoCargo, nome: '', email: '', password: '', confirm: '', acessos: acessosVazios(),
   })
 
   const [editUser, setEditUser] = useState<Profile | null>(null)
@@ -164,7 +164,7 @@ export function AdminUsuariosPage() {
     if (error) return setCreateError(error)
 
     setCreateOpen(false)
-    setCreateForm({ cargo: 'externo', nome: '', email: '', password: '', confirm: '', acessos: acessosVazios() })
+    setCreateForm({ cargo: 'visualizador', nome: '', email: '', password: '', confirm: '', acessos: acessosVazios() })
     await load()
   }
 
@@ -406,14 +406,20 @@ export function AdminUsuariosPage() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <Select
-            label="Cargo"
+            label="Acesso principal"
             value={createForm.cargo}
             onChange={(e) => setCreateForm((f) => ({ ...f, cargo: e.target.value as NovoCargo }))}
             options={[
-              { value: 'visualizador', label: 'Visualizador — somente leitura no Nerites' },
+              { value: 'visualizador', label: 'Sistema Nerites — Visualizador' },
               { value: 'externo', label: 'Acesso externo — outros sistemas' },
             ]}
           />
+          {createForm.cargo === 'visualizador' && (
+            <div className="alert alert-info">
+              <strong>Cargo: Visualizador</strong><br />
+              Poderá consultar lideranças e todas as fichas, sem criar, editar ou excluir.
+            </div>
+          )}
           <Input label="Nome completo" value={createForm.nome} onChange={(e) => setCreateForm((f) => ({ ...f, nome: e.target.value }))} placeholder="Nome de quem vai acessar" />
           <Input label="E-mail de acesso" type="email" value={createForm.email} onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))} placeholder="pessoa@exemplo.com" />
           <Input label="Senha" type="password" value={createForm.password} onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))} placeholder="Mínimo 8 caracteres" />
