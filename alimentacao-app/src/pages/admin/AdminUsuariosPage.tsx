@@ -10,7 +10,7 @@ import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
 import { Pagination } from '../../components/ui/Pagination'
 import { supabase } from '../../lib/supabase'
-import { labelRole } from '../../lib/roles'
+import { labelRole, profileRoles } from '../../lib/roles'
 import { SITES } from '../../lib/sites'
 import type { Profile, UserRole } from '../../types'
 
@@ -48,15 +48,51 @@ function acessosParaSalvar(form: AcessosForm): Record<string, 'admin' | 'editor'
   return out
 }
 
-function resumoAcessos(u: Profile): string {
-  const partes = SISTEMAS_EXTERNOS
-    .map((s) => {
-      const nivel = u.acessos_externos?.[s.id]
-      if (nivel !== 'admin' && nivel !== 'editor') return null
-      return `${s.nome} (${nivel === 'admin' ? 'admin' : 'editor'})`
-    })
-    .filter((v): v is string => Boolean(v))
-  return partes.length ? partes.join(' · ') : '—'
+const NERITES_ROLES = new Set<UserRole>([
+  'admin', 'diretoria', 'operador', 'mobilizador', 'administrativo',
+  'coordenador', 'auxiliar', 'visualizador',
+])
+
+function acessosNerites(u: Profile): UserRole[] {
+  return profileRoles(u).filter((role) => NERITES_ROLES.has(role))
+}
+
+function NeritesAccess({ user }: { user: Profile }) {
+  const roles = acessosNerites(user)
+  if (!roles.length) {
+    return <span className="admin-access-empty">Sem acesso ao Nerites</span>
+  }
+  return (
+    <div className="admin-access-list" aria-label={`Acessos ao Nerites de ${user.nome}`}>
+      {roles.map((role) => (
+        <span
+          key={role}
+          className={`admin-role-chip admin-role-${role}${role === user.role ? ' is-primary' : ''}`}
+          title={role === user.role ? 'Cargo principal' : 'Cargo adicional'}
+        >
+          {labelRole(role)}
+          <small>{role === user.role ? 'Principal' : 'Adicional'}</small>
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function ExternalAccess({ user }: { user: Profile }) {
+  const accesses = SISTEMAS_EXTERNOS.flatMap((site) => {
+    const level = user.acessos_externos?.[site.id]
+    return level === 'admin' || level === 'editor' ? [{ site, level }] : []
+  })
+  if (!accesses.length) return <span className="admin-access-empty">Nenhum</span>
+  return (
+    <div className="admin-external-access-list">
+      {accesses.map(({ site, level }) => (
+        <span key={site.id} className="admin-system-access-chip">
+          {site.nome}<small>{level === 'admin' ? 'Admin' : 'Editor'}</small>
+        </span>
+      ))}
+    </div>
+  )
 }
 
 function initials(nome: string) {
@@ -122,13 +158,18 @@ export function AdminUsuariosPage() {
     const termo = search.trim().toLowerCase()
     return users.filter((u) => {
       if (termo && !u.nome.toLowerCase().includes(termo) && !u.email.toLowerCase().includes(termo)) return false
-      if (roleFilter && u.role !== roleFilter) return false
+      if (roleFilter && !profileRoles(u).includes(roleFilter as UserRole)) return false
       return true
     })
   }, [users, search, roleFilter])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageItems = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const accessSummary = useMemo(() => ({
+    nerites: users.filter((u) => acessosNerites(u).length > 0).length,
+    externos: users.filter((u) => Object.keys(u.acessos_externos ?? {}).length > 0).length,
+    multiplos: users.filter((u) => acessosNerites(u).length > 1).length,
+  }), [users])
 
   function abrirEdicao(u: Profile) {
     setEditUser(u)
@@ -264,8 +305,8 @@ export function AdminUsuariosPage() {
           <div>
             <h1 className="page-title">Usuários</h1>
             <p className="page-subtitle">
-              Lista todos os usuários e permite criar o cargo Visualizador do Nerites ou logins
-              exclusivos para os outros sistemas.
+              Consulte o acesso real de cada usuário ao Sistema Nerites e aos demais sistemas.
+              Cargos adicionais também aparecem separados do cargo principal.
             </p>
           </div>
           <div className="page-header-actions">
@@ -273,6 +314,12 @@ export function AdminUsuariosPage() {
               <UserPlus size={16} /> Novo login
             </Button>
           </div>
+        </div>
+
+        <div className="admin-users-access-summary" aria-label="Resumo dos acessos">
+          <div><span>Com acesso ao Nerites</span><strong>{accessSummary.nerites}</strong></div>
+          <div><span>Com outros sistemas</span><strong>{accessSummary.externos}</strong></div>
+          <div><span>Com cargos adicionais</span><strong>{accessSummary.multiplos}</strong></div>
         </div>
 
         <Card>
@@ -289,9 +336,12 @@ export function AdminUsuariosPage() {
             <Select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
-              options={ROLE_FILTROS.map((r) => ({ value: r, label: labelRole(r) }))}
-              placeholder="Todos os cargos"
-              aria-label="Cargo"
+              options={ROLE_FILTROS.map((r) => ({
+                value: r,
+                label: r === 'externo' ? 'Sem acesso ao Nerites (externo)' : labelRole(r),
+              }))}
+              placeholder="Todos os acessos Nerites"
+              aria-label="Acesso ao Sistema Nerites"
             />
           </div>
 
@@ -317,9 +367,8 @@ export function AdminUsuariosPage() {
                   <thead>
                     <tr>
                       <th>Usuário</th>
-                      <th>E-mail</th>
-                      <th>Cargo</th>
-                      <th>Acesso extra</th>
+                      <th>Sistema Nerites</th>
+                      <th>Outros sistemas</th>
                       <th>Status</th>
                       <th>Ações</th>
                     </tr>
@@ -330,16 +379,14 @@ export function AdminUsuariosPage() {
                         <td>
                           <div className="person-cell">
                             <div className={`avatar-pill ${AVATARS[index % AVATARS.length]}`}>{initials(u.nome)}</div>
-                            <strong style={{ fontSize: '.8rem', fontWeight: 650 }}>{u.nome}</strong>
+                            <div className="admin-user-identity">
+                              <strong>{u.nome}</strong>
+                              <span>{u.email}</span>
+                            </div>
                           </div>
                         </td>
-                        <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{u.email}</span></td>
-                        <td>
-                          <span className={`badge ${u.role === 'externo' ? 'badge-neutral' : 'badge-warning'}`}>
-                            {labelRole(u.role)}
-                          </span>
-                        </td>
-                        <td><span style={{ color: '#6c788d', fontSize: '.78rem' }}>{resumoAcessos(u)}</span></td>
+                        <td><NeritesAccess user={u} /></td>
+                        <td><ExternalAccess user={u} /></td>
                         <td>
                           <span className={`badge ${u.ativo ? 'badge-success' : 'badge-danger'}`}>
                             {u.ativo ? 'Ativo' : 'Inativo'}
@@ -376,9 +423,15 @@ export function AdminUsuariosPage() {
                         {u.ativo ? 'Ativo' : 'Inativo'}
                       </span>
                     </div>
-                    <div style={{ margin: '.5rem 0', fontSize: '.78rem', color: '#6c788d' }}>
-                      <div><strong style={{ color: '#182437' }}>{labelRole(u.role)}</strong></div>
-                      <div>{resumoAcessos(u)}</div>
+                    <div className="admin-user-mobile-access">
+                      <div>
+                        <span>Sistema Nerites</span>
+                        <NeritesAccess user={u} />
+                      </div>
+                      <div>
+                        <span>Outros sistemas</span>
+                        <ExternalAccess user={u} />
+                      </div>
                     </div>
                     <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
                       <Button variant="secondary" size="sm" onClick={() => abrirEdicao(u)} style={{ flex: 1 }}>
