@@ -1597,6 +1597,12 @@
     save();
     return msg;
   }
+  function realizarSegHTML(modo, taskId) {
+    const id = esc(taskId);
+    const btn = (m, ico, label) =>
+      `<button type="button" class="${modo === m ? "active" : ""}" data-realizar-modo="${m}" data-task="${id}">${icon(ico)}${label}</button>`;
+    return `<div class="td-seg wide" role="tablist">${btn("novo", "plus", "Novo lançamento")}${btn("existente", "search", "Selecionar lançamentos já feitos")}</div>`;
+  }
   /** "Realizar": abre um lançamento novo já preenchido com os dados da demanda. */
   function openRealizar(t) {
     if (!t) return;
@@ -3556,7 +3562,7 @@
         : kind === "realizar"
           ? "Realizar tarefa"
           : kind === "vincular"
-            ? "Selecionar lançamentos"
+            ? "Realizar tarefa — selecionar lançamentos"
             : kind === "recebimento"
               ? "Registrar recebimento"
               : kind === "contato"
@@ -3652,19 +3658,39 @@
         : `<p class="field-note wide">Nenhum lançamento de saída ainda.</p>`;
       html += `<div class="field wide"><button type="button" class="btn" id="realizar-ir-financeiro">${icon("wallet")} Abrir Financeiro</button></div>`;
     } else if (kind === "vincular") {
-      const candidatos = lancamentosVinculaveis(obj);
-      html += `<div class="form-section">Tarefa</div><div class="conclude-summary"><b>${esc(obj?.titulo || "")}</b><div class="muted">${esc(obj?.nome || "Favorecido não informado")}</div><div class="muted">Valor a bater: ${fmt(obj?.valor || 0)}</div></div>`;
-      html += `<div class="form-section">Lançamentos de saída recentes</div><p class="field-note wide">Marque o(s) lançamento(s) que correspondem a essa tarefa. Um lançamento já vinculado a outra tarefa não aparece aqui.</p>`;
-      html += `<div id="vincular-total" class="vincular-total"></div>`;
+      const tipoLabel = TIPO_LANC_LABEL[taskTipoLanc(obj)] || "Saída";
+      const candidatos = lancamentosVinculaveis(obj).sort(
+        (a, b) =>
+          (b.tarefaId === obj.id) - (a.tarefaId === obj.id) ||
+          (!!obj.sub && b.sub === obj.sub) - (!!obj.sub && a.sub === obj.sub),
+      );
+      if (canWorkTask(obj) && obj.status !== "Concluída")
+        html += realizarSegHTML("existente", obj.id);
+      html += `<div class="conclude-summary wide"><b>${esc(obj?.titulo || "")}</b><div class="muted">${esc(obj?.nome || "Favorecido não informado")}${obj?.sub ? " · " + esc(obj.sub) : ""}</div><div class="muted">Valor da tarefa: <b>${fmt(obj?.valor || 0)}</b> · Tipo: ${esc(tipoLabel)}</div></div>`;
+      html += `<p class="field-note wide">Pesquise e marque o(s) lançamento(s) de <b>${esc(tipoLabel.toLowerCase())}</b> que já foram feitos para esta tarefa. O valor marcado é abatido da tarefa. Lançamentos já vinculados a outra tarefa não aparecem.</p>`;
+      html += `<label class="td-search wide vincular-search">${icon("search")}<input type="search" id="vincular-q" placeholder="Pesquisar por favorecido, empresa, centro, data ou valor…" autocomplete="off"></label>`;
+      html += `<div id="vincular-total" class="vincular-total wide"></div>`;
       html += candidatos.length
-        ? `<div class="vincular-list" id="vincular-list">${candidatos
-            .map(
-              (f) =>
-                `<label class="vincular-row"><input type="checkbox" name="lanc" value="${esc(f.id)}" ${f.tarefaId === obj.id ? "checked" : ""}><span class="vincular-desc">${dateBR(f.data)} · ${esc(f.parceiro)}${f.sub ? " · " + esc(f.sub) : ""}</span><b class="num">${fmt(finValorTarefa(f))}</b></label>`,
-            )
-            .join("")}</div>`
-        : `<p class="field-note wide">Nenhum lançamento de saída disponível ainda.</p>`;
-      html += `<div class="field wide"><button type="button" class="btn" id="realizar-ir-financeiro">${icon("wallet")} Lançar mais um pagamento</button></div>`;
+        ? `<div class="vincular-list wide" id="vincular-list">${candidatos
+            .map((f) => {
+              const hay = [
+                f.parceiro,
+                f.sub,
+                f.centro,
+                f.contaBancaria,
+                f.observacao,
+                dateBR(f.data),
+                fmt(finValorTarefa(f)),
+                String(finValorTarefa(f)),
+              ]
+                .join(" ")
+                .toLocaleLowerCase("pt-BR");
+              return `<label class="vincular-row" data-vq="${esc(hay)}"><input type="checkbox" name="lanc" value="${esc(f.id)}" ${f.tarefaId === obj.id ? "checked" : ""}><span class="vincular-desc"><b>${esc(f.parceiro || "Sem descrição")}</b><small>${dateBR(f.data)}${f.sub ? " · " + esc(f.sub) : ""}${f.centro ? " · " + esc(f.centro) : ""}${f.contaBancaria ? " · " + esc(f.contaBancaria) : ""}</small></span><b class="num">${fmt(finValorTarefa(f))}</b></label>`;
+            })
+            .join(
+              "",
+            )}<p class="field-note" id="vincular-vazio" hidden>Nenhum lançamento encontrado com essa pesquisa.</p></div>`
+        : `<p class="field-note wide">Nenhum lançamento de ${esc(tipoLabel.toLowerCase())} disponível ainda. Use “Novo lançamento”.</p>`;
     } else {
       const locked = !!obj;
       const pre = !locked && opts.prefill ? opts.prefill : null;
@@ -3674,6 +3700,7 @@
       const rx = locked ? finRecebimentos(obj) : [];
       const finValue = (name, value, types) =>
         `<div class="field" data-fin-types="${types}" data-fin-value="${value}"><label>${name} (R$)${value === "previsto" ? "" : `<span data-fin-types="${value === "saida" ? "saida" : "entrada_por_fora"}"> *</span>`}</label><input class="control money-input fin-money" type="text" inputmode="numeric" autocomplete="off" name="${value}" value="${inputBRL(locked ? (value === "recebido" ? sumRecebimentos(rx) || obj.recebido || 0 : obj[value] || 0) : pre?.[value] || 0)}" placeholder="R$ 0,00"></div>`;
+      if (linkTask) html += realizarSegHTML("novo", linkTask.id);
       if (linkTask)
         html += `<div class="fin-info-banner wide">${FIN_ICONS.info}<span>Lançamento da tarefa <b>${esc(linkTask.titulo || "")}</b>. Ao salvar, ele fica vinculado e a tarefa é atualizada (valor da tarefa: ${fmt(linkTask.valor || 0)}).</span></div>`;
       if (locked) {
@@ -3805,7 +3832,29 @@
         el.addEventListener("change", updateVincularTotal),
       );
       updateVincularTotal();
+      const q = $("#vincular-q");
+      q?.addEventListener("input", () => {
+        const termo = q.value.trim().toLocaleLowerCase("pt-BR");
+        let visiveis = 0;
+        $$("#vincular-list .vincular-row").forEach((row) => {
+          const show = !termo || row.dataset.vq.includes(termo);
+          row.hidden = !show;
+          if (show) visiveis++;
+        });
+        const vazio = $("#vincular-vazio");
+        if (vazio) vazio.hidden = visiveis > 0;
+      });
+      q?.focus();
     }
+    $$("#modal-body [data-realizar-modo]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const t = db.tasks.find((x) => x.id === b.dataset.task);
+        if (!t || b.classList.contains("active")) return;
+        closeModal();
+        if (b.dataset.realizarModo === "novo") openRealizar(t);
+        else openModal("vincular", t.id);
+      }),
+    );
     if (kind === "contato") {
       const nota = $("#modal-body [name=contatoNota]");
       $$("#modal-body [data-contato-chip]").forEach((b) =>

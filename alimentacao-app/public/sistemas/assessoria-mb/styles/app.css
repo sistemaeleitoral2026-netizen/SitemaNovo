@@ -8278,3 +8278,72 @@ td.contato-cell {
 .td-grid tbody tr:nth-child(even) td {
   background: transparent;
 }
+
+/* Realizar tarefa: novo lançamento ou selecionar existentes */
+.td-seg {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #eef2f7;
+}
+.td-seg button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+}
+.td-seg button svg {
+  width: 15px;
+  height: 15px;
+}
+.td-seg button.active {
+  background: #fff;
+  color: var(--primary);
+  box-shadow: 0 1px 3px #0d18261f;
+}
+.vincular-search {
+  grid-column: 1 / -1;
+}
+.vincular-list.wide,
+.vincular-total.wide {
+  grid-column: 1 / -1;
+}
+.vincular-list.wide {
+  max-height: 340px;
+}
+.vincular-row[hidden] {
+  display: none;
+}
+.vincular-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  flex: none;
+}
+.vincular-row:has(input:checked) {
+  background: var(--primary-soft);
+}
+.vincular-desc {
+  min-width: 0;
+}
+.vincular-desc b {
+  display: block;
+  font-weight: 600;
+  color: var(--ink);
+}
+.vincular-desc small {
+  color: var(--muted);
+  font-size: 12px;
+}
