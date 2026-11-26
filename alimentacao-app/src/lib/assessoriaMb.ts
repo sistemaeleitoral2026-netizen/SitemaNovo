@@ -867,7 +867,7 @@ export async function salvarEstadoAssessoria(
       return row ? [row] : []
     })
     const { data: remoteTasks, error: taskListErr } = rowsToUpsert.length
-      ? await supabase.from('mb_tarefas').select('id,created_by').in('id', rowsToUpsert.map((row) => row.id))
+      ? await supabase.from('mb_tarefas').select('*').in('id', rowsToUpsert.map((row) => row.id))
       : { data: [], error: null }
     if (taskListErr) throw asError(taskListErr)
     const taskCreatedBy = new Map<string, string>()
@@ -875,6 +875,7 @@ export async function salvarEstadoAssessoria(
       if (r.id && r.created_by) taskCreatedBy.set(r.id as string, r.created_by as string)
     }
     const existingTaskIds = new Set((remoteTasks || []).map((r) => String(r.id)))
+    const remoteTaskById = new Map((remoteTasks || []).map((r) => [String(r.id), r]))
     const delTasks = taskDeleteIds
     const { data: existingTaskDeletes, error: taskDeleteListErr } = delTasks.length
       ? await supabase.from('mb_tarefas').select('id').in('id', delTasks)
@@ -930,7 +931,23 @@ export async function salvarEstadoAssessoria(
               updated_by: opts.userId,
               created_by: taskCreatedBy.get(r.id) || (isUuid(String(r.criadoPorId || '')) ? r.criadoPorId : opts.userId),
             }))
-            const existingRows = rows.filter((row) => existingTaskIds.has(row.id))
+            const taskValue = (value: unknown) => value == null || value === '' ? '' : String(value)
+            const taskChanged = (row: (typeof rows)[number]) => {
+              const remote = remoteTaskById.get(row.id)
+              if (!remote) return true
+              const textColumns = [
+                'titulo', 'nome', 'responsavel', 'prazo', 'data_execucao', 'status',
+                'descricao', 'origem_pagamento', 'nome_extrato', 'situacao_registro',
+                'observacao', 'demanda', 'empresa', 'recorrente_origem_id',
+                'concluido_por', 'concluido_em',
+              ] as const
+              if (textColumns.some((column) => taskValue(row[column]) !== taskValue(remote[column]))) {
+                return true
+              }
+              if (Number(row.valor || 0) !== Number(remote.valor || 0)) return true
+              return Boolean(row.recorrente) !== Boolean(remote.recorrente)
+            }
+            const existingRows = rows.filter((row) => existingTaskIds.has(row.id) && taskChanged(row))
             const newRows = rows.filter((row) => !existingTaskIds.has(row.id))
 
             // Não use upsert nas tarefas existentes: INSERT ... ON CONFLICT
@@ -938,6 +955,8 @@ export async function salvarEstadoAssessoria(
             // conclusão, só admin pode criar tarefa, enquanto o responsável
             // (Editor) pode atualizar/concluir a própria. O upsert fazia o
             // simples anexo de um documento falhar com RLS em mb_tarefas.
+            // Se apenas a lista de anexos mudou, nem envia UPDATE na tarefa:
+            // grava somente Storage + mb_anexos, inclusive em lotes maiores.
             const results = await Promise.all([
               ...existingRows.map((row) =>
                 supabase.from('mb_tarefas').update(row).eq('id', row.id),
