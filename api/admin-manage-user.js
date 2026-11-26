@@ -141,7 +141,8 @@ module.exports = async function handler(req, res) {
     if (nome != null) patch.nome = nome
     if (ativo != null) patch.ativo = ativo
     patch.role = role
-    patch.acessos_externos = role === 'visualizador' ? {} : (acessos ?? {})
+    // Visualizador do Nerites pode ter, ao mesmo tempo, acesso a outros sistemas.
+    if (acessos != null) patch.acessos_externos = acessos
 
     if (Object.keys(patch).length) {
       const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${targetId}`, {
