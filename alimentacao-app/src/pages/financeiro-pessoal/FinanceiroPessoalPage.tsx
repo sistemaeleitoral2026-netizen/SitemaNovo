@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { hasRole } from '../../lib/roles'
 import { clearSite, isAdminNoSiteExterno } from '../../lib/sites'
 import { Spinner } from '../../components/ui/Spinner'
+import { systemUrl } from '../../lib/buildVersion'
 import {
   baixarComprovante,
   carregarFinanceiroPessoal,
@@ -249,7 +250,7 @@ export function FinanceiroPessoalPage() {
           ref={frameRef}
           className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
           title="Controle Financeiro Pessoal"
-          src="/sistemas/financeiro-pessoal/index.html?v=65&remote=1"
+          src={systemUrl('/sistemas/financeiro-pessoal/index.html', { remote: '1' })}
           style={crescer && altura ? { height: altura } : undefined}
           onLoad={() => window.setTimeout(() => setPronto(true), 8000)}
         />

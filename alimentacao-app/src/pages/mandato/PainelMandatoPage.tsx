@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Spinner } from '../../components/ui/Spinner'
+import { systemUrl } from '../../lib/buildVersion'
 import {
   garantirCargaFinanceiro,
   excluirEquipeGabinete,
@@ -450,7 +451,7 @@ export function PainelMandatoPage() {
           ref={frame}
           className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
           title="Painel do Mandato"
-          src="/sistemas/mandato-embed/index.html"
+          src={systemUrl('/sistemas/mandato-embed/index.html')}
           onLoad={publicar}
         />
       </div>

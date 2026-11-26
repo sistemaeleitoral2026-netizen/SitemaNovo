@@ -16,6 +16,7 @@ import {
   type MbDbPayload,
 } from '../../lib/assessoriaMb'
 import { tratarPedidoRelatorio } from '../../lib/assessoriaMbRelatorios'
+import { systemUrl } from '../../lib/buildVersion'
 
 type MbMensagem = {
   type?: string
@@ -211,7 +212,7 @@ export function AssessoriaMbPage() {
           ref={frameRef}
           className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
           title="Financeiro Corporativo"
-          src="/sistemas/assessoria-mb/index.html?v=modular-46"
+          src={systemUrl('/sistemas/assessoria-mb/index.html')}
           onLoad={() => window.setTimeout(() => setPronto(true), 4000)}
         />
       </div>

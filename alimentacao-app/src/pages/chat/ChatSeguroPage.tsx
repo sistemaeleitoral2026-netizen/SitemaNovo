@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { clearSite } from '../../lib/sites'
 import { Spinner } from '../../components/ui/Spinner'
+import { systemUrl } from '../../lib/buildVersion'
 
 type ChatMensagem = { type?: string }
 
@@ -22,7 +23,7 @@ export function ChatSeguroPage() {
   const frameRef = useRef<HTMLIFrameElement>(null)
   const [pronto, setPronto] = useState(false)
   const room = new URLSearchParams(location.search).get('room')
-  const src = `/sistemas/chat-seguro/index.html?v=1${room ? `&room=${encodeURIComponent(room)}` : ''}`
+  const src = systemUrl('/sistemas/chat-seguro/index.html', room ? { room } : {})
 
   function postar(msg: Record<string, unknown>) {
     frameRef.current?.contentWindow?.postMessage(msg, window.location.origin)

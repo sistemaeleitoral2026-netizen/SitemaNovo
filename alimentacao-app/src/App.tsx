@@ -20,6 +20,7 @@ import { hasRole } from './lib/roles'
 import { canAccessAssessoriaMb, canAccessChat, canAccessFinanceiroPessoal, canAccessSiteExterno, readSite, siteById, writeSite, type SiteId } from './lib/sites'
 import type { Profile } from './types'
 import { PresenceHeartbeat } from './components/PresenceHeartbeat'
+import { DeploymentRefresh } from './components/DeploymentRefresh'
 
 // Telas de gestão (mapa/Leaflet, gráficos/Recharts, PDF/Excel) em chunks
 // separados — cada perfil só baixa o que abrir. Alivia muito o celular.
@@ -359,6 +360,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <DeploymentRefresh />
         <PresenceHeartbeat />
         <AppRoutes />
       </BrowserRouter>
