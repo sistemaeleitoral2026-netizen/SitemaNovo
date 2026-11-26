@@ -243,6 +243,9 @@ module.exports = async function handler(req, res) {
       : []
     if (liderIds.length) liderIds = await dedupeLiderIdsByNome(liderIds)
     const allowedExtra = new Set(['operador', 'mobilizador', 'administrativo'])
+    const roleSqlHint = () => role === 'visualizador'
+      ? ' Rode a migration 20261126_visualizador_readonly.sql no Supabase e tente de novo.'
+      : SQL_HINT
 
     if (!nome || !email || password.length < 8) {
       return json(res, 400, { error: 'Nome, e-mail e senha (mín. 8) são obrigatórios.' })
@@ -271,7 +274,7 @@ module.exports = async function handler(req, res) {
       if (!['mobilizador', 'operador', 'coordenador', 'auxiliar'].includes(role)) {
         role = 'operador'
       }
-    } else if (!['operador', 'diretoria', 'mobilizador', 'administrativo', 'coordenador', 'auxiliar'].includes(role)) {
+    } else if (!['operador', 'diretoria', 'mobilizador', 'administrativo', 'coordenador', 'auxiliar', 'visualizador'].includes(role)) {
       role = 'operador'
     }
 
@@ -298,6 +301,10 @@ module.exports = async function handler(req, res) {
 
     if (role === 'administrativo' && profile.role !== 'admin') {
       return json(res, 403, { error: 'Somente o admin pode criar usuário administrativo.' })
+    }
+
+    if (role === 'visualizador' && profile.role !== 'admin') {
+      return json(res, 403, { error: 'Somente o admin pode criar usuário visualizador.' })
     }
 
     if (role === 'coordenador' && !coordenadorId) {
@@ -385,7 +392,7 @@ module.exports = async function handler(req, res) {
     if (!createRes.ok) {
       const raw = errMsg(created, 'Falha ao criar usuário.')
       if (/permission|policy|row-level|RLS|42501|check|constraint|auxiliar|coordenador/i.test(raw)) {
-        return json(res, 400, { error: `${raw}.${SQL_HINT}` })
+        return json(res, 400, { error: `${raw}.${roleSqlHint()}` })
       }
       return json(res, 400, { error: raw })
     }
@@ -438,7 +445,7 @@ module.exports = async function handler(req, res) {
       const raw = errMsg(patchData, `HTTP ${patchRes.status}`)
       if (/check|constraint|auxiliar|coordenador|role/i.test(raw)) {
         return json(res, 400, {
-          error: `Não foi possível definir o cargo "${role}": ${raw}.${SQL_HINT}`,
+          error: `Não foi possível definir o cargo "${role}": ${raw}.${roleSqlHint()}`,
         })
       }
       return json(res, 400, { error: `Usuário criado, mas o perfil falhou: ${raw}` })

@@ -6,6 +6,8 @@ export type UserRole =
   | 'administrativo'
   | 'coordenador'
   | 'auxiliar'
+  /** Acesso somente leitura a lideranças e a todas as fichas do Nerites. */
+  | 'visualizador'
   /** Login cadastrado em /admin só para acessar outros sistemas (fora do Nerites). */
   | 'externo'
 

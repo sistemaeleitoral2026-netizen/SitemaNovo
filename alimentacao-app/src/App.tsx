@@ -76,6 +76,7 @@ function homeForProfile(profile: Profile | null | undefined) {
   if (hasRole(profile, 'operador')) return '/meus-cadastros'
   if (hasRole(profile, 'mobilizador')) return '/ativacao/lancar'
   if (hasRole(profile, 'administrativo')) return '/demandas/lancar'
+  if (hasRole(profile, 'visualizador')) return '/cadastros'
   // Sem cargo no Nerites (login cadastrado em /admin): manda pro primeiro sistema liberado.
   if (hasRole(profile, 'externo')) {
     const liberado = (['assessoria-mb', 'painel-do-mandato', 'mr-terceiriza', 'financeiro-pessoal', 'chat'] as const)
@@ -119,6 +120,15 @@ function StaffRoute({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
   if (loading) return <Spinner />
   if (!hasRole(profile, ['admin', 'diretoria'])) {
+    return <Navigate to={homeForProfile(profile)} replace />
+  }
+  return children
+}
+
+function VisualizacaoRoute({ children }: { children: React.ReactNode }) {
+  const { profile, loading } = useAuth()
+  if (loading) return <Spinner />
+  if (!hasRole(profile, ['admin', 'diretoria', 'visualizador'])) {
     return <Navigate to={homeForProfile(profile)} replace />
   }
   return children
@@ -176,11 +186,18 @@ function DemandasRoute({ children }: { children: React.ReactNode }) {
 function BlockFieldOnly({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useAuth()
   if (loading) return <Spinner />
-  if (hasRole(profile, 'operador') || hasRole(profile, ['admin', 'diretoria', 'coordenador'])) return children
+  if (hasRole(profile, 'operador') || hasRole(profile, ['admin', 'diretoria', 'coordenador', 'visualizador'])) return children
   if (hasRole(profile, 'auxiliar')) return <Navigate to="/votacao/lancar" replace />
   if (hasRole(profile, 'mobilizador')) return <Navigate to="/ativacao/lancar" replace />
   if (hasRole(profile, 'administrativo')) return <Navigate to="/demandas/lancar" replace />
   return children
+}
+
+function CadastroEditRoute({ children }: { children: React.ReactNode }) {
+  const { profile, loading } = useAuth()
+  if (loading) return <Spinner />
+  if (hasRole(profile, 'visualizador')) return <Navigate to="/cadastros" replace />
+  return <BlockFieldOnly>{children}</BlockFieldOnly>
 }
 
 function AdminUsuariosRoute({ children }: { children: React.ReactNode }) {
@@ -303,7 +320,7 @@ function AppRoutes() {
         <Route path="cadastros" element={<BlockFieldOnly><CadastrosPage /></BlockFieldOnly>} />
         <Route path="meus-cadastros" element={<NeriteRoute><CadastrosPage /></NeriteRoute>} />
         <Route path="cadastros/novo" element={<NeriteRoute><CadastroFormPage /></NeriteRoute>} />
-        <Route path="cadastros/:id/editar" element={<BlockFieldOnly><CadastroFormPage /></BlockFieldOnly>} />
+        <Route path="cadastros/:id/editar" element={<CadastroEditRoute><CadastroFormPage /></CadastroEditRoute>} />
         <Route path="mapa" element={<StaffRoute><MapaPage /></StaffRoute>} />
         <Route path="importar" element={<NeriteRoute><ImportarPage /></NeriteRoute>} />
         <Route path="relatorios" element={<StaffRoute><RelatoriosPage /></StaffRoute>} />
@@ -319,7 +336,7 @@ function AppRoutes() {
         <Route path="formigas/whatsapp" element={<FormigasWhatsappRoute><FormigasWhatsappPage /></FormigasWhatsappRoute>} />
         <Route path="demandas/lancar" element={<DemandasRoute><DemandasLancarPage /></DemandasRoute>} />
         <Route path="demandas/painel" element={<DemandasRoute><DemandasPainelPage /></DemandasRoute>} />
-        <Route path="lideranca" element={<StaffRoute><LiderancaPage /></StaffRoute>} />
+        <Route path="lideranca" element={<VisualizacaoRoute><LiderancaPage /></VisualizacaoRoute>} />
         <Route path="garagem" element={<Navigate to="/garagem/lancar" replace />} />
         <Route path="garagem/lancar" element={<StaffRoute><GaragemLancarPage /></StaffRoute>} />
         <Route path="garagem/historico" element={<StaffRoute><GaragemHistoricoPage /></StaffRoute>} />

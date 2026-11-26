@@ -71,6 +71,8 @@ export function labelRole(role: UserRole): string {
       return 'Coordenador'
     case 'auxiliar':
       return 'Auxiliar'
+    case 'visualizador':
+      return 'Visualizador'
     case 'externo':
       return 'Acesso externo'
     default:

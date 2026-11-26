@@ -18,10 +18,11 @@ const PAGE_SIZE = 15
 const AVATARS = ['avatar-blue', 'avatar-green', 'avatar-purple', 'avatar-orange', 'avatar-teal']
 const SISTEMAS_EXTERNOS = SITES.filter((s) => s.id !== 'nerites')
 const ROLE_FILTROS: UserRole[] = [
-  'admin', 'diretoria', 'operador', 'mobilizador', 'administrativo', 'coordenador', 'auxiliar', 'externo',
+  'admin', 'diretoria', 'operador', 'mobilizador', 'administrativo', 'coordenador', 'auxiliar', 'visualizador', 'externo',
 ]
 
 type Nivel = '' | 'editor' | 'admin'
+type NovoCargo = 'externo' | 'visualizador'
 type AcessosForm = Record<string, Nivel>
 
 function acessosVazios(): AcessosForm {
@@ -69,7 +70,7 @@ function initials(nome: string) {
 }
 
 export function AdminUsuariosPage() {
-  const { criarUsuarioExterno, editarUsuarioExterno, excluirUsuarioExterno } = useAuth()
+  const { createNerite, criarUsuarioExterno, editarUsuarioExterno, excluirUsuarioExterno } = useAuth()
 
   const [users, setUsers] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
@@ -82,7 +83,7 @@ export function AdminUsuariosPage() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [createForm, setCreateForm] = useState({
-    nome: '', email: '', password: '', confirm: '', acessos: acessosVazios(),
+    cargo: 'externo' as NovoCargo, nome: '', email: '', password: '', confirm: '', acessos: acessosVazios(),
   })
 
   const [editUser, setEditUser] = useState<Profile | null>(null)
@@ -139,21 +140,31 @@ export function AdminUsuariosPage() {
     if (!createForm.email.trim()) return setCreateError('Informe o e-mail de acesso.')
     if (createForm.password.length < 8) return setCreateError('A senha deve ter pelo menos 8 caracteres.')
     if (createForm.password !== createForm.confirm) return setCreateError('As senhas não coincidem.')
-    const acessos_externos = acessosParaSalvar(createForm.acessos)
-    if (!Object.keys(acessos_externos).length) return setCreateError('Marque pelo menos um sistema para liberar o acesso.')
-
     setCreating(true)
-    const { error } = await criarUsuarioExterno({
-      nome: createForm.nome,
-      email: createForm.email,
-      password: createForm.password,
-      acessos_externos,
-    })
+    const error = createForm.cargo === 'visualizador'
+      ? (await createNerite({
+          nome: createForm.nome,
+          email: createForm.email,
+          password: createForm.password,
+          role: 'visualizador',
+        })).error
+      : await (async () => {
+          const acessos_externos = acessosParaSalvar(createForm.acessos)
+          if (!Object.keys(acessos_externos).length) {
+            return 'Marque pelo menos um sistema para liberar o acesso.'
+          }
+          return (await criarUsuarioExterno({
+            nome: createForm.nome,
+            email: createForm.email,
+            password: createForm.password,
+            acessos_externos,
+          })).error
+        })()
     setCreating(false)
     if (error) return setCreateError(error)
 
     setCreateOpen(false)
-    setCreateForm({ nome: '', email: '', password: '', confirm: '', acessos: acessosVazios() })
+    setCreateForm({ cargo: 'externo', nome: '', email: '', password: '', confirm: '', acessos: acessosVazios() })
     await load()
   }
 
@@ -242,9 +253,8 @@ export function AdminUsuariosPage() {
           <div>
             <h1 className="page-title">Usuários</h1>
             <p className="page-subtitle">
-              Lista todo mundo cadastrado no Sistema Nerites. O Nerites continua do mesmo jeito —
-              aqui você só libera (ou tira) o acesso de cada um à Assessoria MB, ao Painel do Mandato
-               e a Empresas, e cadastra logins novos que só servem para esses outros sistemas.
+              Lista todos os usuários e permite criar o cargo Visualizador do Nerites ou logins
+              exclusivos para os outros sistemas.
             </p>
           </div>
           <div className="page-header-actions">
@@ -388,18 +398,27 @@ export function AdminUsuariosPage() {
       <Modal
         open={createOpen}
         title="Novo login"
-        description="Cria um acesso só para os outros sistemas (Assessoria MB, Painel do Mandato, Empresas). Não mexe no Sistema Nerites."
+        description="Escolha Visualizador para acesso somente leitura às lideranças e fichas do Nerites."
         onClose={() => !creating && setCreateOpen(false)}
         onConfirm={handleCreate}
         confirmLabel="Criar login"
         loading={creating}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <Select
+            label="Cargo"
+            value={createForm.cargo}
+            onChange={(e) => setCreateForm((f) => ({ ...f, cargo: e.target.value as NovoCargo }))}
+            options={[
+              { value: 'visualizador', label: 'Visualizador — somente leitura no Nerites' },
+              { value: 'externo', label: 'Acesso externo — outros sistemas' },
+            ]}
+          />
           <Input label="Nome completo" value={createForm.nome} onChange={(e) => setCreateForm((f) => ({ ...f, nome: e.target.value }))} placeholder="Nome de quem vai acessar" />
           <Input label="E-mail de acesso" type="email" value={createForm.email} onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))} placeholder="pessoa@exemplo.com" />
           <Input label="Senha" type="password" value={createForm.password} onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))} placeholder="Mínimo 8 caracteres" />
           <Input label="Confirmar senha" type="password" value={createForm.confirm} onChange={(e) => setCreateForm((f) => ({ ...f, confirm: e.target.value }))} />
-          {renderAcessosFields(createForm.acessos, (site, nivel) => setCreateForm((f) => ({ ...f, acessos: { ...f.acessos, [site]: nivel } })))}
+          {createForm.cargo === 'externo' && renderAcessosFields(createForm.acessos, (site, nivel) => setCreateForm((f) => ({ ...f, acessos: { ...f.acessos, [site]: nivel } })))}
           {createError && <div className="alert alert-error">{createError}</div>}
         </div>
       </Modal>

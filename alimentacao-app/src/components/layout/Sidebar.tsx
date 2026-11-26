@@ -57,6 +57,14 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
   {
+    label: 'Visualização',
+    roles: ['visualizador'],
+    items: [
+      { to: '/lideranca', label: 'Lideranças', icon: Crown, roles: ['visualizador'] },
+      { to: '/cadastros', label: 'Todos os cadastros', icon: ClipboardList, roles: ['visualizador'] },
+    ],
+  },
+  {
     label: 'Operação de Campo',
     roles: ['mobilizador'],
     // Aianka (adminstrativo + Formiga) e quem tem cargo Formiga

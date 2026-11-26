@@ -200,7 +200,7 @@ module.exports = async function handler(req, res) {
     )
     const targets = await targetRes.json()
     const target = Array.isArray(targets) ? targets[0] : null
-    const managedRoles = ['operador', 'mobilizador', 'administrativo', 'coordenador', 'auxiliar']
+    const managedRoles = ['operador', 'mobilizador', 'administrativo', 'coordenador', 'auxiliar', 'visualizador']
     if (!target || !managedRoles.includes(target.role)) {
       return json(res, 404, { error: 'Usuário não encontrado.' })
     }
