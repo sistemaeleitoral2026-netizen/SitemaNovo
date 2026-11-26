@@ -874,6 +874,7 @@ export async function salvarEstadoAssessoria(
     for (const r of remoteTasks || []) {
       if (r.id && r.created_by) taskCreatedBy.set(r.id as string, r.created_by as string)
     }
+    const existingTaskIds = new Set((remoteTasks || []).map((r) => String(r.id)))
     const delTasks = taskDeleteIds
     const { data: existingTaskDeletes, error: taskDeleteListErr } = delTasks.length
       ? await supabase.from('mb_tarefas').select('id').in('id', delTasks)
@@ -929,8 +930,24 @@ export async function salvarEstadoAssessoria(
               updated_by: opts.userId,
               created_by: taskCreatedBy.get(r.id) || (isUuid(String(r.criadoPorId || '')) ? r.criadoPorId : opts.userId),
             }))
-            const { error } = await supabase.from('mb_tarefas').upsert(rows, { onConflict: 'id' })
-            if (error) throw asError(error, 'Falha ao gravar tarefas.')
+            const existingRows = rows.filter((row) => existingTaskIds.has(row.id))
+            const newRows = rows.filter((row) => !existingTaskIds.has(row.id))
+
+            // Não use upsert nas tarefas existentes: INSERT ... ON CONFLICT
+            // também passa pela policy de INSERT. Desde a migration de
+            // conclusão, só admin pode criar tarefa, enquanto o responsável
+            // (Editor) pode atualizar/concluir a própria. O upsert fazia o
+            // simples anexo de um documento falhar com RLS em mb_tarefas.
+            const results = await Promise.all([
+              ...existingRows.map((row) =>
+                supabase.from('mb_tarefas').update(row).eq('id', row.id),
+              ),
+              newRows.length
+                ? supabase.from('mb_tarefas').insert(newRows)
+                : Promise.resolve({ error: null }),
+            ])
+            const failed = results.find((result) => result.error)
+            if (failed?.error) throw asError(failed.error, 'Falha ao gravar tarefas.')
           })()
         : Promise.resolve(),
       syncAnexosLote('tarefa', rowsToUpsert),
