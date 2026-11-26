@@ -142,6 +142,10 @@ export type MbTask = {
   demanda?: string
   sub?: string
   origemPagamento?: string
+  /** Só em demanda Financeira: receita | entrada_por_fora | saida. */
+  tipoLancamento?: string
+  /** Centro de custo sugerido para o lançamento da demanda Financeira. */
+  centro?: string
   prazo?: string
   status?: string
   descricao?: string
@@ -337,7 +341,9 @@ async function gerarTarefasRecorrentes(tasks: MbTask[], userId: string): Promise
     const prazo = `${mesAtual}-${String(dia).padStart(2, '0')}`
     const novaId = crypto.randomUUID()
 
-    const { error } = await supabase.from('mb_tarefas').insert({
+    const financeira = modelo.demanda === 'Financeira'
+    const valor = financeira ? money(modelo.valor) : 0
+    const base = {
       id: novaId,
       titulo: modelo.titulo || '',
       nome: modelo.nome || null,
@@ -345,7 +351,7 @@ async function gerarTarefasRecorrentes(tasks: MbTask[], userId: string): Promise
       prazo,
       status: 'Pendente',
       descricao: modelo.descricao || null,
-      valor: 0,
+      valor,
       origem_pagamento: modelo.origemPagamento || null,
       demanda: modelo.demanda || null,
       empresa: modelo.sub || null,
@@ -353,7 +359,15 @@ async function gerarTarefasRecorrentes(tasks: MbTask[], userId: string): Promise
       recorrente_origem_id: modelo.id,
       created_by: userId,
       updated_by: userId,
+    }
+    let { error } = await supabase.from('mb_tarefas').insert({
+      ...base,
+      tipo_lancamento: financeira ? modelo.tipoLancamento || null : null,
+      centro_custo: financeira ? modelo.centro || null : null,
     })
+    if (error && /tipo_lancamento|centro_custo/.test(error.message || '')) {
+      ;({ error } = await supabase.from('mb_tarefas').insert(base))
+    }
     if (error) {
       console.error('[assessoria-mb] gerar tarefa recorrente', error)
       continue
@@ -367,8 +381,10 @@ async function gerarTarefasRecorrentes(tasks: MbTask[], userId: string): Promise
       prazo,
       status: 'Pendente',
       descricao: modelo.descricao || '',
-      valor: 0,
+      valor,
       origemPagamento: modelo.origemPagamento || '',
+      tipoLancamento: financeira ? modelo.tipoLancamento || '' : '',
+      centro: financeira ? modelo.centro || '' : '',
       demanda: modelo.demanda || '',
       sub: modelo.sub || '',
       recorrente: false,
@@ -503,6 +519,8 @@ export async function carregarEstadoAssessoria(): Promise<MbDbPayload> {
       demanda: (r.demanda as string) || '',
       sub: (r.empresa as string) || '',
       origemPagamento: (r.origem_pagamento as string) || '',
+      tipoLancamento: (r.tipo_lancamento as string) || '',
+      centro: (r.centro_custo as string) || '',
       prazo: r.prazo ? String(r.prazo).slice(0, 10) : '',
       status: (r.status as string) || 'Pendente',
       descricao: (r.descricao as string) || '',
@@ -918,6 +936,8 @@ export async function salvarEstadoAssessoria(
               descricao: r.descricao || null,
               valor: money(r.valor),
               origem_pagamento: r.origemPagamento || null,
+              tipo_lancamento: r.tipoLancamento || null,
+              centro_custo: r.centro || null,
               nome_extrato: r.nomeExtrato || null,
               situacao_registro: r.situacaoRegistro || null,
               observacao: r.observacao || null,
@@ -944,39 +964,52 @@ export async function salvarEstadoAssessoria(
               if (textColumns.some((column) => taskValue(row[column]) !== taskValue(remote[column]))) {
                 return true
               }
+              const newColumns = ['tipo_lancamento', 'centro_custo'] as const
+              if (newColumns.some((column) => column in remote && taskValue(row[column]) !== taskValue(remote[column]))) {
+                return true
+              }
               if (Number(row.valor || 0) !== Number(remote.valor || 0)) return true
               return Boolean(row.recorrente) !== Boolean(remote.recorrente)
             }
             const existingRows = rows.filter((row) => existingTaskIds.has(row.id) && taskChanged(row))
             const newRows = rows.filter((row) => !existingTaskIds.has(row.id))
 
-            // Um Editor/Administrativo nunca cria tarefa. Ao anexar arquivos,
-            // uma tarefa antiga mantida no navegador podia não aparecer na
-            // consulta do banco e ser confundida com nova. O INSERT era então
-            // recusado corretamente pela RLS, mas derrubava a tela inteira.
-            // Só o nível admin envia INSERT; para os demais, falha com uma
-            // orientação clara sem tentar burlar a permissão.
+            // Só admin do painel ou cargo administrativo criam tarefa.
+            // Ao anexar arquivos, uma tarefa antiga no navegador podia não
+            // aparecer na consulta e ser confundida com nova — o INSERT era
+            // recusado pela RLS e derrubava a tela. Sem permissão, falha com
+            // orientação clara sem tentar burlar.
             if (newRows.length && !opts.canCreateTasks) {
               throw new Error(
-                'A tarefa não foi encontrada no banco. Atualize a página e abra novamente a tarefa criada pelo administrador antes de anexar os arquivos.',
+                'A tarefa não foi encontrada no banco. Atualize a página e abra novamente a tarefa criada pelo administrador ou pelo administrativo antes de anexar os arquivos.',
               )
             }
 
             // Não use upsert nas tarefas existentes: INSERT ... ON CONFLICT
-            // também passa pela policy de INSERT. Desde a migration de
-            // conclusão, só admin pode criar tarefa, enquanto o responsável
-            // (Editor) pode atualizar/concluir a própria. O upsert fazia o
-            // simples anexo de um documento falhar com RLS em mb_tarefas.
+            // também passa pela policy de INSERT. O responsável (Editor) pode
+            // atualizar/concluir a própria; o upsert fazia o anexo falhar com
+            // RLS em mb_tarefas.
             // Se apenas a lista de anexos mudou, nem envia UPDATE na tarefa:
             // grava somente Storage + mb_anexos, inclusive em lotes maiores.
-            const results = await Promise.all([
-              ...existingRows.map((row) =>
-                supabase.from('mb_tarefas').update(row).eq('id', row.id),
-              ),
-              newRows.length && opts.canCreateTasks
-                ? supabase.from('mb_tarefas').insert(newRows)
-                : Promise.resolve({ error: null }),
-            ])
+            // Sem a migration 20261130, as colunas tipo_lancamento/centro_custo
+            // não existem: grava o restante da tarefa em vez de falhar.
+            const missingColumn = (error: { message?: string } | null) =>
+              /tipo_lancamento|centro_custo/.test(String(error?.message || ''))
+            const stripNew = (row: (typeof rows)[number]) => {
+              const { tipo_lancamento: _t, centro_custo: _c, ...rest } = row
+              return rest
+            }
+            const writeTasks = (strip: boolean) =>
+              Promise.all([
+                ...existingRows.map((row) =>
+                  supabase.from('mb_tarefas').update(strip ? stripNew(row) : row).eq('id', row.id),
+                ),
+                newRows.length && opts.canCreateTasks
+                  ? supabase.from('mb_tarefas').insert(strip ? newRows.map(stripNew) : newRows)
+                  : Promise.resolve({ error: null }),
+              ])
+            let results = await writeTasks(false)
+            if (results.some((result) => missingColumn(result.error))) results = await writeTasks(true)
             const failed = results.find((result) => result.error)
             if (failed?.error) throw asError(failed.error, 'Falha ao gravar tarefas.')
           })()

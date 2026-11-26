@@ -40,6 +40,8 @@ export function AssessoriaMbPage() {
   // Configurações nunca teve essa trava antes) ou acesso "admin" cadastrado em /admin.
   const admin = hasRole(profile, ['admin', 'diretoria']) || isAdminNoSiteExterno(profile, 'assessoria-mb')
   const editor = admin || nivelAssessoria === 'editor'
+  // Lançar/criar tarefa: admin do painel ou cargo administrativo do Nerites.
+  const canCreateTasks = admin || hasRole(profile, 'administrativo')
   const nome = profile?.nome || 'Usuário'
   const userId = profile?.id || ''
   const persistindo = useRef(false)
@@ -49,7 +51,7 @@ export function AssessoriaMbPage() {
   }
 
   function enviarUsuario() {
-    postar({ type: 'mb-user', nome, admin, editor, userId })
+    postar({ type: 'mb-user', nome, admin, editor, canCreateTasks, userId })
   }
 
   async function hidratar() {
@@ -100,7 +102,7 @@ export function AssessoriaMbPage() {
           await salvarEstadoAssessoria(dados.payload, {
             userId,
             userName: nome,
-            canCreateTasks: admin,
+            canCreateTasks,
           })
           setErroSync('')
           // O iframe mantém o estado mais novo de forma otimista. Reenviar o snapshot
@@ -218,6 +220,7 @@ export function AssessoriaMbPage() {
           ref={frameRef}
           className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
           title="Financeiro Corporativo"
+          allow="fullscreen"
           src={systemUrl('/sistemas/assessoria-mb/index.html')}
           onLoad={() => window.setTimeout(() => setPronto(true), 4000)}
         />

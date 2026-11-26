@@ -113,6 +113,7 @@
     pendentes: "Pendentes",
     demandas: "Demandas e tarefas",
     minhas: "Minhas tarefas",
+    tarefa: "Detalhes da tarefa",
     anexos: "Comprovantes",
     auditoria: "Auditoria",
     "sem-data-recebida": "Sem Data Recebida",
@@ -300,6 +301,13 @@
     histPage: 1,
     auditPage: 1,
     taskQuery: "",
+    taskTab: "abertas",
+    taskTipo: "",
+    taskQuick: "",
+    taskPage: 1,
+    taskDetailId: "",
+    taskDetailTab: "info",
+    taskBack: "demandas",
     role: "admin",
     taskMonth: "",
     accountPeriod: "month",
@@ -1042,8 +1050,7 @@
       ? state.empresa
       : `Consolidado de ${subdivisions.length} empresas`;
     const dashSub = $("#dash-sub");
-    if (dashSub)
-      dashSub.textContent = `${scopeLabel} · ${compLabel(ref)}`;
+    if (dashSub) dashSub.textContent = `${scopeLabel} · ${compLabel(ref)}`;
     $("#dash-sum-month").textContent = compLabel(ref);
     const movSub = $("#dash-mov-sub");
     if (movSub)
@@ -1085,11 +1092,11 @@
         !fold(r.observacao).includes(q)
       )
         return false;
-      return keys.every((k) =>
-        colPass("rec", k, recCell(r, k), recValue(r)),
-      );
+      return keys.every((k) => colPass("rec", k, recCell(r, k), recValue(r)));
     });
-    const sortBy = keys.includes(state.dashRecSortBy) ? state.dashRecSortBy : "";
+    const sortBy = keys.includes(state.dashRecSortBy)
+      ? state.dashRecSortBy
+      : "";
     const direction = state.dashRecSort === "asc" ? 1 : -1;
     filtered.sort((a, b) => {
       if (sortBy) {
@@ -1113,16 +1120,15 @@
       dashTh("rec", key, "data-dash-rec-sort", sortBy, direction, cls);
     const hasFilter =
       q || Object.values(state.dashColF.rec || {}).some(Boolean);
-    el.innerHTML =
-      `<table class="recent-table dash-grid-table"><thead><tr>${th("when")}${th("user")}${th("sub")}${th("desc")}${th("comp")}${th("tipo")}${th("valor", "num")}${th("status")}</tr></thead><tbody>${recent
-        .map((r) => {
-          const tp = finTipo(r),
-            out = tp === "Saída";
-          return `<tr data-edit-fin="${esc(r.id)}" title="Editar lançamento"><td class="recent-col-when" data-label="Data/hora do lançamento">${launchedDateTimeBR(r.criadoEm)}</td><td data-label="Usuário">${esc(String(r.criadoPor || "—").toUpperCase())}</td><td data-label="Empresa"><b>${esc(r.sub || "—")}</b></td><td class="recent-col-desc" data-label="Descrição">${esc(r.parceiro)}${r.centro ? `<div class="muted">${esc(r.centro)}</div>` : ""}</td><td class="nowrap" data-label="Competência">${dateBR(r.data)}</td><td data-label="Tipo"><span class="dash-tipo ${out ? "out" : "in"}">${icon(out ? "out" : "in")}${tp}</span></td><td class="amount" data-label="Valor (R$)">${n2(recValue(r))}</td><td data-label="Status">${finStatusHTML(r)}</td></tr>`;
-        })
-        .join(
-          "",
-        )}${recent.length ? "" : `<tr><td colspan="8" class="empty">${hasFilter ? "Nenhum lançamento para esta busca ou filtro." : "Nenhum lançamento recente para este filtro."}</td></tr>`}</tbody></table>`;
+    el.innerHTML = `<table class="recent-table dash-grid-table"><thead><tr>${th("when")}${th("user")}${th("sub")}${th("desc")}${th("comp")}${th("tipo")}${th("valor", "num")}${th("status")}</tr></thead><tbody>${recent
+      .map((r) => {
+        const tp = finTipo(r),
+          out = tp === "Saída";
+        return `<tr data-edit-fin="${esc(r.id)}" title="Editar lançamento"><td class="recent-col-when" data-label="Data/hora do lançamento">${launchedDateTimeBR(r.criadoEm)}</td><td data-label="Usuário">${esc(String(r.criadoPor || "—").toUpperCase())}</td><td data-label="Empresa"><b>${esc(r.sub || "—")}</b></td><td class="recent-col-desc" data-label="Descrição">${esc(r.parceiro)}${r.centro ? `<div class="muted">${esc(r.centro)}</div>` : ""}</td><td class="nowrap" data-label="Competência">${dateBR(r.data)}</td><td data-label="Tipo"><span class="dash-tipo ${out ? "out" : "in"}">${icon(out ? "out" : "in")}${tp}</span></td><td class="amount" data-label="Valor (R$)">${n2(recValue(r))}</td><td data-label="Status">${finStatusHTML(r)}</td></tr>`;
+      })
+      .join(
+        "",
+      )}${recent.length ? "" : `<tr><td colspan="8" class="empty">${hasFilter ? "Nenhum lançamento para esta busca ou filtro." : "Nenhum lançamento recente para este filtro."}</td></tr>`}</tbody></table>`;
   }
   function drawFinance() {
     if (awaitingCloudHydrate) {
@@ -1473,44 +1479,32 @@
       .join("")
       .toUpperCase();
   }
-  function kpiCardsHTML(rows, prefix) {
-    const hoje = taskHoje();
-    const total = rows.length;
-    const totalAmount = rows.reduce(function (n, r) {
-      return n + (Number(r.valor) || 0);
-    }, 0);
-    const paidAmount = rows
-      .filter(function (r) {
-        return r.status === "Concluída";
-      })
-      .reduce(function (n, r) {
-        return n + (Number(r.valor) || 0);
-      }, 0);
-    const atrasadas = rows.filter(function (r) {
-      return r.status !== "Concluída" && r.prazo && r.prazo < hoje;
-    }).length;
-    const proximas = rows.filter(function (r) {
-      return (
-        r.status !== "Concluída" &&
-        r.prazo &&
-        r.prazo >= hoje &&
-        daysBetween(hoje, r.prazo) <= 7
-      );
-    }).length;
-    const semAnexo = rows.filter(function (r) {
-      return !(r.anexos && r.anexos.length);
-    }).length;
-    const qf = state[prefix + "QuickFilter"] || "all";
-    function card(key, label, value, sub, tone) {
-      return `<button type='button' class='kpi-card ${tone || ""} ${qf === key ? "active" : ""}' data-kpi='${prefix}:${key}'><span class='kpi-label'>${esc(label)}</span><span class='kpi-value'>${esc(String(value))}</span><span class='kpi-sub'>${esc(sub)}</span></button>`;
-    }
-    return (
-      card("all", "Total de demandas", total, "ativas", "") +
-      `<div class='kpi-card kpi-static'><span class='kpi-label'>Valores</span><span class='kpi-value'>${fmt(totalAmount)}</span><span class='kpi-sub'>${fmt(paidAmount)} concl.</span></div>` +
-      card("atrasada", "Prazo vencido", atrasadas, "requer atenção", "danger") +
-      card("proximas", "Próximos 7 dias", proximas, "a vencer", "warn") +
-      card("sem_anexo", "Sem comprovante", semAnexo, "pendentes", "")
-    );
+  const TASK_FIN = "Financeira",
+    TASK_DOC = "Documental";
+  /** Tipo da demanda (campo `demanda`); tarefas antigas sem tipo caem pelo valor. */
+  function taskTipo(t) {
+    const d = String(t?.demanda || "").toLowerCase();
+    if (d.startsWith("doc")) return TASK_DOC;
+    if (d.startsWith("fin")) return TASK_FIN;
+    return money(t?.valor) > 0 ? TASK_FIN : TASK_DOC;
+  }
+  const isTaskFin = (t) => taskTipo(t) === TASK_FIN;
+  function taskTipoLanc(t) {
+    return ["receita", "entrada_por_fora", "saida"].includes(t?.tipoLancamento)
+      ? t.tipoLancamento
+      : "saida";
+  }
+  const TIPO_LANC_LABEL = {
+    receita: "Receita",
+    entrada_por_fora: "Entrada por fora",
+    saida: "Saída",
+  };
+  function isTaskMine(t) {
+    return !!MB.nome && samePerson(t.responsavel, MB.nome);
+  }
+  /** Realizar/concluir: admin ou o responsável (a RLS do banco exige o mesmo). */
+  function canWorkTask(t) {
+    return MB.admin || isTaskMine(t);
   }
   /** Marca a tarefa (sem valor) como concluída, sem nenhum vínculo financeiro. */
   function concluirTarefa(t, extras) {
@@ -1529,11 +1523,19 @@
     save();
     return "";
   }
-  /** Lançamentos de saída ainda livres (ou já vinculados a esta tarefa) para selecionar. */
+  /** Quanto um lançamento vinculado soma no valor da tarefa. */
+  function finValorTarefa(f) {
+    const k = finKind(f);
+    if (k === "saida") return money(f.saida);
+    if (k === "receita") return money(f.previsto) || money(f.recebido);
+    return money(f.recebido);
+  }
+  /** Lançamentos do mesmo tipo da tarefa ainda livres (ou já vinculados a ela). */
   function lancamentosVinculaveis(t) {
+    const kind = taskTipoLanc(t);
     return db.finance
       .filter(
-        (f) => finKind(f) === "saida" && (!f.tarefaId || f.tarefaId === t.id),
+        (f) => finKind(f) === kind && (!f.tarefaId || f.tarefaId === t.id),
       )
       .sort((a, b) =>
         String(b.criadoEm || b.data || "").localeCompare(
@@ -1541,36 +1543,28 @@
         ),
       );
   }
-  /** Total hoje vinculado a esta tarefa (soma das saídas já marcadas com tarefaId). */
-  function totalVinculadoTarefa(t) {
-    return db.finance
-      .filter((f) => f.tarefaId === t.id)
-      .reduce((s, f) => s + money(f.saida), 0);
+  function lancamentosDaTarefa(t) {
+    return db.finance.filter((f) => f.tarefaId === t.id);
   }
-  /** Aplica a seleção de lançamentos da tarefa: vincula/desvincula e decide o status. */
-  function vincularLancamentosNaTarefa(t, idsSelecionados) {
-    const selecionados = new Set(idsSelecionados);
-    const candidatos = lancamentosVinculaveis(t);
-    let total = 0;
-    for (const f of candidatos) {
-      const deveVincular = selecionados.has(f.id);
-      if (deveVincular) {
-        f.tarefaId = t.id;
-        total += money(f.saida);
-        markMutation("financeUpserts", f.id);
-      } else if (f.tarefaId === t.id) {
-        f.tarefaId = null;
-        markMutation("financeUpserts", f.id);
-      }
-    }
+  function totalVinculadoTarefa(t) {
+    return lancamentosDaTarefa(t).reduce((s, f) => s + finValorTarefa(f), 0);
+  }
+  /** Decide a situação pela soma vinculada; devolve a mensagem do toast. */
+  function sincronizarStatusTarefa(t) {
+    const total = totalVinculadoTarefa(t);
     const alvo = money(t.valor);
     const diff = Math.round((total - alvo) * 100) / 100;
     let msg;
-    if (Math.abs(diff) < 0.01) {
-      t.status = "Concluída";
-      t.concluidoPor = MB.nome || "";
-      t.concluidoEm = new Date().toISOString();
+    if (total > 0 && (alvo <= 0 || Math.abs(diff) < 0.01)) {
+      if (t.status !== "Concluída") {
+        t.status = "Concluída";
+        t.concluidoPor = MB.nome || "";
+        t.concluidoEm = new Date().toISOString();
+      }
       msg = "Tarefa concluída — o valor vinculado bateu certinho.";
+    } else if (total <= 0) {
+      t.status = "Em andamento";
+      msg = "Nenhum lançamento vinculado ainda.";
     } else if (diff < 0) {
       t.status = "Em andamento";
       msg = `Faltam ${fmt(-diff)} para bater com o valor da tarefa.`;
@@ -1579,6 +1573,23 @@
       msg = `Passou ${fmt(diff)} do valor da tarefa — aguardando revisão do admin.`;
     }
     markMutation("taskUpserts", t.id);
+    return msg;
+  }
+  /** Aplica a seleção de lançamentos da tarefa: vincula/desvincula e decide o status. */
+  function vincularLancamentosNaTarefa(t, idsSelecionados) {
+    const selecionados = new Set(idsSelecionados);
+    let total = 0;
+    for (const f of lancamentosVinculaveis(t)) {
+      if (selecionados.has(f.id)) {
+        f.tarefaId = t.id;
+        total += finValorTarefa(f);
+        markMutation("financeUpserts", f.id);
+      } else if (f.tarefaId === t.id) {
+        f.tarefaId = null;
+        markMutation("financeUpserts", f.id);
+      }
+    }
+    const msg = sincronizarStatusTarefa(t);
     audit(
       "Lançamentos vinculados à tarefa",
       t.titulo + " · total vinculado " + fmt(total),
@@ -1586,208 +1597,564 @@
     save();
     return msg;
   }
-  function taskRowHTML(t, hoje) {
-    const meta = taskDeadlineMeta(t, hoje);
-    const rec = t.recorrente
-      ? `<span class='rec-badge' title='Tarefa recorrente (repete todo mês)'>🔁 Mensal</span>`
-      : "";
-    const isMine = !!MB.nome && samePerson(t.responsavel, MB.nome);
+  /** "Realizar": abre um lançamento novo já preenchido com os dados da demanda. */
+  function openRealizar(t) {
+    if (!t) return;
+    if (!canWorkTask(t)) {
+      toast("Essa tarefa não está atribuída a você.");
+      return;
+    }
+    const kind = taskTipoLanc(t);
+    const falta = Math.max(0, money(t.valor) - totalVinculadoTarefa(t));
+    const v = falta || money(t.valor);
+    openModal("finance", null, {
+      taskId: t.id,
+      prefill: {
+        tipoLancamento: kind,
+        sub: t.sub || "",
+        parceiro: t.nome || t.titulo || "",
+        centro: t.centro || "",
+        contaBancaria: t.origemPagamento || "",
+        previsto: kind === "receita" ? v : 0,
+        recebido: kind === "entrada_por_fora" ? v : 0,
+        saida: kind === "saida" ? v : 0,
+        observacao: t.titulo || "",
+      },
+    });
+  }
+  function openTaskDetail(id, tab) {
+    if (!db.tasks.some((t) => t.id === id)) {
+      toast("Tarefa não encontrada.");
+      return;
+    }
+    if (page !== "tarefa") state.taskBack = page;
+    state.taskDetailId = id;
+    state.taskDetailTab = tab || "info";
+    goto("tarefa");
+  }
+
+  /* ---- Demandas e tarefas: painel ---- */
+  const TASK_PER_PAGE = 10;
+  function taskIsLate(t, hoje) {
+    return t.status !== "Concluída" && !!t.prazo && t.prazo < hoje;
+  }
+  function taskIsSoon(t, hoje) {
+    return (
+      t.status !== "Concluída" &&
+      !!t.prazo &&
+      t.prazo >= hoje &&
+      daysBetween(hoje, t.prazo) <= 7
+    );
+  }
+  function taskScopeRows(scope) {
+    return scope === "my" ? db.tasks.filter(isTaskMine) : db.tasks.slice();
+  }
+  function taskFilterPass(t, hoje, scope) {
+    if (state.taskTipo && taskTipo(t) !== state.taskTipo) return false;
+    if (state.taskStatus && t.status !== state.taskStatus) return false;
+    if (
+      scope !== "my" &&
+      state.taskResponsavel &&
+      t.responsavel !== state.taskResponsavel
+    )
+      return false;
+    if (state.taskQuick === "atrasada" && !taskIsLate(t, hoje)) return false;
+    if (state.taskQuick === "proximas" && !taskIsSoon(t, hoje)) return false;
+    if (state.taskQuery) {
+      const q = state.taskQuery.toLocaleLowerCase("pt-BR");
+      const hay = [
+        t.titulo,
+        t.nome,
+        t.responsavel,
+        t.origemPagamento,
+        t.sub,
+        t.descricao,
+      ]
+        .join(" ")
+        .toLocaleLowerCase("pt-BR");
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }
+  function taskTabPass(t, tab) {
+    if (tab === "concluidas") return t.status === "Concluída";
+    if (tab === "todas") return true;
+    return t.status !== "Concluída";
+  }
+  function taskStatusPill(s) {
+    const cls =
+      s === "Concluída" ? "ok" : s === "Em andamento" ? "info" : "warn";
+    return `<span class="td-status ${cls}">${esc(s || "Pendente")}</span>`;
+  }
+  function taskTipoPill(t) {
+    return isTaskFin(t)
+      ? `<span class="td-tipo fin">Financeira</span>`
+      : `<span class="td-tipo doc">Documental</span>`;
+  }
+  function taskIcon(t) {
+    return isTaskFin(t)
+      ? `<span class="td-ico fin">${icon("coins")}</span>`
+      : `<span class="td-ico doc">${icon("file")}</span>`;
+  }
+  function taskActionsHTML(t) {
+    const id = esc(t.id);
     const concluida = t.status === "Concluída";
-    const quando = t.concluidoEm
-      ? dateBR(String(t.concluidoEm).slice(0, 10))
-      : "—";
-    const concluidaBadge = `<span class='pill ok' title='Concluída por ${esc(t.concluidoPor || "—")} em ${quando}'>${icon("check")} Concluída</span>`;
-    const temValor = money(t.valor) > 0;
-    let primaryBtn = "";
-    if (!concluida) {
-      primaryBtn = temValor
-        ? `<button class='edit-action primary' data-realizar-task='${esc(t.id)}'>${icon("check")} ${t.status === "Em andamento" ? "Selecionar lançamentos" : "Realizar tarefa"}</button>`
-        : `<button class='edit-action primary' data-conclude-task='${esc(t.id)}'>${icon("check")} Concluir</button>`;
-    }
-    let actions;
-    if (MB.admin) {
-      // Admin vê os controles completos e, se ainda não concluída, também o
-      // atalho rápido (não precisa abrir o formulário inteiro).
-      actions = `${concluida ? concluidaBadge : primaryBtn}<button class='edit-action' data-edit-task='${esc(t.id)}'>${icon("list")} Editar</button>${canDeleteRec(t) ? deleteBtn("task", t.id) : ""}`;
-    } else if (concluida) {
-      actions = concluidaBadge;
-    } else if (isMine) {
-      actions = primaryBtn;
+    let a = "";
+    if (!concluida && canWorkTask(t)) {
+      a += isTaskFin(t)
+        ? `<button type="button" class="td-act primary" data-realizar-task="${id}">${icon("check")}Realizar</button>`
+        : `<button type="button" class="td-act primary" data-conclude-task="${id}">${icon("check")}Concluir</button>`;
     } else {
-      actions = `<span class='muted'>—</span>`;
+      a += `<button type="button" class="td-act" data-td-open="${id}">${icon("eye")}Detalhes</button>`;
     }
-    return `<tr><td><div class='task-title-cell'><b>${esc(t.titulo)}</b>${rec}</div><div class='muted'>${esc(t.nome || "Favorecido não informado")}</div></td><td><div class='person-chip'><span class='avatar-sm'>${esc(taskInitials(t.responsavel))}</span>${esc(t.responsavel || "Sem responsável")}</div></td><td>${dateBR(t.prazo)}<div class='muted due-${meta.cls || "ok"}'>${esc(meta.label)}</div></td><td class='num'>${fmt(t.valor || 0)}</td><td>${statusPill(t.status)}</td><td>${fileCell(t.anexos, "task:" + t.id)}</td><td class='row-actions'>${actions}</td></tr>`;
+    let menu = `<button type="button" data-td-open="${id}">${icon("eye")}Ver detalhes</button>`;
+    if (MB.admin)
+      menu += `<button type="button" data-edit-task="${id}">${icon("edit")}Editar</button>`;
+    if (MB.editor || canWorkTask(t) || MB.canCreateTasks)
+      menu += `<button type="button" data-td-anexar="${id}">${icon("upload")}Anexar arquivos</button>`;
+    if ((t.anexos || []).length)
+      menu += `<button type="button" data-view-files="task:${id}">${icon("clip")}Ver anexos</button>`;
+    if (MB.admin && canDeleteRec(t))
+      menu += `<button type="button" class="danger" data-delete-task="${id}">${icon("trash")}Excluir</button>`;
+    a += `<button type="button" class="td-act td-more-btn" data-td-more aria-label="Mais ações" aria-haspopup="menu">⋯</button><div class="td-menu" role="menu" hidden>${menu}</div>`;
+    return a;
   }
-  function renderTaskFilters() {
-    const respList = [
-      ...new Set([
-        ...(db.staff || []),
-        ...db.tasks
-          .map(function (t) {
-            return t.responsavel;
-          })
-          .filter(Boolean),
-      ]),
-    ].sort(function (a, b) {
-      return a.localeCompare(b, "pt-BR");
-    });
-    function html(prefix) {
-      const statusOpts = ["Pendente", "Em andamento", "Concluída"]
-        .map(function (s) {
-          return `<option value="${s}" ${state.taskStatus === s ? "selected" : ""}>${s}</option>`;
-        })
-        .join("");
-      const respOpts = respList
-        .map(function (n) {
-          return `<option value="${esc(n)}" ${state.taskResponsavel === n ? "selected" : ""}>${esc(n)}</option>`;
-        })
-        .join("");
-      return (
-        `<div class="field"><label for="${prefix}-status">Situação</label><select class="control" id="${prefix}-status"><option value="">Todas</option>${statusOpts}</select></div>` +
-        `<div class="field"><label for="${prefix}-search">Pesquisar</label><input class="control" id="${prefix}-search" value="${esc(state.taskQuery || "")}" placeholder="Tarefa, favorecido ou responsável"></div>` +
-        `<div class="field"><label for="${prefix}-responsavel">Responsável</label><select class="control" id="${prefix}-responsavel"><option value="">Todos</option>${respOpts}</select></div>` +
-        `<div class="field" style="align-self:flex-end"><button type="button" class="btn" id="${prefix}-clear">Limpar</button></div>`
-      );
-    }
-    function wire(prefix) {
-      const st = $("#" + prefix + "-status");
-      if (st)
-        st.onchange = function (e) {
-          state.taskStatus = e.target.value;
-          drawTasks();
-        };
-      const sr = $("#" + prefix + "-search");
-      if (sr)
-        sr.oninput = function (e) {
-          state.taskQuery = e.target.value;
-          drawTasks();
-        };
-      const rs = $("#" + prefix + "-responsavel");
-      if (rs)
-        rs.onchange = function (e) {
-          state.taskResponsavel = e.target.value;
-          drawTasks();
-        };
-      const cl = $("#" + prefix + "-clear");
-      if (cl)
-        cl.onclick = function () {
-          state.taskStatus = "";
-          state.taskQuery = "";
-          state.taskResponsavel = "";
-          state.taskQuickFilter = "all";
-          state.myQuickFilter = "all";
-          drawTasks();
-        };
-    }
-    const a = $("#task-filters");
-    if (a) {
-      a.innerHTML = html("tf");
-      wire("tf");
-    }
-    const b = $("#my-task-filters");
-    if (b) {
-      b.innerHTML = html("mtf");
-      wire("mtf");
-    }
+  function taskRowHTML(t, hoje) {
+    const fin = isTaskFin(t);
+    const meta = taskDeadlineMeta(t, hoje);
+    const sub = fin
+      ? t.nome || "Favorecido não informado"
+      : t.descricao
+        ? "Descrição: " + t.descricao
+        : t.nome || "Sem descrição";
+    const rec = t.recorrente
+      ? `<span class="td-rec" title="Tarefa recorrente (repete todo mês)">Mensal</span>`
+      : "";
+    const prazo = t.prazo
+      ? `${dateBR(t.prazo)}${t.status !== "Concluída" ? `<small class="td-due ${meta.cls || ""}">${esc(meta.label)}</small>` : ""}`
+      : "—";
+    const valor = fin && money(t.valor) > 0 ? fmt(t.valor) : "—";
+    const n = (t.anexos || []).length;
+    const anexos = n
+      ? `<button type="button" class="td-clip" data-view-files="task:${esc(t.id)}" title="Visualizar anexos">${icon("clip")}${n}</button>`
+      : "—";
+    return `<tr class="td-row" data-td-row="${esc(t.id)}" title="Clique para ver os detalhes"><td><div class="td-cell-title">${taskIcon(t)}<div><button type="button" class="td-title" data-td-open="${esc(t.id)}">${esc(t.titulo || "Sem título")}</button>${rec}<small>${esc(sub)}</small></div></div></td><td>${taskTipoPill(t)}</td><td><span class="td-person"><span class="td-avatar">${esc(taskInitials(t.responsavel))}</span>${esc(t.responsavel || "Sem responsável")}</span></td><td class="td-nowrap">${prazo}</td><td class="num td-nowrap">${valor}</td><td>${taskStatusPill(t.status)}</td><td>${anexos}</td><td><div class="td-actions">${taskActionsHTML(t)}</div></td></tr>`;
   }
-  function minhasBaseFiltered() {
-    const myName = String(MB.nome || "")
-      .trim()
-      .toLowerCase();
-    return db.tasks.filter(function (t) {
-      if (!myName) return false;
-      if (
-        String(t.responsavel || "")
-          .trim()
-          .toLowerCase() !== myName
+  function taskBoardSkeleton(scope) {
+    const resp =
+      scope === "my"
+        ? ""
+        : `<div class="field"><label>Responsável</label><select class="control" data-td-f="resp"></select></div>`;
+    return `<div class="td-kpis" data-td-kpis></div><div class="td-tabs" role="tablist" data-td-tabs></div><div class="td-panel"><div class="td-filters"><label class="td-search">${icon("search")}<input type="search" data-td-f="q" placeholder="Pesquisar demanda, favorecido ou responsável…" autocomplete="off"></label><div class="field"><label>Tipo</label><select class="control" data-td-f="tipo"><option value="">Todos</option><option value="${TASK_FIN}">Financeira</option><option value="${TASK_DOC}">Documental</option></select></div><div class="field"><label>Situação</label><select class="control" data-td-f="status"><option value="">Todas</option><option>Pendente</option><option>Em andamento</option><option>Concluída</option></select></div>${resp}<button type="button" class="btn td-clear" data-td-clear>${icon("x")}Limpar</button></div><div class="table-wrap td-table" data-td-table></div><div class="td-foot"><button type="button" class="section-link" data-goto="tarefas-historico">Ver prestação de contas</button><div class="td-pager" data-td-pager></div></div></div>`;
+  }
+  function taskKpisHTML(rows, hoje) {
+    const open = rows.filter((t) => t.status !== "Concluída");
+    const fin = open.filter(isTaskFin).length;
+    const doc = open.length - fin;
+    const late = open.filter((t) => taskIsLate(t, hoje)).length;
+    const soon = open.filter((t) => taskIsSoon(t, hoje)).length;
+    const done = rows.length - open.length;
+    const tab = state.taskTab,
+      tipo = state.taskTipo,
+      quick = state.taskQuick;
+    const card = (key, tone, ico, label, value, sub, active) =>
+      `<button type="button" class="td-kpi ${tone} ${active ? "active" : ""}" data-td-kpi="${key}"><span class="td-kpi-ico">${icon(ico)}</span><span class="td-kpi-txt"><span class="td-kpi-label">${label}</span><b>${value}</b><small>${sub}</small></span></button>`;
+    return (
+      card(
+        "total",
+        "blue",
+        "clipcheck",
+        "Total de demandas",
+        open.length,
+        "Em acompanhamento",
+        tab === "abertas" && !tipo && !quick,
+      ) +
+      card(
+        "fin",
+        "green",
+        "coins",
+        "Financeiras",
+        fin,
+        "Movimentações no sistema",
+        tipo === TASK_FIN,
+      ) +
+      card(
+        "doc",
+        "sky",
+        "file",
+        "Documentais",
+        doc,
+        "Organização e resoluções",
+        tipo === TASK_DOC,
+      ) +
+      card(
+        "atrasada",
+        "red",
+        "clock",
+        "Prazo vencido",
+        late,
+        "Requer atenção",
+        quick === "atrasada",
+      ) +
+      card(
+        "proximas",
+        "amber",
+        "calendar",
+        "Próximos 7 dias",
+        soon,
+        "A vencer",
+        quick === "proximas",
+      ) +
+      card(
+        "concluidas",
+        "ok",
+        "check",
+        "Concluídas",
+        done,
+        "Finalizadas",
+        tab === "concluidas",
       )
-        return false;
-      if (state.taskStatus && t.status !== state.taskStatus) return false;
-      if (state.taskMonth && month(t.prazo) !== state.taskMonth) return false;
-      if (state.taskResponsavel && t.responsavel !== state.taskResponsavel)
-        return false;
-      if (state.taskQuery) {
-        const q = state.taskQuery.toLowerCase();
-        const hay = [t.titulo, t.nome, t.responsavel, t.origemPagamento, t.sub]
-          .join(" ")
-          .toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
+    );
   }
-  function drawTasks() {
+  function drawTaskBoard(el, scope) {
+    if (!el) return;
+    if (el.dataset.built !== scope) {
+      el.innerHTML = taskBoardSkeleton(scope);
+      el.dataset.built = scope;
+    }
     const hoje = taskHoje();
-    const baseAll = taskFiltered();
-    $("#task-kpis").innerHTML = kpiCardsHTML(baseAll, "task");
-    const qfAll = state.taskQuickFilter || "all";
-    const rows = baseAll.filter(function (t) {
-      return taskQuickPass(t, hoje, qfAll);
-    });
-    $("#task-count").textContent =
-      rows.length + " registro" + (rows.length === 1 ? "" : "s");
-    $("#task-table").innerHTML =
-      `<table><thead><tr><th>Tarefa / Favorecido</th><th>Responsável</th><th>Prazo</th><th>Valor</th><th>Situação</th><th>Anexos</th><th></th></tr></thead><tbody>${
-        rows
-          .map(function (t) {
-            return taskRowHTML(t, hoje);
-          })
-          .join("") ||
-        noRows(
-          "Nenhuma tarefa encontrada. Ajuste os filtros ou cadastre uma nova demanda em “Nova tarefa”.",
-          7,
-        )
-      }</tbody></table>`;
-    const minhasBase = minhasBaseFiltered();
-    $("#my-task-kpis").innerHTML = kpiCardsHTML(minhasBase, "my");
-    const qfMy = state.myQuickFilter || "all";
-    const myRows = minhasBase
-      .filter(function (t) {
-        return taskQuickPass(t, hoje, qfMy);
-      })
-      .sort(function (a, b) {
-        const la =
-          a.status !== "Concluída" && a.prazo && a.prazo < hoje ? 0 : 1;
-        const lb =
-          b.status !== "Concluída" && b.prazo && b.prazo < hoje ? 0 : 1;
+    const all = taskScopeRows(scope);
+    const filtered = all.filter((t) => taskFilterPass(t, hoje, scope));
+    el.querySelector("[data-td-kpis]").innerHTML = taskKpisHTML(all, hoje);
+    const count = (tab) => filtered.filter((t) => taskTabPass(t, tab)).length;
+    const tab = state.taskTab || "abertas";
+    const tabBtn = (key, ico, label) =>
+      `<button type="button" role="tab" class="${tab === key ? "active" : ""}" aria-selected="${tab === key}" data-td-tab="${key}">${icon(ico)}${label} (${count(key)})</button>`;
+    el.querySelector("[data-td-tabs]").innerHTML =
+      tabBtn("abertas", "list", "Abertas") +
+      tabBtn("concluidas", "check", "Concluídas") +
+      tabBtn("todas", "layers", "Todas");
+    const setVal = (key, value) => {
+      const c = el.querySelector(`[data-td-f="${key}"]`);
+      if (c && document.activeElement !== c) c.value = value;
+    };
+    const respSel = el.querySelector('[data-td-f="resp"]');
+    if (respSel && document.activeElement !== respSel) {
+      const names = [
+        ...new Set([
+          ...(db.staff || []),
+          ...db.tasks.map((t) => t.responsavel).filter(Boolean),
+        ]),
+      ].sort((a, b) => a.localeCompare(b, "pt-BR"));
+      respSel.innerHTML =
+        `<option value="">Todos</option>` +
+        names
+          .map((n) => `<option value="${esc(n)}">${esc(n)}</option>`)
+          .join("");
+    }
+    setVal("q", state.taskQuery || "");
+    setVal("tipo", state.taskTipo || "");
+    setVal("status", state.taskStatus || "");
+    setVal("resp", state.taskResponsavel || "");
+    const rows = filtered
+      .filter((t) => taskTabPass(t, tab))
+      .sort((a, b) => {
+        const la = taskIsLate(a, hoje) ? 0 : 1,
+          lb = taskIsLate(b, hoje) ? 0 : 1;
         if (la !== lb) return la - lb;
         return String(a.prazo || "9999-12-31").localeCompare(
           String(b.prazo || "9999-12-31"),
         );
       });
-    const myCount = $("#my-task-count");
-    if (myCount)
-      myCount.textContent =
-        myRows.length + " registro" + (myRows.length === 1 ? "" : "s");
-    $("#my-task-table").innerHTML =
-      `<table><thead><tr><th>Tarefa / Favorecido</th><th>Responsável</th><th>Prazo</th><th>Valor</th><th>Situação</th><th>Anexos</th><th></th></tr></thead><tbody>${
-        myRows
-          .map(function (t) {
-            return taskRowHTML(t, hoje);
-          })
-          .join("") ||
-        noRows(
-          "Nenhuma tarefa atribuída a " +
-            esc(MB.nome || "você") +
-            " com os filtros atuais.",
-          7,
-        )
-      }</tbody></table>`;
+    const pages = Math.max(1, Math.ceil(rows.length / TASK_PER_PAGE));
+    if (state.taskPage > pages) state.taskPage = pages;
+    if (state.taskPage < 1) state.taskPage = 1;
+    const slice = rows.slice(
+      (state.taskPage - 1) * TASK_PER_PAGE,
+      state.taskPage * TASK_PER_PAGE,
+    );
+    const empty =
+      scope === "my"
+        ? `Nenhuma tarefa atribuída a ${MB.nome || "você"} com os filtros atuais.`
+        : "Nenhuma demanda encontrada. Ajuste os filtros ou cadastre em “Nova tarefa”.";
+    el.querySelector("[data-td-table]").innerHTML =
+      `<table class="td-grid"><thead><tr><th>Demanda / Tarefa</th><th>Tipo</th><th>Responsável</th><th>Prazo</th><th class="num">Valor (R$)</th><th>Situação</th><th>Anexos</th><th>Ações</th></tr></thead><tbody>${slice.map((t) => taskRowHTML(t, hoje)).join("") || noRows(empty, 8)}</tbody></table>`;
+    const pager = el.querySelector("[data-td-pager]");
+    if (pages <= 1) {
+      pager.innerHTML = rows.length
+        ? `<span class="muted">${rows.length} registro${rows.length === 1 ? "" : "s"}</span>`
+        : "";
+    } else {
+      let btns = `<button type="button" data-td-page="${state.taskPage - 1}" ${state.taskPage === 1 ? "disabled" : ""} aria-label="Anterior">${icon("chevleft")}</button>`;
+      for (let i = 1; i <= pages; i++)
+        btns += `<button type="button" class="${i === state.taskPage ? "active" : ""}" data-td-page="${i}">${i}</button>`;
+      btns += `<button type="button" data-td-page="${state.taskPage + 1}" ${state.taskPage === pages ? "disabled" : ""} aria-label="Próxima">${icon("chev")}</button>`;
+      pager.innerHTML = `<span class="muted">${rows.length} registros</span>${btns}`;
+    }
+  }
+  function drawTasks() {
+    drawTaskBoard($("#task-board"), "all");
+    drawTaskBoard($("#my-task-board"), "my");
     const sub = $("#minhas-subtitle");
     if (sub)
       sub.textContent =
         "Atividades atribuídas a " +
         (MB.nome || "você") +
         ", ordenadas por prioridade e prazo.";
-    document
-      .querySelectorAll(".view-toggle button[data-page]")
-      .forEach(function (btn) {
-        const isActive = btn.dataset.page === page;
-        btn.classList.toggle("active", isActive);
-        btn.setAttribute("aria-selected", String(isActive));
-      });
-    renderTaskFilters();
   }
+
+  /* ---- Detalhes da tarefa ---- */
+  function taskHistoryRows(t) {
+    const title = String(t.titulo || "").trim();
+    if (!title) return [];
+    return (db.audit || [])
+      .filter((a) => String(a.detail || "").includes(title))
+      .sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  }
+  function drawTaskDetail() {
+    const el = $("#task-detail");
+    if (!el) return;
+    const t = db.tasks.find((x) => x.id === state.taskDetailId);
+    const back = `<button type="button" class="td-back" data-td-back aria-label="Voltar">${icon("chevleft")}</button>`;
+    if (!t) {
+      el.innerHTML = `<div class="td-dhead">${back}<div><h1>Detalhes da tarefa</h1><p>Esta tarefa não existe mais ou foi excluída.</p></div></div>`;
+      return;
+    }
+    const fin = isTaskFin(t);
+    const hoje = taskHoje();
+    const concluida = t.status === "Concluída";
+    const meta = taskDeadlineMeta(t, hoje);
+    const id = esc(t.id);
+    let acts = "";
+    if (!concluida && canWorkTask(t))
+      acts += fin
+        ? `<button type="button" class="btn primary" data-realizar-task="${id}">${icon("check")}Realizar</button>`
+        : `<button type="button" class="btn primary" data-conclude-task="${id}">${icon("check")}Concluir</button>`;
+    if (MB.admin)
+      acts += `<button type="button" class="btn" data-edit-task="${id}">${icon("edit")}Editar</button>`;
+    const metaCell = (ico, label, value) =>
+      `<div class="td-mcell"><span class="td-mico">${icon(ico)}</span><div><small>${label}</small><b>${value}</b></div></div>`;
+    const quando = t.concluidoEm
+      ? `${dateBR(String(t.concluidoEm).slice(0, 10))} às ${new Date(t.concluidoEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+      : "—";
+    const metas =
+      metaCell(
+        "users",
+        "Responsável",
+        esc(t.responsavel || "Sem responsável"),
+      ) +
+      metaCell("calendar", "Prazo", t.prazo ? dateBR(t.prazo) : "—") +
+      (concluida
+        ? metaCell("clipcheck", "Concluída em", quando) +
+          metaCell("usercheck", "Concluído por", esc(t.concluidoPor || "—"))
+        : metaCell("clock", "Situação do prazo", esc(meta.label)) +
+          metaCell("usercheck", "Criado por", esc(t.criadoPor || "—")));
+    const nAnexos = (t.anexos || []).length;
+    const linked = lancamentosDaTarefa(t);
+    const tab = state.taskDetailTab || "info";
+    const tabBtn = (key, ico, label) =>
+      `<button type="button" class="${tab === key ? "active" : ""}" data-td-dtab="${key}">${icon(ico)}${label}</button>`;
+    let tabs = tabBtn("info", "info", "Informações");
+    if (fin)
+      tabs += tabBtn(
+        "lanc",
+        "receipt",
+        `Lançamento vinculado (${linked.length})`,
+      );
+    tabs +=
+      tabBtn("anexos", "clip", `Anexos (${nAnexos})`) +
+      tabBtn("hist", "history", "Histórico");
+    const kv = (k, v) =>
+      `<div class="td-kv"><span>${k}</span><b>${v || "—"}</b></div>`;
+    let pane = "";
+    if (tab === "lanc" && fin) {
+      const total = totalVinculadoTarefa(t);
+      const alvo = money(t.valor);
+      const diff = Math.round((total - alvo) * 100) / 100;
+      const info = !linked.length
+        ? "Nenhum lançamento vinculado."
+        : Math.abs(diff) < 0.01
+          ? `<b class="ok-text">Bateu certinho.</b>`
+          : diff < 0
+            ? `Falta <b>${fmt(-diff)}</b>.`
+            : `Passou <b>${fmt(diff)}</b>.`;
+      const can = !concluida && canWorkTask(t);
+      pane = `<div class="td-lanc-sum"><div>Vinculado <b>${fmt(total)}</b> de ${fmt(alvo)} — ${info}</div>${can ? `<div class="td-actions"><button type="button" class="btn primary" data-realizar-task="${id}">${icon("plus")}Novo lançamento</button><button type="button" class="btn" data-td-vincular="${id}">${icon("clip")}Vincular existente</button></div>` : ""}</div><div class="table-wrap"><table class="td-grid"><thead><tr><th>Data</th><th>Parceiro / descrição</th><th>Empresa</th><th>Centro</th><th>Conta</th><th class="num">Valor</th><th></th></tr></thead><tbody>${linked.map((f) => `<tr><td>${dateBR(f.data)}</td><td>${esc(f.parceiro || "—")}</td><td>${esc(f.sub || "—")}</td><td>${esc(f.centro || "—")}</td><td>${esc(f.contaBancaria || "—")}</td><td class="num">${fmt(finValorTarefa(f))}</td><td><button type="button" class="td-act" data-edit-fin="${esc(f.id)}">${icon("eye")}Abrir</button></td></tr>`).join("") || noRows("Sem lançamentos vinculados.", 7)}</tbody></table></div>`;
+    } else if (tab === "anexos") {
+      const canAttach = MB.editor || canWorkTask(t) || MB.canCreateTasks;
+      pane = `<div class="td-lanc-sum"><div>${nAnexos} arquivo${nAnexos === 1 ? "" : "s"} anexado${nAnexos === 1 ? "" : "s"}</div>${canAttach ? `<button type="button" class="btn" data-td-anexar="${id}">${icon("upload")}Anexar arquivos</button>` : ""}</div>${
+        nAnexos
+          ? `<div class="td-files">${t.anexos
+              .map((f, i) => {
+                const when = f.createdAt
+                  ? " · " + dateBR(String(f.createdAt).slice(0, 10))
+                  : "";
+                return `<button type="button" class="td-file" data-view-files="task:${id}" data-file-index="${i}">${finFileBadge(f.name)}<span><b>${esc(f.name)}</b><small>${esc(fsize(f.size))}${esc(when)}</small></span>${icon("eye")}</button>`;
+              })
+              .join("")}</div>`
+          : `<div class="simple-empty"><p>Nenhum anexo nesta tarefa.</p></div>`
+      }`;
+    } else if (tab === "hist") {
+      const hist = taskHistoryRows(t);
+      pane = hist.length
+        ? `<ul class="td-hist">${hist.map((a) => `<li><span class="td-hist-dot"></span><div><b>${esc(a.action)}</b><small>${esc(new Date(a.at).toLocaleString("pt-BR"))} · ${esc(a.actor || "—")}</small><p>${esc(a.detail || "")}</p></div></li>`).join("")}</ul>`
+        : `<div class="simple-empty"><p>Sem registros de histórico para esta tarefa.</p></div>`;
+    } else {
+      const dados = fin
+        ? kv("Tipo de demanda", "Financeira") +
+          kv(
+            "Centro de custo",
+            esc(
+              t.centro
+                ? t.centro +
+                    (db.centers[t.centro] ? " — " + db.centers[t.centro] : "")
+                : "",
+            ),
+          ) +
+          kv("Tipo de lançamento", TIPO_LANC_LABEL[taskTipoLanc(t)]) +
+          kv("Conta bancária", esc(t.origemPagamento)) +
+          kv("Empresa", esc(t.sub)) +
+          kv("Valor", money(t.valor) > 0 ? fmt(t.valor) : "") +
+          kv("Favorecido / identificação", esc(t.nome)) +
+          kv("Recorrência", t.recorrente ? "Mensal" : "Não")
+        : kv("Tipo de demanda", "Documental") +
+          kv("Favorecido / identificação", esc(t.nome)) +
+          kv("Recorrência", t.recorrente ? "Mensal" : "Não") +
+          kv("Data de execução", t.dataExecucao ? dateBR(t.dataExecucao) : "");
+      const prest =
+        t.dataExecucao || t.observacao || t.nomeExtrato || t.situacaoRegistro
+          ? `<h3 class="td-h3">Prestação de contas</h3><div class="td-kvs">${kv("Data de execução", t.dataExecucao ? dateBR(t.dataExecucao) : "") + kv("Nome no extrato", esc(t.nomeExtrato)) + kv("Situação", esc(t.situacaoRegistro)) + kv("Observação", esc(t.observacao))}</div>`
+          : "";
+      pane = `<h3 class="td-h3">Dados da demanda</h3><div class="td-kvs">${dados}</div><h3 class="td-h3">Observações</h3><div class="td-obs">${esc(t.descricao || "Sem observações.")}</div>${prest}`;
+    }
+    el.innerHTML = `<div class="td-dhead">${back}<div><h1>Detalhes da tarefa</h1><p>Acompanhe as informações, anexos e a prestação desta demanda.</p></div></div><div class="td-dcard"><div class="td-dtop">${taskIcon(t)}<div class="td-dtitle"><small>${fin ? "DEMANDA FINANCEIRA" : "DEMANDA DOCUMENTAL"}</small><h2>${esc(t.titulo || "Sem título")}</h2><p>${esc(t.nome || t.descricao || "")}</p></div><div class="td-dactions">${taskStatusPill(t.status)}${acts}</div></div><div class="td-dmeta">${metas}</div></div><div class="td-dtabs" role="tablist">${tabs}</div><div class="td-dpane">${pane}</div>`;
+  }
+  const closeTaskMenus = () =>
+    $$(".td-menu:not([hidden])").forEach((m) => (m.hidden = true));
+  document.addEventListener(
+    "click",
+    (e) => {
+      const more = e.target.closest("[data-td-more]");
+      const menu = more?.nextElementSibling;
+      const wasOpen = menu && !menu.hidden;
+      if (!e.target.closest(".td-menu") || e.target.closest(".td-menu button"))
+        closeTaskMenus();
+      if (!more || wasOpen) return;
+      const r = more.getBoundingClientRect();
+      menu.hidden = false;
+      const h = menu.offsetHeight;
+      menu.style.top =
+        (r.bottom + h + 8 > window.innerHeight ? r.top - h - 4 : r.bottom + 4) +
+        "px";
+      menu.style.left = Math.max(8, r.right - menu.offsetWidth) + "px";
+    },
+    true,
+  );
+  window.addEventListener("scroll", closeTaskMenus, true);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeTaskMenus();
+  });
+  document.addEventListener("click", (e) => {
+    const open = e.target.closest("[data-td-open]");
+    if (open) {
+      openTaskDetail(open.dataset.tdOpen);
+      return;
+    }
+    const row = e.target.closest("[data-td-row]");
+    if (row && !e.target.closest("button, a, input, select, .td-menu")) {
+      openTaskDetail(row.dataset.tdRow);
+      return;
+    }
+    if (e.target.closest("[data-td-back]")) {
+      goto(state.taskBack || "demandas");
+      return;
+    }
+    const dtab = e.target.closest("[data-td-dtab]");
+    if (dtab) {
+      state.taskDetailTab = dtab.dataset.tdDtab;
+      drawTaskDetail();
+      return;
+    }
+    const anexar = e.target.closest("[data-td-anexar]");
+    if (anexar) {
+      openModal("anexar", anexar.dataset.tdAnexar);
+      return;
+    }
+    const vinc = e.target.closest("[data-td-vincular]");
+    if (vinc) {
+      const t = db.tasks.find((x) => x.id === vinc.dataset.tdVincular);
+      if (t && canWorkTask(t)) openModal("vincular", t.id);
+      return;
+    }
+    const tab = e.target.closest("[data-td-tab]");
+    if (tab) {
+      state.taskTab = tab.dataset.tdTab;
+      state.taskPage = 1;
+      drawTasks();
+      return;
+    }
+    const kpi = e.target.closest("[data-td-kpi]");
+    if (kpi) {
+      const k = kpi.dataset.tdKpi;
+      state.taskPage = 1;
+      if (k === "total") {
+        state.taskTab = "abertas";
+        state.taskTipo = "";
+        state.taskQuick = "";
+      } else if (k === "fin" || k === "doc") {
+        const v = k === "fin" ? TASK_FIN : TASK_DOC;
+        state.taskTipo = state.taskTipo === v ? "" : v;
+        state.taskTab = "abertas";
+      } else if (k === "atrasada" || k === "proximas") {
+        state.taskQuick = state.taskQuick === k ? "" : k;
+        state.taskTab = "abertas";
+      } else if (k === "concluidas") {
+        state.taskTab =
+          state.taskTab === "concluidas" ? "abertas" : "concluidas";
+        state.taskQuick = "";
+      }
+      drawTasks();
+      return;
+    }
+    const pg = e.target.closest("[data-td-page]");
+    if (pg && !pg.disabled) {
+      state.taskPage = Number(pg.dataset.tdPage) || 1;
+      drawTasks();
+      return;
+    }
+    if (e.target.closest("[data-td-clear]")) {
+      state.taskQuery = "";
+      state.taskTipo = "";
+      state.taskStatus = "";
+      state.taskResponsavel = "";
+      state.taskQuick = "";
+      state.taskPage = 1;
+      drawTasks();
+      return;
+    }
+    if (e.target.closest("[data-td-models]")) {
+      SET.tab = "templates";
+      SET.edit = false;
+      SET.draft = null;
+      goto("configuracoes");
+    }
+  });
+  const onTaskFilter = (e) => {
+    const c = e.target.closest?.("[data-td-f]");
+    if (!c) return;
+    const key = {
+      q: "taskQuery",
+      tipo: "taskTipo",
+      status: "taskStatus",
+      resp: "taskResponsavel",
+    }[c.dataset.tdF];
+    if (!key) return;
+    state[key] = c.value;
+    state.taskPage = 1;
+    drawTasks();
+  };
+  document.addEventListener("input", onTaskFilter);
+  document.addEventListener("change", onTaskFilter);
   function drawHistory() {
     const all = [
       ...monthlyHistory.map((r) => ({
@@ -3102,7 +3469,8 @@
       drawAccountability();
     } else if (page === "demandas" || page === "minhas") {
       drawTasks();
-      renderTaskFilters();
+    } else if (page === "tarefa") {
+      drawTaskDetail();
     } else if (page === "anexos") {
       drawAnexos();
     } else if (page === "auditoria") {
@@ -3134,7 +3502,11 @@
     document.title = names[p] + " · Financeiro";
     document.body.classList.remove("nav-open");
     const gb = document.querySelector('.nav-btn[data-page="' + p + '"]');
-    $("#crumb-group").textContent = gb ? gb.dataset.group : "";
+    $("#crumb-group").textContent = gb
+      ? gb.dataset.group
+      : p === "tarefa"
+        ? "Tarefas"
+        : "";
     window.scrollTo({ top: 0, behavior: "smooth" });
     render();
   }
@@ -3160,11 +3532,23 @@
     );
     $("#modal-layer").classList.add("open");
   }
-  const TASK_MODAL_KINDS = ["task", "conclude", "realizar", "vincular"];
-  function openModal(kind, id = null) {
+  const TASK_MODAL_KINDS = [
+    "task",
+    "conclude",
+    "realizar",
+    "vincular",
+    "anexar",
+  ];
+  /** Tarefa que receberá o lançamento novo aberto pelo "Realizar". */
+  let financeTaskLink = null;
+  function openModal(kind, id = null, opts = {}) {
     typeModal = kind;
     editing = id;
     removedAttachments = new Set();
+    financeTaskLink = kind === "finance" && !id ? opts.taskId || null : null;
+    const linkTask = financeTaskLink
+      ? db.tasks.find((x) => x.id === financeTaskLink)
+      : null;
     const obj = id
       ? (TASK_MODAL_KINDS.includes(kind) ? db.tasks : db.finance).find(
           (x) => x.id === id,
@@ -3181,10 +3565,23 @@
               ? "Registrar recebimento"
               : kind === "contato"
                 ? "Registrar contato"
-                : (id ? "Editar " : "Novo ") +
-                  (kind === "task" ? "tarefa" : "lançamento financeiro");
+                : kind === "anexar"
+                  ? "Anexar arquivos"
+                  : linkTask
+                    ? "Realizar tarefa — novo lançamento"
+                    : kind === "task"
+                      ? id
+                        ? "Editar tarefa"
+                        : "Nova tarefa"
+                      : (id ? "Editar " : "Novo ") + "lançamento financeiro";
     let html = "";
-    if (kind === "recebimento") {
+    if (kind === "anexar") {
+      if (!obj) {
+        toast("Tarefa não encontrada.");
+        return;
+      }
+      html += `<div class="conclude-summary wide"><b>${esc(obj.titulo || "")}</b><div class="muted">${esc(obj.nome || obj.descricao || "")}</div></div><div class="field wide"><label>Arquivos (foto, PDF ou planilha)</label>${finDropzoneHTML(true)}</div>`;
+    } else if (kind === "recebimento") {
       if (!obj) {
         toast("Lançamento não encontrado.");
         return;
@@ -3204,51 +3601,33 @@
         );
       html += `<div class="contato-register"><p class="field-note wide"><b>${esc(obj.sub || "—")}</b> · ${esc(obj.parceiro || "—")} · falta receber <b>${fmt(finFalta(obj))}</b></p><div class="field"><label>Data do contato</label><input class="control" name="contatoData" type="date" value="${esc(todayISO())}" required></div><div class="field"><label>Previsão de pagamento (opcional)</label><input class="control" name="contatoPrevisao" type="date"></div><div class="field wide"><label>O que foi dito</label><div class="contato-chips">${CONTATO_SUGESTOES.map((t) => `<button type="button" class="contato-chip" data-contato-chip="${esc(t)}">${esc(t)}</button>`).join("")}</div><textarea class="control" name="contatoNota" placeholder="Ex.: Diz que paga na segunda" required></textarea></div>${hist.length ? `<div class="form-section">Contatos anteriores</div><ul class="contato-hist wide">${hist.map((c) => `<li><span class="muted nowrap">${dateBR(c.data)}${c.actor ? " · " + esc(c.actor) : ""}</span> ${esc(c.nota)}${c.previsao ? ` <span class="pill info">prev. ${dateBR(c.previsao)}</span>` : ""}</li>`).join("")}</ul>` : ""}</div>`;
     } else if (kind === "task") {
-      html += `<div class="form-section">Atividade</div><div class="field"><label>Modelo de tarefa</label><select class="control" id="task-template"><option value="">Tarefa livre</option>${db.templates.map((x) => `<option>${esc(x)}</option>`).join("")}</select></div>`;
-      html += field(
-        "Título da tarefa *",
-        "titulo",
-        obj?.titulo || "",
-        "text",
-        true,
-      );
-      html += field(
-        "Nome (favorecido / identificação)",
-        "nome",
-        obj?.nome || "",
-      );
-      html += (() => {
-        const respOpts = [
-          ...new Set([
-            ...(obj && obj.responsavel ? [obj.responsavel] : []),
-            ...db.staff,
-          ]),
-        ];
-        return `<div class='field'><label>Responsável *</label><select class='control' name='responsavel' required><option value=''>Selecione</option>${respOpts.map((n) => `<option value='${esc(n)}' ${obj && obj.responsavel === n ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></div>`;
-      })();
-      html += `<div class="field"><label style="display:flex;align-items:center;gap:.4rem;cursor:pointer"><input type="checkbox" name="recorrente" value="on" ${obj?.recorrente ? "checked" : ""}> Tarefa recorrente (repete todo mês)</label></div>`;
-      html += `<div class="form-section">Pagamento e prestação de contas</div><div class="field"><label>Origem do pagamento (opcional)</label><select class="control" name="origemPagamento"><option value="">Não informada</option>${db.banks.map((x) => `<option ${obj?.origemPagamento === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></div>`;
+      const tipo = obj ? taskTipo(obj) : TASK_FIN;
+      const tl = obj ? taskTipoLanc(obj) : "saida";
+      const typeCard = (v, ico, title, desc) =>
+        `<label class="td-type-card"><input type="radio" name="demanda" value="${v}" ${tipo === v ? "checked" : ""}><span class="td-type-ico">${icon(ico)}</span><span class="td-type-txt"><b>${title}</b><small>${desc}</small></span></label>`;
+      html += `<div class="field wide"><label>Tipo de demanda *</label><div class="td-type-cards">${typeCard(TASK_FIN, "coins", "Financeira", "Movimentação financeira com lançamento no sistema.")}${typeCard(TASK_DOC, "file", "Documental", "Documentação, relatórios e atividades administrativas.")}</div></div>`;
+      html += `<div class="field"><label>Título da tarefa *</label><input class="control" name="titulo" list="td-templates" value="${esc(obj?.titulo || "")}" autocomplete="off" required><datalist id="td-templates">${db.templates.map((x) => `<option value="${esc(x)}"></option>`).join("")}</datalist></div>`;
+      const respOpts = [
+        ...new Set([
+          ...(obj?.responsavel ? [obj.responsavel] : []),
+          ...db.staff,
+        ]),
+      ];
+      html += `<div class="field"><label>Responsável *</label><select class="control" name="responsavel" required><option value="">Selecione</option>${respOpts.map((n) => `<option value="${esc(n)}" ${obj?.responsavel === n ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></div>`;
+      html += field("Favorecido / Identificação", "nome", obj?.nome || "");
       html += field("Prazo", "prazo", obj?.prazo || "", "date");
-      html += field(
-        "Data do lançamento / execução",
-        "dataExecucao",
-        obj?.dataExecucao || "",
-        "date",
-      );
-      html += `<div class="field"><label>Valor (R$)</label><input class="control money-input" name="valor" inputmode="numeric" value="${inputBRL(obj?.valor || 0)}"></div>`;
-      html += field("Nome no extrato", "nomeExtrato", obj?.nomeExtrato || "");
-      html += field(
-        "Situação na prestação de contas",
-        "situacaoRegistro",
-        obj?.situacaoRegistro || "",
-      );
-      html += field(
-        "Observação da prestação",
-        "observacao",
-        obj?.observacao || "",
-      );
-      html += `<div class="form-section">Andamento</div><div class="field"><label>Situação</label><select class="control" name="status">${["Pendente", "Em andamento", "Concluída"].map((s) => `<option ${obj?.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>`;
-      html += `<div class="field wide"><label>Observações</label><textarea class="control" name="descricao">${esc(obj?.descricao || "")}</textarea></div>`;
+      html += `<div class="field wide"><label class="td-switch"><input type="checkbox" name="recorrente" value="on" ${obj?.recorrente ? "checked" : ""}><span class="td-switch-ui" aria-hidden="true"></span>Tarefa recorrente (repete todo mês)</label></div>`;
+      html += `<div class="td-form-band wide" data-td-fin>Informações financeiras</div>`;
+      const radio = (v, l) =>
+        `<label class="td-radio"><input type="radio" name="tipoLancamento" value="${v}" ${tl === v ? "checked" : ""}>${l}</label>`;
+      html += `<div class="field wide" data-td-fin><label>Tipo de lançamento *</label><div class="td-radios">${radio("receita", "Receita")}${radio("entrada_por_fora", "Entrada por fora")}${radio("saida", "Saída")}</div></div>`;
+      html += `<div class="td-fin-row wide" data-td-fin><div class="field"><label>Empresa</label><select class="control" name="sub"><option value="">Selecione</option>${subdivisions.map((s) => `<option value="${esc(s)}" ${(obj ? obj.sub : state.empresa) === s ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div>`;
+      html += `<div class="field"><label>Centro de custo</label><select class="control" name="centro"><option value="">Não informado</option>${COST_CODES.map((code) => `<option value="${code}" ${(obj?.centro || "") === code ? "selected" : ""}>${code}${db.centers[code] ? " — " + esc(db.centers[code]) : ""}</option>`).join("")}</select></div>`;
+      html += `<div class="field"><label>Conta bancária</label><select class="control" name="origemPagamento"><option value="">Não informada</option>${[...new Set([...(obj?.origemPagamento ? [obj.origemPagamento] : []), ...(db.banks || [])])].map((x) => `<option value="${esc(x)}" ${obj?.origemPagamento === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></div>`;
+      html += `<div class="field"><label>Valor (R$) *</label><input class="control money-input" name="valor" inputmode="numeric" value="${inputBRL(obj?.valor || 0)}"></div></div>`;
+      if (obj && MB.admin)
+        html += `<div class="field"><label>Situação</label><select class="control" name="status">${["Pendente", "Em andamento", "Concluída"].map((s) => `<option ${obj.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>`;
+      html += `<div class="field wide"><label>Observações</label><textarea class="control" name="descricao" placeholder="Detalhes da demanda">${esc(obj?.descricao || "")}</textarea></div>`;
     } else if (kind === "conclude") {
       html += `<div class="form-section">Tarefa</div><div class="conclude-summary"><b>${esc(obj?.titulo || "")}</b><div class="muted">${esc(obj?.nome || "Favorecido não informado")}</div><div class="muted">Prazo: ${dateBR(obj?.prazo)} · Valor: ${fmt(obj?.valor || 0)}</div></div>`;
       html += field(
@@ -3285,17 +3664,22 @@
         ? `<div class="vincular-list" id="vincular-list">${candidatos
             .map(
               (f) =>
-                `<label class="vincular-row"><input type="checkbox" name="lanc" value="${esc(f.id)}" ${f.tarefaId === obj.id ? "checked" : ""}><span class="vincular-desc">${dateBR(f.data)} · ${esc(f.parceiro)}${f.sub ? " · " + esc(f.sub) : ""}</span><b class="num">${fmt(f.saida)}</b></label>`,
+                `<label class="vincular-row"><input type="checkbox" name="lanc" value="${esc(f.id)}" ${f.tarefaId === obj.id ? "checked" : ""}><span class="vincular-desc">${dateBR(f.data)} · ${esc(f.parceiro)}${f.sub ? " · " + esc(f.sub) : ""}</span><b class="num">${fmt(finValorTarefa(f))}</b></label>`,
             )
             .join("")}</div>`
         : `<p class="field-note wide">Nenhum lançamento de saída disponível ainda.</p>`;
       html += `<div class="field wide"><button type="button" class="btn" id="realizar-ir-financeiro">${icon("wallet")} Lançar mais um pagamento</button></div>`;
     } else {
       const locked = !!obj;
-      const selectedType = locked ? finKind(obj) : "receita";
+      const pre = !locked && opts.prefill ? opts.prefill : null;
+      const selectedType = locked
+        ? finKind(obj)
+        : pre?.tipoLancamento || "receita";
       const rx = locked ? finRecebimentos(obj) : [];
       const finValue = (name, value, types) =>
-        `<div class="field" data-fin-types="${types}" data-fin-value="${value}"><label>${name} (R$)${value === "previsto" ? "" : `<span data-fin-types="${value === "saida" ? "saida" : "entrada_por_fora"}"> *</span>`}</label><input class="control money-input fin-money" type="text" inputmode="numeric" autocomplete="off" name="${value}" value="${inputBRL(locked ? (value === "recebido" ? sumRecebimentos(rx) || obj.recebido || 0 : obj[value] || 0) : 0)}" placeholder="R$ 0,00"></div>`;
+        `<div class="field" data-fin-types="${types}" data-fin-value="${value}"><label>${name} (R$)${value === "previsto" ? "" : `<span data-fin-types="${value === "saida" ? "saida" : "entrada_por_fora"}"> *</span>`}</label><input class="control money-input fin-money" type="text" inputmode="numeric" autocomplete="off" name="${value}" value="${inputBRL(locked ? (value === "recebido" ? sumRecebimentos(rx) || obj.recebido || 0 : obj[value] || 0) : pre?.[value] || 0)}" placeholder="R$ 0,00"></div>`;
+      if (linkTask)
+        html += `<div class="fin-info-banner wide">${FIN_ICONS.info}<span>Lançamento da tarefa <b>${esc(linkTask.titulo || "")}</b>. Ao salvar, ele fica vinculado e a tarefa é atualizada (valor da tarefa: ${fmt(linkTask.valor || 0)}).</span></div>`;
       if (locked) {
         window.__finHist = { obj: obj, key: "data", dir: "asc" };
         html += `<div class="fin-modal-tabs" role="tablist" aria-label="Seções do lançamento"><button type="button" class="active" data-fin-tab="dados" role="tab">Lançamento</button><button type="button" data-fin-tab="historico" data-fin-history-tab role="tab">Histórico</button></div>`;
@@ -3304,18 +3688,18 @@
         html += `<div class="fin-kind-banner wide" id="fin-kind-banner"><span class="fin-kind-ico" id="fin-kind-ico"></span><div><b id="fin-kind-title"></b><small id="fin-kind-help"></small></div></div>`;
       }
       html += `<div class="field wide fin-type-field"><label>Tipo de lançamento *</label><select class="control" name="tipoLancamento" id="fin-entry-type" required><option value="receita" ${selectedType === "receita" ? "selected" : ""}>Receita</option><option value="entrada_por_fora" ${selectedType === "entrada_por_fora" ? "selected" : ""}>Entrada por fora</option><option value="saida" ${selectedType === "saida" ? "selected" : ""}>Saída</option></select></div>`;
-      html += `<div class="field"><label>Empresa *</label><select class="control" name="sub" required><option value="">Selecione</option>${subdivisions.map((s) => `<option value="${esc(s)}" ${(locked ? obj.sub : state.empresa) === s ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div>`;
-      html += `<div class="field"><label id="fin-partner-label">Parceiro *</label><input class="control" name="parceiro" type="text" value="${esc(obj?.parceiro || "")}" required></div>`;
-      html += `<div class="field" data-fin-center><label>Centro de custo</label><select class="control" name="centro"><option value="">Não informado</option>${COST_CODES.map((code) => `<option value="${code}" ${(obj?.centro || "") === code ? "selected" : ""}>${code}${db.centers[code] ? " — " + esc(db.centers[code]) : ""}</option>`).join("")}</select></div>`;
+      html += `<div class="field"><label>Empresa *</label><select class="control" name="sub" required><option value="">Selecione</option>${subdivisions.map((s) => `<option value="${esc(s)}" ${(locked ? obj.sub : pre?.sub || state.empresa) === s ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div>`;
+      html += `<div class="field"><label id="fin-partner-label">Parceiro *</label><input class="control" name="parceiro" type="text" value="${esc(obj?.parceiro || pre?.parceiro || "")}" required></div>`;
+      html += `<div class="field" data-fin-center><label>Centro de custo</label><select class="control" name="centro"><option value="">Não informado</option>${COST_CODES.map((code) => `<option value="${code}" ${(obj?.centro || pre?.centro || "") === code ? "selected" : ""}>${code}${db.centers[code] ? " — " + esc(db.centers[code]) : ""}</option>`).join("")}</select></div>`;
       html += field("Data *", "data", obj?.data || todayISO(), "date", true);
       html += `<div class="field" data-fin-types="receita entrada_por_fora"><label id="fin-received-date-label">Data recebida</label><input class="control" name="dataRecebida" type="date" value="${esc(obj?.dataRecebida || "")}"></div>`;
       html += `<div class="field" data-fin-types="receita entrada_por_fora"><label>Empresa que depositou o pagamento</label><input class="control" name="empresaDepositante" value="${esc(obj?.empresaDepositante || "")}"></div>`;
-      html += `<div class="field"><label>Conta Bancária</label><select class="control" name="contaBancaria"><option value="">Não informada</option>${[...new Set([...(obj?.contaBancaria ? [obj.contaBancaria] : []), ...(db.banks || [])])].map((x) => `<option value="${esc(x)}" ${obj?.contaBancaria === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></div>`;
+      html += `<div class="field"><label>Conta Bancária</label><select class="control" name="contaBancaria"><option value="">Não informada</option>${[...new Set([...(obj?.contaBancaria ? [obj.contaBancaria] : []), ...(pre?.contaBancaria ? [pre.contaBancaria] : []), ...(db.banks || [])])].map((x) => `<option value="${esc(x)}" ${(obj?.contaBancaria || pre?.contaBancaria) === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></div>`;
       html += `<div class="form-section" data-fin-types="receita">Valores</div>`;
       html += finValue("A receber", "previsto", "receita");
       html += finValue("Recebido", "recebido", "receita entrada_por_fora");
       html += finValue("Saída", "saida", "saida");
-      html += `<div class="field wide"><label>Observação</label><textarea class="control" name="observacao" placeholder="Informações adicionais do lançamento">${esc(obj?.observacao || "")}</textarea></div>`;
+      html += `<div class="field wide"><label>Observação</label><textarea class="control" name="observacao" placeholder="Informações adicionais do lançamento">${esc(obj?.observacao || pre?.observacao || "")}</textarea></div>`;
       if (locked) {
         html += `</div><aside class="fin-edit-side">`;
         html += `<section class="fin-side-card" data-fin-types="receita"><h4>${FIN_ICONS.plusCircle}Registrar recebimento</h4><div class="fin-side-grid"><div class="field"><label>Data do recebimento</label><input class="control" name="novaBaixaData" type="date" value=""></div><div class="field"><label>Valor recebido (R$)</label><input class="control money-input fin-money" name="novaBaixaValor" inputmode="numeric" value="${inputBRL(0)}" placeholder="R$ 0,00"></div></div><button type="button" class="btn primary fin-side-btn" data-fin-register-receipt>Registrar recebimento</button></section>`;
@@ -3326,7 +3710,9 @@
     }
     if (kind === "recebimento" || (kind === "finance" && !obj))
       html += `<div class="field wide"><label>Anexar comprovante (foto ou PDF)</label>${finDropzoneHTML()}</div>`;
-    else if (kind === "task" || kind === "conclude")
+    else if (kind === "task")
+      html += `<div class="field wide"><label>Anexos (opcional)</label>${attachmentsListHTML(obj?.anexos)}${finDropzoneHTML(true)}</div>`;
+    else if (kind === "conclude")
       html += `<div class="form-section">Comprovantes</div><div class="field wide"><label>Anexar comprovante (foto ou PDF)</label>${attachmentsListHTML(obj?.anexos)}${finDropzoneHTML()}</div>`;
     const modalBox = $("#modal-layer .modal");
     modalBox.className =
@@ -3337,7 +3723,9 @@
           : " fin-modal fin-modal-new"
         : kind === "recebimento"
           ? " fin-modal fin-modal-receipt"
-          : "");
+          : kind === "task"
+            ? " td-modal"
+            : "");
     $("#modal-body").innerHTML = html;
     wireFinDropzones($("#modal-body"));
     $$(".money-input").forEach((el) =>
@@ -3357,16 +3745,41 @@
                 ? "Registrar recebimento"
                 : kind === "contato"
                   ? "Salvar contato"
-                  : "Salvar";
+                  : kind === "anexar"
+                    ? "Anexar"
+                    : linkTask
+                      ? "Salvar e vincular"
+                      : "Salvar";
       submitBtn.hidden =
         kind === "vincular" && !lancamentosVinculaveis(obj).length;
+      submitBtn.classList.add("primary");
     }
+    const realizeBtn = $("#save-realize");
+    if (realizeBtn) realizeBtn.hidden = true;
     if (kind === "task") {
-      const tpl = $("#task-template");
-      tpl.onchange = () => {
-        if (tpl.value && !$("#modal-body [name=titulo]").value)
-          $("#modal-body [name=titulo]").value = tpl.value;
+      const body = $("#modal-body");
+      const syncTipo = () => {
+        const fin =
+          body.querySelector('[name="demanda"]:checked')?.value !== TASK_DOC;
+        body.querySelectorAll("[data-td-fin]").forEach((el) => {
+          el.hidden = !fin;
+          el.querySelectorAll("input,select").forEach(
+            (c) => (c.disabled = !fin),
+          );
+        });
+        body
+          .querySelectorAll(".td-type-card")
+          .forEach((c) =>
+            c.classList.toggle("active", !!c.querySelector("input:checked")),
+          );
+        const canRealize = fin && (!obj || obj.status !== "Concluída");
+        if (realizeBtn) realizeBtn.hidden = !canRealize;
+        submitBtn?.classList.toggle("primary", !canRealize);
       };
+      body
+        .querySelectorAll('[name="demanda"]')
+        .forEach((r) => r.addEventListener("change", syncTipo));
+      syncTipo();
     }
     $("#realizar-ir-financeiro")?.addEventListener("click", () => {
       closeModal();
@@ -3374,7 +3787,7 @@
     });
     if (kind === "vincular") {
       const valoresPorId = new Map(
-        lancamentosVinculaveis(obj).map((f) => [f.id, money(f.saida)]),
+        lancamentosVinculaveis(obj).map((f) => [f.id, finValorTarefa(f)]),
       );
       const updateVincularTotal = () => {
         const total = $$('#vincular-list input[name="lanc"]:checked').reduce(
@@ -3513,10 +3926,41 @@
   function closeModal() {
     $("#modal-layer").classList.remove("open");
     editing = null;
+    financeTaskLink = null;
+    const realizeBtn = $("#save-realize");
+    if (realizeBtn) realizeBtn.hidden = true;
   }
   $("#modal-form").onsubmit = (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
+    const linkTaskId = typeModal === "finance" ? financeTaskLink : null;
+    if (typeModal === "anexar") {
+      const t = db.tasks.find((x) => x.id === editing);
+      if (!t) return;
+      const novos = Array.from(e.target.elements.anexo?.files || []);
+      if (!novos.length) {
+        toast("Selecione ao menos um arquivo.");
+        return;
+      }
+      t.anexos = collectAnexos(t.anexos, e.target);
+      markMutation("taskUpserts", t.id);
+      audit(
+        "Anexo adicionado à tarefa",
+        `${t.titulo} · ${novos.length} arquivo(s)`,
+      );
+      save();
+      closeModal();
+      render();
+      toast("Anexos salvos. Enviando para a nuvem…");
+      return;
+    }
+    if (typeModal === "task") {
+      const fin = f.get("demanda") !== TASK_DOC;
+      if (fin && money(f.get("valor")) <= 0) {
+        toast("Na demanda financeira, informe o valor.");
+        return;
+      }
+    }
     if (typeModal === "history") {
       const rec = monthlyHistory.find((x) => x.id === editing);
       if (!rec) return;
@@ -3712,21 +4156,28 @@
     ];
     let rec;
     if (typeModal === "task") {
+      const fin = f.get("demanda") !== TASK_DOC;
+      const tl = String(f.get("tipoLancamento") || "saida");
       rec = {
         id: editing || crypto.randomUUID(),
         titulo: String(f.get("titulo")).trim(),
         nome: String(f.get("nome") || "").trim(),
-        dataExecucao: String(f.get("dataExecucao") || ""),
-        valor: money(f.get("valor")),
-        nomeExtrato: String(f.get("nomeExtrato") || ""),
-        situacaoRegistro: String(f.get("situacaoRegistro") || ""),
-        observacao: String(f.get("observacao") || ""),
+        dataExecucao: old?.dataExecucao || "",
+        valor: fin ? money(f.get("valor")) : 0,
+        nomeExtrato: old?.nomeExtrato || "",
+        situacaoRegistro: old?.situacaoRegistro || "",
+        observacao: old?.observacao || "",
         responsavel: String(f.get("responsavel")).trim(),
-        demanda: "",
-        sub: "",
-        origemPagamento: String(f.get("origemPagamento") || ""),
+        demanda: fin ? TASK_FIN : TASK_DOC,
+        tipoLancamento: fin ? tl : "",
+        sub: fin ? String(f.get("sub") || "") : "",
+        centro: fin ? String(f.get("centro") || "") : "",
+        origemPagamento: fin ? String(f.get("origemPagamento") || "") : "",
         prazo: f.get("prazo"),
-        status: f.get("status"),
+        status:
+          old && MB.admin && f.get("status")
+            ? String(f.get("status"))
+            : old?.status || "Pendente",
         descricao: f.get("descricao"),
         recorrente: f.get("recorrente") === "on",
         recorrenteOrigemId: old?.recorrenteOrigemId || null,
@@ -3909,6 +4360,8 @@
         };
       }
     }
+    if (typeModal === "finance" && linkTaskId && !old)
+      rec.tarefaId = linkTaskId;
     if (typeModal === "finance" && !confirmDuplicateSave(rec, old)) {
       window.__mbFinAudit = null;
       return;
@@ -3946,13 +4399,31 @@
           : `Financeiro: ${rec.parceiro} / ${rec.centro}`,
       );
     }
+    let linkMsg = "";
+    if (typeModal === "finance" && linkTaskId) {
+      const t = db.tasks.find((x) => x.id === linkTaskId);
+      if (t) {
+        linkMsg = sincronizarStatusTarefa(t);
+        audit(
+          "Lançamento vinculado à tarefa",
+          `${t.titulo} · ${fmt(finValorTarefa(rec))}`,
+        );
+      }
+    }
     save();
     const again = e.submitter && e.submitter.id === "save-next",
       kindAgain = typeModal;
+    const realizeAfter =
+      typeModal === "task" && e.submitter && e.submitter.id === "save-realize";
     closeModal();
     render();
-    toast("Salvando na nuvem…");
+    toast(linkMsg || "Salvando na nuvem…");
     if (again) openModal(kindAgain);
+    if (realizeAfter) {
+      if (canWorkTask(rec)) openRealizar(rec);
+      else
+        toast("Tarefa salva. Só o responsável (ou um admin) pode realizá-la.");
+    }
   };
   $$("[data-page]").forEach((b) => (b.onclick = () => goto(b.dataset.page)));
   document.addEventListener("click", (e) => {
@@ -3993,11 +4464,7 @@
       const id = realizarTask.dataset.realizarTask;
       const t = db.tasks.find((x) => x.id === id);
       if (!t) return;
-      if (!samePerson(t.responsavel, MB.nome) && !MB.admin) {
-        toast("Essa tarefa não está atribuída a você.");
-        return;
-      }
-      openModal(t.status === "Em andamento" ? "vincular" : "realizar", id);
+      openRealizar(t);
       return;
     }
     const contatoPend = e.target.closest("[data-contato-pendente]");
@@ -4352,6 +4819,8 @@
     const tf = e.target.closest("[data-task-filter]");
     if (tf) {
       state.taskStatus = tf.dataset.taskFilter;
+      state.taskTab = "todas";
+      state.taskPage = 1;
       goto("demandas");
     }
     const kb = e.target.closest("[data-kpi]");
@@ -4541,12 +5010,17 @@
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
   };
   function finFileBadge(name) {
-    const ext = String(name || "").split(".").pop().toLowerCase();
+    const ext = String(name || "")
+      .split(".")
+      .pop()
+      .toLowerCase();
     const isPdf = ext === "pdf";
     return `<span class="fin-file-badge ${isPdf ? "pdf" : "img"}">${FIN_ICONS.doc}<i>${isPdf ? "PDF" : esc(ext.slice(0, 4).toUpperCase() || "ARQ")}</i></span>`;
   }
-  function finDropzoneHTML() {
-    return `<div class="fin-drop" data-fin-drop><div class="att-list fin-drop-files" data-fin-drop-files></div><label class="fin-drop-zone"><input type="file" name="anexo" accept="image/*,.pdf" multiple class="fin-drop-input">${FIN_ICONS.cloud}<b class="fin-drop-extra">Adicionar outro comprovante (opcional)</b><span>Clique ou arraste arquivos aqui</span><small>(PDF, JPG ou PNG)</small></label></div>`;
+  function finDropzoneHTML(docs = false) {
+    const accept = docs ? "image/*,.pdf,.xls,.xlsx,.csv" : "image/*,.pdf";
+    const hint = docs ? "(PDF, JPG, PNG, XLS, XLSX)" : "(PDF, JPG ou PNG)";
+    return `<div class="fin-drop" data-fin-drop><div class="att-list fin-drop-files" data-fin-drop-files></div><label class="fin-drop-zone"><input type="file" name="anexo" accept="${accept}" multiple class="fin-drop-input">${FIN_ICONS.cloud}<b class="fin-drop-extra">Adicionar outro ${docs ? "arquivo" : "comprovante"} (opcional)</b><span>Clique ou arraste arquivos aqui</span><small>${hint}</small></label></div>`;
   }
   function wireFinDropzones(root) {
     root?.querySelectorAll("[data-fin-drop]").forEach((wrap) => {
@@ -4683,7 +5157,10 @@
     viewerURL = URL.createObjectURL(blob);
     const isImg = String(blob.type || f.type).startsWith("image/"),
       isPdf = String(blob.type || f.type).includes("pdf");
-    pv.innerHTML = `<div class="vp-bar"><b>${esc(f.name)}</b><a class="btn" href="${viewerURL}" target="_blank" rel="noopener">${icon("external")}Abrir</a><a class="btn" href="${viewerURL}" download="${esc(f.name)}">${icon("dl")}Baixar</a></div><div class="vp-stage">${isImg ? `<img src="${viewerURL}" alt="${esc(f.name)}">` : isPdf ? `<iframe src="${viewerURL}" title="${esc(f.name)}"></iframe>` : `<div class="vp-empty">${icon("file")}<strong>Formato sem pré-visualização</strong>Use “Baixar” para abrir o arquivo.</div>`}</div>`;
+    const sent = f.createdAt
+      ? ` · Enviado em ${dateBR(String(f.createdAt).slice(0, 10))}`
+      : "";
+    pv.innerHTML = `<div class="vp-bar"><div class="vp-name"><b>${esc(f.name)}</b><small>${esc(fsize(f.size || blob.size) + sent)}</small></div><a class="btn primary" href="${viewerURL}" download="${esc(f.name)}">${icon("dl")}Baixar</a><button type="button" class="btn" data-vp-full>${icon("external")}Tela cheia</button></div><div class="vp-stage">${isImg ? `<img src="${viewerURL}" alt="${esc(f.name)}">` : isPdf ? `<iframe src="${viewerURL}" title="${esc(f.name)}"></iframe>` : `<div class="vp-empty">${icon("file")}<strong>Formato sem pré-visualização</strong>Use “Baixar” para abrir o arquivo.</div>`}</div>`;
   }
   function closeViewer() {
     $("#viewer-layer").classList.remove("open");
@@ -4707,6 +5184,11 @@
       }
       const vi = e.target.closest("[data-viewer-index]");
       if (vi) showFile(Number(vi.dataset.viewerIndex));
+      if (e.target.closest("[data-vp-full]")) {
+        const stage = $("#viewer-preview .vp-stage");
+        if (document.fullscreenElement) document.exitFullscreen?.();
+        else stage?.requestFullscreen?.();
+      }
     },
     true,
   );
@@ -5872,15 +6354,19 @@
       ["prior", "entries", "exits", "final"].every((k) =>
         colPass("sum", k, "", snapshot[k]),
       );
-    const shown = [
-      ...active,
-      ...zero,
-    ].filter(passes);
+    const shown = [...active, ...zero].filter(passes);
     if (sortBy) shown.sort((a, b) => compareRows(a, b) * direction);
     dashSummaryShown = shown;
     dashSummaryTotal = total;
     const summaryTh = (key, label, extraClass = "") =>
-      dashTh("sum", key, "data-dash-summary-sort", sortBy, direction, extraClass);
+      dashTh(
+        "sum",
+        key,
+        "data-dash-summary-sort",
+        sortBy,
+        direction,
+        extraClass,
+      );
     const emptyRow =
       !shown.length && filtering
         ? `<tr class="dash-zero-row"><td colspan="5" class="empty">Nenhuma empresa para esta busca ou filtro.</td></tr>`
@@ -5970,7 +6456,12 @@
       : "";
     const per = isRange ? "período" : "mês";
     const valueRows = ref
-      ? line("is-forecast", "calendar", `Previsto no ${per}`, n2(stats.previsto)) +
+      ? line(
+          "is-forecast",
+          "calendar",
+          `Previsto no ${per}`,
+          n2(stats.previsto),
+        ) +
         line(
           "is-received",
           "check",
@@ -6115,7 +6606,8 @@
       redrawDashTable(table);
       return;
     }
-    if (dashFilterOpen && !e.target.closest("#pn-filter-pop")) closeDashFilter();
+    if (dashFilterOpen && !e.target.closest("#pn-filter-pop"))
+      closeDashFilter();
     if (e.target.closest("#dash-export")) {
       const menu = $("#dash-export-menu");
       menu.hidden = !menu.hidden;
@@ -6136,7 +6628,10 @@
     if (e.target.closest("#dash-print")) {
       document.body.classList.add("printing-dashboard");
       window.print();
-      setTimeout(() => document.body.classList.remove("printing-dashboard"), 500);
+      setTimeout(
+        () => document.body.classList.remove("printing-dashboard"),
+        500,
+      );
       return;
     }
     if (e.target.closest("#dash-manage")) {
@@ -6144,7 +6639,8 @@
       if (cfg && !cfg.hidden && cfg.offsetParent !== null) {
         goto("configuracoes");
         setTimeout(
-          () => document.querySelector('.sn-btn[data-set="companies"]')?.click(),
+          () =>
+            document.querySelector('.sn-btn[data-set="companies"]')?.click(),
           0,
         );
       } else goto("empresas");
@@ -6317,7 +6813,9 @@
       const ids = ref ? dashboardPeriodStats(scopeRows, ref).rowIds : null;
       const rows = scopeRows
         .filter((r) => !ids || ids.has(r.id))
-        .sort((a, b) => String(a.data || "").localeCompare(String(b.data || "")));
+        .sort((a, b) =>
+          String(a.data || "").localeCompare(String(b.data || "")),
+        );
       downloadCsv(
         `lancamentos-${tag}${scope}.csv`,
         [
@@ -6596,7 +7094,8 @@
     if (key === "data") return dateBR(r.data);
     if (key === "sub") return r.sub || "—";
     if (key === "parceiro") return r.parceiro || "—";
-    if (key === "contato") return ultimoContato(r) ? "Com contato" : "Sem contato";
+    if (key === "contato")
+      return ultimoContato(r) ? "Com contato" : "Sem contato";
     if (key === "centro") return r.centro || "—";
     if (key === "conta") return r.contaBancaria || "—";
     if (key === "sit") return finStatus(r)[0];
@@ -6624,18 +7123,20 @@
       : PEND_SORT_ICON.includes(key)
         ? `<svg class="pend-sort-ico"><use href="#i-sort"></use></svg>`
         : "";
-    const label = esc(col.label.replace(" (R$)", "")) + (col.type === "num" ? " (R$)" : "");
-    const filter = PEND_SORT_ICON.includes(key) && key !== "comp"
-      ? ""
-      : `<button type="button" class="pn-fbtn${colActive("pend", key) ? " on" : ""}" data-dash-filter="pend:${key}" title="Filtrar ${esc(col.label)}" aria-label="Filtrar ${esc(col.label)}">${icon("filter")}</button>`;
+    const label =
+      esc(col.label.replace(" (R$)", "")) + (col.type === "num" ? " (R$)" : "");
+    const filter =
+      PEND_SORT_ICON.includes(key) && key !== "comp"
+        ? ""
+        : `<button type="button" class="pn-fbtn${colActive("pend", key) ? " on" : ""}" data-dash-filter="pend:${key}" title="Filtrar ${esc(col.label)}" aria-label="Filtrar ${esc(col.label)}">${icon("filter")}</button>`;
     return `<th class="${cls}"${ariaSort}><div class="pn-th"><button type="button" class="fin-th-sort${selected ? " is-active" : ""}" data-pend-sort="${key}" title="Ordenar por ${esc(col.label)}">${label}${mark}</button>${key === "comp" ? "" : filter}</div></th>`;
   }
   function pendFiltersHTML() {
     const cm = state.contasMes ?? state.mes;
     const base = pendingRecords();
-    const centros = [...new Set(base.map((r) => r.centro).filter(Boolean))].sort(
-      (a, b) => a.localeCompare(b, "pt-BR", { numeric: true }),
-    );
+    const centros = [
+      ...new Set(base.map((r) => r.centro).filter(Boolean)),
+    ].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
     const sel = (ico, attrs, options) =>
       `<span class="pend-select">${icon(ico)}<select class="control" ${attrs}>${options}</select>${icon("chevdown")}</span>`;
     const opt = (v, l, cur) =>
@@ -6701,16 +7202,31 @@
           .map((c) => c.nota)
           .join(" ");
         const hay = fold(
-          [r.parceiro, r.sub, r.centro, r.contaBancaria, r.observacao, r.criadoPor, contatos].join(" "),
+          [
+            r.parceiro,
+            r.sub,
+            r.centro,
+            r.contaBancaria,
+            r.observacao,
+            r.criadoPor,
+            contatos,
+          ].join(" "),
         );
         const values = [r.previsto, r.recebido, finFalta(r)].map((v) => n2(v));
         if (
           !hay.includes(q) &&
-          !(qNum && values.some((v) => v.includes(qNum) || v.replace(/\./g, "").includes(qNum)))
+          !(
+            qNum &&
+            values.some(
+              (v) => v.includes(qNum) || v.replace(/\./g, "").includes(qNum),
+            )
+          )
         )
           return false;
       }
-      return keys.every((k) => colPass("pend", k, pendCell(r, k), pendNum(r, k)));
+      return keys.every((k) =>
+        colPass("pend", k, pendCell(r, k), pendNum(r, k)),
+      );
     });
     const [by, dir] = state.pendSort.split(":");
     const direction = dir === "asc" ? 1 : -1;
@@ -6746,7 +7262,8 @@
           `<option value="${v}" ${v === state.pendSort ? "selected" : ""}>${l}</option>`,
       ).join("");
     $("#pend-per").value = state.pendPer;
-    const per = state.pendPer === "all" ? rows.length || 1 : Number(state.pendPer) || 10;
+    const per =
+      state.pendPer === "all" ? rows.length || 1 : Number(state.pendPer) || 10;
     const pages = Math.max(1, Math.ceil(rows.length / per));
     state.pendPage = Math.min(Math.max(1, state.pendPage), pages);
     const start = (state.pendPage - 1) * per;
@@ -6755,7 +7272,8 @@
       : rows.slice(start, start + per);
     const sitPill = (r) => {
       const st = finStatus(r)[0];
-      const cls = st === "Em aberto" ? "open" : st === "Pendente" ? "wait" : "other";
+      const cls =
+        st === "Em aberto" ? "open" : st === "Pendente" ? "wait" : "other";
       return `<span class="pend-pill ${cls}"><i></i>${esc(st)}</span>`;
     };
     const faltaCls = (r) => {
@@ -6774,7 +7292,8 @@
       noRows("Nenhum valor pendente para os filtros selecionados.", 13)
     }</tbody></table>`;
     const shownTo = Math.min(rows.length, start + pageRows.length);
-    $("#pend-foot").innerHTML = `<span class="pend-showing">${rows.length ? `Mostrando ${start + 1} a ${shownTo} de ${rows.length} registros` : "Nenhum registro"}</span><div class="pend-totals"><b>Totais (pendentes):</b><span>A receber: <b>${fmt(prev)}</b></span><i></i><span>Já recebido: <b>${fmt(rec)}</b></span><i></i><span>Falta receber: <b class="neg">${fmt(falta)}</b></span></div>${pendPagerHTML(state.pendPage, pages)}`;
+    $("#pend-foot").innerHTML =
+      `<span class="pend-showing">${rows.length ? `Mostrando ${start + 1} a ${shownTo} de ${rows.length} registros` : "Nenhum registro"}</span><div class="pend-totals"><b>Totais (pendentes):</b><span>A receber: <b>${fmt(prev)}</b></span><i></i><span>Já recebido: <b>${fmt(rec)}</b></span><i></i><span>Falta receber: <b class="neg">${fmt(falta)}</b></span></div>${pendPagerHTML(state.pendPage, pages)}`;
   }
   function closePendMenu() {
     $("#pend-row-menu")?.remove();
@@ -6840,9 +7359,13 @@
     toast("Planilha gerada");
   }
   document.addEventListener("click", (e) => {
-    if (!e.target.closest("#pend-row-menu") && !e.target.closest("[data-pend-menu]"))
+    if (
+      !e.target.closest("#pend-row-menu") &&
+      !e.target.closest("[data-pend-menu]")
+    )
       closePendMenu();
-    else if (e.target.closest("#pend-row-menu button")) setTimeout(closePendMenu, 0);
+    else if (e.target.closest("#pend-row-menu button"))
+      setTimeout(closePendMenu, 0);
     const kebab = e.target.closest("[data-pend-menu]");
     if (kebab) {
       openPendMenu(kebab);
@@ -6986,6 +7509,7 @@
     nome: "Usuário",
     admin: false,
     editor: false,
+    canCreateTasks: false,
     userId: "",
     embed: window.parent !== window,
   };
@@ -7010,10 +7534,11 @@
     $("#um-links").innerHTML = trocar;
     $("#um-links").hidden = !trocar;
     $("#um-sair").hidden = !MB.embed;
-    // Quem não é admin só lança tarefa como responsável atribuída: sem
-    // criação de tarefas e sem a visão "Todas as demandas" (que mostraria
-    // edição/exclusão de tarefas de qualquer pessoa).
-    $$('[data-open="task"]').forEach((el) => (el.hidden = !MB.admin));
+    // Criar tarefa: admin ou administrativo. Quem não cria só executa a
+    // própria (responsável). "Todas as demandas" e aprovações de relatório
+    // continuam só para admin (edição/exclusão de qualquer pessoa).
+    $$('[data-open="task"]').forEach((el) => (el.hidden = !MB.canCreateTasks));
+    $$("[data-td-models]").forEach((el) => (el.hidden = !MB.admin));
     $$('[data-page="demandas"]').forEach((el) => (el.hidden = !MB.admin));
     $$('[data-page="rel-aprovacoes"]').forEach((el) => (el.hidden = !MB.admin));
     if (!MB.admin && page === "rel-aprovacoes") goto("rel-historico");
@@ -7031,6 +7556,7 @@
       MB.nome = String(d.nome || MB.nome);
       MB.admin = !!d.admin;
       MB.editor = !!d.editor || MB.admin;
+      MB.canCreateTasks = !!d.canCreateTasks || MB.admin;
       MB.userId = String(d.userId || MB.userId || "");
       drawUser();
       if (page === "sem-data-recebida") drawCorrections();
