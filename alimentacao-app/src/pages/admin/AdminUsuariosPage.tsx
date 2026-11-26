@@ -89,7 +89,9 @@ export function AdminUsuariosPage() {
   const [editUser, setEditUser] = useState<Profile | null>(null)
   const [editing, setEditing] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ nome: '', ativo: true, password: '', acessos: acessosVazios() })
+  const [editForm, setEditForm] = useState({
+    cargo: 'externo' as NovoCargo, nome: '', ativo: true, password: '', acessos: acessosVazios(),
+  })
 
   const [deleteUser, setDeleteUser] = useState<Profile | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -131,7 +133,13 @@ export function AdminUsuariosPage() {
   function abrirEdicao(u: Profile) {
     setEditUser(u)
     setEditError(null)
-    setEditForm({ nome: u.nome, ativo: u.ativo, password: '', acessos: acessosDoUsuario(u) })
+    setEditForm({
+      cargo: u.role === 'visualizador' ? 'visualizador' : 'externo',
+      nome: u.nome,
+      ativo: u.ativo,
+      password: '',
+      acessos: acessosDoUsuario(u),
+    })
   }
 
   async function handleCreate() {
@@ -172,19 +180,22 @@ export function AdminUsuariosPage() {
     if (!editUser) return
     setEditError(null)
 
-    const acessos_externos = acessosParaSalvar(editForm.acessos)
+    const acessos_externos = editForm.cargo === 'externo'
+      ? acessosParaSalvar(editForm.acessos)
+      : {}
 
-    if (editUser.role === 'externo') {
+    if (editUser.role === 'externo' || editUser.role === 'visualizador') {
       if (!editForm.nome.trim()) return setEditError('Informe o nome.')
       if (editForm.password && editForm.password.length < 8) {
         return setEditError('A nova senha precisa ter pelo menos 8 caracteres.')
       }
-      if (!Object.keys(acessos_externos).length) {
+      if (editForm.cargo === 'externo' && !Object.keys(acessos_externos).length) {
         return setEditError('Marque pelo menos um sistema, ou exclua o usuário.')
       }
       setEditing(true)
       const { error } = await editarUsuarioExterno({
         id: editUser.id,
+        role: editForm.cargo,
         nome: editForm.nome,
         ativo: editForm.ativo,
         password: editForm.password || undefined,
@@ -433,8 +444,8 @@ export function AdminUsuariosPage() {
         open={Boolean(editUser)}
         title={editUser ? `Editar acesso · ${editUser.nome}` : 'Editar acesso'}
         description={
-          editUser?.role === 'externo'
-            ? 'Esse login só existe para os outros sistemas — pode editar nome, status e senha.'
+          editUser?.role === 'externo' || editUser?.role === 'visualizador'
+            ? 'Escolha Visualizador para liberar a consulta de lideranças e fichas no Sistema Nerites.'
             : 'Usuário do Sistema Nerites: aqui só se libera (ou tira) o acesso extra aos outros sistemas.'
         }
         onClose={() => !editing && setEditUser(null)}
@@ -443,8 +454,22 @@ export function AdminUsuariosPage() {
         loading={editing}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {editUser?.role === 'externo' && (
+          {(editUser?.role === 'externo' || editUser?.role === 'visualizador') && (
             <>
+              <Select
+                label="Acesso principal"
+                value={editForm.cargo}
+                onChange={(e) => setEditForm((f) => ({ ...f, cargo: e.target.value as NovoCargo }))}
+                options={[
+                  { value: 'visualizador', label: 'Sistema Nerites — Visualizador' },
+                  { value: 'externo', label: 'Acesso externo — outros sistemas' },
+                ]}
+              />
+              {editForm.cargo === 'visualizador' && (
+                <div className="alert alert-info">
+                  Poderá consultar lideranças e todas as fichas, sem criar, editar ou excluir.
+                </div>
+              )}
               <Input label="Nome completo" value={editForm.nome} onChange={(e) => setEditForm((f) => ({ ...f, nome: e.target.value }))} />
               <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.85rem' }}>
                 <input
@@ -463,7 +488,12 @@ export function AdminUsuariosPage() {
               />
             </>
           )}
-          {renderAcessosFields(editForm.acessos, (site, nivel) => setEditForm((f) => ({ ...f, acessos: { ...f.acessos, [site]: nivel } })))}
+          {(
+            editUser?.role !== 'externo'
+            && editUser?.role !== 'visualizador'
+          ) || editForm.cargo === 'externo'
+            ? renderAcessosFields(editForm.acessos, (site, nivel) => setEditForm((f) => ({ ...f, acessos: { ...f.acessos, [site]: nivel } })))
+            : null}
           {editError && <div className="alert alert-error">{editError}</div>}
         </div>
       </Modal>

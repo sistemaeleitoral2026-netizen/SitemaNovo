@@ -50,7 +50,7 @@ async function getAuthUser(token) {
   }
 }
 
-/** Só o admin mexe nos logins "externos" por aqui — nunca em admin/diretoria/nerites. */
+/** Só o admin mexe em logins externos/visualizadores por aqui. */
 async function loadCallerAdmin(userId) {
   const r = await fetch(
     `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=id,nome,role,ativo`,
@@ -62,14 +62,14 @@ async function loadCallerAdmin(userId) {
   return profile
 }
 
-async function loadTargetExterno(userId) {
+async function loadTargetGerenciavel(userId) {
   const r = await fetch(
     `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=id,nome,email,role`,
     { headers: { Authorization: `Bearer ${SERVICE_ROLE}`, apikey: SERVICE_ROLE } },
   )
   const rows = await r.json().catch(() => [])
   const profile = Array.isArray(rows) ? rows[0] : null
-  if (!profile || profile.role !== 'externo') return null
+  if (!profile || !['externo', 'visualizador'].includes(profile.role)) return null
   return profile
 }
 
@@ -96,9 +96,9 @@ module.exports = async function handler(req, res) {
     const targetId = String(body.id || '').trim()
     if (!targetId) return json(res, 400, { error: 'Informe o usuário.' })
 
-    const target = await loadTargetExterno(targetId)
+    const target = await loadTargetGerenciavel(targetId)
     if (!target) {
-      return json(res, 404, { error: 'Usuário não encontrado (esta página só gerencia logins "externos").' })
+      return json(res, 404, { error: 'Usuário não encontrado ou cargo não gerenciável nesta página.' })
     }
 
     if (req.method === 'DELETE') {
@@ -124,19 +124,24 @@ module.exports = async function handler(req, res) {
     const ativo = body.ativo == null ? null : Boolean(body.ativo)
     const password = body.password ? String(body.password) : ''
     const acessos = body.acessos_externos != null ? sanitizeAcessos(body.acessos_externos) : null
+    const role = body.role == null ? target.role : String(body.role)
 
     if (nome === '') return json(res, 400, { error: 'Informe o nome.' })
     if (password && password.length < 8) {
       return json(res, 400, { error: 'A nova senha precisa ter no mínimo 8 caracteres.' })
     }
-    if (acessos && !Object.keys(acessos).length) {
+    if (!['externo', 'visualizador'].includes(role)) {
+      return json(res, 400, { error: 'Cargo inválido.' })
+    }
+    if (role === 'externo' && acessos && !Object.keys(acessos).length) {
       return json(res, 400, { error: 'Marque pelo menos um sistema para manter o acesso, ou exclua o usuário.' })
     }
 
     const patch = {}
     if (nome != null) patch.nome = nome
     if (ativo != null) patch.ativo = ativo
-    if (acessos != null) patch.acessos_externos = acessos
+    patch.role = role
+    patch.acessos_externos = role === 'visualizador' ? {} : (acessos ?? {})
 
     if (Object.keys(patch).length) {
       const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${targetId}`, {
@@ -153,7 +158,11 @@ module.exports = async function handler(req, res) {
         const text = await patchRes.text()
         let data = null
         try { data = text ? JSON.parse(text) : null } catch { data = text }
-        return json(res, 400, { error: errMsg(data, `HTTP ${patchRes.status}`) })
+        const raw = errMsg(data, `HTTP ${patchRes.status}`)
+        const hint = role === 'visualizador' && /check|constraint|role/i.test(raw)
+          ? ' Rode a migration 20261126_visualizador_readonly.sql no Supabase e tente de novo.'
+          : ''
+        return json(res, 400, { error: `${raw}${hint}` })
       }
     }
 
@@ -177,7 +186,7 @@ module.exports = async function handler(req, res) {
       sistema: 'admin', categoria: 'acesso', acao: 'usuario.editar', entidade: 'profiles', entidadeId: targetId,
       titulo: 'Acesso de usuário atualizado', resumo: nome || target.nome || 'Usuário',
       actorId: caller.id, actorNome: caller.nome,
-      metadata: { usuario: nome || target.nome || null, ativo, senha_alterada: Boolean(password), acessos: acessos ? Object.keys(acessos) : undefined },
+      metadata: { usuario: nome || target.nome || null, role, ativo, senha_alterada: Boolean(password), acessos: acessos ? Object.keys(acessos) : undefined },
       origemUrl: '/admin/usuarios', sourceKey: `admin:usuario.editar:${targetId}:${Date.now()}`,
     })
     return json(res, 200, { ok: true })

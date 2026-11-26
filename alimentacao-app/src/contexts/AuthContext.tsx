@@ -43,6 +43,7 @@ interface AuthContextValue {
   }) => Promise<{ error: string | null }>
   editarUsuarioExterno: (input: {
     id: string
+    role?: 'externo' | 'visualizador'
     nome?: string
     ativo?: boolean
     password?: string
@@ -339,6 +340,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const editarUsuarioExterno = useCallback((input: {
     id: string
+    role?: 'externo' | 'visualizador'
     nome?: string
     ativo?: boolean
     password?: string
