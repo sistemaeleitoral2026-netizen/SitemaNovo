@@ -23,6 +23,10 @@ const ROLE_FILTROS: UserRole[] = [
 
 type Nivel = '' | 'editor' | 'admin'
 type NovoCargo = 'externo' | 'visualizador'
+const NERITES_OPCOES: { value: NovoCargo; label: string }[] = [
+  { value: 'visualizador', label: 'Visualizador (consulta lideranças e fichas)' },
+  { value: 'externo', label: 'Sem acesso ao Nerites' },
+]
 type AcessosForm = Record<string, Nivel>
 
 function acessosVazios(): AcessosForm {
@@ -189,26 +193,35 @@ export function AdminUsuariosPage() {
     if (!createForm.email.trim()) return setCreateError('Informe o e-mail de acesso.')
     if (createForm.password.length < 8) return setCreateError('A senha deve ter pelo menos 8 caracteres.')
     if (createForm.password !== createForm.confirm) return setCreateError('As senhas não coincidem.')
+    const acessos_externos = acessosParaSalvar(createForm.acessos)
+    if (createForm.cargo === 'externo' && !Object.keys(acessos_externos).length) {
+      return setCreateError('Marque pelo menos um sistema para liberar o acesso.')
+    }
     setCreating(true)
     const error = createForm.cargo === 'visualizador'
-      ? (await createNerite({
+      ? await (async () => {
+          const email = createForm.email.trim().toLowerCase()
+          const created = await createNerite({
+            nome: createForm.nome,
+            email,
+            password: createForm.password,
+            role: 'visualizador',
+          })
+          if (created.error || !Object.keys(acessos_externos).length) return created.error
+          const { error: acessoError } = await supabase
+            .from('profiles')
+            .update({ acessos_externos })
+            .eq('email', email)
+          return acessoError
+            ? `Login criado, mas o acesso aos outros sistemas não foi salvo (${acessoError.message}). Use "Editar acesso".`
+            : null
+        })()
+      : (await criarUsuarioExterno({
           nome: createForm.nome,
           email: createForm.email,
           password: createForm.password,
-          role: 'visualizador',
+          acessos_externos,
         })).error
-      : await (async () => {
-          const acessos_externos = acessosParaSalvar(createForm.acessos)
-          if (!Object.keys(acessos_externos).length) {
-            return 'Marque pelo menos um sistema para liberar o acesso.'
-          }
-          return (await criarUsuarioExterno({
-            nome: createForm.nome,
-            email: createForm.email,
-            password: createForm.password,
-            acessos_externos,
-          })).error
-        })()
     setCreating(false)
     if (error) return setCreateError(error)
 
@@ -221,9 +234,7 @@ export function AdminUsuariosPage() {
     if (!editUser) return
     setEditError(null)
 
-    const acessos_externos = editForm.cargo === 'externo'
-      ? acessosParaSalvar(editForm.acessos)
-      : {}
+    const acessos_externos = acessosParaSalvar(editForm.acessos)
 
     if (editUser.role === 'externo' || editUser.role === 'visualizador') {
       if (!editForm.nome.trim()) return setEditError('Informe o nome.')
@@ -462,7 +473,7 @@ export function AdminUsuariosPage() {
       <Modal
         open={createOpen}
         title="Novo login"
-        description="Escolha Visualizador para acesso somente leitura às lideranças e fichas do Nerites."
+        description="Defina o acesso ao Sistema Nerites e, separadamente, aos outros sistemas. Os dois podem valer ao mesmo tempo."
         onClose={() => !creating && setCreateOpen(false)}
         onConfirm={handleCreate}
         confirmLabel="Criar login"
@@ -470,13 +481,10 @@ export function AdminUsuariosPage() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <Select
-            label="Acesso principal"
+            label="Sistema Nerites"
             value={createForm.cargo}
             onChange={(e) => setCreateForm((f) => ({ ...f, cargo: e.target.value as NovoCargo }))}
-            options={[
-              { value: 'visualizador', label: 'Sistema Nerites — Visualizador' },
-              { value: 'externo', label: 'Acesso externo — outros sistemas' },
-            ]}
+            options={NERITES_OPCOES}
           />
           {createForm.cargo === 'visualizador' && (
             <div className="alert alert-info">
@@ -488,7 +496,7 @@ export function AdminUsuariosPage() {
           <Input label="E-mail de acesso" type="email" value={createForm.email} onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))} placeholder="pessoa@exemplo.com" />
           <Input label="Senha" type="password" value={createForm.password} onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))} placeholder="Mínimo 8 caracteres" />
           <Input label="Confirmar senha" type="password" value={createForm.confirm} onChange={(e) => setCreateForm((f) => ({ ...f, confirm: e.target.value }))} />
-          {createForm.cargo === 'externo' && renderAcessosFields(createForm.acessos, (site, nivel) => setCreateForm((f) => ({ ...f, acessos: { ...f.acessos, [site]: nivel } })))}
+          {renderAcessosFields(createForm.acessos, (site, nivel) => setCreateForm((f) => ({ ...f, acessos: { ...f.acessos, [site]: nivel } })))}
           {createError && <div className="alert alert-error">{createError}</div>}
         </div>
       </Modal>
@@ -498,7 +506,7 @@ export function AdminUsuariosPage() {
         title={editUser ? `Editar acesso · ${editUser.nome}` : 'Editar acesso'}
         description={
           editUser?.role === 'externo' || editUser?.role === 'visualizador'
-            ? 'Escolha Visualizador para liberar a consulta de lideranças e fichas no Sistema Nerites.'
+            ? 'Defina o acesso ao Sistema Nerites e, separadamente, aos outros sistemas. Os dois podem valer ao mesmo tempo.'
             : 'Usuário do Sistema Nerites: aqui só se libera (ou tira) o acesso extra aos outros sistemas.'
         }
         onClose={() => !editing && setEditUser(null)}
@@ -510,13 +518,10 @@ export function AdminUsuariosPage() {
           {(editUser?.role === 'externo' || editUser?.role === 'visualizador') && (
             <>
               <Select
-                label="Acesso principal"
+                label="Sistema Nerites"
                 value={editForm.cargo}
                 onChange={(e) => setEditForm((f) => ({ ...f, cargo: e.target.value as NovoCargo }))}
-                options={[
-                  { value: 'visualizador', label: 'Sistema Nerites — Visualizador' },
-                  { value: 'externo', label: 'Acesso externo — outros sistemas' },
-                ]}
+                options={NERITES_OPCOES}
               />
               {editForm.cargo === 'visualizador' && (
                 <div className="alert alert-info">
@@ -541,12 +546,7 @@ export function AdminUsuariosPage() {
               />
             </>
           )}
-          {(
-            editUser?.role !== 'externo'
-            && editUser?.role !== 'visualizador'
-          ) || editForm.cargo === 'externo'
-            ? renderAcessosFields(editForm.acessos, (site, nivel) => setEditForm((f) => ({ ...f, acessos: { ...f.acessos, [site]: nivel } })))
-            : null}
+          {renderAcessosFields(editForm.acessos, (site, nivel) => setEditForm((f) => ({ ...f, acessos: { ...f.acessos, [site]: nivel } })))}
           {editError && <div className="alert alert-error">{editError}</div>}
         </div>
       </Modal>
