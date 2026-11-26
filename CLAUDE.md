@@ -1,5 +1,12 @@
 # alimentacao-sistema
 
+## Regra inviolável: atualização e dados reais
+
+- Leia e cumpra `AGENTS.md` e `docs/ATUALIZACAO-E-DADOS-REAIS.md`.
+- Nunca contorne `build-checks/validate-freshness.cjs`; ele bloqueia regressões de cache e dados fictícios.
+- Todo iframe de `/sistemas/` usa `systemUrl(...)`; HTML principal e `/sistemas/**` permanecem `no-store` no navegador e na CDN.
+- Sistemas abertos pelo Nerites carregam o banco real. Não apresente seed/demo/localStorage como se fosse dado de produção.
+
 Mapa dos sistemas (Nerites, Mandato, Assessoria MB, Empresas): `docs/SISTEMAS.md`.
 
 ## GitHub

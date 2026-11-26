@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node build-checks/validate-embeds.cjs && tsc && vite build",
+    "build": "node build-checks/validate-freshness.cjs && node build-checks/validate-embeds.cjs && tsc && vite build",
+    "validate-freshness": "node build-checks/validate-freshness.cjs",
     "validate-embeds": "node build-checks/validate-embeds.cjs",
     "format:assessoria": "prettier --write public/sistemas/assessoria-mb/index.html public/sistemas/assessoria-mb/app.js public/sistemas/assessoria-mb/styles/*.css",
     "unpack:mandato": "node build-checks/unpack-mandato.cjs",
