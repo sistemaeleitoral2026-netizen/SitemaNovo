@@ -1707,9 +1707,9 @@
     } else {
       a += `<button type="button" class="td-act" data-td-open="${id}">${icon("eye")}Detalhes</button>`;
     }
-    if (MB.admin)
+    if (MB.canCreateTasks)
       a += `<button type="button" class="td-act" data-edit-task="${id}">${icon("edit")}Editar</button>`;
-    else if (MB.editor || canWorkTask(t) || MB.canCreateTasks)
+    else if (MB.editor || canWorkTask(t))
       a += `<button type="button" class="td-act" data-td-anexar="${id}">${icon("upload")}Anexar</button>`;
     if (MB.admin && canDeleteRec(t))
       a += `<button type="button" class="td-act danger" data-delete-task="${id}">${icon("trash")}Excluir</button>`;
@@ -1926,7 +1926,7 @@
       acts += fin
         ? `<button type="button" class="btn primary" data-realizar-task="${id}">${icon("check")}Realizar</button>`
         : `<button type="button" class="btn primary" data-conclude-task="${id}">${icon("check")}Concluir</button>`;
-    if (MB.admin)
+    if (MB.canCreateTasks)
       acts += `<button type="button" class="btn" data-edit-task="${id}">${icon("edit")}Editar</button>`;
     const metaCell = (ico, label, value) =>
       `<div class="td-mcell"><span class="td-mico">${icon(ico)}</span><div><small>${label}</small><b>${value}</b></div></div>`;
@@ -3484,7 +3484,7 @@
     updateBell();
   }
   function goto(p) {
-    if (p === "demandas" && !MB.admin) p = "minhas";
+    if (p === "demandas" && !MB.canCreateTasks) p = "minhas";
     if (p === "rel-aprovacoes" && !MB.admin) p = "rel-historico";
     if (window.MBRel && !window.MBRel.canLeave(p)) return;
     page = p;
@@ -7530,15 +7530,17 @@
     $("#um-links").innerHTML = trocar;
     $("#um-links").hidden = !trocar;
     $("#um-sair").hidden = !MB.embed;
-    // Criar tarefa: admin ou administrativo. Quem não cria só executa a
-    // própria (responsável). "Todas as demandas" e aprovações de relatório
-    // continuam só para admin (edição/exclusão de qualquer pessoa).
+    // Criar/editar tarefa e ver todas as demandas: admin ou administrativo.
+    // Quem não cria só executa a própria (responsável). Excluir e aprovações
+    // de relatório continuam só para admin.
     $$('[data-open="task"]').forEach((el) => (el.hidden = !MB.canCreateTasks));
     $$("[data-td-models]").forEach((el) => (el.hidden = !MB.admin));
-    $$('[data-page="demandas"]').forEach((el) => (el.hidden = !MB.admin));
+    $$('[data-page="demandas"]').forEach(
+      (el) => (el.hidden = !MB.canCreateTasks),
+    );
     $$('[data-page="rel-aprovacoes"]').forEach((el) => (el.hidden = !MB.admin));
     if (!MB.admin && page === "rel-aprovacoes") goto("rel-historico");
-    if (!MB.admin && page === "demandas") goto("minhas");
+    if (!MB.canCreateTasks && page === "demandas") goto("minhas");
   }
   const userMenu = (open) => {
     const m = $("#user-menu");
