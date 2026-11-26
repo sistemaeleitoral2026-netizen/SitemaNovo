@@ -268,27 +268,9 @@ export async function carregarFinanceiroPessoal(): Promise<{ estado: FpState; li
 /* ---------- Salvar só a diferença ---------- */
 const igual = (a: Row, b: Row) => JSON.stringify(a) === JSON.stringify(b)
 
-export async function salvarFinanceiroPessoal(
-  anterior: FpRows,
-  estado: FpState,
-  ctx: { userName: string },
-): Promise<FpRows> {
+/** A auditoria (fp_auditoria) é gravada pelo próprio banco, por gatilho, a cada inclusão/alteração/exclusão. */
+export async function salvarFinanceiroPessoal(anterior: FpRows, estado: FpState): Promise<FpRows> {
   const proximo = estadoParaLinhas(estado)
-  const auditoria: { acao: string; entidade: string; entidade_id: string; actor_nome: string; detalhes: Record<string, unknown> }[] = []
-  const auditar = (t: TableName, op: string, row: Row) => {
-    if (auditoria.length >= 30) return
-    const d: Record<string, unknown> = {}
-    for (const k of ['descricao', 'titulo', 'nome', 'valor', 'valor_previsto', 'saldo', 'periodo', 'status', 'data', 'hora']) if (row[k] != null) d[k] = row[k]
-    let acao = `${ROTULO[t]}.${op}`
-    if (t === 'fp_tarefas_baixas') {
-      const tarefa = estado.tasks.find((item) => item.id === row.tarefa_id)
-      if (tarefa?.title) d.titulo = tarefa.title
-      if (d.valor == null && tarefa?.expected != null) d.valor_previsto = tarefa.expected
-      const status = String(row.status || 'concluida')
-      acao = `tarefa.${status}`
-    }
-    auditoria.push({ acao, entidade: t, entidade_id: row.id, actor_nome: ctx.userName, detalhes: d })
-  }
 
   // 1) Inclusões e alterações, na ordem das chaves estrangeiras
   for (const t of TABLES) {
@@ -298,14 +280,12 @@ export async function salvarFinanceiroPessoal(
     if (novos.length) {
       const { error } = await supabase.from(t).insert(novos)
       if (error) throw asError(error, `Falha ao salvar (${ROTULO[t]}).`)
-      novos.forEach((r) => auditar(t, 'criar', r))
     }
     for (const r of alterados) {
       const { id, ...campos } = r
       const { data, error } = await supabase.from(t).update(campos).eq('id', id).select('id')
       if (error) throw asError(error, `Falha ao alterar (${ROTULO[t]}).`)
       if (!data?.length) throw new Error(`Sem permissão para alterar este registro (${ROTULO[t]}).`)
-      auditar(t, 'editar', r)
     }
   }
 
@@ -331,21 +311,71 @@ export async function salvarFinanceiroPessoal(
       throw asError(error, `Falha ao excluir (${ROTULO[t]}).`)
     }
     if ((data?.length || 0) < ids.length) {
-      throw new Error('Sem permissão para excluir: só admin ou quem criou o registro pode excluir.')
+      throw new Error('Sem permissão para excluir. Rode o SQL 20261202_fp_editor_tudo_auditoria.sql no Supabase.')
     }
-    removidos[t].forEach((r) => auditar(t, 'excluir', r))
   }
 
   // Só remove os arquivos depois de o banco confirmar a exclusão dos
   // lançamentos. Assim, uma recusa da RLS não deixa um lançamento válido sem
   // seu comprovante.
   if (lancsRemovidos.size) await apagarComprovantesDe([...lancsRemovidos])
-
-  if (auditoria.length) {
-    const { error } = await supabase.from('fp_auditoria').insert(auditoria)
-    if (error) console.warn('[financeiro-pessoal] auditoria', error)
-  }
   return proximo
+}
+
+/* ---------- Auditoria (só Admin lê; gravada pelo banco) ---------- */
+export type FpAuditoriaItem = { id: string; quando: string; usuario: string; cargo: string; descricao: string }
+
+const VERBO: Record<string, string> = {
+  criar: 'Criou', editar: 'Editou', excluir: 'Excluiu', paga: 'Deu baixa em', dispensada: 'Dispensou',
+  concluida: 'Concluiu', cobrada: 'Registrou recebimento de',
+}
+const COISA: Record<string, string> = {
+  lancamento: 'lançamento', tarefa: 'programação', conta: 'conta', investimento: 'aplicação',
+  'conta.saldo': 'saldo da conta', 'investimento.saldo': 'saldo da aplicação', baixa: 'registro',
+}
+
+/** Registros gravados antes do SQL 20261202 não têm descrição pronta: monta uma a partir da ação. */
+function descricaoAntiga(acao: string, d: Record<string, unknown>): string {
+  const i = acao.lastIndexOf('.')
+  const coisa = acao.slice(0, i)
+  const op = acao.slice(i + 1)
+  // tarefa.paga / tarefa.dispensada…: o verbo já diz o que aconteceu com a programação
+  const alvo = coisa === 'tarefa' && !['criar', 'editar', 'excluir'].includes(op) ? '' : COISA[coisa] || coisa
+  const nome = d.descricao || d.titulo || d.nome
+  const valor = d.valor ?? d.saldo ?? d.valor_previsto
+  const partes = [`${VERBO[op] || 'Alterou'} ${alvo}`.trim()]
+  if (nome) partes.push(`“${String(nome)}”`)
+  if (valor != null && Number.isFinite(Number(valor))) {
+    partes.push(Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }))
+  }
+  if (d.periodo) partes.push(`(${String(d.periodo).split('-').reverse().join('/')})`)
+  return partes.join(' ')
+}
+
+export async function carregarAuditoria(opts: { pagina: number; porPagina: number; busca?: string }): Promise<{ itens: FpAuditoriaItem[]; total: number }> {
+  const de = (Math.max(1, opts.pagina) - 1) * opts.porPagina
+  let q = supabase
+    .from('fp_auditoria')
+    .select('id,at,actor_nome,actor_cargo,descricao,acao,detalhes', { count: 'exact' })
+    .order('at', { ascending: false })
+    .range(de, de + opts.porPagina - 1)
+  const termo = (opts.busca || '').replace(/[%,()*\\]/g, ' ').trim()
+  if (termo) q = q.or(`descricao.ilike.%${termo}%,actor_nome.ilike.%${termo}%`)
+  const { data, error, count } = await q
+  if (error) {
+    if (/actor_cargo|descricao/.test(error.message) && /column|schema/i.test(error.message)) {
+      throw new Error('Falta rodar o SQL 20261202_fp_editor_tudo_auditoria.sql no Supabase (Auditoria).')
+    }
+    throw asError(error, 'Falha ao carregar a auditoria.')
+  }
+  const itens = (data || []).map((r) => ({
+    id: String(r.id),
+    quando: String(r.at),
+    usuario: String(r.actor_nome || 'Usuário'),
+    cargo: String(r.actor_cargo || '—'),
+    descricao: String(r.descricao || descricaoAntiga(String(r.acao || ''), (r.detalhes || {}) as Record<string, unknown>)),
+  }))
+  return { itens, total: count ?? itens.length }
 }
 
 /* ---------- Comprovantes ---------- */

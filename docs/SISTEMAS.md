@@ -19,7 +19,7 @@ alimentacao-sistema/
   api/                      ← funções da Vercel (fonte do deploy)
   docs/                     ← documentação
   alimentacao-app/          ← app React (Vite)
-    api/                    ← espelho do api/ da raiz (manter igual)
+    api/                    ← espelho do api/ da raiz (o build falha se divergir: validate-api-mirror)
     public/
       sistemas/
         mandato-embed/      ← UI empacotada do Painel do Mandato

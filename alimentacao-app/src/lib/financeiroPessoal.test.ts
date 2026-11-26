@@ -65,7 +65,7 @@ describe('Controle Financeiro Pessoal — sincronização com o banco', () => {
     const s = estadoBase()
     s.txs.push({ id: L, date: '2026-11-12', amount: 55.9, kind: 'expense', description: 'Netflix', category: 'Lazer', account: C, receiptId: 'anexo-1' })
     const antes = estadoParaLinhas(s)
-    await expect(salvarFinanceiroPessoal(antes, { ...s, txs: [] }, { userName: 'Ana' })).rejects.toThrow(/Sem permissão/)
+    await expect(salvarFinanceiroPessoal(antes, { ...s, txs: [] })).rejects.toThrow(/Sem permissão/)
     expect(ops.some((o) => o.tabela === 'storage' || (o.tabela === 'fp_anexos' && o.op === 'delete'))).toBe(false)
   })
 
@@ -85,10 +85,10 @@ describe('Controle Financeiro Pessoal — sincronização com o banco', () => {
     const s = estadoBase()
     s.txs.push({ id: L, date: '2026-11-12', time: '10:30', amount: 55.9, kind: 'expense', description: 'Netflix', category: 'Lazer', account: C, taskId: T, period: '2026-11', by: 'Ana' })
     s.taskDone.push({ id: B, taskId: T, period: '2026-11', status: 'paga', txId: L, amount: 55.9, account: C, date: '2026-11-12', time: '10:30', by: 'Ana' })
-    await salvarFinanceiroPessoal(antes, s, { userName: 'Ana' })
-    const escritas = ops.filter((o) => o.tabela !== 'fp_auditoria').map((o) => `${o.op}:${o.tabela}`)
+    await salvarFinanceiroPessoal(antes, s)
+    const escritas = ops.map((o) => `${o.op}:${o.tabela}`)
+    // A auditoria é gravada por gatilho no banco, nunca pelo navegador
     expect(escritas).toEqual(['insert:fp_lancamentos', 'insert:fp_tarefas_baixas'])
-    expect(ops.some((o) => o.tabela === 'fp_auditoria')).toBe(true)
   })
 
   it('ao excluir o lançamento, não tenta apagar a baixa (o banco apaga em cascata)', async () => {
@@ -97,7 +97,7 @@ describe('Controle Financeiro Pessoal — sincronização com o banco', () => {
     s.taskDone.push({ id: B, taskId: T, period: '2026-11', status: 'paga', txId: L, amount: 55.9, date: '2026-11-12' })
     const antes = estadoParaLinhas(s)
     const depois = { ...s, txs: [], taskDone: [] }
-    await salvarFinanceiroPessoal(antes, depois, { userName: 'Ana' })
+    await salvarFinanceiroPessoal(antes, depois)
     const deletes = ops.filter((o) => o.op === 'delete').map((o) => o.tabela)
     expect(deletes).toEqual(['fp_lancamentos'])
   })
@@ -107,14 +107,14 @@ describe('Controle Financeiro Pessoal — sincronização com o banco', () => {
     const s = estadoBase()
     s.accChecks.push({ id: 'c1', accId: C, date: '2026-11-23', time: '18:00', balance: 5400, by: 'Ana' })
     const antes = estadoParaLinhas(s)
-    await expect(salvarFinanceiroPessoal(antes, { ...s, accChecks: [] }, { userName: 'Ana' })).rejects.toThrow(/Sem permissão/)
+    await expect(salvarFinanceiroPessoal(antes, { ...s, accChecks: [] })).rejects.toThrow(/Sem permissão/)
   })
 
   it('edição gera update apenas da linha alterada', async () => {
     const antes = estadoParaLinhas(estadoBase())
     const s = estadoBase()
     s.accounts[0].initial = 4500
-    await salvarFinanceiroPessoal(antes, s, { userName: 'Admin' })
+    await salvarFinanceiroPessoal(antes, s)
     const up = ops.filter((o) => o.op === 'update')
     expect(up).toHaveLength(1)
     expect(up[0]).toMatchObject({ tabela: 'fp_contas', ids: [C] })

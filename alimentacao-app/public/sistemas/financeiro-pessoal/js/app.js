@@ -22,7 +22,7 @@
   const TITLES = {
     overview: 'Visão Geral', transactions: 'Movimentações',
     pagamentos: 'Pagamentos', cobrancas: 'Cobranças', documentacao: 'Documentação',
-    accounts: 'Contas', investments: 'Investimentos', reports: 'Relatórios',
+    accounts: 'Contas', investments: 'Investimentos', reports: 'Relatórios', audit: 'Auditoria',
   };
   const SUBTITLES = {
     overview: 'Resumo financeiro, compromissos e <span class="sub-x">situação do seu </span>patrimônio',
@@ -31,6 +31,7 @@
     documentacao: 'Documentos e prazos a cumprir',
     accounts: 'Saldos das contas e carteiras', investments: 'Aplicações e evolução do patrimônio',
     reports: 'Resumo por período e por categoria',
+    audit: 'Quem lançou, alterou ou excluiu cada registro',
   };
   const KIND_LABEL = { pagamento: 'Pagamento', documentacao: 'Documentação', cobranca: 'Cobrança' };
   const taskKind = t => (t && (t.kind === 'documentacao' || t.kind === 'cobranca') ? t.kind : 'pagamento');
@@ -202,12 +203,14 @@
   }
 
   /* ---------- Estado ---------- */
-  // Permissão: dentro do sistema, o React informa se é admin (mensagem fp-user). Aberto direto, é admin.
+  // Permissão: dentro do sistema, o React informa o usuário (mensagem fp-user). Admin e Editor
+  // podem fazer tudo (isAdmin); só o Admin vê a Auditoria (canAudit). Aberto direto, é admin.
   const embedded = window.parent !== window;
   // Modo banco: aberto pelo sistema com ?remote=1 → dados nas tabelas fp_* (via página React).
   // Fora disso (arquivo aberto direto), continua no localStorage com dados de exemplo.
   const REMOTE = embedded && new URLSearchParams(location.search).has('remote');
   let isAdmin = !embedded;
+  let canAudit = false;
   let userName = '';
   let userId = '';
 
@@ -244,10 +247,7 @@
         payload: JSON.parse(JSON.stringify({ accounts, accChecks, txs, tasks, taskDone, investments, snapshots, goal })) }, location.origin);
     }, 250);
   };
-  // Quem pode excluir no modo banco: admin ou quem criou o registro.
   const canDeleteOwned = item => !REMOTE || isAdmin || (!!userId && item?.createdBy === userId);
-  // Baixas de programações só podem ser desfeitas por admin. Lançamentos
-  // avulsos seguem a mesma regra do banco: admin ou autor do registro.
   const canDelete = item => !REMOTE || isAdmin || (!item?.taskId && canDeleteOwned(item));
   const stamp_ = () => (REMOTE && userId ? { createdBy: userId } : {});
 
@@ -339,13 +339,28 @@
 
   /* ---------- Componentes ---------- */
   function txRow(x, withDelete) {
+    const inc = x.kind === 'income';
+    const t = x.taskId ? taskById(x.taskId) : null;
+    const cob = t && taskKind(t) === 'cobranca';
+    const origin = x.taskId ? (inc || cob ? 'Cobrança' : 'Pagamento') : 'Movimentação';
+    const sit = `<span class="tag sheet-done">${inc ? 'Recebido' : 'Pago'}</span>`;
+    const acc = x.account && accName(x.account) !== '—' ? esc(accName(x.account)) : '<span class="t-faint">—</span>';
+    const metas = [];
+    if (x.payee) metas.push(`${inc ? 'Recebido de' : 'Quem recebeu'}: ${esc(x.payee)}`);
+    if (x.by) metas.push(`${inc ? 'Registrado por' : 'Pago por'}: ${esc(x.by)}`);
+    if (x.note) metas.push(esc(x.note));
     return `<tr>
-      <td><div class="t-desc"><span class="t-ico">${icon(CAT_ICON[x.category] || 'ellipsis', 'i-sm')}</span><div>${esc(x.description)}${x.taskId ? `<span class="tag task-tag">${taskById(x.taskId) && taskKind(taskById(x.taskId)) === 'cobranca' ? 'Cobrança recebida' : 'Pagamento programado'}</span>` : ''}${x.receiptId ? `<button class="clip" data-receipt="${x.receiptId}" data-rtx="${x.id}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip')}</button>` : ''}${x.payee ? `<span class="t-payee">${esc(x.payee)}</span>` : ''}</div></div></td>
-      <td>${esc(x.category)}</td>
-      <td class="t-muted">${esc(accName(x.account))}</td>
-      <td class="t-muted num">${shortDate(x.date)}${x.time ? ` · ${x.time}` : ''}</td>
-      <td class="t-right num amount ${x.kind === 'income' ? 'in' : 'out'}">${signed(value(x))}</td>
-      ${withDelete ? `<td class="t-right" style="width:44px">${canDelete(x) ? `<button class="icon-btn" data-del-tx="${x.id}" aria-label="Excluir lançamento">${icon('trash-2', 'i-sm')}</button>` : ''}</td>` : ''}
+      <td class="num">${sheetDate(x.date)}${x.time ? `<small>${esc(x.time)}</small>` : ''}</td>
+      <td class="sheet-desc">
+        <span class="sheet-desc-in">${esc(x.description)}${x.receiptId ? `<button class="clip" data-receipt="${x.receiptId}" data-rtx="${x.id}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip')}</button>` : ''}</span>
+        ${metas.map(m => `<small class="tx-meta">${m}</small>`).join('')}
+      </td>
+      <td class="col-cat">${esc(x.category || 'Outros')}</td>
+      <td class="col-acc">${acc}</td>
+      <td class="col-orig">${origin}</td>
+      <td>${sit}</td>
+      <td class="t-right num ${inc ? 'delta-pos' : 'delta-neg'}">${signed(value(x))}</td>
+      ${withDelete ? `<td class="col-act">${canDelete(x) ? `<button class="icon-btn" data-del-tx="${x.id}" aria-label="Excluir lançamento">${icon('trash-2', 'i-sm')}</button>` : ''}</td>` : '<td class="col-act"></td>'}
     </tr>`;
   }
 
@@ -2244,7 +2259,7 @@
       (fk === 'all' || x.kind === fk) && (fa === 'all' || x.account === fa) &&
       (fo === 'all' || (fo === 'avulso' ? !x.taskId : !!x.taskId)) &&
       (!q || `${x.description} ${x.category} ${accName(x.account)} ${x.payee || ''} ${x.by || ''}`.toLowerCase().includes(q)));
-    $('#allRows').innerHTML = filtered.map(x => txRow(x, true)).join('') || '<tr><td colspan="6" class="empty">Nenhum lançamento encontrado.</td></tr>';
+    $('#allRows').innerHTML = filtered.map(x => txRow(x, true)).join('') || '<tr><td colspan="8" class="empty">Nenhum lançamento encontrado.</td></tr>';
 
     // Contas
     renderAccounts(k);
@@ -2421,6 +2436,80 @@
     };
     frame.onload = () => setTimeout(printNow, 50);
     frame.srcdoc = html;
+  }
+
+  /* ---------- Auditoria (só Admin; o banco grava, a página React busca) ---------- */
+  let auditPage = 1, auditPer = 20, auditQ = '', auditReq = '', auditSeq = 0, auditTimer = null;
+  const auditData = { itens: [], total: 0, erro: '', carregando: false };
+  const AUDIT_CARGO_CLS = { 'Admin': 't-blue', 'Admin do Nerites': 't-purple', 'Editor': 't-green' };
+  const auditWhen = iso => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '—';
+    return `${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+  };
+
+  function loadAudit() {
+    if (!REMOTE || !canAudit) {
+      Object.assign(auditData, { itens: [], total: 0, carregando: false,
+        erro: REMOTE ? 'Só o Admin vê a auditoria.' : 'A auditoria só aparece dentro do sistema, com os dados do banco.' });
+      renderAudit();
+      return;
+    }
+    auditReq = 'a' + (++auditSeq);
+    Object.assign(auditData, { carregando: true, erro: '' });
+    renderAudit();
+    window.parent.postMessage({ type: 'fp-audit-get', requestId: auditReq, pagina: auditPage, porPagina: auditPer, busca: auditQ }, location.origin);
+  }
+
+  function auditReceber(d) {
+    auditData.carregando = false;
+    if (d.type === 'fp-audit-erro') {
+      Object.assign(auditData, { itens: [], total: 0, erro: d.erro || 'Falha ao carregar a auditoria.' });
+    } else {
+      const total = Number(d.total) || 0;
+      const pages = Math.max(1, Math.ceil(total / auditPer));
+      if (!(d.itens || []).length && auditPage > pages) { auditPage = pages; loadAudit(); return; }
+      Object.assign(auditData, { itens: d.itens || [], total, erro: '' });
+    }
+    renderAudit();
+  }
+
+  function auditPagerHtml() {
+    const total = auditData.total;
+    if (!total) return '';
+    const pages = Math.max(1, Math.ceil(total / auditPer));
+    const start = (auditPage - 1) * auditPer + 1, end = Math.min(auditPage * auditPer, total);
+    const btns = [];
+    for (let i = 1; i <= pages; i++) {
+      if (pages > 7 && i > 1 && i !== pages && Math.abs(i - auditPage) > 1) { if (btns.at(-1) !== '…') btns.push('…'); continue; }
+      btns.push(i);
+    }
+    return `<div class="task-pager inv-pager audit-pager">
+      <span class="t-muted">Mostrando ${start}–${end} de ${total} ${total === 1 ? 'registro' : 'registros'}</span>
+      <div class="task-pager-btns">
+        <label class="inv-per">Exibir: <select class="select" id="auditPer">${[10, 20, 50, 100].map(n => `<option ${n === auditPer ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+        <button type="button" class="pg-btn" data-audit-page="${auditPage - 1}" ${auditPage <= 1 ? 'disabled' : ''} aria-label="Anterior">${icon('chevron-down', 'i-sm pg-prev')}</button>
+        ${btns.map(i => i === '…' ? '<span class="t-muted">…</span>' : `<button type="button" class="pg-btn ${i === auditPage ? 'on' : ''}" data-audit-page="${i}">${i}</button>`).join('')}
+        <button type="button" class="pg-btn" data-audit-page="${auditPage + 1}" ${auditPage >= pages ? 'disabled' : ''} aria-label="Próxima">${icon('chevron-down', 'i-sm pg-next')}</button>
+      </div>
+    </div>`;
+  }
+
+  function renderAudit() {
+    const rows = $('#auditRows');
+    if (!rows) return;
+    const vazio = msg => `<tr><td colspan="4" class="empty">${esc(msg)}</td></tr>`;
+    if (auditData.erro) rows.innerHTML = vazio(auditData.erro);
+    else if (auditData.carregando && !auditData.itens.length) rows.innerHTML = vazio('Carregando…');
+    else if (!auditData.itens.length) rows.innerHTML = vazio(auditQ ? 'Nada encontrado para essa busca.' : 'Nenhuma alteração registrada ainda.');
+    else rows.innerHTML = auditData.itens.map(x => `<tr>
+        <td class="audit-when">${esc(auditWhen(x.quando))}</td>
+        <td class="audit-user">${esc(x.usuario)}</td>
+        <td><span class="inv-type ${AUDIT_CARGO_CLS[x.cargo] || 't-gray'}">${esc(x.cargo)}</span></td>
+        <td class="audit-desc">${esc(x.descricao)}</td>
+      </tr>`).join('');
+    $('#view-audit .table-wrap').classList.toggle('is-loading', auditData.carregando);
+    $('#auditPager').innerHTML = auditData.erro ? '' : auditPagerHtml();
   }
 
   /* ---------- Investimentos ---------- */
@@ -2671,11 +2760,12 @@
     window.scrollTo({ top: 0 });
     if (growOn) avisarPai({ type: 'fp-top' });
     // Telas com ação própria (contas, aplicações, compromissos) não mostram o botão Lançamento, para não confundir
-    const hasOwnPrimaryAction = ['investments', 'accounts', 'tasks'].includes(view);
+    const hasOwnPrimaryAction = ['investments', 'accounts', 'tasks', 'audit'].includes(view);
     $('#headTxBtn').hidden = hasOwnPrimaryAction;
     $('.mobile-quick-add').hidden = hasOwnPrimaryAction;
-    // Pagamentos e cobranças usam o mês do topo; documentação mostra tudo por prazo
-    $('#period').hidden = tk === 'documentacao';
+    // Pagamentos e cobranças usam o mês do topo; documentação e auditoria mostram tudo
+    $('#period').hidden = tk === 'documentacao' || view === 'audit';
+    if (view === 'audit') loadAudit();
     if (v !== 'overview' && (periodManual || period !== currentMonth())) {
       periodManual = false;
       period = currentMonth();
@@ -2934,6 +3024,17 @@
     const pg = e.target.closest('[data-inv-page]');
     if (pg && !pg.disabled) { invPage = +pg.dataset.invPage; renderInvestments(); }
   });
+  $('#view-audit').addEventListener('click', e => {
+    const pg = e.target.closest('[data-audit-page]');
+    if (pg && !pg.disabled) { auditPage = +pg.dataset.auditPage; loadAudit(); }
+  });
+  $('#view-audit').addEventListener('change', e => {
+    if (e.target.id === 'auditPer') { auditPer = +e.target.value || 20; auditPage = 1; loadAudit(); }
+  });
+  $('#auditQ').addEventListener('input', e => {
+    clearTimeout(auditTimer);
+    auditTimer = setTimeout(() => { auditQ = e.target.value.trim(); auditPage = 1; loadAudit(); }, 300);
+  });
   $('#snapBatchForm').addEventListener('submit', e => {
     e.preventDefault();
     const date = $('#sbDate').value, time = $('#sbTime').value, by = (userName || state.people[0] || '').trim();
@@ -3129,11 +3230,18 @@
       $('#userBox').hidden = false;
       $('#userRole').textContent = d.admin ? 'Admin' : 'Editor';
       $('#mUserName').textContent = nome;
-      const mudou = isAdmin !== !!d.admin || userName !== nome;
-      isAdmin = !!d.admin;
+      const mudou = !isAdmin || canAudit !== !!d.admin || userName !== nome;
+      isAdmin = true;
+      canAudit = !!d.admin;
       userName = nome;
       userId = String(d.userId || '');
+      $$('[data-audit-only]').forEach(el => el.classList.toggle('is-hidden', !canAudit));
+      if (!canAudit && view === 'audit') show('overview');
       if (mudou) render();
+    }
+    if (d.type === 'fp-audit-data' || d.type === 'fp-audit-erro') {
+      if (d.requestId === auditReq) auditReceber(d);
+      return;
     }
   });
   $('#btnSair').addEventListener('click', () => avisarPai({ type: 'fp-sair' }));
@@ -3142,6 +3250,7 @@
   $('#mTrocar').addEventListener('click', () => avisarPai({ type: 'fp-trocar-sistema' }));
   const mMenu = (abrir) => { $('#mUserMenu').hidden = !abrir; $('#mUserBtn').setAttribute('aria-expanded', String(abrir)); };
   $('#mUserBtn').addEventListener('click', e => { e.stopPropagation(); mMenu($('#mUserMenu').hidden); });
+  $$('#mUserMenu [data-go]').forEach(b => b.addEventListener('click', () => mMenu(false)));
   document.addEventListener('click', e => { if (!e.target.closest('.m-user')) mMenu(false); });
 
   /* Comprovantes no modo banco: upload/download pela página React (bucket fp-comprovantes) */

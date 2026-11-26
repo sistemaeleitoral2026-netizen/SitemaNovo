@@ -7,6 +7,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { systemUrl } from '../../lib/buildVersion'
 import {
   baixarComprovante,
+  carregarAuditoria,
   carregarFinanceiroPessoal,
   enviarComprovante,
   salvarFinanceiroPessoal,
@@ -24,6 +25,9 @@ type FpMensagem = {
   on?: boolean
   height?: number
   id?: string
+  pagina?: number
+  porPagina?: number
+  busca?: string
 }
 
 function mensagemDe(e: unknown, padrao: string) {
@@ -34,8 +38,8 @@ function mensagemDe(e: unknown, padrao: string) {
 /**
  * Controle Financeiro Pessoal — UI em public/sistemas/financeiro-pessoal/ carregada em iframe
  * (modo banco: ?remote=1). Os dados ficam nas tabelas fp_* do Nerites; esta página faz a ponte:
- *   iframe → fp-pronto / fp-persist / fp-file-put / fp-file-get / fp-sair / fp-trocar-sistema
- *   página → fp-user / fp-hydrate / fp-persist-ok|erro / fp-file-ok|data|erro
+ *   iframe → fp-pronto / fp-persist / fp-file-put / fp-file-get / fp-audit-get / fp-sair / fp-trocar-sistema
+ *   página → fp-user / fp-hydrate / fp-persist-ok|erro / fp-file-ok|data|erro / fp-audit-data|erro
  */
 export function FinanceiroPessoalPage() {
   const { profile, signOut } = useAuth()
@@ -44,8 +48,8 @@ export function FinanceiroPessoalPage() {
   const [pronto, setPronto] = useState(false)
   const [erroSync, setErroSync] = useState('')
   const neritesAdmin = hasRole(profile, 'admin')
-  // Admin aqui dentro (cria/edita/dispensa tarefas): admin do Nerites ou nível "admin" liberado em /admin.
-  // Nível "editor" só dá baixa nas tarefas.
+  // Admin e Editor fazem as mesmas operações; só o Admin (do Nerites ou nível "admin"
+  // liberado em /admin) vê o menu Auditoria, onde fica tudo o que o Editor fez.
   const admin = neritesAdmin || isAdminNoSiteExterno(profile, 'financeiro-pessoal')
   const nome = profile?.nome || 'Usuário'
   const userId = profile?.id || ''
@@ -102,7 +106,7 @@ export function FinanceiroPessoalPage() {
     let falhou = false
     try {
       if (!linhas.current) throw new Error('Os dados ainda não foram carregados do banco.')
-      linhas.current = await salvarFinanceiroPessoal(linhas.current, item.payload, { userName: nome })
+      linhas.current = await salvarFinanceiroPessoal(linhas.current, item.payload)
       setErroSync('')
       postar({ type: 'fp-persist-ok', requestId: item.requestId })
     } catch (e) {
@@ -172,6 +176,23 @@ export function FinanceiroPessoalPage() {
           postar({ type: 'fp-file-ok', requestId: dados.requestId, id })
         } catch (e) {
           postar({ type: 'fp-file-erro', requestId: dados.requestId, erro: mensagemDe(e, 'Falha no envio do comprovante.') })
+        }
+        return
+      }
+      if (dados.type === 'fp-audit-get' && dados.requestId) {
+        if (!admin) {
+          postar({ type: 'fp-audit-erro', requestId: dados.requestId, erro: 'Só o Admin vê a auditoria.' })
+          return
+        }
+        try {
+          const r = await carregarAuditoria({
+            pagina: Number(dados.pagina) || 1,
+            porPagina: Math.min(100, Number(dados.porPagina) || 20),
+            busca: dados.busca,
+          })
+          postar({ type: 'fp-audit-data', requestId: dados.requestId, ...r })
+        } catch (e) {
+          postar({ type: 'fp-audit-erro', requestId: dados.requestId, erro: mensagemDe(e, 'Falha ao carregar a auditoria.') })
         }
         return
       }

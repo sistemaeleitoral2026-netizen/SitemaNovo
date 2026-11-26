@@ -10,7 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
 <link rel="stylesheet" href="css/tarefas.css?v=64">
-<link rel="stylesheet" href="css/layout.css?v=61">
+<link rel="stylesheet" href="css/layout.css?v=64">
 <link rel="stylesheet" href="css/tema.css">
 <link rel="stylesheet" href="css/contas.css">
 <link rel="stylesheet" href="css/pagamentos.css">
@@ -98,6 +98,7 @@
       <button data-view="investments"><svg class="i"><use href="#i-ph-chart-bar"/></svg>Investimentos</button>
       <div class="nav-group">Análise</div>
       <button data-view="reports"><svg class="i"><use href="#i-ph-presentation-chart"/></svg>Relatórios</button>
+      <button data-view="audit" data-audit-only class="is-hidden"><svg class="i"><use href="#i-ph-clipboard-text"/></svg>Auditoria</button>
     </nav>
 
     <div class="sidebar-foot">
@@ -121,6 +122,7 @@
           <button type="button" class="m-icon" id="mUserBtn" aria-label="Conta" aria-expanded="false" aria-controls="mUserMenu"><svg class="i"><use href="#i-ph-user"/></svg></button>
           <div class="m-user-menu" id="mUserMenu" hidden>
             <div class="m-user-name" id="mUserName"></div>
+            <button type="button" data-go="audit" data-audit-only class="is-hidden"><svg class="i i-sm"><use href="#i-ph-clipboard-text"/></svg>Auditoria</button>
             <button type="button" id="mTrocar"><svg class="i i-sm"><use href="#i-ph-arrows-left-right"/></svg>Trocar sistema</button>
             <button type="button" id="mSair" class="is-exit"><svg class="i i-sm"><use href="#i-ph-sign-out"/></svg>Sair</button>
           </div>
@@ -250,7 +252,7 @@
           <div id="taskBody"></div>
         </div>
         <div class="note" id="taskEditorNote" hidden><svg class="i"><use href="#i-info"/></svg>
-          <span>Você pode registrar pagamentos, recebimentos e concluir pendências. Criar, editar, pausar ou dispensar é só para admin.</span></div>
+          <span>Tudo o que for lançado, alterado ou excluído fica registrado na Auditoria, com o nome de quem fez.</span></div>
       </section>
 
       <!-- ============ MOVIMENTAÇÕES ============ -->
@@ -259,7 +261,7 @@
         <div class="block">
           <div class="toolbar">
             <div class="search"><svg class="i"><use href="#i-search"/></svg>
-              <input class="input" id="q" placeholder="Buscar por descrição, categoria ou conta" aria-label="Buscar"></div>
+              <input class="input" id="q" placeholder="Buscar por descrição, pessoa, categoria ou conta" aria-label="Buscar"></div>
             <select class="select" id="fKind" aria-label="Tipo">
               <option value="all">Todos os tipos</option>
               <option value="income">Receitas</option>
@@ -272,9 +274,18 @@
               <option value="programacao">Gerados por pagamento/cobrança</option>
             </select>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Descrição</th><th>Categoria</th><th>Conta</th><th>Data</th><th class="t-right">Valor</th><th></th></tr></thead>
+          <div class="table-wrap sheet-wrap mov-sheet">
+            <table class="sheet">
+              <thead><tr>
+                <th>Data</th>
+                <th>Descrição</th>
+                <th class="col-cat">Categoria</th>
+                <th class="col-acc">Conta</th>
+                <th class="col-orig">Tipo</th>
+                <th>Situação</th>
+                <th class="t-right">Valor</th>
+                <th class="col-act"></th>
+              </tr></thead>
               <tbody id="allRows"></tbody>
             </table>
           </div>
@@ -402,6 +413,25 @@
         </div>
         <div class="note"><svg class="i"><use href="#i-info"/></svg>
           <span>Abaixo está como o PDF fica na folha A4. Em “Salvar PDF A4”, escolha “Salvar como PDF” na impressão — sem precisar liberar pop-up.</span></div>
+      </section>
+
+      <!-- ============ AUDITORIA (só Admin) ============ -->
+      <section class="view" id="view-audit">
+        <div class="block">
+          <div class="toolbar">
+            <div class="search"><svg class="i"><use href="#i-search"/></svg>
+              <input class="input" id="auditQ" placeholder="Buscar por usuário ou descrição" aria-label="Buscar na auditoria" autocomplete="off"></div>
+          </div>
+          <div class="table-wrap">
+            <table class="audit-table">
+              <thead><tr><th>Data e hora</th><th>Nome do usuário</th><th>Cargo</th><th>Descrição do que fez</th></tr></thead>
+              <tbody id="auditRows"></tbody>
+            </table>
+          </div>
+          <div id="auditPager"></div>
+        </div>
+        <div class="note"><svg class="i"><use href="#i-info"/></svg>
+          <span>Tudo o que é lançado, alterado ou excluído fica gravado aqui automaticamente pelo banco, com quem fez e quando. Ninguém consegue editar nem apagar este histórico.</span></div>
       </section>
 <iframe id="reportPrintFrame" title="Impressão do relatório" aria-hidden="true"></iframe>
 
@@ -647,6 +677,6 @@
 <datalist id="payeeList"></datalist>
 
 <script src="js/comprovantes.js"></script>
-<script src="js/app.js?v=65"></script>
+<script src="js/app.js?v=67"></script>
 </body>
 </html>

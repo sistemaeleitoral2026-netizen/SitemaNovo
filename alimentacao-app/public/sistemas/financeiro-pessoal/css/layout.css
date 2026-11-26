@@ -801,3 +801,76 @@ html.fp-grow .modal-backdrop {
   position: absolute; left: 0; right: 0; bottom: auto;
   top: var(--vp-top, 0px); height: var(--vp-h, 100vh); overflow-y: auto;
 }
+
+/* ===== Movimentações (mesmo padrão da planilha da Visão geral) ===== */
+.mov-sheet { border: 0; border-radius: 0; border-top: 1px solid var(--line); }
+.mov-sheet .sheet { width: 100%; min-width: 0; table-layout: auto; }
+.mov-sheet .sheet th { text-align: left; white-space: nowrap; background: #eef2f8; }
+.mov-sheet .sheet th.t-right { text-align: right; }
+.mov-sheet .sheet th:first-child, .mov-sheet .sheet td:first-child { border-left: 0; }
+.mov-sheet .sheet th:last-child, .mov-sheet .sheet td:last-child { border-right: 0; }
+.mov-sheet .sheet td {
+  border: 1px solid #dce3ec; padding: 10px 12px; vertical-align: top;
+  color: var(--ink); background: #fff; white-space: nowrap;
+}
+.mov-sheet .sheet tbody tr:nth-child(even) td { background: #fbfcfe; }
+.mov-sheet .sheet tbody tr:hover td { background: #f1f6fc; }
+.mov-sheet .sheet tbody tr:last-child td { border-bottom: 0; }
+.mov-sheet .sheet td.num small { display: block; font-size: 11px; color: var(--faint); font-weight: 400; }
+.mov-sheet .sheet-desc { font-weight: 650; white-space: normal; min-width: 220px; max-width: 360px; }
+.mov-sheet .sheet-desc-in { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.mov-sheet .tx-meta { display: block; margin-top: 3px; font-size: 12px; font-weight: 400; color: var(--ink-2); line-height: 1.35; white-space: normal; }
+.mov-sheet .sheet td.t-right { font-weight: 650; vertical-align: middle; }
+.mov-sheet .sheet-done { background: #eef2f7; color: var(--muted); font-weight: 500; }
+.mov-sheet .col-act { width: 44px; text-align: center; vertical-align: middle !important; }
+.mov-sheet .t-faint { color: var(--faint); font-weight: 400; }
+@media (max-width: 1100px) { .mov-sheet .col-orig { display: none; } }
+@media (max-width: 900px) { .mov-sheet .col-acc { display: none; } }
+@media (max-width: 760px) {
+  .mov-sheet .col-cat { display: none; }
+  .mov-sheet .sheet-desc { min-width: 160px; max-width: 220px; }
+  .mov-sheet .sheet td, .mov-sheet .sheet th { padding: 8px; }
+}
+
+/* ===== Auditoria ===== */
+.audit-table td { vertical-align: top; }
+.audit-table .audit-when { width: 1%; white-space: nowrap; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.audit-table .audit-user { width: 1%; white-space: nowrap; font-weight: 600; color: var(--ink); }
+.audit-table td:nth-child(3) { width: 1%; white-space: nowrap; }
+.audit-table .audit-desc { min-width: 280px; white-space: normal; overflow-wrap: anywhere; line-height: 1.5; color: var(--ink); }
+#view-audit .table-wrap.is-loading { opacity: .6; transition: opacity .15s; }
+#view-audit .audit-pager { padding: 14px 16px 16px !important; }
+@media (max-width: 760px) {
+  .audit-table .audit-desc { min-width: 220px; }
+}
+
+/* ===== Popups compactos no computador: sempre cabem na parte visível da tela ===== */
+@media (min-width: 761px) {
+  :is(#modal-tx, #modal-task, #modal-pay, .modal-backdrop) { --fp-pop-h: 100dvh; align-items: center; padding: 16px; }
+  html.fp-grow :is(#modal-tx, #modal-task, #modal-pay, .modal-backdrop) { --fp-pop-h: var(--vp-h, 100vh); }
+  :is(#modal-tx, #modal-task, #modal-pay, .modal-backdrop) .modal {
+    display: flex; flex-direction: column; overflow: hidden;
+    max-height: calc(var(--fp-pop-h) - 32px); border-radius: 12px;
+  }
+  :is(#modal-tx, #modal-task, #modal-pay, .modal-backdrop) .modal-body {
+    min-height: 0; overflow-y: auto; padding: 14px 18px; gap: 10px 14px;
+  }
+  :is(#modal-tx, #modal-task, #modal-pay, .modal-backdrop) .modal-head { padding: 12px 18px; }
+  :is(#modal-tx, #modal-task, #modal-pay, .modal-backdrop) .modal-head h2 { font-size: 16px; }
+  :is(#modal-tx, #modal-task, #modal-pay, .modal-backdrop) .modal-head p { font-size: 12px; }
+  :is(#modal-tx, #modal-task, #modal-pay, .modal-backdrop) .modal-foot { flex: none; padding: 10px 18px; }
+  :is(#modal-tx, #modal-task, #modal-pay, .modal-backdrop) .modal-foot .btn { min-width: 112px; }
+  :is(#modal-tx, #modal-task, #modal-pay, .modal-backdrop) .field { gap: 5px; }
+  :is(#modal-tx, #modal-task, #modal-pay, .modal-backdrop) .field label { font-size: 12.5px; }
+  :is(#modal-tx, #modal-task, #modal-pay, .modal-backdrop) :is(.input, .select) { min-height: 36px; height: 36px; }
+  :is(#modal-tx, #modal-task, #modal-pay, .modal-backdrop) textarea.input { height: auto; min-height: 56px; }
+  :is(#modal-tx, #modal-task, #modal-pay, .modal-backdrop) .seg label { min-height: 32px; padding: 5px; }
+  #modal-tx .modal-tx { width: min(500px, calc(100vw - 32px)); }
+  :is(#modal-task, #modal-pay) .modal, .modal-backdrop .modal-lg { width: min(540px, calc(100vw - 32px)); }
+  .modal-backdrop .modal-xl { width: min(820px, calc(100vw - 32px)); }
+  .pay-effect { margin: 10px 18px 0; padding: 8px 12px; }
+  .upload-drop { padding: 10px 12px; }
+  .receipt-view { min-height: 240px; }
+  .receipt-view img { max-height: calc(var(--fp-pop-h, 100vh) - 190px); }
+  .receipt-view iframe { height: calc(var(--fp-pop-h, 100vh) - 190px); }
+}
