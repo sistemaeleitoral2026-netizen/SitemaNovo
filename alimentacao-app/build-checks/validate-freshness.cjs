@@ -80,6 +80,17 @@ requireMatch(financeiroEmbed, /if\s*\(REMOTE\)\s*state\s*=\s*emptyState\(\)/, 'F
 const assessoria = read('public/sistemas/assessoria-mb/app.js')
 requireMatch(assessoria, /awaitingCloudHydrate\s*=\s*isEmbed/, 'Assessoria MB precisa aguardar a leitura real do banco quando incorporada')
 
+const assessoriaBridge = read('src/lib/assessoriaMb.ts')
+requireMatch(
+  assessoriaBridge,
+  /newRows\.length\s*&&\s*!opts\.canCreateTasks/,
+  'Editor da Assessoria MB não pode tentar criar tarefa ao anexar arquivos',
+)
+const assessoriaPage = read('src/pages/assessoria/AssessoriaMbPage.tsx')
+if (/setErroSync\(msg\)/.test(assessoriaPage)) {
+  failures.push('Erro de salvamento da Assessoria MB não pode cobrir o sistema com tela branca')
+}
+
 const serviceWorker = read('public/sistemas/chat-seguro/sw.js')
 if (/caches\.(open|match)/.test(serviceWorker) || /\.put\s*\(/.test(serviceWorker)) {
   failures.push('Chat Seguro não pode voltar a armazenar a interface em Cache Storage')

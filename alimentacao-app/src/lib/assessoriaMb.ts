@@ -693,7 +693,7 @@ async function syncEmpresas(companies: string[]) {
 
 export async function salvarEstadoAssessoria(
   payload: MbDbPayload,
-  opts: { userId: string; userName: string },
+  opts: { userId: string; userName: string; canCreateTasks: boolean },
 ): Promise<void> {
   const filesIn = payload._files || {}
   const files: Record<string, { name: string; type: string; size: number; dataBase64: string }> = { ...filesIn }
@@ -950,6 +950,18 @@ export async function salvarEstadoAssessoria(
             const existingRows = rows.filter((row) => existingTaskIds.has(row.id) && taskChanged(row))
             const newRows = rows.filter((row) => !existingTaskIds.has(row.id))
 
+            // Um Editor/Administrativo nunca cria tarefa. Ao anexar arquivos,
+            // uma tarefa antiga mantida no navegador podia não aparecer na
+            // consulta do banco e ser confundida com nova. O INSERT era então
+            // recusado corretamente pela RLS, mas derrubava a tela inteira.
+            // Só o nível admin envia INSERT; para os demais, falha com uma
+            // orientação clara sem tentar burlar a permissão.
+            if (newRows.length && !opts.canCreateTasks) {
+              throw new Error(
+                'A tarefa não foi encontrada no banco. Atualize a página e abra novamente a tarefa criada pelo administrador antes de anexar os arquivos.',
+              )
+            }
+
             // Não use upsert nas tarefas existentes: INSERT ... ON CONFLICT
             // também passa pela policy de INSERT. Desde a migration de
             // conclusão, só admin pode criar tarefa, enquanto o responsável
@@ -961,7 +973,7 @@ export async function salvarEstadoAssessoria(
               ...existingRows.map((row) =>
                 supabase.from('mb_tarefas').update(row).eq('id', row.id),
               ),
-              newRows.length
+              newRows.length && opts.canCreateTasks
                 ? supabase.from('mb_tarefas').insert(newRows)
                 : Promise.resolve({ error: null }),
             ])

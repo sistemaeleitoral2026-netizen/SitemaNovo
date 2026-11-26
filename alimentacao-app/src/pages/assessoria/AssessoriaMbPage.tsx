@@ -97,7 +97,11 @@ export function AssessoriaMbPage() {
         }
         persistindo.current = true
         try {
-          await salvarEstadoAssessoria(dados.payload, { userId, userName: nome })
+          await salvarEstadoAssessoria(dados.payload, {
+            userId,
+            userName: nome,
+            canCreateTasks: admin,
+          })
           setErroSync('')
           // O iframe mantém o estado mais novo de forma otimista. Reenviar o snapshot
           // retornado aqui pode ressuscitar uma exclusão feita enquanto este save ainda
@@ -113,7 +117,9 @@ export function AssessoriaMbPage() {
             o?.error ||
             'Falha ao salvar na nuvem.'
           console.error('[assessoria-mb] persist', e)
-          setErroSync(msg)
+          // Erro de uma gravação não pode cobrir o sistema inteiro. O iframe
+          // recebe a mensagem abaixo e mantém a tarefa/arquivos visíveis para
+          // a usuária corrigir ou tentar novamente.
           postar({ type: 'mb-persist-erro', requestId: dados.requestId, erro: msg })
         } finally {
           persistindo.current = false
