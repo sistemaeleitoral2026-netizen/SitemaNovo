@@ -1523,12 +1523,32 @@
     save();
     return "";
   }
-  /** Quanto um lançamento vinculado soma no valor da tarefa. */
+  /**
+   * Quanto um lançamento vinculado abate do valor da tarefa.
+   * Em receita / entrada por fora conta só o já recebido — previsto em aberto
+   * ainda não pago não fecha a demanda (ex.: 792 mil previstos, 250 mil
+   * recebidos → só 250 mil entram na conta).
+   */
   function finValorTarefa(f) {
     const k = finKind(f);
     if (k === "saida") return money(f.saida);
-    if (k === "receita") return money(f.previsto) || money(f.recebido);
     return money(f.recebido);
+  }
+  /** Texto do valor na tarefa, com falta quando a receita ainda está parcial. */
+  function finValorTarefaHTML(f) {
+    const v = finValorTarefa(f);
+    const k = finKind(f);
+    if (k === "receita") {
+      const prev = money(f.previsto);
+      const rec = money(f.recebido);
+      if (prev > 0.009 && rec + 0.009 < prev) {
+        return `${fmt(rec)}<small class="muted"> de ${fmt(prev)} · falta ${fmt(prev - rec)}</small>`;
+      }
+      if (prev > 0.009 && rec <= 0.009) {
+        return `${fmt(0)}<small class="muted"> · previsto ${fmt(prev)} ainda não recebido</small>`;
+      }
+    }
+    return fmt(v);
   }
   /** Lançamentos do mesmo tipo da tarefa ainda livres (ou já vinculados a ela). */
   function lancamentosVinculaveis(t) {
@@ -1561,13 +1581,15 @@
         t.concluidoPor = MB.nome || "";
         t.concluidoEm = new Date().toISOString();
       }
-      msg = "Tarefa concluída — o valor vinculado bateu certinho.";
+      msg = "Tarefa concluída — o valor já recebido/pago bateu com a demanda.";
     } else if (total <= 0) {
       t.status = "Em andamento";
-      msg = "Nenhum lançamento vinculado ainda.";
+      msg = lancamentosDaTarefa(t).length
+        ? "Lançamento vinculado, mas ainda sem valor recebido/pago — a demanda continua aberta."
+        : "Nenhum lançamento vinculado ainda.";
     } else if (diff < 0) {
       t.status = "Em andamento";
-      msg = `Faltam ${fmt(-diff)} para bater com o valor da tarefa.`;
+      msg = `Faltam ${fmt(-diff)} — ainda há valor previsto sem receber/pagar.`;
     } else {
       t.status = "Em andamento";
       msg = `Passou ${fmt(diff)} do valor da tarefa — aguardando revisão do admin.`;
@@ -1975,13 +1997,13 @@
       const diff = Math.round((total - alvo) * 100) / 100;
       const info = !linked.length
         ? "Nenhum lançamento vinculado."
-        : Math.abs(diff) < 0.01
-          ? `<b class="ok-text">Bateu certinho.</b>`
+        : Math.abs(diff) < 0.01 && total > 0
+          ? `<b class="ok-text">Bateu certinho (só o já recebido/pago conta).</b>`
           : diff < 0
-            ? `Falta <b>${fmt(-diff)}</b>.`
+            ? `Falta <b>${fmt(-diff)}</b> (conta o já recebido/pago, não o previsto em aberto).`
             : `Passou <b>${fmt(diff)}</b>.`;
       const can = !concluida && canWorkTask(t);
-      pane = `<div class="td-lanc-sum"><div>Vinculado <b>${fmt(total)}</b> de ${fmt(alvo)} — ${info}</div>${can ? `<div class="td-actions"><button type="button" class="btn primary" data-realizar-task="${id}">${icon("plus")}Novo lançamento</button><button type="button" class="btn" data-td-vincular="${id}">${icon("clip")}Vincular existente</button></div>` : ""}</div><div class="table-wrap"><table class="td-grid"><thead><tr><th>Data</th><th>Parceiro / descrição</th><th>Empresa</th><th>Centro</th><th>Conta</th><th class="num">Valor</th><th></th></tr></thead><tbody>${linked.map((f) => `<tr><td>${dateBR(f.data)}</td><td>${esc(f.parceiro || "—")}</td><td>${esc(f.sub || "—")}</td><td>${esc(f.centro || "—")}</td><td>${esc(f.contaBancaria || "—")}</td><td class="num">${fmt(finValorTarefa(f))}</td><td><button type="button" class="td-act" data-edit-fin="${esc(f.id)}">${icon("eye")}Abrir</button></td></tr>`).join("") || noRows("Sem lançamentos vinculados.", 7)}</tbody></table></div>`;
+      pane = `<div class="td-lanc-sum"><div>Vinculado <b>${fmt(total)}</b> de ${fmt(alvo)} — ${info}</div>${can ? `<div class="td-actions"><button type="button" class="btn primary" data-realizar-task="${id}">${icon("plus")}Novo lançamento</button><button type="button" class="btn" data-td-vincular="${id}">${icon("clip")}Vincular existente</button></div>` : ""}</div><div class="table-wrap"><table class="td-grid"><thead><tr><th>Data</th><th>Parceiro / descrição</th><th>Empresa</th><th>Centro</th><th>Conta</th><th class="num">Na tarefa</th><th></th></tr></thead><tbody>${linked.map((f) => `<tr><td>${dateBR(f.data)}</td><td>${esc(f.parceiro || "—")}</td><td>${esc(f.sub || "—")}</td><td>${esc(f.centro || "—")}</td><td>${esc(f.contaBancaria || "—")}</td><td class="num">${finValorTarefaHTML(f)}</td><td><button type="button" class="td-act" data-edit-fin="${esc(f.id)}">${icon("eye")}Abrir</button></td></tr>`).join("") || noRows("Sem lançamentos vinculados.", 7)}</tbody></table></div>`;
     } else if (tab === "anexos") {
       const canAttach = MB.editor || canWorkTask(t) || MB.canCreateTasks;
       pane = `<div class="td-lanc-sum"><div>${nAnexos} arquivo${nAnexos === 1 ? "" : "s"} anexado${nAnexos === 1 ? "" : "s"}</div>${canAttach ? `<button type="button" class="btn" data-td-anexar="${id}">${icon("upload")}Anexar arquivos</button>` : ""}</div>${
@@ -3667,7 +3689,7 @@
       if (canWorkTask(obj) && obj.status !== "Concluída")
         html += realizarSegHTML("existente", obj.id);
       html += `<div class="conclude-summary wide"><b>${esc(obj?.titulo || "")}</b><div class="muted">${esc(obj?.nome || "Favorecido não informado")}${obj?.sub ? " · " + esc(obj.sub) : ""}</div><div class="muted">Valor da tarefa: <b>${fmt(obj?.valor || 0)}</b> · Tipo: ${esc(tipoLabel)}</div></div>`;
-      html += `<p class="field-note wide">Pesquise e marque o(s) lançamento(s) de <b>${esc(tipoLabel.toLowerCase())}</b> que já foram feitos para esta tarefa. O valor marcado é abatido da tarefa. Lançamentos já vinculados a outra tarefa não aparecem.</p>`;
+      html += `<p class="field-note wide">Pesquise e marque o(s) lançamento(s) de <b>${esc(tipoLabel.toLowerCase())}</b> desta tarefa. Em receita, <b>só o já recebido</b> abate o valor — se ainda falta receber, a demanda continua aberta. Lançamentos de outra tarefa não aparecem.</p>`;
       html += `<label class="td-search wide vincular-search">${icon("search")}<input type="search" id="vincular-q" placeholder="Pesquisar por favorecido, empresa, centro, data ou valor…" autocomplete="off"></label>`;
       html += `<div id="vincular-total" class="vincular-total wide"></div>`;
       html += candidatos.length
@@ -3681,11 +3703,12 @@
                 f.observacao,
                 dateBR(f.data),
                 fmt(finValorTarefa(f)),
+                fmt(f.previsto),
                 String(finValorTarefa(f)),
               ]
                 .join(" ")
                 .toLocaleLowerCase("pt-BR");
-              return `<label class="vincular-row" data-vq="${esc(hay)}"><input type="checkbox" name="lanc" value="${esc(f.id)}" ${f.tarefaId === obj.id ? "checked" : ""}><span class="vincular-desc"><b>${esc(f.parceiro || "Sem descrição")}</b><small>${dateBR(f.data)}${f.sub ? " · " + esc(f.sub) : ""}${f.centro ? " · " + esc(f.centro) : ""}${f.contaBancaria ? " · " + esc(f.contaBancaria) : ""}</small></span><b class="num">${fmt(finValorTarefa(f))}</b></label>`;
+              return `<label class="vincular-row" data-vq="${esc(hay)}"><input type="checkbox" name="lanc" value="${esc(f.id)}" ${f.tarefaId === obj.id ? "checked" : ""}><span class="vincular-desc"><b>${esc(f.parceiro || "Sem descrição")}</b><small>${dateBR(f.data)}${f.sub ? " · " + esc(f.sub) : ""}${f.centro ? " · " + esc(f.centro) : ""}${f.contaBancaria ? " · " + esc(f.contaBancaria) : ""}</small></span><b class="num">${finValorTarefaHTML(f)}</b></label>`;
             })
             .join(
               "",
@@ -3820,13 +3843,13 @@
         const alvo = money(obj?.valor || 0);
         const diff = Math.round((total - alvo) * 100) / 100;
         const info =
-          Math.abs(diff) < 0.01
+          Math.abs(diff) < 0.01 && total > 0
             ? `<b class="ok-text">Bateu certinho!</b>`
             : diff < 0
-              ? `Falta <b>${fmt(-diff)}</b> para bater`
+              ? `Falta <b>${fmt(-diff)}</b> (só o já recebido/pago conta)`
               : `Passou <b>${fmt(diff)}</b> do valor`;
         $("#vincular-total").innerHTML =
-          `Selecionado: <b>${fmt(total)}</b> de ${fmt(alvo)} — ${info}`;
+          `Já recebido/pago selecionado: <b>${fmt(total)}</b> de ${fmt(alvo)} — ${info}`;
       };
       $$('#vincular-list input[name="lanc"]').forEach((el) =>
         el.addEventListener("change", updateVincularTotal),
