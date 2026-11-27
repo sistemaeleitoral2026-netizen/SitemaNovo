@@ -266,7 +266,10 @@
               <span class="bh-ico"><svg class="i"><use href="#i-ph-arrows-down-up"/></svg></span>
               <div><div class="block-title">Lançamentos do período</div><div class="block-meta" id="movMeta">Carregando movimentações...</div></div>
             </div>
-            <button type="button" class="btn btn-sm mov-clear" id="movClear" hidden><svg class="i i-sm"><use href="#i-x"/></svg>Limpar filtros</button>
+            <div class="mov-head-actions">
+              <button type="button" class="btn btn-sm mov-clear" id="movClear" hidden><svg class="i i-sm"><use href="#i-x"/></svg>Limpar filtros</button>
+              <button type="button" class="btn btn-sm mov-export" id="movExport"><svg class="i i-sm"><use href="#i-download"/></svg>Exportar CSV</button>
+            </div>
           </div>
           <div class="toolbar mov-toolbar">
             <label class="mov-field mov-search"><span>Buscar</span>
@@ -288,6 +291,13 @@
                 <option value="programacao">Pagamento/cobrança</option>
               </select>
             </label>
+            <label class="mov-field"><span>Situação</span>
+              <select class="select" id="fStatus" aria-label="Situação do lançamento">
+                <option value="all">Todas</option>
+                <option value="received">Recebido</option>
+                <option value="paid">Pago</option>
+              </select>
+            </label>
           </div>
           <div class="table-wrap sheet-wrap mov-sheet">
             <table class="sheet">
@@ -296,14 +306,16 @@
                 <th>Descrição</th>
                 <th class="col-cat">Categoria</th>
                 <th class="col-acc">Conta</th>
-                <th class="col-orig">Tipo</th>
+                <th class="col-orig">Origem</th>
                 <th>Situação</th>
                 <th class="t-right">Valor</th>
-                <th class="col-act"></th>
+                <th class="col-proof">Comprovante</th>
+                <th class="col-act">Ações</th>
               </tr></thead>
               <tbody id="allRows"></tbody>
             </table>
           </div>
+          <div class="mov-footer" id="movFooter" aria-live="polite"></div>
         </div>
       </section>
 
@@ -474,6 +486,7 @@
     <div class="modal-head"><div><h2 id="tTitle">Novo lançamento</h2><p>Registre uma receita ou despesa</p></div>
       <button type="button" class="icon-btn" data-close aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button></div>
     <div class="modal-body">
+      <input type="hidden" id="txId">
       <div class="field full">
         <div class="seg">
           <input type="radio" name="kind" id="kExp" value="expense" checked><label for="kExp">Despesa</label>
@@ -488,8 +501,17 @@
       <div class="field full"><label for="txPayee">Recebedor / pagador <span class="opt">(opcional)</span></label><input class="input" id="txPayee" maxlength="60" list="payeeList" placeholder="Pessoa ou empresa"></div>
       <div class="field full"><label>Comprovante <span class="opt">(opcional)</span></label><div class="upload" data-upload="tx"></div></div>
     </div>
-    <div class="modal-foot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary"><svg class="i i-sm"><use href="#i-check"/></svg>Salvar lançamento</button></div>
+    <div class="modal-foot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary" id="txSubmit"><svg class="i i-sm"><use href="#i-check"/></svg>Salvar lançamento</button></div>
   </form>
+</div>
+
+<div class="modal-backdrop" id="modal-txview">
+  <div class="modal mov-detail-modal" role="dialog" aria-modal="true" aria-labelledby="txViewTitle">
+    <div class="modal-head"><div><h2 id="txViewTitle">Detalhes do lançamento</h2><p>Informações registradas no financeiro</p></div>
+      <button type="button" class="icon-btn" data-close aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div class="modal-body mov-detail-body" id="txViewBody"></div>
+    <div class="modal-foot"><button type="button" class="btn btn-primary" data-close>Fechar</button></div>
+  </div>
 </div>
 
 <div class="modal-backdrop" id="modal-account">

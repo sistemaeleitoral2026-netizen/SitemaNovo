@@ -259,6 +259,9 @@
   let taskTab = 'open';
   let taskPage = 1;
   const TASK_PAGE = 8;
+  let movPage = 1;
+  const MOV_PAGE = 10;
+  let movFiltered = [];
   let taskSort = { key: null, dir: 1 };
   let reportTab = 'pagamentos';
   let chartMode = 'line';
@@ -350,23 +353,33 @@
     if (x.payee) metas.push(`${inc ? 'Recebido de' : 'Quem recebeu'}: ${esc(x.payee)}`);
     if (x.by) metas.push(`${inc ? 'Registrado por' : 'Pago por'}: ${esc(x.by)}`);
     if (x.note) metas.push(esc(x.note));
+    const proof = x.receiptId
+      ? `<button type="button" class="mov-proof" data-receipt="${x.receiptId}" data-rtx="${x.id}" title="Abrir comprovante">${icon('file-text', 'i-sm')}Anexo</button>`
+      : '<span class="mov-no-proof">—</span>';
+    const canEditTx = !x.taskId && canDeleteOwned(x);
+    const actions = `<div class="mov-action-set">
+      <button type="button" class="icon-btn mov-view-btn" data-view-tx="${x.id}" title="Ver detalhes" aria-label="Ver detalhes">${icon('eye', 'i-sm')}</button>
+      ${canEditTx ? `<button type="button" class="icon-btn mov-edit-btn" data-edit-tx="${x.id}" title="Editar lançamento" aria-label="Editar lançamento">${icon('pencil-line', 'i-sm')}</button>` : ''}
+      ${withDelete && canDelete(x) ? `<button type="button" class="icon-btn mov-del-btn" data-del-tx="${x.id}" title="Excluir lançamento" aria-label="Excluir lançamento">${icon('trash-2', 'i-sm')}</button>` : ''}
+    </div>`;
     return `<tr class="mov-row ${inc ? 'is-income' : 'is-expense'}">
       <td class="num mov-date">${sheetDate(x.date)}${x.time ? `<small>${esc(x.time)}</small>` : ''}</td>
       <td class="sheet-desc">
         <div class="mov-desc-wrap">
           <span class="mov-type-icon">${icon(inc ? 'ph-chart-line-up' : 'ph-receipt')}</span>
           <span class="mov-desc-copy">
-            <span class="sheet-desc-in">${esc(x.description)}${x.receiptId ? `<button class="clip" data-receipt="${x.receiptId}" data-rtx="${x.id}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip')}</button>` : ''}</span>
+            <span class="sheet-desc-in">${esc(x.description)}</span>
             ${metas.map(m => `<small class="tx-meta">${m}</small>`).join('')}
           </span>
         </div>
       </td>
       <td class="col-cat"><span class="mov-pill">${esc(x.category || 'Outros')}</span></td>
       <td class="col-acc"><span class="mov-account">${icon('ph-bank', 'i-sm')}${acc}</span></td>
-      <td class="col-orig"><span class="mov-origin">${origin}</span></td>
+      <td class="col-orig"><span class="mov-origin ${origin === 'Cobrança' ? 'is-charge' : origin === 'Pagamento' ? 'is-payment' : 'is-movement'}">${origin}</span></td>
       <td class="mov-status">${sit}</td>
       <td class="t-right num mov-value ${inc ? 'delta-pos' : 'delta-neg'}">${signed(value(x))}</td>
-      ${withDelete ? `<td class="col-act mov-actions">${canDelete(x) ? `<button class="icon-btn" data-del-tx="${x.id}" aria-label="Excluir lançamento">${icon('trash-2', 'i-sm')}</button>` : ''}</td>` : '<td class="col-act mov-actions"></td>'}
+      <td class="col-proof mov-proof-cell">${proof}</td>
+      <td class="col-act mov-actions">${actions}</td>
     </tr>`;
   }
 
@@ -2087,6 +2100,52 @@
     $('#modal-receipt').classList.add('open');
   }
 
+  function openTxDetails(id) {
+    const tx = state.txs.find(x => x.id === id);
+    if (!tx) return;
+    const inc = tx.kind === 'income';
+    const t = tx.taskId ? taskById(tx.taskId) : null;
+    const origin = tx.taskId ? (inc || taskKind(t) === 'cobranca' ? 'Cobrança' : 'Pagamento') : 'Movimentação avulsa';
+    $('#txViewTitle').textContent = tx.description;
+    $('#txViewBody').innerHTML = `
+      <div class="mov-detail-hero ${inc ? 'is-income' : 'is-expense'}">
+        <span>${icon(inc ? 'ph-chart-line-up' : 'ph-receipt')}</span>
+        <div><small>${inc ? 'Receita recebida' : 'Despesa paga'}</small><strong class="num ${inc ? 'delta-pos' : 'delta-neg'}">${signed(value(tx))}</strong></div>
+      </div>
+      <dl class="mov-detail-grid">
+        <div><dt>Data e hora</dt><dd>${fullDate(tx.date)}${tx.time ? ` às ${esc(tx.time)}` : ''}</dd></div>
+        <div><dt>Conta</dt><dd>${esc(accName(tx.account))}</dd></div>
+        <div><dt>Categoria</dt><dd>${esc(tx.category || 'Outros')}</dd></div>
+        <div><dt>Origem</dt><dd>${origin}</dd></div>
+        ${tx.payee ? `<div><dt>${inc ? 'Recebido de' : 'Quem recebeu'}</dt><dd>${esc(tx.payee)}</dd></div>` : ''}
+        ${tx.by ? `<div><dt>Registrado por</dt><dd>${esc(tx.by)}</dd></div>` : ''}
+        ${tx.note ? `<div class="full"><dt>Observação</dt><dd>${esc(tx.note)}</dd></div>` : ''}
+      </dl>
+      ${tx.receiptId ? `<button type="button" class="btn mov-detail-proof" data-receipt="${tx.receiptId}" data-rtx="${tx.id}">${icon('file-text', 'i-sm')}Abrir comprovante</button>` : '<p class="mov-detail-empty">Nenhum comprovante anexado.</p>'}`;
+    lastFocus = document.activeElement;
+    $('#modal-txview').classList.add('open');
+  }
+
+  function exportMovCsv() {
+    if (!movFiltered.length) { alert('Não há lançamentos para exportar com os filtros atuais.'); return; }
+    const cell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = [['Data', 'Hora', 'Descrição', 'Categoria', 'Conta', 'Origem', 'Situação', 'Valor', 'Pessoa', 'Responsável']];
+    movFiltered.forEach(x => {
+      const inc = x.kind === 'income';
+      const t = x.taskId ? taskById(x.taskId) : null;
+      rows.push([
+        fullDate(x.date), x.time || '', x.description, x.category || 'Outros', accName(x.account),
+        x.taskId ? (inc || taskKind(t) === 'cobranca' ? 'Cobrança' : 'Pagamento') : 'Movimentação',
+        inc ? 'Recebido' : 'Pago', value(x).toFixed(2).replace('.', ','), x.payee || '', x.by || '',
+      ]);
+    });
+    const csv = '\uFEFF' + rows.map(r => r.map(cell).join(';')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `movimentacoes-${period}.csv`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   /* ======================================================================
      CONTAS — saldo inicial + conferências de saldo (saldo real do dia)
      ====================================================================== */
@@ -2308,10 +2367,11 @@
 
     // Movimentações
     const q = $('#q').value.trim().toLowerCase(), fk = $('#fKind').value, fa = $('#fAccount').value;
-    const fo = $('#fOrigin')?.value || 'all';
+    const fo = $('#fOrigin')?.value || 'all', fs = $('#fStatus')?.value || 'all';
     const filtered = list.filter(x =>
       (fk === 'all' || x.kind === fk) && (fa === 'all' || x.account === fa) &&
       (fo === 'all' || (fo === 'avulso' ? !x.taskId : !!x.taskId)) &&
+      (fs === 'all' || (fs === 'received' ? x.kind === 'income' : x.kind === 'expense')) &&
       (!q || `${x.description} ${x.category} ${accName(x.account)} ${x.payee || ''} ${x.by || ''}`.toLowerCase().includes(q)));
     const movIncome = list.filter(x => x.kind === 'income').reduce((total, x) => total + value(x), 0);
     const movExpense = list.filter(x => x.kind === 'expense').reduce((total, x) => total + value(x), 0);
@@ -2321,10 +2381,23 @@
       <div class="mov-kpi is-income"><span class="mov-kpi-icon">${icon('ph-chart-line-up')}</span><span class="mov-kpi-copy"><small>Receitas</small><strong>${money(movIncome)}</strong><span>${list.filter(x => x.kind === 'income').length} entrada${list.filter(x => x.kind === 'income').length === 1 ? '' : 's'}</span></span></div>
       <div class="mov-kpi is-expense"><span class="mov-kpi-icon">${icon('ph-receipt')}</span><span class="mov-kpi-copy"><small>Despesas</small><strong>${money(movExpense)}</strong><span>${list.filter(x => x.kind === 'expense').length} saída${list.filter(x => x.kind === 'expense').length === 1 ? '' : 's'}</span></span></div>
       <div class="mov-kpi is-balance"><span class="mov-kpi-icon">${icon('ph-wallet')}</span><span class="mov-kpi-copy"><small>Resultado</small><strong class="${movResult >= 0 ? 'delta-pos' : 'delta-neg'}">${signed(movResult)}</strong><span>receitas menos despesas</span></span></div>`;
-    const hasMovFilters = Boolean(q || fk !== 'all' || fa !== 'all' || fo !== 'all');
-    $('#movMeta').textContent = `${filtered.length} de ${list.length} ${list.length === 1 ? 'lançamento' : 'lançamentos'} · ${monthLabel(k)}`;
+    const hasMovFilters = Boolean(q || fk !== 'all' || fa !== 'all' || fo !== 'all' || fs !== 'all');
+    $('#movMeta').textContent = `Mostrando ${filtered.length} ${filtered.length === 1 ? 'registro' : 'registros'} de ${monthLabel(k).toLowerCase()}`;
     $('#movClear').hidden = !hasMovFilters;
-    $('#allRows').innerHTML = filtered.map(x => txRow(x, true)).join('') || '<tr><td colspan="8" class="empty">Nenhum lançamento encontrado.</td></tr>';
+    movFiltered = filtered;
+    const movPages = Math.max(1, Math.ceil(filtered.length / MOV_PAGE));
+    movPage = Math.min(Math.max(1, movPage), movPages);
+    const movStart = (movPage - 1) * MOV_PAGE;
+    const movVisible = filtered.slice(movStart, movStart + MOV_PAGE);
+    $('#allRows').innerHTML = movVisible.map(x => txRow(x, true)).join('') || '<tr><td colspan="9" class="empty">Nenhum lançamento encontrado.</td></tr>';
+    const shownFrom = filtered.length ? movStart + 1 : 0;
+    const shownTo = Math.min(movStart + MOV_PAGE, filtered.length);
+    $('#movFooter').innerHTML = `<span>Mostrando <strong>${shownFrom}–${shownTo}</strong> de <strong>${filtered.length}</strong> lançamentos</span>
+      <div class="mov-pages">
+        <button type="button" class="icon-btn" data-mov-page="${movPage - 1}" ${movPage <= 1 ? 'disabled' : ''} aria-label="Página anterior">${icon('chevron-down', 'i-sm mov-page-prev')}</button>
+        <span>${movPage}</span>
+        <button type="button" class="icon-btn" data-mov-page="${movPage + 1}" ${movPage >= movPages ? 'disabled' : ''} aria-label="Próxima página">${icon('chevron-down', 'i-sm mov-page-next')}</button>
+      </div>`;
 
     // Contas
     renderAccounts(k);
@@ -2759,6 +2832,7 @@
   function goCurrentMonth() {
     periodManual = false;
     period = currentMonth();
+    movPage = 1;
     fillPeriod();
     render();
   }
@@ -2860,9 +2934,22 @@
     const m = $('#modal-' + name);
     m.classList.add('open');
     if (name === 'tx') {
+      const tx = btn?.dataset.editTx ? state.txs.find(x => x.id === btn.dataset.editTx) : null;
+      if (tx?.taskId || (tx && !canDeleteOwned(tx))) { m.classList.remove('open'); alert('Somente lançamentos avulsos próprios podem ser editados.'); return; }
+      $('#txId').value = tx?.id || '';
+      $('#tTitle').textContent = tx ? 'Editar lançamento' : 'Novo lançamento';
+      $('#tTitle').nextElementSibling.textContent = tx ? 'Atualize os dados do lançamento avulso' : 'Registre uma receita ou despesa';
+      $('#txSubmit').innerHTML = `${icon('check', 'i-sm')}${tx ? 'Salvar alterações' : 'Salvar lançamento'}`;
+      (tx?.kind === 'income' ? $('#kInc') : $('#kExp')).checked = true;
       fillCategories();
       const t = todayISO();
-      $('#txDate').value = ym(t) === period ? t : `${period}-01`;
+      $('#txDesc').value = tx?.description || '';
+      setMoney('#txAmount', tx?.amount ?? '');
+      $('#txDate').value = tx?.date || (ym(t) === period ? t : `${period}-01`);
+      if (tx?.category) $('#txCat').value = tx.category;
+      if (tx?.account && state.accounts.some(a => a.id === tx.account)) $('#txAcc').value = tx.account;
+      $('#txPayee').value = tx?.payee || '';
+      uploads.tx?.reset();
     }
     if (name === 'snapbatch') {
       if (!state.investments.length) { m.classList.remove('open'); alert('Cadastre uma aplicação antes.'); return; }
@@ -2980,11 +3067,17 @@
       const p = Number(b.dataset.taskPage);
       if (Number.isFinite(p) && p >= 1 && !b.disabled) { taskPage = p; renderTasks(); }
     }
+    else if (b.dataset.movPage) {
+      const p = Number(b.dataset.movPage);
+      if (Number.isFinite(p) && p >= 1 && !b.disabled) { movPage = p; render(); }
+    }
     else if (b.dataset.rtab) { reportTab = b.dataset.rtab; renderReports(); }
     else if (b.dataset.pay) openPay(b.dataset.pay, b.dataset.payMode);
     else if (b.dataset.skip) skipOccurrence(b.dataset.skip);
     else if (b.dataset.undo) undoOccurrence(b.dataset.undo);
     else if (b.dataset.receipt) openReceipt(b.dataset.receipt, b.dataset.rtx);
+    else if (b.dataset.viewTx) openTxDetails(b.dataset.viewTx);
+    else if (b.dataset.editTx) openModal('tx', b);
     else if (b.dataset.editTask) openModal('task', b);
     else if (b.dataset.editAcc) openModal('account', b);
     else if (b.dataset.editInv) openModal('invest', b);
@@ -3051,18 +3144,22 @@
     }
     period = e.target.value;
     periodManual = period !== currentMonth();
+    movPage = 1;
     syncPeriodNow();
     render();
   });
   $('#periodNow')?.addEventListener('click', goCurrentMonth);
-  ['#q', '#fKind', '#fAccount', '#fOrigin'].forEach(s => $(s).addEventListener(s === '#q' ? 'input' : 'change', render));
+  ['#q', '#fKind', '#fAccount', '#fOrigin', '#fStatus'].forEach(s => $(s).addEventListener(s === '#q' ? 'input' : 'change', () => { movPage = 1; render(); }));
   $('#movClear')?.addEventListener('click', () => {
     $('#q').value = '';
     $('#fKind').value = 'all';
     $('#fAccount').value = 'all';
     $('#fOrigin').value = 'all';
+    $('#fStatus').value = 'all';
+    movPage = 1;
     render();
   });
+  $('#movExport')?.addEventListener('click', exportMovCsv);
   ['#tq', '#tfValor', '#tfFreq', '#tfState', '#tfStatus'].forEach(s => {
     const el = $(s);
     if (el) el.addEventListener(s === '#tq' ? 'input' : 'change', () => { taskPage = 1; renderTasks(); });
@@ -3128,12 +3225,21 @@
     const amount = Math.round(moneyVal('#txAmount') * 100) / 100;
     if (!(amount > 0)) return;
     const date = $('#txDate').value;
-    let receiptId = null;
-    const newTxId = uid();
-    try { if (uploads.tx.file) receiptId = await FPComprovantes.put(uploads.tx.file, newTxId); }
+    const editId = $('#txId').value;
+    const current = editId ? state.txs.find(x => x.id === editId) : null;
+    if (editId && (!current || current.taskId || !canDeleteOwned(current))) { alert('Este lançamento não pode ser editado.'); return; }
+    const newTxId = current?.id || uid();
+    let receiptId = current?.receiptId || null;
+    try {
+      if (uploads.tx.file) {
+        const oldReceipt = receiptId;
+        receiptId = await FPComprovantes.put(uploads.tx.file, newTxId);
+        if (oldReceipt && oldReceipt !== receiptId) FPComprovantes.del(oldReceipt);
+      }
+    }
     catch (err) { alert(err instanceof Error ? err.message : 'Não foi possível salvar o comprovante.'); return; }
     const payee = $('#txPayee').value.trim();
-    state.txs.push({
+    const data = {
       ...stamp_(), id: newTxId, date, amount, time: nowTime(),
       description: $('#txDesc').value.trim(),
       kind: $('input[name="kind"]:checked').value,
@@ -3142,7 +3248,9 @@
       payee: payee || undefined,
       by: userName || undefined,
       receiptId,
-    });
+    };
+    if (current) Object.assign(current, data, { createdBy: current.createdBy, time: current.time || data.time });
+    else state.txs.push(data);
     rememberPayee(payee);
     period = ym(date);
     periodManual = period !== currentMonth(); // lançou em outro mês: fica nele até voltar
