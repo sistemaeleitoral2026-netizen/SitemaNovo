@@ -258,21 +258,36 @@
       <!-- ============ MOVIMENTAÇÕES ============ -->
 
       <section class="view" id="view-transactions">
-        <div class="block">
-          <div class="toolbar">
-            <div class="search"><svg class="i"><use href="#i-search"/></svg>
-              <input class="input" id="q" placeholder="Buscar por descrição, pessoa, categoria ou conta" aria-label="Buscar"></div>
-            <select class="select" id="fKind" aria-label="Tipo">
-              <option value="all">Todos os tipos</option>
-              <option value="income">Receitas</option>
-              <option value="expense">Despesas</option>
-            </select>
-            <select class="select" id="fAccount" aria-label="Conta"></select>
-            <select class="select" id="fOrigin" aria-label="Origem do lançamento">
-              <option value="all">Toda origem</option>
-              <option value="avulso">Lançamentos avulsos</option>
-              <option value="programacao">Gerados por pagamento/cobrança</option>
-            </select>
+        <div class="block mov-kpis" id="movKpis" aria-label="Resumo das movimentações"></div>
+
+        <div class="block mov-main">
+          <div class="block-head mov-head">
+            <div class="bh">
+              <span class="bh-ico"><svg class="i"><use href="#i-ph-arrows-down-up"/></svg></span>
+              <div><div class="block-title">Lançamentos do período</div><div class="block-meta" id="movMeta">Carregando movimentações...</div></div>
+            </div>
+            <button type="button" class="btn btn-sm mov-clear" id="movClear" hidden><svg class="i i-sm"><use href="#i-x"/></svg>Limpar filtros</button>
+          </div>
+          <div class="toolbar mov-toolbar">
+            <label class="mov-field mov-search"><span>Buscar</span>
+              <span class="search"><svg class="i"><use href="#i-search"/></svg>
+                <input class="input" id="q" placeholder="Descrição, pessoa ou categoria" aria-label="Buscar movimentações"></span>
+            </label>
+            <label class="mov-field"><span>Tipo</span>
+              <select class="select" id="fKind" aria-label="Tipo">
+                <option value="all">Todos os tipos</option>
+                <option value="income">Receitas</option>
+                <option value="expense">Despesas</option>
+              </select>
+            </label>
+            <label class="mov-field"><span>Conta</span><select class="select" id="fAccount" aria-label="Conta"></select></label>
+            <label class="mov-field"><span>Origem</span>
+              <select class="select" id="fOrigin" aria-label="Origem do lançamento">
+                <option value="all">Toda origem</option>
+                <option value="avulso">Lançamentos avulsos</option>
+                <option value="programacao">Pagamento/cobrança</option>
+              </select>
+            </label>
           </div>
           <div class="table-wrap sheet-wrap mov-sheet">
             <table class="sheet">

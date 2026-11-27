@@ -349,18 +349,23 @@
     if (x.payee) metas.push(`${inc ? 'Recebido de' : 'Quem recebeu'}: ${esc(x.payee)}`);
     if (x.by) metas.push(`${inc ? 'Registrado por' : 'Pago por'}: ${esc(x.by)}`);
     if (x.note) metas.push(esc(x.note));
-    return `<tr>
-      <td class="num">${sheetDate(x.date)}${x.time ? `<small>${esc(x.time)}</small>` : ''}</td>
+    return `<tr class="mov-row ${inc ? 'is-income' : 'is-expense'}">
+      <td class="num mov-date">${sheetDate(x.date)}${x.time ? `<small>${esc(x.time)}</small>` : ''}</td>
       <td class="sheet-desc">
-        <span class="sheet-desc-in">${esc(x.description)}${x.receiptId ? `<button class="clip" data-receipt="${x.receiptId}" data-rtx="${x.id}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip')}</button>` : ''}</span>
-        ${metas.map(m => `<small class="tx-meta">${m}</small>`).join('')}
+        <div class="mov-desc-wrap">
+          <span class="mov-type-icon">${icon(inc ? 'ph-chart-line-up' : 'ph-receipt')}</span>
+          <span class="mov-desc-copy">
+            <span class="sheet-desc-in">${esc(x.description)}${x.receiptId ? `<button class="clip" data-receipt="${x.receiptId}" data-rtx="${x.id}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip')}</button>` : ''}</span>
+            ${metas.map(m => `<small class="tx-meta">${m}</small>`).join('')}
+          </span>
+        </div>
       </td>
-      <td class="col-cat">${esc(x.category || 'Outros')}</td>
-      <td class="col-acc">${acc}</td>
-      <td class="col-orig">${origin}</td>
-      <td>${sit}</td>
-      <td class="t-right num ${inc ? 'delta-pos' : 'delta-neg'}">${signed(value(x))}</td>
-      ${withDelete ? `<td class="col-act">${canDelete(x) ? `<button class="icon-btn" data-del-tx="${x.id}" aria-label="Excluir lançamento">${icon('trash-2', 'i-sm')}</button>` : ''}</td>` : '<td class="col-act"></td>'}
+      <td class="col-cat"><span class="mov-pill">${esc(x.category || 'Outros')}</span></td>
+      <td class="col-acc"><span class="mov-account">${icon('ph-bank', 'i-sm')}${acc}</span></td>
+      <td class="col-orig"><span class="mov-origin">${origin}</span></td>
+      <td class="mov-status">${sit}</td>
+      <td class="t-right num mov-value ${inc ? 'delta-pos' : 'delta-neg'}">${signed(value(x))}</td>
+      ${withDelete ? `<td class="col-act mov-actions">${canDelete(x) ? `<button class="icon-btn" data-del-tx="${x.id}" aria-label="Excluir lançamento">${icon('trash-2', 'i-sm')}</button>` : ''}</td>` : '<td class="col-act mov-actions"></td>'}
     </tr>`;
   }
 
@@ -2259,6 +2264,17 @@
       (fk === 'all' || x.kind === fk) && (fa === 'all' || x.account === fa) &&
       (fo === 'all' || (fo === 'avulso' ? !x.taskId : !!x.taskId)) &&
       (!q || `${x.description} ${x.category} ${accName(x.account)} ${x.payee || ''} ${x.by || ''}`.toLowerCase().includes(q)));
+    const movIncome = list.filter(x => x.kind === 'income').reduce((total, x) => total + value(x), 0);
+    const movExpense = list.filter(x => x.kind === 'expense').reduce((total, x) => total + value(x), 0);
+    const movResult = movIncome - movExpense;
+    $('#movKpis').innerHTML = `
+      <div class="mov-kpi is-count"><span class="mov-kpi-icon">${icon('ph-arrows-down-up')}</span><span class="mov-kpi-copy"><small>Lançamentos</small><strong>${list.length}</strong><span>${monthLabel(k)}</span></span></div>
+      <div class="mov-kpi is-income"><span class="mov-kpi-icon">${icon('ph-chart-line-up')}</span><span class="mov-kpi-copy"><small>Receitas</small><strong>${money(movIncome)}</strong><span>${list.filter(x => x.kind === 'income').length} entrada${list.filter(x => x.kind === 'income').length === 1 ? '' : 's'}</span></span></div>
+      <div class="mov-kpi is-expense"><span class="mov-kpi-icon">${icon('ph-receipt')}</span><span class="mov-kpi-copy"><small>Despesas</small><strong>${money(movExpense)}</strong><span>${list.filter(x => x.kind === 'expense').length} saída${list.filter(x => x.kind === 'expense').length === 1 ? '' : 's'}</span></span></div>
+      <div class="mov-kpi is-balance"><span class="mov-kpi-icon">${icon('ph-wallet')}</span><span class="mov-kpi-copy"><small>Resultado</small><strong class="${movResult >= 0 ? 'delta-pos' : 'delta-neg'}">${signed(movResult)}</strong><span>receitas menos despesas</span></span></div>`;
+    const hasMovFilters = Boolean(q || fk !== 'all' || fa !== 'all' || fo !== 'all');
+    $('#movMeta').textContent = `${filtered.length} de ${list.length} ${list.length === 1 ? 'lançamento' : 'lançamentos'} · ${monthLabel(k)}`;
+    $('#movClear').hidden = !hasMovFilters;
     $('#allRows').innerHTML = filtered.map(x => txRow(x, true)).join('') || '<tr><td colspan="8" class="empty">Nenhum lançamento encontrado.</td></tr>';
 
     // Contas
@@ -2991,6 +3007,13 @@
   });
   $('#periodNow')?.addEventListener('click', goCurrentMonth);
   ['#q', '#fKind', '#fAccount', '#fOrigin'].forEach(s => $(s).addEventListener(s === '#q' ? 'input' : 'change', render));
+  $('#movClear')?.addEventListener('click', () => {
+    $('#q').value = '';
+    $('#fKind').value = 'all';
+    $('#fAccount').value = 'all';
+    $('#fOrigin').value = 'all';
+    render();
+  });
   ['#tq', '#tfValor', '#tfFreq', '#tfState', '#tfStatus'].forEach(s => {
     const el = $(s);
     if (el) el.addEventListener(s === '#tq' ? 'input' : 'change', () => { taskPage = 1; renderTasks(); });
