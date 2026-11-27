@@ -37,6 +37,8 @@ export type FpTask = {
   createdByName?: string
   /** Data original do cadastro, usada na tela de documentação. */
   createdAt?: string
+  /** Anexo da pendência (fp_anexos.entidade = 'tarefa'), não o da conclusão. */
+  docFileId?: string | null
   expected: number | null; account: string | null; rec: FpRec; start: string | null; end: string | null
   paused: boolean; archived?: boolean; notes: string; createdBy?: string | null
 }
@@ -176,7 +178,7 @@ export async function carregarFinanceiroPessoal(): Promise<{ estado: FpState; li
     sel('fp_tarefas_baixas', 'periodo'),
     sel('fp_conferencias_conta', 'data'),
     sel('fp_investimentos_saldos', 'data'),
-    supabase.from('fp_anexos').select('id,entidade,entidade_id,created_at').in('entidade', ['lancamento', 'baixa']).order('created_at'),
+    supabase.from('fp_anexos').select('id,entidade,entidade_id,created_at').in('entidade', ['lancamento', 'baixa', 'tarefa']).order('created_at'),
     supabase.from('fp_config').select('chave,valor'),
   ])
   const testeBanco = await supabase.from('fp_contas').select('banco').limit(1)
@@ -193,8 +195,10 @@ export async function carregarFinanceiroPessoal(): Promise<{ estado: FpState; li
 
   const anexoDe = new Map<string, string>()
   const anexoBaixaDe = new Map<string, string>()
+  const anexoTarefaDe = new Map<string, string>()
   for (const a of anexos) {
     if (a.entidade === 'baixa') anexoBaixaDe.set(String(a.entidade_id), String(a.id))
+    else if (a.entidade === 'tarefa') anexoTarefaDe.set(String(a.entidade_id), String(a.id))
     else anexoDe.set(String(a.entidade_id), String(a.id))
   }
 
@@ -237,6 +241,7 @@ export async function carregarFinanceiroPessoal(): Promise<{ estado: FpState; li
         paused: !!t.pausada,
         archived: !!t.arquivada,
         notes: String(t.instrucoes || ''),
+        docFileId: anexoTarefaDe.get(String(t.id)) ?? null,
         createdBy: (t.created_by as string) ?? null,
       }
     }),
@@ -384,6 +389,7 @@ export async function salvarFinanceiroPessoal(anterior: FpRows, estado: FpState)
   if (lancsRemovidos.size) await apagarComprovantesDe([...lancsRemovidos], 'lancamento')
   const baixasRemovidas = removidos.fp_tarefas_baixas.map((r) => r.id)
   if (baixasRemovidas.length) await apagarComprovantesDe(baixasRemovidas, 'baixa')
+  if (tarefasRemovidas.size) await apagarComprovantesDe([...tarefasRemovidas], 'tarefa')
   return proximo
 }
 
@@ -448,7 +454,7 @@ export async function enviarComprovante(
   arquivo: Blob,
   nome: string,
   entidadeId: string,
-  entidade: 'lancamento' | 'baixa' = 'lancamento',
+  entidade: 'lancamento' | 'baixa' | 'tarefa' = 'lancamento',
 ): Promise<string> {
   const id = crypto.randomUUID()
   const mime = arquivo.type || 'application/octet-stream'
@@ -484,7 +490,7 @@ export async function baixarComprovante(id: string): Promise<{ blob: Blob; nome:
   return { blob: dl.data, nome: data.nome, mime: data.mime || dl.data.type, tamanho: Number(data.tamanho) || dl.data.size }
 }
 
-async function apagarComprovantesDe(entidadeIds: string[], entidade: 'lancamento' | 'baixa' = 'lancamento') {
+async function apagarComprovantesDe(entidadeIds: string[], entidade: 'lancamento' | 'baixa' | 'tarefa' = 'lancamento') {
   const { data } = await supabase.from('fp_anexos').select('id,storage_path')
     .eq('entidade', entidade).in('entidade_id', entidadeIds)
   if (!data?.length) return

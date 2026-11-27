@@ -10,7 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
 <link rel="stylesheet" href="css/tarefas.css?v=64">
-<link rel="stylesheet" href="css/layout.css?v=65">
+<link rel="stylesheet" href="css/layout.css?v=67">
 <link rel="stylesheet" href="css/tema.css">
 <link rel="stylesheet" href="css/contas.css">
 <link rel="stylesheet" href="css/pagamentos.css">
@@ -299,16 +299,16 @@
               </select>
             </label>
           </div>
-          <div class="table-wrap sheet-wrap mov-sheet">
-            <table class="sheet">
+          <div class="table-wrap sheet-wrap mov-sheet excel-sheet">
+            <table class="sheet excel-table">
               <thead><tr>
-                <th>Data</th>
+                <th class="col-date">Data</th>
                 <th>Descrição</th>
                 <th class="col-cat">Categoria</th>
                 <th class="col-acc">Conta</th>
                 <th class="col-orig">Origem</th>
-                <th>Situação</th>
-                <th class="t-right">Valor</th>
+                <th class="col-sit">Situação</th>
+                <th class="t-right col-val">Valor</th>
                 <th class="col-proof">Comprovante</th>
                 <th class="col-act">Ações</th>
               </tr></thead>
@@ -636,6 +636,17 @@
 
       <!-- Documentação -->
       <div class="field" data-tk-kind="documentacao"><label for="tkDocCreated">Data do cadastro</label><input class="input" id="tkDocCreated" type="date" readonly tabindex="-1" title="Preenchida automaticamente"></div>
+      <div class="field full" data-tk-kind="documentacao" id="tkKeepDoc" hidden data-removed="0">
+        <label>Documento já anexado</label>
+        <div class="upload has-file">
+          <div class="upload-file">
+            <div class="upload-thumb"><svg class="i"><use href="#i-file-text"/></svg></div>
+            <div class="upload-name"><span data-tk-doc-name>Documento anexado</span><small>Já está salvo nesta pendência</small></div>
+            <button type="button" class="icon-btn" data-tk-remove-doc aria-label="Remover documento"><svg class="i i-sm"><use href="#i-x"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <div class="field full" data-tk-kind="documentacao"><label>Anexar documento <span class="opt">(opcional)</span></label><div class="upload" data-upload="taskDoc"></div></div>
 
       <!-- Cobrança -->
       <div class="field" data-tk-kind="cobranca"><label for="tkChargeAmount">Valor a receber (R$)</label><input class="input num money" id="tkChargeAmount" type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div>
@@ -736,6 +747,6 @@
 <datalist id="payeeList"></datalist>
 
 <script src="js/comprovantes.js"></script>
-<script src="js/app.js?v=69"></script>
+<script src="js/app.js?v=71"></script>
 </body>
 </html>

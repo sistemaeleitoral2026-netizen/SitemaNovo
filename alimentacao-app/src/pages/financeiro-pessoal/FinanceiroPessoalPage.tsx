@@ -23,7 +23,7 @@ type FpMensagem = {
   file?: Blob
   name?: string
   entidadeId?: string
-  entidade?: 'lancamento' | 'baixa'
+  entidade?: 'lancamento' | 'baixa' | 'tarefa'
   on?: boolean
   height?: number
   id?: string
@@ -178,7 +178,7 @@ export function FinanceiroPessoalPage() {
             dados.file,
             dados.name || 'comprovante',
             dados.entidadeId,
-            dados.entidade === 'baixa' ? 'baixa' : 'lancamento',
+            dados.entidade === 'baixa' || dados.entidade === 'tarefa' ? dados.entidade : 'lancamento',
           )
           postar({ type: 'fp-file-ok', requestId: dados.requestId, id })
         } catch (e) {

@@ -363,20 +363,45 @@
   }
 
   /* ---------- Componentes ---------- */
+  function txProofCell(x) {
+    if (!x.receiptId) return '<span class="mov-no-proof">—</span>';
+    return `<button type="button" class="mov-proof-thumb" data-receipt="${esc(x.receiptId)}" data-rtx="${esc(x.id)}" title="Abrir comprovante" aria-label="Abrir comprovante">
+      <span class="mov-proof-frame" data-receipt-thumb="${esc(x.receiptId)}">${icon('file-text', 'i-sm')}</span>
+      <span class="mov-proof-caption">Ver</span>
+    </button>`;
+  }
+
+  /** Carrega miniaturas dos comprovantes depois de montar a tabela. */
+  async function hydrateReceiptPreviews(root = document) {
+    const nodes = [...(root.querySelectorAll?.('[data-receipt-thumb]') || [])];
+    await Promise.all(nodes.map(async el => {
+      const id = el.dataset.receiptThumb;
+      if (!id || el.dataset.ready === '1') return;
+      try {
+        const rec = await FPComprovantes.get(id);
+        const url = await FPComprovantes.url(id);
+        if (!url) return;
+        el.dataset.ready = '1';
+        if ((rec?.type || '').startsWith('image/')) {
+          el.innerHTML = `<img src="${url}" alt="Prévia do comprovante">`;
+        } else {
+          el.innerHTML = `<span class="mov-proof-pdf">PDF</span>`;
+          el.style.backgroundImage = '';
+        }
+      } catch { /* sem arquivo neste aparelho */ }
+    }));
+  }
+
   function txRow(x, withDelete) {
     const inc = x.kind === 'income';
     const t = x.taskId ? taskById(x.taskId) : null;
     const cob = t && taskKind(t) === 'cobranca';
-    const origin = x.taskId ? (inc || cob ? 'Cobrança' : 'Pagamento') : 'Movimentação';
-    const sit = `<span class="tag sheet-done">${inc ? 'Recebido' : 'Pago'}</span>`;
-    const acc = x.account && accName(x.account) !== '—' ? esc(accName(x.account)) : '<span class="t-faint">—</span>';
+    const origin = x.taskId ? (inc || cob ? 'Cobrança' : 'Pagamento') : 'Avulso';
+    const sit = inc ? 'Recebido' : 'Pago';
+    const acc = x.account && accName(x.account) !== '—' ? esc(accName(x.account)) : '—';
     const metas = [];
-    if (x.payee) metas.push(`${inc ? 'Recebido de' : 'Quem recebeu'}: ${esc(x.payee)}`);
-    if (x.by) metas.push(`${inc ? 'Registrado por' : 'Pago por'}: ${esc(x.by)}`);
-    if (x.note) metas.push(esc(x.note));
-    const proof = x.receiptId
-      ? `<button type="button" class="mov-proof" data-receipt="${x.receiptId}" data-rtx="${x.id}" title="Abrir comprovante">${icon('file-text', 'i-sm')}Anexo</button>`
-      : '<span class="mov-no-proof">—</span>';
+    if (x.payee) metas.push(`${inc ? 'De' : 'Para'}: ${esc(x.payee)}`);
+    if (x.by) metas.push(`Por: ${esc(x.by)}`);
     const canEditTx = !x.taskId && canDeleteOwned(x);
     const actions = `<div class="mov-action-set">
       <button type="button" class="icon-btn mov-view-btn" data-view-tx="${x.id}" title="Ver detalhes" aria-label="Ver detalhes">${icon('eye', 'i-sm')}</button>
@@ -386,20 +411,15 @@
     return `<tr class="mov-row ${inc ? 'is-income' : 'is-expense'}">
       <td class="num mov-date">${sheetDate(x.date)}${x.time ? `<small>${esc(x.time)}</small>` : ''}</td>
       <td class="sheet-desc">
-        <div class="mov-desc-wrap">
-          <span class="mov-type-icon">${icon(inc ? 'ph-chart-line-up' : 'ph-receipt')}</span>
-          <span class="mov-desc-copy">
-            <span class="sheet-desc-in">${esc(x.description)}</span>
-            ${metas.map(m => `<small class="tx-meta">${m}</small>`).join('')}
-          </span>
-        </div>
+        <span class="sheet-desc-in">${esc(x.description)}</span>
+        ${metas.map(m => `<small class="tx-meta">${m}</small>`).join('')}
       </td>
-      <td class="col-cat"><span class="mov-pill">${esc(x.category || 'Outros')}</span></td>
-      <td class="col-acc"><span class="mov-account">${icon('ph-bank', 'i-sm')}${acc}</span></td>
-      <td class="col-orig"><span class="mov-origin ${origin === 'Cobrança' ? 'is-charge' : origin === 'Pagamento' ? 'is-payment' : 'is-movement'}">${origin}</span></td>
+      <td class="col-cat">${esc(x.category || 'Outros')}</td>
+      <td class="col-acc">${acc}</td>
+      <td class="col-orig">${origin}</td>
       <td class="mov-status">${sit}</td>
       <td class="t-right num mov-value ${inc ? 'delta-pos' : 'delta-neg'}">${signed(value(x))}</td>
-      <td class="col-proof mov-proof-cell">${proof}</td>
+      <td class="col-proof mov-proof-cell">${txProofCell(x)}</td>
       <td class="col-act mov-actions">${actions}</td>
     </tr>`;
   }
@@ -1178,6 +1198,9 @@
       info = `<div class="task-done-info" style="color:var(--muted)">${icon('ban')}Dispensada${d.by ? ` por ${esc(d.by)}` : ''}${d.date ? ` em ${fullDate(d.date)}` : ''}</div>`;
     }
     let actions = '';
+    if (kind === 'documentacao' && t.docFileId) {
+      actions += `<button class="btn btn-sm" data-receipt="${t.docFileId}" title="Ver documento anexado">${icon('paperclip', 'i-sm')}Documento</button>`;
+    }
     if (!d) {
       actions += launchBtn(o);
       if (kind !== 'pagamento') actions += `<button class="icon-btn" data-skip="${o.key}" title="Dispensar neste mês" aria-label="Dispensar neste mês">${icon('ban', 'i-sm')}</button>`;
@@ -1185,6 +1208,7 @@
       if (d.receiptId) actions += `<button class="btn btn-sm" data-receipt="${d.receiptId}" data-rtx="${d.txId}">${icon('paperclip', 'i-sm')}Comprovante</button>`;
       actions += `<button class="icon-btn danger" data-undo="${o.key}" title="Desfazer" aria-label="Desfazer">${icon('undo-2', 'i-sm')}</button>`;
     } else {
+      if (d.receiptId) actions += `<button class="btn btn-sm" data-receipt="${d.receiptId}" title="Ver anexo da conclusão">${icon('paperclip', 'i-sm')}Conclusão</button>`;
       actions += `<button class="icon-btn" data-undo="${o.key}" title="Reabrir" aria-label="Reabrir">${icon('undo-2', 'i-sm')}</button>`;
     }
     actions += `<button class="icon-btn" data-edit-task="${t.id}" title="Editar" aria-label="Editar">${icon('pencil-line', 'i-sm')}</button>`;
@@ -1301,12 +1325,22 @@
   }
 
   function occActions(o) {
-    const d = o.done, kind = taskKind(o.task);
-    let a = launchBtn(o);
+    const d = o.done, kind = taskKind(o.task), t = o.task;
+    let a = '';
+    if (kind === 'documentacao' && t.docFileId) {
+      a += `<button class="btn btn-sm" data-receipt="${t.docFileId}" title="Ver documento anexado">${icon('paperclip', 'i-sm')}Documento</button>`;
+    }
+    a += launchBtn(o);
     if (isMoneyDone(d) && d.receiptId) a += `<button class="btn btn-sm" data-receipt="${d.receiptId}" data-rtx="${d.txId}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip', 'i-sm')}Comprovante</button>`;
+    if (d && d.status === 'concluida' && d.receiptId) a += `<button class="btn btn-sm" data-receipt="${d.receiptId}" title="Ver anexo da conclusão">${icon('paperclip', 'i-sm')}Conclusão</button>`;
     if (d) a += `<button class="icon-btn" data-undo="${o.key}" title="${d.status === 'dispensada' ? 'Reabrir' : 'Desfazer registro'}" aria-label="Desfazer">${icon('undo-2', 'i-sm')}</button>`;
     if (!d && kind !== 'pagamento') a += `<button class="icon-btn" data-skip="${o.key}" title="Dispensar neste mês" aria-label="Dispensar neste mês">${icon('ban', 'i-sm')}</button>`;
     return a;
+  }
+
+  function docAnexoCell(t) {
+    if (!t?.docFileId) return '<span class="t-faint">—</span>';
+    return `<button type="button" class="btn btn-sm" data-receipt="${t.docFileId}" title="Ver documento">${icon('paperclip', 'i-sm')}Anexo</button>`;
   }
 
   function adminTaskActions(t) {
@@ -1348,6 +1382,7 @@
         ${isDoc ? '' : `<td class="sheet-cell occ-month">${monthLabel(o.period)}</td>`}
         <td class="sheet-cell occ-due"><strong>${windowLabel(o)}</strong><div class="sheet-due">${esc(occNote(o))}</div></td>
         <td class="sheet-cell">${statusTag(o.status)}</td>
+        ${isDoc ? `<td class="sheet-cell">${docAnexoCell(t)}</td>` : ''}
         <td class="sheet-cell occ-issuer">${esc(taskIssuer(t)) || '—'}</td>
         <td class="sheet-cell"><div class="sheet-actions">${occActions(o)}${adminTaskActions(t)}</div></td>
       </tr>`;
@@ -1356,7 +1391,7 @@
       <thead><tr>
         ${sortTh('title', isDoc ? 'Pendência' : 'Conta')}${sortTh('target', PERSON_COL[kind])}
         ${isDoc ? '' : sortTh('value', 'Valor (R$)', 't-right')}${isDoc ? '' : sortTh('period', 'Mês', 'col-month')}
-        ${sortTh('due', 'Prazo')}${sortTh('status', 'Situação')}${sortTh('issuer', 'Cadastrado por', 'col-issuer')}<th>Ação</th>
+        ${sortTh('due', 'Prazo')}${sortTh('status', 'Situação')}${isDoc ? '<th>Anexos</th>' : ''}${sortTh('issuer', 'Cadastrado por', 'col-issuer')}<th>Ação</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table></div>${taskPagerHtml(filtered.length)}`;
@@ -1788,6 +1823,16 @@
     $('#tkDateFrom').value = r.dateFrom || todayISO();
     $('#tkDateTo').value = r.dateTo || (kind === 'documentacao' ? '' : addDays(todayISO(), 5));
     $('#tkNotes').value = t?.notes || '';
+    uploads.taskDoc?.reset();
+    const keepDoc = $('#tkKeepDoc');
+    if (keepDoc) {
+      keepDoc.hidden = !(kind === 'documentacao' && t?.docFileId);
+      keepDoc.dataset.receiptId = t?.docFileId || '';
+      keepDoc.dataset.removed = '0';
+      keepDoc.querySelector('[data-tk-doc-name]')?.replaceChildren(
+        document.createTextNode(t?.docFileId ? 'Documento já anexado' : ''),
+      );
+    }
     updateTaskForm();
   }
 
@@ -1828,7 +1873,9 @@
     let rec, start;
     if (type === 'once') {
       let a = $('#tkDateFrom').value, b = $('#tkDateTo').value;
-      if (!a || !b) { alert('Informe datas válidas para o período.'); return; }
+      if (isDoc && a && !b) b = a;
+      if (isDoc && b && !a) a = b;
+      if (!a || !b) { alert(isDoc ? 'Informe o prazo da documentação.' : 'Informe datas válidas para o período.'); return; }
       if (a > b) [a, b] = [b, a];
       rec = { type: 'once', dateFrom: a, dateTo: b };
       start = ym(a);
@@ -1863,8 +1910,15 @@
     };
     const id = $('#tkId').value;
     const prev = id ? { ...taskById(id) } : null;
+    const taskId = id || uid();
+    const keepDoc = $('#tkKeepDoc');
+    const removedDoc = isDoc && keepDoc?.dataset.removed === '1';
+    const oldDocId = prev?.docFileId || null;
+    let docFileId = isDoc
+      ? (removedDoc ? null : (oldDocId || null))
+      : (prev?.docFileId || null);
     const created = id ? null : {
-      id: uid(), ...data, paused: false, archived: false,
+      id: taskId, ...data, paused: false, archived: false, docFileId: null,
       createdBy: userId || null,
       createdByName: userName || 'Usuário',
       createdAt: new Date().toISOString(),
@@ -1880,10 +1934,26 @@
     refresh();
     try {
       await saveConfirmed();
+      if (isDoc) {
+        const file = uploads.taskDoc?.file;
+        if (file) {
+          docFileId = await FPComprovantes.put(file, taskId, 'tarefa');
+          const t = taskById(taskId);
+          if (t) t.docFileId = docFileId;
+          if (oldDocId && oldDocId !== docFileId) FPComprovantes.del(oldDocId);
+          uploads.taskDoc?.reset();
+        } else if (removedDoc && oldDocId) {
+          FPComprovantes.del(oldDocId);
+          const t = taskById(taskId);
+          if (t) t.docFileId = null;
+        }
+      }
       closeModals();
+      refresh();
     } catch (e) {
       if (prev) Object.assign(taskById(id), prev);
-      else state.tasks = state.tasks.filter(t => t !== created);
+      else state.tasks = state.tasks.filter(t => t.id !== taskId);
+      if (docFileId && docFileId !== oldDocId) FPComprovantes.del(docFileId);
       refresh();
       alert(e instanceof Error ? e.message : 'Não foi possível salvar a programação.');
     } finally {
@@ -2221,9 +2291,17 @@
         ${tx.by ? `<div><dt>Registrado por</dt><dd>${esc(tx.by)}</dd></div>` : ''}
         ${tx.note ? `<div class="full"><dt>Observação</dt><dd>${esc(tx.note)}</dd></div>` : ''}
       </dl>
-      ${tx.receiptId ? `<button type="button" class="btn mov-detail-proof" data-receipt="${tx.receiptId}" data-rtx="${tx.id}">${icon('file-text', 'i-sm')}Abrir comprovante</button>` : '<p class="mov-detail-empty">Nenhum comprovante anexado.</p>'}`;
+      ${tx.receiptId
+        ? `<div class="mov-detail-proof-box">
+            <button type="button" class="mov-proof-thumb is-lg" data-receipt="${esc(tx.receiptId)}" data-rtx="${esc(tx.id)}" title="Abrir comprovante">
+              <span class="mov-proof-frame" data-receipt-thumb="${esc(tx.receiptId)}">${icon('file-text', 'i-sm')}</span>
+              <span class="mov-proof-caption">Abrir comprovante</span>
+            </button>
+          </div>`
+        : '<p class="mov-detail-empty">Nenhum comprovante anexado.</p>'}`;
     lastFocus = document.activeElement;
     $('#modal-txview').classList.add('open');
+    hydrateReceiptPreviews($('#modal-txview') || document).catch(() => {});
   }
 
   /* ======================================================================
@@ -2472,6 +2550,7 @@
     const movStart = (movPage - 1) * MOV_PAGE;
     const movVisible = filtered.slice(movStart, movStart + MOV_PAGE);
     $('#allRows').innerHTML = movVisible.map(x => txRow(x, true)).join('') || '<tr><td colspan="9" class="empty">Nenhum lançamento encontrado.</td></tr>';
+    hydrateReceiptPreviews($('#view-transactions') || document).catch(() => {});
     const shownFrom = filtered.length ? movStart + 1 : 0;
     const shownTo = Math.min(movStart + MOV_PAGE, filtered.length);
     $('#movFooter').innerHTML = `<span>Mostrando <strong>${shownFrom}–${shownTo}</strong> de <strong>${filtered.length}</strong> lançamentos</span>
@@ -3375,11 +3454,20 @@
   });
   document.addEventListener('click', e => {
     const rm = e.target.closest('[data-tx-remove-receipt]');
-    if (!rm) return;
-    const box = $('#txKeepReceipt');
-    if (!box) return;
-    box.dataset.removed = '1';
-    box.hidden = true;
+    if (rm) {
+      const box = $('#txKeepReceipt');
+      if (!box) return;
+      box.dataset.removed = '1';
+      box.hidden = true;
+      return;
+    }
+    const rmDoc = e.target.closest('[data-tk-remove-doc]');
+    if (rmDoc) {
+      const box = $('#tkKeepDoc');
+      if (!box) return;
+      box.dataset.removed = '1';
+      box.hidden = true;
+    }
   });
 
   $('#taskForm').addEventListener('submit', e => { e.preventDefault(); saveTaskForm(); });
