@@ -38,7 +38,7 @@ export type FpTask = {
   /** Data original do cadastro, usada na tela de documentação. */
   createdAt?: string
   expected: number | null; account: string | null; rec: FpRec; start: string | null; end: string | null
-  paused: boolean; notes: string; createdBy?: string | null
+  paused: boolean; archived?: boolean; notes: string; createdBy?: string | null
 }
 export type FpDoneStatus = 'paga' | 'dispensada' | 'concluida' | 'cobrada'
 export type FpDone = {
@@ -87,6 +87,9 @@ function asError(e: unknown, padrao: string): Error {
   if (/dia_semana|recorrencia/.test(msg) && /fp_tarefas|column|check|schema/i.test(msg)) {
     return new Error('Falta rodar o SQL 20261127_fp_programacao_semanal.sql no Supabase (programações semanais).')
   }
+  if (/arquivada|fp_registrar_baixa_atomica|fp_desfazer_baixa_atomica/.test(msg) && /column|function|schema|cache/i.test(msg)) {
+    return new Error('Falta rodar o SQL 20261203_fp_integridade_baixas.sql no Supabase (integridade das baixas e histórico).')
+  }
   return new Error(msg || padrao)
 }
 
@@ -127,7 +130,7 @@ export function estadoParaLinhas(s: FpState): FpRows {
         tipo,
         valor_previsto: tipo === 'documentacao' || t.expected == null ? null : Number(t.expected),
         conta_id: tipo !== 'documentacao' && t.account && contas.has(t.account) ? t.account : null,
-        pausada: !!t.paused, instrucoes: t.notes || '',
+        pausada: !!t.paused, arquivada: !!t.archived, instrucoes: t.notes || '',
         recorrencia: 'mensal', a_cada_meses: 1, dia_inicio: null as number | null, dia_fim: null as number | null,
         mes_do_ano: null as number | null, data_inicio: null as string | null, data_fim: null as string | null,
         comeca_em: primeiroDia(t.start), termina_em: primeiroDia(t.end),
@@ -173,7 +176,7 @@ export async function carregarFinanceiroPessoal(): Promise<{ estado: FpState; li
     sel('fp_tarefas_baixas', 'periodo'),
     sel('fp_conferencias_conta', 'data'),
     sel('fp_investimentos_saldos', 'data'),
-    supabase.from('fp_anexos').select('id,entidade,entidade_id,created_at').eq('entidade', 'lancamento').order('created_at'),
+    supabase.from('fp_anexos').select('id,entidade,entidade_id,created_at').in('entidade', ['lancamento', 'baixa']).order('created_at'),
     supabase.from('fp_config').select('chave,valor'),
   ])
   const testeBanco = await supabase.from('fp_contas').select('banco').limit(1)
@@ -189,7 +192,11 @@ export async function carregarFinanceiroPessoal(): Promise<{ estado: FpState; li
   const [contas, invs, tarefas, lancs, baixas, confs, saldos, anexos, config] = res.map((r) => (r.data || []) as Record<string, unknown>[])
 
   const anexoDe = new Map<string, string>()
-  for (const a of anexos) anexoDe.set(String(a.entidade_id), String(a.id))
+  const anexoBaixaDe = new Map<string, string>()
+  for (const a of anexos) {
+    if (a.entidade === 'baixa') anexoBaixaDe.set(String(a.entidade_id), String(a.id))
+    else anexoDe.set(String(a.entidade_id), String(a.id))
+  }
 
   const estado: FpState = {
     accounts: contas.filter((c) => c.ativo !== false).map((c) => ({
@@ -228,6 +235,7 @@ export async function carregarFinanceiroPessoal(): Promise<{ estado: FpState; li
         start: rec.type === 'once' ? mes(t.data_inicio || t.data_fim) : mes(t.comeca_em),
         end: mes(t.termina_em),
         paused: !!t.pausada,
+        archived: !!t.arquivada,
         notes: String(t.instrucoes || ''),
         createdBy: (t.created_by as string) ?? null,
       }
@@ -247,7 +255,10 @@ export async function carregarFinanceiroPessoal(): Promise<{ estado: FpState; li
         id: String(d.id), taskId: String(d.tarefa_id), period: String(d.periodo), status,
         txId: (d.lancamento_id as string) ?? null, amount: num(d.valor), account: (d.conta_id as string) ?? null,
         date: (d.data as string) ?? null, time: hhmm(d.hora), by: (d.responsavel as string) ?? null, payee: (d.recebedor as string) ?? null,
-        receiptId: d.lancamento_id ? anexoDe.get(String(d.lancamento_id)) ?? null : null, note: (d.observacao as string) ?? null,
+        receiptId: (d.lancamento_id ? anexoDe.get(String(d.lancamento_id)) : null)
+          ?? anexoBaixaDe.get(String(d.id))
+          ?? null,
+        note: (d.observacao as string) ?? null,
       }
     }),
     accChecks: confs.map((c) => ({
@@ -278,14 +289,45 @@ const igual = (a: Row, b: Row) => JSON.stringify(a) === JSON.stringify(b)
 export async function salvarFinanceiroPessoal(anterior: FpRows, estado: FpState): Promise<FpRows> {
   const proximo = estadoParaLinhas(estado)
 
+  // Pagamento/recebimento e sua baixa precisam nascer juntos. Sem isso, duas
+  // pessoas lançando a mesma ocorrência poderiam deixar uma movimentação órfã.
+  const lancamentosAtomicos = new Set<string>()
+  const baixasAtomicas = new Set<string>()
+  const lancamentosAntes = new Set((anterior.fp_lancamentos || []).map((r) => r.id))
+  const baixasAntes = new Set((anterior.fp_tarefas_baixas || []).map((r) => r.id))
+  const lancamentoNovoPorId = new Map(
+    proximo.fp_lancamentos.filter((r) => !lancamentosAntes.has(r.id)).map((r) => [r.id, r]),
+  )
+  for (const baixa of proximo.fp_tarefas_baixas.filter((r) => !baixasAntes.has(r.id))) {
+    const lancamentoId = String(baixa.lancamento_id || '')
+    const lancamento = lancamentoNovoPorId.get(lancamentoId)
+    if (!lancamento) continue
+    const { error } = await supabase.rpc('fp_registrar_baixa_atomica', {
+      p_lancamento: lancamento,
+      p_baixa: baixa,
+    })
+    if (error) {
+      await apagarComprovantesOrfaos([lancamentoId])
+      throw asError(error, 'Falha ao registrar o pagamento/recebimento de forma segura.')
+    }
+    lancamentosAtomicos.add(lancamentoId)
+    baixasAtomicas.add(baixa.id)
+  }
+
   // 1) Inclusões e alterações, na ordem das chaves estrangeiras
   for (const t of TABLES) {
     const antes = new Map((anterior[t] || []).map((r) => [r.id, r]))
-    const novos = proximo[t].filter((r) => !antes.has(r.id))
+    const novos = proximo[t].filter((r) => !antes.has(r.id)).filter((r) =>
+      !(t === 'fp_lancamentos' && lancamentosAtomicos.has(r.id))
+      && !(t === 'fp_tarefas_baixas' && baixasAtomicas.has(r.id)),
+    )
     const alterados = proximo[t].filter((r) => antes.has(r.id) && !igual(antes.get(r.id)!, r))
     if (novos.length) {
       const { error } = await supabase.from(t).insert(novos)
-      if (error) throw asError(error, `Falha ao salvar (${ROTULO[t]}).`)
+      if (error) {
+        if (t === 'fp_lancamentos') await apagarComprovantesOrfaos(novos.map((r) => r.id))
+        throw asError(error, `Falha ao salvar (${ROTULO[t]}).`)
+      }
     }
     for (const r of alterados) {
       const { id, ...campos } = r
@@ -303,6 +345,21 @@ export async function salvarFinanceiroPessoal(anterior: FpRows, estado: FpState)
   }
   const lancsRemovidos = new Set(removidos.fp_lancamentos.map((r) => r.id))
   const tarefasRemovidas = new Set(removidos.fp_tarefas.map((r) => r.id))
+  const lancsDesfeitos = new Set<string>()
+  const baixasDesfeitas = new Set<string>()
+  for (const baixa of removidos.fp_tarefas_baixas) {
+    const lancamentoId = String(baixa.lancamento_id || '')
+    if (!lancamentoId || !lancsRemovidos.has(lancamentoId)) continue
+    const { error } = await supabase.rpc('fp_desfazer_baixa_atomica', {
+      p_lancamento_id: lancamentoId,
+      p_baixa_id: baixa.id,
+    })
+    if (error) throw asError(error, 'Falha ao desfazer o pagamento/recebimento de forma segura.')
+    lancsDesfeitos.add(lancamentoId)
+    baixasDesfeitas.add(baixa.id)
+  }
+  removidos.fp_lancamentos = removidos.fp_lancamentos.filter((r) => !lancsDesfeitos.has(r.id))
+  removidos.fp_tarefas_baixas = removidos.fp_tarefas_baixas.filter((r) => !baixasDesfeitas.has(r.id))
   // Baixas que somem junto com o lançamento/tarefa são apagadas pelo próprio banco (ON DELETE CASCADE)
   removidos.fp_tarefas_baixas = removidos.fp_tarefas_baixas.filter(
     (r) => !lancsRemovidos.has(String(r.lancamento_id)) && !tarefasRemovidas.has(String(r.tarefa_id)),
@@ -324,7 +381,9 @@ export async function salvarFinanceiroPessoal(anterior: FpRows, estado: FpState)
   // Só remove os arquivos depois de o banco confirmar a exclusão dos
   // lançamentos. Assim, uma recusa da RLS não deixa um lançamento válido sem
   // seu comprovante.
-  if (lancsRemovidos.size) await apagarComprovantesDe([...lancsRemovidos])
+  if (lancsRemovidos.size) await apagarComprovantesDe([...lancsRemovidos], 'lancamento')
+  const baixasRemovidas = removidos.fp_tarefas_baixas.map((r) => r.id)
+  if (baixasRemovidas.length) await apagarComprovantesDe(baixasRemovidas, 'baixa')
   return proximo
 }
 
@@ -385,21 +444,35 @@ export async function carregarAuditoria(opts: { pagina: number; porPagina: numbe
 }
 
 /* ---------- Comprovantes ---------- */
-export async function enviarComprovante(arquivo: Blob, nome: string, entidadeId: string): Promise<string> {
+export async function enviarComprovante(
+  arquivo: Blob,
+  nome: string,
+  entidadeId: string,
+  entidade: 'lancamento' | 'baixa' = 'lancamento',
+): Promise<string> {
   const id = crypto.randomUUID()
   const mime = arquivo.type || 'application/octet-stream'
   const seguro = (nome || 'comprovante').replace(/[^\w.-]+/g, '_').slice(0, 80)
-  const path = `lancamento/${entidadeId}/${id}-${seguro}`
+  const path = `${entidade}/${entidadeId}/${id}-${seguro}`
   const up = await supabase.storage.from(BUCKET).upload(path, arquivo, { contentType: mime, upsert: false })
   if (up.error) throw asError(up.error, 'Falha no envio do comprovante.')
   const { error } = await supabase.from('fp_anexos').insert({
-    id, entidade: 'lancamento', entidade_id: entidadeId, nome: nome || 'comprovante', mime, tamanho: arquivo.size, storage_path: path,
+    id, entidade, entidade_id: entidadeId, nome: nome || 'comprovante', mime, tamanho: arquivo.size, storage_path: path,
   })
   if (error) {
     await supabase.storage.from(BUCKET).remove([path])
     throw asError(error, 'Falha ao registrar o comprovante.')
   }
   return id
+}
+
+export async function removerComprovante(id: string): Promise<void> {
+  const { data, error } = await supabase.from('fp_anexos').select('id,storage_path').eq('id', id).maybeSingle()
+  if (error) throw asError(error, 'Falha ao localizar o comprovante.')
+  if (!data) return
+  await supabase.storage.from(BUCKET).remove([data.storage_path])
+  const { error: delErr } = await supabase.from('fp_anexos').delete().eq('id', id)
+  if (delErr) throw asError(delErr, 'Falha ao remover o comprovante.')
 }
 
 export async function baixarComprovante(id: string): Promise<{ blob: Blob; nome: string; mime: string; tamanho: number }> {
@@ -411,10 +484,19 @@ export async function baixarComprovante(id: string): Promise<{ blob: Blob; nome:
   return { blob: dl.data, nome: data.nome, mime: data.mime || dl.data.type, tamanho: Number(data.tamanho) || dl.data.size }
 }
 
-async function apagarComprovantesDe(lancamentoIds: string[]) {
+async function apagarComprovantesDe(entidadeIds: string[], entidade: 'lancamento' | 'baixa' = 'lancamento') {
   const { data } = await supabase.from('fp_anexos').select('id,storage_path')
-    .eq('entidade', 'lancamento').in('entidade_id', lancamentoIds)
+    .eq('entidade', entidade).in('entidade_id', entidadeIds)
   if (!data?.length) return
   await supabase.storage.from(BUCKET).remove(data.map((a) => a.storage_path))
   await supabase.from('fp_anexos').delete().in('id', data.map((a) => a.id))
+}
+
+/** Remove somente anexos cujo lançamento realmente não existe no banco. */
+async function apagarComprovantesOrfaos(lancamentoIds: string[]) {
+  if (!lancamentoIds.length) return
+  const { data } = await supabase.from('fp_lancamentos').select('id').in('id', lancamentoIds)
+  const existentes = new Set((data || []).map((r) => String(r.id)))
+  const orfaos = lancamentoIds.filter((id) => !existentes.has(id))
+  if (orfaos.length) await apagarComprovantesDe(orfaos, 'lancamento')
 }

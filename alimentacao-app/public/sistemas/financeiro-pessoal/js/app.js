@@ -230,9 +230,19 @@
   // Salvar: no modo banco, manda o estado para a página React gravar (com pequena espera
   // para juntar alterações seguidas); fora dele, grava no localStorage.
   let dirty = false, persistTimer = null, persistSeq = 0;
+  const persistWaiters = new Map();
   const syncStatus = (txt, cls = '') => {
     const el = document.getElementById('syncStatus');
     if (el) { el.textContent = txt; el.className = 'sync-status ' + cls; }
+  };
+  const persistPayload = () => {
+    const { accounts, accChecks, txs, tasks, taskDone, investments, snapshots, goal } = state;
+    return JSON.parse(JSON.stringify({ accounts, accChecks, txs, tasks, taskDone, investments, snapshots, goal }));
+  };
+  const sendPersist = () => {
+    const requestId = String(++persistSeq);
+    window.parent.postMessage({ type: 'fp-persist', requestId, payload: persistPayload() }, location.origin);
+    return requestId;
   };
   const save = () => {
     if (!REMOTE) {
@@ -242,14 +252,26 @@
     dirty = true;
     syncStatus('Salvando…', 'saving');
     clearTimeout(persistTimer);
-    persistTimer = setTimeout(() => {
-      const { accounts, accChecks, txs, tasks, taskDone, investments, snapshots, goal } = state;
-      window.parent.postMessage({ type: 'fp-persist', requestId: String(++persistSeq),
-        payload: JSON.parse(JSON.stringify({ accounts, accChecks, txs, tasks, taskDone, investments, snapshots, goal })) }, location.origin);
-    }, 250);
+    persistTimer = setTimeout(sendPersist, 250);
   };
-  const canDeleteOwned = item => !REMOTE || isAdmin || (!!userId && item?.createdBy === userId);
-  const canDelete = item => !REMOTE || isAdmin || (!item?.taskId && canDeleteOwned(item));
+  const saveConfirmed = () => {
+    if (!REMOTE) { save(); return Promise.resolve(); }
+    dirty = true;
+    syncStatus('Salvando…', 'saving');
+    clearTimeout(persistTimer);
+    const requestId = sendPersist();
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        persistWaiters.delete(requestId);
+        reject(new Error('O banco demorou para responder. Confira sua conexão e tente novamente.'));
+      }, 120000);
+      persistWaiters.set(requestId, { resolve, reject, timer });
+    });
+  };
+  // Admin e Editor operam igual; canAudit é o único privilégio exclusivo do Admin.
+  const canOperate = () => !REMOTE || isAdmin;
+  const canDeleteOwned = item => canOperate() || (!!userId && item?.createdBy === userId);
+  const canDelete = () => canOperate();
   const stamp_ = () => (REMOTE && userId ? { createdBy: userId } : {});
 
   let period = null;
@@ -298,7 +320,7 @@
   const checkDiff = c => { const a = state.accounts.find(x => x.id === c.accId); return a ? Math.round((c.balance - balanceAt(a, chkStamp(c), c.id)) * 100) / 100 : 0; };
   const totalBalance = k => state.accounts.reduce((s, a) => s + accBalance(a, k), 0);
   const prevMonth = k => { let [y, m] = k.split('-').map(Number); m -= 1; if (!m) { m = 12; y -= 1; } return `${y}-${String(m).padStart(2, '0')}`; };
-  const byDateDesc = (a, b) => b.date.localeCompare(a.date);
+  const byDateDesc = (a, b) => txStamp(b).localeCompare(txStamp(a));
 
   /* Investimentos: o valor atual é o último saldo verificado */
   const stamp = s => `${s.date}T${s.time}`;
@@ -893,16 +915,26 @@
   function occurrencesIn(k) {
     return state.tasks.flatMap(t => {
       if ((t.rec || {}).type === 'weekly') {
-        return weeklyDates(t, k).filter(d => !t.paused || doneOf(t.id, d)).map(d => occurrence(t, d));
+        return weeklyDates(t, k).filter(d => (!t.paused && !t.archived) || doneOf(t.id, d)).map(d => occurrence(t, d));
       }
-      return occursIn(t, k) && (!t.paused || doneOf(t.id, k)) ? [occurrence(t, k)] : [];
+      return occursIn(t, k) && ((!t.paused && !t.archived) || doneOf(t.id, k)) ? [occurrence(t, k)] : [];
     });
   }
 
-  // Atrasadas de até 12 meses antes do mês k
+  const firstTaskMonth = t => {
+    const r = t.rec || {};
+    return asMonth(r.type === 'once' ? (r.dateFrom || r.dateTo) : t.start)
+      || asMonth(t.createdAt) || currentMonth();
+  };
+
+  // Atrasadas desde o primeiro cadastro. O limite de 100 anos é apenas uma
+  // proteção contra dado corrompido; uma dívida real não some depois de 12 meses.
   function overdueBefore(k) {
     const out = [];
-    for (let i = 12; i >= 1; i--) occurrencesIn(addMonths(k, -i)).forEach(o => { if (o.status === 'atrasada') out.push(o); });
+    const starts = state.tasks.filter(t => !t.archived).map(firstTaskMonth).filter(Boolean).sort();
+    const earliest = starts[0] || k;
+    const distance = Math.min(1200, Math.max(0, monthDiff(earliest, k)));
+    for (let i = distance; i >= 1; i--) occurrencesIn(addMonths(k, -i)).forEach(o => { if (o.status === 'atrasada') out.push(o); });
     return out;
   }
 
@@ -1148,14 +1180,14 @@
     let actions = '';
     if (!d) {
       actions += launchBtn(o);
-      if (isAdmin && kind !== 'pagamento') actions += `<button class="icon-btn" data-skip="${o.key}" title="Dispensar neste mês" aria-label="Dispensar neste mês">${icon('ban', 'i-sm')}</button>`;
+      if (kind !== 'pagamento') actions += `<button class="icon-btn" data-skip="${o.key}" title="Dispensar neste mês" aria-label="Dispensar neste mês">${icon('ban', 'i-sm')}</button>`;
     } else if (d.status === 'paga' || d.status === 'cobrada') {
       if (d.receiptId) actions += `<button class="btn btn-sm" data-receipt="${d.receiptId}" data-rtx="${d.txId}">${icon('paperclip', 'i-sm')}Comprovante</button>`;
-      if (isAdmin) actions += `<button class="icon-btn danger" data-undo="${o.key}" title="Desfazer" aria-label="Desfazer">${icon('undo-2', 'i-sm')}</button>`;
-    } else if (isAdmin) {
+      actions += `<button class="icon-btn danger" data-undo="${o.key}" title="Desfazer" aria-label="Desfazer">${icon('undo-2', 'i-sm')}</button>`;
+    } else {
       actions += `<button class="icon-btn" data-undo="${o.key}" title="Reabrir" aria-label="Reabrir">${icon('undo-2', 'i-sm')}</button>`;
     }
-    if (isAdmin) actions += `<button class="icon-btn" data-edit-task="${t.id}" title="Editar" aria-label="Editar">${icon('pencil-line', 'i-sm')}</button>`;
+    actions += `<button class="icon-btn" data-edit-task="${t.id}" title="Editar" aria-label="Editar">${icon('pencil-line', 'i-sm')}</button>`;
     const prevMonthTag = asMonth(o.period) !== period && OPEN.includes(o.status) ? `<span class="tag rec">${monthLabel(o.period)}</span>` : '';
     const kindTag = `<span class="tag rec">${KIND_LABEL[kind]}</span>`;
     const hideValue = kind === 'documentacao' && !moneyDone;
@@ -1272,18 +1304,18 @@
     const d = o.done, kind = taskKind(o.task);
     let a = launchBtn(o);
     if (isMoneyDone(d) && d.receiptId) a += `<button class="btn btn-sm" data-receipt="${d.receiptId}" data-rtx="${d.txId}" title="Ver comprovante" aria-label="Ver comprovante">${icon('paperclip', 'i-sm')}Comprovante</button>`;
-    if (d && isAdmin) a += `<button class="icon-btn" data-undo="${o.key}" title="${d.status === 'dispensada' ? 'Reabrir' : 'Desfazer registro'}" aria-label="Desfazer">${icon('undo-2', 'i-sm')}</button>`;
-    if (!d && isAdmin && kind !== 'pagamento') a += `<button class="icon-btn" data-skip="${o.key}" title="Dispensar neste mês" aria-label="Dispensar neste mês">${icon('ban', 'i-sm')}</button>`;
+    if (d) a += `<button class="icon-btn" data-undo="${o.key}" title="${d.status === 'dispensada' ? 'Reabrir' : 'Desfazer registro'}" aria-label="Desfazer">${icon('undo-2', 'i-sm')}</button>`;
+    if (!d && kind !== 'pagamento') a += `<button class="icon-btn" data-skip="${o.key}" title="Dispensar neste mês" aria-label="Dispensar neste mês">${icon('ban', 'i-sm')}</button>`;
     return a;
   }
 
   function adminTaskActions(t) {
-    if (!isAdmin) return '';
+    if (t.archived) return '';
     const once = (t.rec || {}).type === 'once', kind = taskKind(t);
     const editTitle = once ? 'Editar' : 'Editar o cadastro (vale para os próximos meses; registros já feitos não mudam)';
     return `<button class="icon-btn" data-edit-task="${t.id}" title="${editTitle}" aria-label="Editar">${icon('pencil-line', 'i-sm')}</button>`
       + (once || kind === 'pagamento' ? '' : `<button class="icon-btn" data-pause-task="${t.id}" title="${t.paused ? 'Retomar' : 'Pausar'}" aria-label="${t.paused ? 'Retomar' : 'Pausar'}">${icon(t.paused ? 'play' : 'pause', 'i-sm')}</button>`)
-      + `<button class="icon-btn danger" data-del-task="${t.id}" title="Excluir cadastro" aria-label="Excluir">${icon('trash-2', 'i-sm')}</button>`;
+      + `<button class="icon-btn danger" data-del-task="${t.id}" title="Arquivar sem apagar o histórico" aria-label="Arquivar">${icon('archive', 'i-sm')}</button>`;
   }
 
   function emptyTasks(msg) {
@@ -1333,7 +1365,7 @@
   /** Recorrentes: o cadastro + como está o mês escolhido + próximo vencimento. */
   function recurringSheet() {
     const kind = taskView;
-    const all = state.tasks.filter(t => taskKind(t) === kind && (t.rec || {}).type !== 'once');
+    const all = state.tasks.filter(t => !t.archived && taskKind(t) === kind && (t.rec || {}).type !== 'once');
     if (!all.length) return emptyTasks(kind === 'cobranca' ? 'Nenhuma cobrança recorrente cadastrada.' : 'Nenhum pagamento recorrente cadastrado.');
     const st = $('#tfStatus')?.value || 'all';
     const list = all.filter(taskMatchesFilters).filter(t => {
@@ -1419,7 +1451,7 @@
   function renderTaskKpis() {
     const kind = taskView;
     if (kind === 'documentacao') {
-      const docs = state.tasks.filter(t => taskKind(t) === kind).map(docOccurrence).filter(Boolean);
+      const docs = state.tasks.filter(t => !t.archived || state.taskDone.some(d => d.taskId === t.id)).filter(t => taskKind(t) === kind).map(docOccurrence).filter(Boolean);
       const late = docs.filter(o => o.status === 'atrasada').length;
       const pend = docs.filter(o => !o.done && o.status !== 'atrasada').length;
       const done = docs.filter(o => o.done && o.done.status === 'concluida').length;
@@ -1494,7 +1526,7 @@
     renderDueBanner();
     let html;
     if (kind === 'documentacao') {
-      const docs = state.tasks.filter(t => taskKind(t) === kind).map(docOccurrence).filter(Boolean).sort(occSort);
+      const docs = state.tasks.filter(t => !t.archived || state.taskDone.some(d => d.taskId === t.id)).filter(t => taskKind(t) === kind).map(docOccurrence).filter(Boolean).sort(occSort);
       const pick = {
         pend: docs.filter(o => !o.done && o.status !== 'atrasada'),
         late: docs.filter(o => o.status === 'atrasada'),
@@ -1515,7 +1547,7 @@
       html = recurringSheet();
     } else if (taskTab === 'once') {
       const list = state.tasks
-        .filter(t => taskKind(t) === kind && (t.rec || {}).type === 'once')
+        .filter(t => !t.archived && taskKind(t) === kind && (t.rec || {}).type === 'once')
         .map(t => { const k = asMonth(t.rec.dateTo || t.rec.dateFrom || ''); return k ? occurrence(t, k) : null; })
         .filter(Boolean).sort(occSort);
       html = occurrencesSheet(list, kind === 'cobranca' ? 'Nenhuma cobrança avulsa.' : 'Nenhum pagamento avulso.', { showMonth: true });
@@ -1567,8 +1599,9 @@
   }
 
   function applyRole() {
-    $$('[data-admin-only]').forEach(el => el.classList.toggle('is-hidden', !isAdmin));
-    $('#taskEditorNote').hidden = isAdmin || !embedded;
+    // Admin e Editor veem os mesmos botões; só a Auditoria continua exclusiva do Admin.
+    $$('[data-admin-only]').forEach(el => el.classList.toggle('is-hidden', !canOperate()));
+    $('#taskEditorNote').hidden = true;
   }
 
   /* ---------- Formulário de programação (admin) ---------- */
@@ -1758,8 +1791,7 @@
     updateTaskForm();
   }
 
-  function saveTaskForm() {
-    if (!isAdmin) return;
+  async function saveTaskForm() {
     const kind = taskFormKind();
     const isDoc = kind === 'documentacao';
     const type = isDoc ? 'once' : taskFormType();
@@ -1830,17 +1862,33 @@
       notes: $('#tkNotes').value.trim(),
     };
     const id = $('#tkId').value;
-    if (id) Object.assign(taskById(id), data, { updatedAt: new Date().toISOString(), updatedBy: userName || 'Admin' });
-    else state.tasks.push({
-      id: uid(), ...data, paused: false,
+    const prev = id ? { ...taskById(id) } : null;
+    const created = id ? null : {
+      id: uid(), ...data, paused: false, archived: false,
       createdBy: userId || null,
-      createdByName: userName || 'Admin',
+      createdByName: userName || 'Usuário',
       createdAt: new Date().toISOString(),
-    });
+    };
+    if (id) Object.assign(taskById(id), data, { updatedAt: new Date().toISOString(), updatedBy: userName || 'Usuário' });
+    else state.tasks.push(created);
     if (data.payee) rememberPayee(data.payee);
     if (data.chargeTo) rememberPayee(data.chargeTo);
     if (data.docOwner) rememberPerson(data.docOwner);
-    save(); closeModals(); refresh();
+    const submit = $('#tkSubmit');
+    const oldHtml = submit.innerHTML;
+    submit.disabled = true; submit.textContent = 'Salvando…';
+    refresh();
+    try {
+      await saveConfirmed();
+      closeModals();
+    } catch (e) {
+      if (prev) Object.assign(taskById(id), prev);
+      else state.tasks = state.tasks.filter(t => t !== created);
+      refresh();
+      alert(e instanceof Error ? e.message : 'Não foi possível salvar a programação.');
+    } finally {
+      submit.disabled = false; submit.innerHTML = oldHtml;
+    }
   }
 
   /* ---------- Lançar programação (pagamento / documentação / cobrança) ---------- */
@@ -1848,7 +1896,7 @@
     const [taskId, k] = key.split('|');
     const t = taskById(taskId);
     if (!t) return;
-    if (doneOf(taskId, k)) { alert('Este item já foi lançado neste mês.'); return; }
+    if (doneOf(taskId, k)) { alert(k.length === 10 ? `Este item já foi lançado em ${fullDate(k)}.` : 'Este item já foi lançado neste mês.'); return; }
     const mode = modeHint || taskKind(t);
     if (mode !== 'documentacao' && !state.accounts.length) {
       alert(mode === 'cobranca' ? 'Cadastre uma conta antes de lançar a cobrança.' : 'Cadastre uma conta antes de dar baixa.');
@@ -1871,6 +1919,7 @@
         : `${icon('info', 'i-sm')}<span>Ao confirmar, a conta será marcada como paga e uma <strong>despesa</strong> será criada em Lançamentos, reduzindo o saldo da conta escolhida.</span>`;
     $$('[data-py="pagamento"]').forEach(el => { el.hidden = mode !== 'pagamento'; });
     $$('[data-py="cobranca"]').forEach(el => { el.hidden = mode !== 'cobranca'; });
+    $$('[data-py="documentacao"]').forEach(el => { el.hidden = mode !== 'documentacao'; });
     $('#pyAmount').required = mode === 'pagamento';
     $('#pyAcc').required = mode === 'pagamento';
     $('#pyTime').required = mode === 'pagamento';
@@ -1921,6 +1970,7 @@
     $('#pyNote').value = '';
     uploads.pay?.reset();
     uploads.charge?.reset();
+    uploads.doc?.reset();
     lastFocus = document.activeElement;
     $('#modal-pay').classList.add('open');
     setTimeout(() => {
@@ -1935,21 +1985,45 @@
     if (salvandoBaixa) return;
     const taskId = $('#pyTask').value, k = $('#pyPeriod').value, t = taskById(taskId);
     if (!t) return;
-    if (doneOf(taskId, k)) { alert('Este item já foi lançado neste mês.'); return; }
+    if (doneOf(taskId, k)) { alert(k.length === 10 ? `Este item já foi lançado em ${fullDate(k)}.` : 'Este item já foi lançado neste mês.'); return; }
     const mode = $('#pyMode').value === 'documentacao' || $('#pyMode').value === 'cobranca' ? $('#pyMode').value : 'pagamento';
     const by = (userName || '').trim();
     const note = $('#pyNote').value.trim(), date = $('#pyDate').value;
     $('#pyBy').value = by;
     if (!by) { alert('Não foi possível identificar quem está logado. Recarregue a página.'); return; }
     if (!date) { alert('Informe a data.'); return; }
+    if (asMonth(date) !== asMonth(k)) {
+      const origem = k.length === 10 ? fullDate(k) : monthLabel(k);
+      if (!confirm(`A ocorrência é de ${origem}, mas a data informada é ${fullDate(date)}. O lançamento aparecerá em ${monthLabel(asMonth(date))}. Deseja continuar?`)) return;
+    }
 
     if (mode === 'documentacao') {
-      state.taskDone.push({
-        id: uid(), taskId, period: k, status: 'concluida',
-        date, time: nowTime(), by, note,
-      });
-      rememberPerson(by);
-      save(); closeModals(); refresh();
+      salvandoBaixa = true;
+      const submit = $('#pySubmit');
+      const oldHtml = submit.innerHTML;
+      submit.disabled = true; submit.textContent = 'Salvando…';
+      const doneId = uid();
+      const done = {
+        id: doneId, taskId, period: k, status: 'concluida',
+        date, time: nowTime(), by, note, receiptId: null,
+      };
+      try {
+        const file = uploads.doc?.file;
+        if (file) done.receiptId = await FPComprovantes.put(file, doneId, 'baixa');
+        state.taskDone.push(done);
+        rememberPerson(by);
+        refresh();
+        await saveConfirmed();
+        closeModals();
+      } catch (e) {
+        state.taskDone = state.taskDone.filter(x => x.id !== doneId);
+        if (done.receiptId) FPComprovantes.del(done.receiptId);
+        refresh();
+        alert(e instanceof Error ? e.message : 'Não foi possível registrar a conclusão.');
+      } finally {
+        salvandoBaixa = false;
+        submit.disabled = false; submit.innerHTML = oldHtml;
+      }
       return;
     }
 
@@ -1969,10 +2043,14 @@
     if (!account || !time) return;
 
     salvandoBaixa = true;
+    const submit = $('#pySubmit');
+    const oldHtml = submit.innerHTML;
+    submit.disabled = true; submit.textContent = 'Salvando…';
+    const txId = uid();
+    const doneId = uid();
+    let receiptId = null;
     try {
-      let receiptId = null;
       const file = (isCharge ? uploads.charge : uploads.pay)?.file;
-      const txId = uid();
       if (file) receiptId = await FPComprovantes.put(file, txId);
       const txKind = isCharge ? 'income' : 'expense';
       const status = isCharge ? 'cobrada' : 'paga';
@@ -1982,42 +2060,65 @@
         category, account, payee, by, taskId, period: k, receiptId, note,
       });
       state.taskDone.push({
-        id: uid(), taskId, period: k, status, txId, amount, account, date, time, by, payee, receiptId, note,
+        id: doneId, taskId, period: k, status, txId, amount, account, date, time, by, payee, receiptId, note,
       });
       rememberPerson(by); rememberPayee(payee);
-      save(); closeModals(); refresh();
+      refresh();
+      await saveConfirmed();
+      closeModals();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Não foi possível salvar o comprovante.');
+      state.txs = state.txs.filter(x => x.id !== txId);
+      state.taskDone = state.taskDone.filter(x => x.id !== doneId);
+      if (receiptId) FPComprovantes.del(receiptId);
+      refresh();
+      alert(e instanceof Error ? e.message : 'Não foi possível salvar o pagamento/recebimento.');
     } finally {
       salvandoBaixa = false;
+      submit.disabled = false; submit.innerHTML = oldHtml;
     }
   }
 
-  function skipOccurrence(key) {
-    if (!isAdmin) return;
+  async function skipOccurrence(key) {
     const [taskId, k] = key.split('|');
     const t = taskById(taskId);
     if (!t || doneOf(taskId, k)) return;
-    if (!confirm(`Dispensar “${t.title}” em ${monthLabel(k).toLowerCase()}? Não será cobrada neste mês.`)) return;
-    state.taskDone.push({ id: uid(), taskId, period: k, status: 'dispensada', date: todayISO(), time: nowTime(), by: userName || 'Admin' });
-    save(); refresh();
+    const quando = k.length === 10 ? fullDate(k) : monthLabel(k).toLowerCase();
+    if (!confirm(`Dispensar “${t.title}” em ${quando}? Não será cobrada neste período.`)) return;
+    const done = { id: uid(), taskId, period: k, status: 'dispensada', date: todayISO(), time: nowTime(), by: userName || 'Usuário' };
+    state.taskDone.push(done);
+    refresh();
+    try { await saveConfirmed(); }
+    catch (e) {
+      state.taskDone = state.taskDone.filter(x => x !== done);
+      refresh();
+      alert(e instanceof Error ? e.message : 'Não foi possível dispensar.');
+    }
   }
 
-  function undoOccurrence(key) {
-    if (!isAdmin) return;
+  async function undoOccurrence(key) {
     const [taskId, k] = key.split('|');
     const d = doneOf(taskId, k);
     if (!d) return;
     if (d.status === 'paga' || d.status === 'cobrada') {
       const tipo = d.status === 'cobrada' ? 'receita' : 'despesa';
       if (!confirm(`Desfazer? A ${tipo} de ${money(d.amount)} em Movimentações${d.receiptId ? ' e o comprovante' : ''} também serão excluídos.`)) return;
-      state.txs = state.txs.filter(x => x.id !== d.txId);
-      FPComprovantes.del(d.receiptId);
     } else if (!confirm('Reabrir este item da programação?')) {
       return;
     }
+    const tx = d.txId ? state.txs.find(x => x.id === d.txId) : null;
+    const receipt = d.receiptId;
+    state.txs = state.txs.filter(x => x.id !== d.txId);
     state.taskDone = state.taskDone.filter(x => x !== d);
-    save(); refresh();
+    refresh();
+    try {
+      await saveConfirmed();
+      if (receipt) FPComprovantes.del(receipt);
+    } catch (e) {
+      if (tx) state.txs.push(tx);
+      state.taskDone.push(d);
+      refresh();
+      alert(e instanceof Error ? e.message : 'Não foi possível desfazer.');
+    }
   }
 
   function rememberPayee(name) {
@@ -2208,7 +2309,7 @@
             <div class="bank-menu" hidden>
               <button type="button" data-open="acccheck" data-acc="${a.id}">${icon('ph-arrows-down-up', 'i-sm')}Informar saldo</button>
               <button type="button" data-edit-acc="${a.id}">${icon('pencil-line', 'i-sm')}Editar conta</button>
-              ${isAdmin ? `<button type="button" class="is-del" data-del-acc="${a.id}">${icon('trash-2', 'i-sm')}Excluir conta</button>` : ''}
+              <button type="button" class="is-del" data-del-acc="${a.id}">${icon('trash-2', 'i-sm')}Excluir conta</button>
             </div>
           </div>
         </header>
@@ -2222,7 +2323,7 @@
           <div class="bank-actions">
             <button type="button" class="bank-check" data-open="acccheck" data-acc="${a.id}">${icon('repeat', 'i-sm')}Informar saldo</button>
             <button type="button" class="bank-icon-btn" data-edit-acc="${a.id}" title="Editar conta" aria-label="Editar conta">${icon('pencil-line', 'i-sm')}</button>
-            ${isAdmin ? `<button type="button" class="bank-icon-btn" data-del-acc="${a.id}" title="Excluir conta" aria-label="Excluir conta">${icon('trash-2', 'i-sm')}</button>` : ''}
+            <button type="button" class="bank-icon-btn" data-del-acc="${a.id}" title="Excluir conta" aria-label="Excluir conta">${icon('trash-2', 'i-sm')}</button>
           </div>
         </div>
       </article>`;
@@ -2332,7 +2433,10 @@
         ? `${nextPay.length} pagamento${nextPay.length === 1 ? '' : 's'}${nextGet.length ? ` · <span class="delta-pos">+ ${money(sum(nextGet, 'income'))}</span> a receber` : ''}`
         : 'nada agendado';
     }
-    const overdue = k === cur ? scheduledEntries(Array.from({ length: 12 }, (_, i) => addMonths(k, -(i + 1)))).filter(x => x.status === 'atrasada') : [];
+    const overdueMonths = k === cur
+      ? [...new Set(overdueBefore(k).map(o => asMonth(o.period) || o.period).filter(Boolean))]
+      : [];
+    const overdue = scheduledEntries(overdueMonths).filter(x => x.status === 'atrasada');
     renderNumbers(k, list, [...overdue, ...sched], next, overdue);
     $('#catMeta').textContent = sched.some(x => x.kind === 'expense')
       ? `${monthLabel(k).split(' ')[0]}${schedMonths.length > 1 ? ` + agendados até ${nextName.toLowerCase()}` : ' + agendados'}`
@@ -2752,7 +2856,7 @@
         <td><div class="inv-actions">
           <button type="button" class="inv-upd" data-open="snap" data-inv="${x.i.id}">${icon('repeat', 'i-sm')}Atualizar saldo</button>
           <button class="icon-btn" data-edit-inv="${x.i.id}" title="Editar aplicação" aria-label="Editar aplicação">${icon('pencil-line', 'i-sm')}</button>
-          ${isAdmin ? `<button class="icon-btn" data-del-inv="${x.i.id}" title="Excluir aplicação" aria-label="Excluir aplicação">${icon('trash-2', 'i-sm')}</button>` : ''}
+          <button class="icon-btn" data-del-inv="${x.i.id}" title="Excluir aplicação" aria-label="Excluir aplicação">${icon('trash-2', 'i-sm')}</button>
         </div></td>
       </tr>`).join('');
       $('#invGroups').innerHTML = !state.investments.length
@@ -2907,7 +3011,6 @@
   function openModal(name, btn) {
     if (name === 'tx' && !state.accounts.length) { alert('Cadastre uma conta antes de lançar.'); return; }
     if (name === 'snap' && !state.investments.length) { alert('Cadastre uma aplicação antes de registrar o saldo.'); return; }
-    if (name === 'task' && !isAdmin) { alert('Só admin pode criar ou editar programações.'); return; }
     lastFocus = document.activeElement;
     const m = $('#modal-' + name);
     m.classList.add('open');
@@ -2928,6 +3031,13 @@
       if (tx?.account && state.accounts.some(a => a.id === tx.account)) $('#txAcc').value = tx.account;
       $('#txPayee').value = tx?.payee || '';
       uploads.tx?.reset();
+      const keep = $('#txKeepReceipt');
+      if (keep) {
+        keep.hidden = !tx?.receiptId;
+        keep.dataset.receiptId = tx?.receiptId || '';
+        keep.dataset.removed = '0';
+        keep.querySelector('[data-tx-receipt-name]')?.replaceChildren(document.createTextNode(tx?.receiptId ? 'Comprovante já anexado' : ''));
+      }
     }
     if (name === 'snapbatch') {
       if (!state.investments.length) { m.classList.remove('open'); alert('Cadastre uma aplicação antes.'); return; }
@@ -3066,27 +3176,42 @@
     }
     else if (b.dataset.pauseTask) {
       const t = taskById(b.dataset.pauseTask);
-      if (!isAdmin || !t) return;
-      t.paused = !t.paused; save(); refresh();
+      if (!t) return;
+      const before = t.paused;
+      t.paused = !t.paused; refresh();
+      saveConfirmed().catch(e => { t.paused = before; refresh(); alert(e instanceof Error ? e.message : 'Não foi possível alterar.'); });
     } else if (b.dataset.delTask) {
       const t = taskById(b.dataset.delTask);
-      if (!isAdmin || !t) return;
-      if (!confirm(`Excluir a programação “${t.title}”? Os lançamentos já feitos continuam em Movimentações.`)) return;
-      state.tasks = state.tasks.filter(x => x !== t);
-      state.taskDone = state.taskDone.filter(d => d.taskId !== t.id);
-      save(); refresh();
+      if (!t) return;
+      if (!confirm(`Arquivar a programação “${t.title}”? Ela deixará de gerar novas pendências, mas todo o histórico continuará preservado.`)) return;
+      const before = { archived: !!t.archived, paused: !!t.paused };
+      t.archived = true;
+      t.paused = true;
+      refresh();
+      saveConfirmed().catch(e => {
+        Object.assign(t, before); refresh();
+        alert(e instanceof Error ? e.message : 'Não foi possível arquivar.');
+      });
     } else if (b.dataset.delTx) {
       const tx = state.txs.find(x => x.id === b.dataset.delTx);
       if (!tx) return;
-      if (!canDelete(tx)) { alert('Este lançamento veio de uma programação. Só admin pode desfazer.'); return; }
+      if (!canDelete(tx)) { alert('Sem permissão para excluir este lançamento.'); return; }
       const d = tx.taskId ? state.taskDone.find(x => x.txId === tx.id) : null;
       const msg = d ? `Excluir este lançamento? A programação “${tx.description}” volta a ficar pendente${tx.receiptId ? ' e o comprovante será apagado' : ''}.`
         : `Excluir este lançamento?${tx.receiptId ? ' O comprovante também será apagado.' : ''}`;
       if (!confirm(msg)) return;
+      const receipt = tx.receiptId;
       state.txs = state.txs.filter(x => x !== tx);
       if (d) state.taskDone = state.taskDone.filter(x => x !== d);
-      FPComprovantes.del(tx.receiptId);
-      save(); refresh();
+      refresh();
+      saveConfirmed()
+        .then(() => { if (receipt) FPComprovantes.del(receipt); })
+        .catch(e => {
+          state.txs.push(tx);
+          if (d) state.taskDone.push(d);
+          refresh();
+          alert(e instanceof Error ? e.message : 'Não foi possível excluir.');
+        });
     } else if (b.dataset.delAcc) {
       const a = state.accounts.find(x => x.id === b.dataset.delAcc);
       const n = state.txs.filter(x => x.account === a.id).length;
@@ -3206,32 +3331,55 @@
     const current = editId ? state.txs.find(x => x.id === editId) : null;
     if (editId && (!current || current.taskId || !canDeleteOwned(current))) { alert('Este lançamento não pode ser editado.'); return; }
     const newTxId = current?.id || uid();
-    let receiptId = current?.receiptId || null;
+    const keep = $('#txKeepReceipt');
+    const removedExisting = keep && !keep.hidden && keep.dataset.removed === '1';
+    let receiptId = removedExisting ? null : (current?.receiptId || null);
+    const oldReceipt = current?.receiptId || null;
+    const submit = $('#txSubmit');
+    const oldHtml = submit.innerHTML;
+    submit.disabled = true; submit.textContent = 'Salvando…';
+    const snapshot = current ? { ...current } : null;
     try {
       if (uploads.tx.file) {
-        const oldReceipt = receiptId;
         receiptId = await FPComprovantes.put(uploads.tx.file, newTxId);
-        if (oldReceipt && oldReceipt !== receiptId) FPComprovantes.del(oldReceipt);
       }
+      const payee = $('#txPayee').value.trim();
+      const data = {
+        ...stamp_(), id: newTxId, date, amount, time: nowTime(),
+        description: $('#txDesc').value.trim(),
+        kind: $('input[name="kind"]:checked').value,
+        category: $('#txCat').value,
+        account: $('#txAcc').value,
+        payee: payee || undefined,
+        by: userName || undefined,
+        receiptId,
+      };
+      if (current) Object.assign(current, data, { createdBy: current.createdBy, time: current.time || data.time });
+      else state.txs.push(data);
+      rememberPayee(payee);
+      period = ym(date);
+      periodManual = period !== currentMonth();
+      refresh();
+      await saveConfirmed();
+      if (oldReceipt && oldReceipt !== receiptId) FPComprovantes.del(oldReceipt);
+      closeModals();
+    } catch (err) {
+      if (snapshot && current) Object.assign(current, snapshot);
+      else state.txs = state.txs.filter(x => x.id !== newTxId);
+      if (receiptId && receiptId !== oldReceipt) FPComprovantes.del(receiptId);
+      refresh();
+      alert(err instanceof Error ? err.message : 'Não foi possível salvar o lançamento.');
+    } finally {
+      submit.disabled = false; submit.innerHTML = oldHtml;
     }
-    catch (err) { alert(err instanceof Error ? err.message : 'Não foi possível salvar o comprovante.'); return; }
-    const payee = $('#txPayee').value.trim();
-    const data = {
-      ...stamp_(), id: newTxId, date, amount, time: nowTime(),
-      description: $('#txDesc').value.trim(),
-      kind: $('input[name="kind"]:checked').value,
-      category: $('#txCat').value,
-      account: $('#txAcc').value,
-      payee: payee || undefined,
-      by: userName || undefined,
-      receiptId,
-    };
-    if (current) Object.assign(current, data, { createdBy: current.createdBy, time: current.time || data.time });
-    else state.txs.push(data);
-    rememberPayee(payee);
-    period = ym(date);
-    periodManual = period !== currentMonth(); // lançou em outro mês: fica nele até voltar
-    save(); closeModals(); refresh();
+  });
+  document.addEventListener('click', e => {
+    const rm = e.target.closest('[data-tx-remove-receipt]');
+    if (!rm) return;
+    const box = $('#txKeepReceipt');
+    if (!box) return;
+    box.dataset.removed = '1';
+    box.hidden = true;
   });
 
   $('#taskForm').addEventListener('submit', e => { e.preventDefault(); saveTaskForm(); });
@@ -3367,10 +3515,22 @@
       return;
     }
     if (d.type === 'fp-persist-ok') {
+      const waiter = persistWaiters.get(String(d.requestId));
+      if (waiter) {
+        clearTimeout(waiter.timer);
+        persistWaiters.delete(String(d.requestId));
+        waiter.resolve();
+      }
       if (d.requestId === String(persistSeq)) { dirty = false; syncStatus('Salvo no banco', 'ok'); }
       return;
     }
     if (d.type === 'fp-persist-erro') {
+      const waiter = persistWaiters.get(String(d.requestId));
+      if (waiter) {
+        clearTimeout(waiter.timer);
+        persistWaiters.delete(String(d.requestId));
+        waiter.reject(new Error(d.erro || 'Falha ao salvar no banco.'));
+      }
       dirty = false; // a página recarrega do banco em seguida
       syncStatus('Erro ao salvar: ' + (d.erro || 'tente de novo'), 'err');
       return;
@@ -3426,14 +3586,18 @@
       return { id, name: d.name, type: d.mime || d.blob.type, size: d.size || d.blob.size, blob: d.blob };
     };
     Object.assign(FPComprovantes, {
-      put: async (file, entidadeId) => {
+      put: async (file, entidadeId, entidade = 'lancamento') => {
         const erro = FPComprovantes.validar(file);
         if (erro) throw new Error(erro);
-        const d = await pedirArquivo({ type: 'fp-file-put', file, name: file.name, entidadeId });
+        const d = await pedirArquivo({ type: 'fp-file-put', file, name: file.name, entidadeId, entidade });
         return d.id;
       },
       get: async id => { try { return await get(id); } catch { return null; } },
-      del: async () => { /* o salvamento apaga o comprovante junto com o lançamento */ },
+      del: async id => {
+        if (!id) return;
+        try { await pedirArquivo({ type: 'fp-file-del', id }); }
+        catch { /* se o registro já sumiu, segue */ }
+      },
       url: async id => {
         if (remoteUrls.has(id)) return remoteUrls.get(id);
         const rec = await get(id);

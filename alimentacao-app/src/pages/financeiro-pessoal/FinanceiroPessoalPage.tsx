@@ -10,6 +10,7 @@ import {
   carregarAuditoria,
   carregarFinanceiroPessoal,
   enviarComprovante,
+  removerComprovante,
   salvarFinanceiroPessoal,
   type FpRows,
   type FpState,
@@ -22,6 +23,7 @@ type FpMensagem = {
   file?: Blob
   name?: string
   entidadeId?: string
+  entidade?: 'lancamento' | 'baixa'
   on?: boolean
   height?: number
   id?: string
@@ -172,10 +174,24 @@ export function FinanceiroPessoalPage() {
       }
       if (dados.type === 'fp-file-put' && dados.file && dados.requestId && dados.entidadeId) {
         try {
-          const id = await enviarComprovante(dados.file, dados.name || 'comprovante', dados.entidadeId)
+          const id = await enviarComprovante(
+            dados.file,
+            dados.name || 'comprovante',
+            dados.entidadeId,
+            dados.entidade === 'baixa' ? 'baixa' : 'lancamento',
+          )
           postar({ type: 'fp-file-ok', requestId: dados.requestId, id })
         } catch (e) {
           postar({ type: 'fp-file-erro', requestId: dados.requestId, erro: mensagemDe(e, 'Falha no envio do comprovante.') })
+        }
+        return
+      }
+      if (dados.type === 'fp-file-del' && dados.id && dados.requestId) {
+        try {
+          await removerComprovante(dados.id)
+          postar({ type: 'fp-file-ok', requestId: dados.requestId, id: dados.id })
+        } catch (e) {
+          postar({ type: 'fp-file-erro', requestId: dados.requestId, erro: mensagemDe(e, 'Falha ao remover o comprovante.') })
         }
         return
       }
