@@ -30,6 +30,7 @@ type FpMensagem = {
   pagina?: number
   porPagina?: number
   busca?: string
+  modelo?: unknown
 }
 
 function mensagemDe(e: unknown, padrao: string) {
@@ -212,6 +213,22 @@ export function FinanceiroPessoalPage() {
         }
         return
       }
+      if (dados.type === 'fp-report-build' && dados.requestId && dados.modelo) {
+        // Relatório Integrado: busca os comprovantes originais e monta o PDF A4 único.
+        const requestId = dados.requestId
+        try {
+          const { gerarRelatorioIntegrado } = await import('../../lib/fpRelatorioIntegrado')
+          const r = await gerarRelatorioIntegrado(dados.modelo as Parameters<typeof gerarRelatorioIntegrado>[0], {
+            emissor: nome,
+            progresso: (texto) => postar({ type: 'fp-report-progress', requestId, texto }),
+          })
+          postar({ type: 'fp-report-ready', requestId, ...r })
+        } catch (e) {
+          console.error('[financeiro-pessoal] relatório integrado', e)
+          postar({ type: 'fp-report-erro', requestId, erro: mensagemDe(e, 'Falha ao gerar o relatório integrado.') })
+        }
+        return
+      }
       if (dados.type === 'fp-file-get' && dados.id && dados.requestId) {
         try {
           const arq = await baixarComprovante(dados.id)
@@ -287,6 +304,7 @@ export function FinanceiroPessoalPage() {
           ref={frameRef}
           className={`mr-demo-frame${pronto ? ' is-ready' : ''}`}
           title="Controle Financeiro Pessoal"
+          allow="fullscreen"
           src={systemUrl('/sistemas/financeiro-pessoal/index.html', { remote: '1' })}
           style={crescer && altura ? { height: altura } : undefined}
           onLoad={() => window.setTimeout(() => setPronto(true), 8000)}

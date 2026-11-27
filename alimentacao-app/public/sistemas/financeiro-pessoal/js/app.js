@@ -284,7 +284,6 @@
   let movPage = 1;
   const MOV_PAGE = 10;
   let taskSort = { key: null, dir: 1 };
-  let reportTab = 'pagamentos';
   let chartMode = 'line';
   try { chartMode = localStorage.getItem('mf:chart') || 'line'; } catch { /* */ }
 
@@ -2575,166 +2574,444 @@
     renderReports();
   }
 
-  /* ---------- Relatórios (planilha + PDF A4) ---------- */
-  function situacaoProg(o) {
-    if (!o) return '—';
-    const kind = taskKind(o.task);
-    const word = kind === 'cobranca' ? 'recebido' : kind === 'documentacao' ? 'concluído' : 'pago';
-    if (o.done) {
-      if (o.done.status === 'paga') return 'Pago';
-      if (o.done.status === 'cobrada') return 'Recebido';
-      if (o.done.status === 'concluida') return 'Concluído';
-      if (o.done.status === 'dispensada') return 'Dispensado';
-      return STATUS_LABEL[o.done.status] || o.done.status;
-    }
-    if (o.status === 'atrasada') return `Não ${word} (atrasado)`;
-    if (o.status === 'hoje') return `Não ${word} (vence hoje)`;
-    if (o.status === 'aberta') return `Não ${word}`;
-    if (o.status === 'futura') return 'A vencer';
-    return STATUS_LABEL[o.status] || 'Pendente';
-  }
-
-  const REPORT_KIND = { pagamentos: 'pagamento', cobrancas: 'cobranca', documentacao: 'documentacao' };
-  function reportProgramacao(k, kind = 'pagamento') {
-    const rows = state.tasks
-      .filter(t => taskKind(t) === kind && !t.paused && occursIn(t, k))
-      .map(t => occurrence(t, k))
-      .sort((a, b) => a.to.localeCompare(b.to) || a.task.title.localeCompare(b.task.title, 'pt-BR'));
-    const isDoc = kind === 'documentacao';
-    const headers = isDoc
-      ? ['Pendência', 'Responsável', 'Prazo', 'Situação']
-      : ['Conta', PERSON_COL[kind], 'Valor', 'Prazo', 'Situação'];
-    const body = rows.map(o => {
-      const t = o.task;
-      if (isDoc) return [t.title, taskTarget(t), fullDate(o.to), situacaoProg(o)];
-      const valor = o.done?.amount != null ? money(o.done.amount)
-        : t.expected != null ? money(t.expected)
-        : 'Variável';
-      return [t.title, taskTarget(t), valor, fullDate(o.to), situacaoProg(o)];
-    });
-    const name = { pagamento: 'Pagamentos', cobranca: 'Cobranças', documentacao: 'Documentação' }[kind];
-    return { title: `${name} — ${monthLabel(k)}`, headers, rows: body, empty: `Nada em ${name.toLowerCase()} neste mês.` };
-  }
-
-  function reportMovimentacoes(k) {
-    const list = inMonth(k).slice().sort(byDateDesc);
-    const headers = ['Data', 'Tipo', 'Descrição', 'Categoria', 'Conta', 'Valor', 'Pago por'];
-    const body = list.map(x => [
-      fullDate(x.date),
-      x.kind === 'income' ? 'Receita' : 'Despesa',
-      x.description || '',
-      x.category || '',
-      accName(x.account),
-      money(x.amount),
-      x.by || '—',
-    ]);
-    return { title: `Movimentações — ${monthLabel(k)}`, headers, rows: body, empty: 'Nenhum lançamento neste mês.' };
-  }
-
-  function reportContas(k) {
-    const headers = ['Conta', 'Tipo', 'Saldo no mês', 'Entradas', 'Saídas', 'Lançamentos'];
-    const body = state.accounts.map(a => {
-      const l = inMonth(k).filter(x => x.account === a.id);
-      return [
-        a.name,
-        a.type || '—',
-        money(accBalance(a, k)),
-        money(sum(l, 'income')),
-        money(sum(l, 'expense')),
-        String(l.length),
-      ];
-    });
-    return { title: `Contas — ${monthLabel(k)}`, headers, rows: body, empty: 'Nenhuma conta cadastrada.' };
-  }
-
-  function reportInvestimentos() {
-    const headers = ['Aplicação', 'Conta / instituição', 'Saldo', 'Última atualização', 'Responsável'];
-    const body = state.investments.map(i => {
-      const last = snapsOf(i.id).at(-1);
-      return [
-        i.name,
-        invAccName(i),
-        money(invValue(i.id)),
-        last ? `${fullDate(last.date)}${last.time ? ` ${last.time}` : ''}` : '—',
-        last?.by || '—',
-      ];
-    });
-    return { title: 'Investimentos', headers, rows: body, empty: 'Nenhuma aplicação cadastrada.' };
-  }
-
-  function currentReportData() {
-    const k = period || currentMonth();
-    if (reportTab === 'movimentacoes') return reportMovimentacoes(k);
-    if (reportTab === 'contas') return reportContas(k);
-    if (reportTab === 'investimentos') return reportInvestimentos();
-    return reportProgramacao(k, REPORT_KIND[reportTab] || 'pagamento');
-  }
-
-  function reportDocHtml(data, { forPrint = false } = {}) {
-    const headHtml = data.headers.map(h => `<th>${esc(h)}</th>`).join('');
-    const rowsHtml = data.rows.length
-      ? data.rows.map(r => `<tr>${r.map((c, i) => {
-        const sit = REPORT_KIND[reportTab] && i === data.headers.length - 1 ? String(c) : '';
-        const cls = [
-          sit === 'Pago' || sit === 'Recebido' || sit === 'Concluído' ? 'sit-ok' : '',
-          sit.startsWith('Não ') ? 'sit-late' : '',
-        ].filter(Boolean).join(' ');
-        return `<td${cls ? ` class="${cls}"` : ''}>${esc(String(c))}</td>`;
-      }).join('')}</tr>`).join('')
-      : `<tr><td colspan="${Math.max(data.headers.length, 1)}">${esc(data.empty || 'Sem dados.')}</td></tr>`;
-    const sub = `Gerado em ${fullDate(todayISO())}${userName ? ` · ${esc(userName)}` : ''}`;
-    return `
-      <div class="a4-head">
-        <div class="a4-brand">Controle Financeiro Pessoal</div>
-        <h1 class="a4-title">${esc(data.title)}</h1>
-        <div class="a4-sub">${sub}</div>
-      </div>
-      <table class="a4-table"><thead><tr>${headHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>
-      <div class="a4-foot">Folha A4 · ${esc(data.title)}</div>
-      ${forPrint ? '' : ''}`;
-  }
-
+  /* ---------- Relatórios: somente o Relatório Financeiro Integrado ---------- */
   function renderReports() {
-    const preview = $('#reportPreview');
-    if (!preview) return;
-    const k = period || currentMonth();
-    $$('#reportTabs button').forEach(b => b.classList.toggle('on', b.dataset.rtab === reportTab));
-    const needsMonth = reportTab !== 'investimentos';
-    $('#reportPeriodLabel').textContent = needsMonth
-      ? `Pré-visualização A4 · ${monthLabel(k)} · ${REPORT_KIND[reportTab] ? 'situação de cada item no mês' : 'dados do período'}`
-      : 'Pré-visualização A4 · saldo atual das aplicações';
-    const data = currentReportData();
-    preview.innerHTML = reportDocHtml(data);
-    preview.dataset.title = data.title;
+    if (!$('#rpIntegrado')) return;
+    // Mês do topo mudou → a competência do relatório acompanha.
+    if (rp.pronto && rp.mesTopo !== (period || currentMonth())) rpAplicarMes(period || currentMonth());
+    renderReportIntegrado();
   }
 
-  function exportReportPdf() {
-    const data = currentReportData();
-    const frame = $('#reportPrintFrame');
-    if (!frame) { alert('Não foi possível preparar a impressão.'); return; }
-    const docHtml = reportDocHtml(data, { forPrint: true });
-    const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(data.title)}</title>
-<style>
-  @page { size: A4 portrait; margin: 12mm; }
-  * { box-sizing: border-box; }
-  body { font: 11px/1.35 Arial, Helvetica, sans-serif; color: #14233d; margin: 0; }
-  .a4-brand { font-size: 10px; color: #5b6d86; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
-  .a4-title { font-size: 16px; margin: 0 0 4px; font-weight: 700; color: #14233d; }
-  .a4-sub { color: #5b6d86; font-size: 11px; margin-bottom: 14px; }
-  .a4-table { width: 100%; border-collapse: collapse; }
-  .a4-table th, .a4-table td { border: 1px solid #c5d1e4; padding: 5px 6px; text-align: left; vertical-align: top; }
-  .a4-table th { background: #eef2f7; font-size: 10px; font-weight: 700; }
-  .a4-table td { font-size: 10.5px; }
-  .sit-ok { color: #1f6b3a; font-weight: 700; }
-  .sit-late { color: #b42318; font-weight: 700; }
-  .a4-foot { margin-top: 12px; color: #8e9bb1; font-size: 9px; }
-</style></head><body>${docHtml}</body></html>`;
-    const printNow = () => {
-      try { frame.contentWindow.focus(); frame.contentWindow.print(); }
-      catch { alert('Não foi possível abrir a impressão. Tente de novo.'); }
+  /* ---------- Relatório Financeiro Integrado ----------
+     O iframe consolida os números com as mesmas regras das telas (ocorrências
+     virtuais, baixas, saldos por conferência). A página do sistema busca os
+     comprovantes originais (fp_anexos, entidade = 'lancamento'), monta um único
+     PDF A4 e devolve as páginas já renderizadas: a pré-visualização é o próprio
+     PDF, então ela é exatamente o que será salvo e impresso. */
+  const RP_ORIGEM = { todas: 'Todas as origens', avulso: 'Avulsos', pagamento: 'Pagamentos', cobranca: 'Cobranças' };
+  const RP_SITUACAO = {
+    todas: 'Todas as situações', realizadas: 'Realizadas (pagas e recebidas)',
+    pendentes: 'Pendentes (a pagar e a receber)', vencidas: 'Somente vencidas',
+  };
+  const RP_ZOOMS = [0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5];
+  const RP_BASE_W = 794; // largura de uma folha A4 a 100% (96 dpi)
+  const rp = {
+    pronto: false, // formulário montado
+    hidratado: !REMOTE,
+    ini: '', fim: '',
+    busy: false, reqId: '', seq: 0, acao: null,
+    pdf: null, fileName: '', pageUrls: [], avisos: [], resumo: null, sig: '', erro: '',
+    zoom: 0, page: 1, printUrl: '',
+  };
+
+  function rpMesesEntre(a, b) {
+    const out = [];
+    for (let k = ym(a); k <= ym(b) && out.length < 240; k = addMonths(k, 1)) out.push(k);
+    return out;
+  }
+  const rpLastDay = k => `${k}-${pad2(daysIn(k))}`;
+  /** tarefa_id nulo = avulso; com tarefa, o tipo da programação define a origem. */
+  function rpOrigemTx(x) {
+    if (!x.taskId) return 'avulso';
+    const t = taskById(x.taskId);
+    if (t) return taskKind(t) === 'cobranca' ? 'cobranca' : 'pagamento';
+    return x.kind === 'income' ? 'cobranca' : 'pagamento';
+  }
+  const rpOccTx = o => (o.done?.txId ? state.txs.find(x => x.id === o.done.txId) || null : null);
+  const rpOccConta = o => rpOccTx(o)?.account || o.done?.account || o.task.account || '';
+  const rpOccCat = o => rpOccTx(o)?.category || o.task.category || 'Outros';
+
+  function rpCategorias() {
+    const set = new Set([...CATEGORIES.expense, ...CATEGORIES.income]);
+    state.txs.forEach(x => x.category && set.add(x.category));
+    state.tasks.forEach(t => taskKind(t) !== 'documentacao' && t.category && set.add(t.category));
+    return [...set].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }
+
+  function rpLerFiltros() {
+    const marcado = v => !!$(`#rpSecoes input[value="${v}"]`)?.checked;
+    // Os resumos (consolidado, pagamentos, cobranças, categorias e contas) sempre entram;
+    // a pessoa escolhe as listas e os comprovantes.
+    const secoes = {
+      resumo: true, pagamentos: true, cobrancas: true, categorias: true, contas: true,
+      movimentos: marcado('movimentos'), pendPag: marcado('pendentes'), pendCob: marcado('pendentes'),
+      comprovantes: marcado('comprovantes'),
     };
-    frame.onload = () => setTimeout(printNow, 50);
-    frame.srcdoc = html;
+    return {
+      ini: $('#rpIni').value, fim: $('#rpFim').value,
+      origem: $('#rpOrigem').value || 'todas', categoria: $('#rpCategoria').value || '',
+      conta: $('#rpConta').value || '', situacao: $('#rpSituacao').value || 'todas', secoes,
+    };
+  }
+
+  /** Ocorrências (pagamento/cobrança) com prazo dentro do período — mesmo mecanismo das telas. */
+  function rpOcorrencias(f, kind) {
+    if (f.origem !== 'todas' && f.origem !== kind) return [];
+    const vistos = new Set(), out = [];
+    for (const k of rpMesesEntre(f.ini, f.fim)) {
+      for (const o of occurrencesIn(k)) {
+        if (taskKind(o.task) !== kind || vistos.has(o.key)) continue;
+        if (!o.to || o.to < f.ini || o.to > f.fim) continue;
+        vistos.add(o.key);
+        out.push(o);
+      }
+    }
+    return out
+      .filter(o => !f.categoria || rpOccCat(o) === f.categoria)
+      .filter(o => !f.conta || rpOccConta(o) === f.conta)
+      .sort((a, b) => a.to.localeCompare(b.to) || a.task.title.localeCompare(b.task.title, 'pt-BR'));
+  }
+
+  function rpResumoProg(list) {
+    const r2 = n => Math.round(n * 100) / 100;
+    const ativos = list.filter(o => o.done?.status !== 'dispensada');
+    const feitos = ativos.filter(o => o.done);
+    const pend = ativos.filter(o => !o.done);
+    const venc = pend.filter(o => o.status === 'atrasada');
+    const prev = l => r2(l.reduce((s, o) => s + (o.task.expected != null ? Number(o.task.expected) : 0), 0));
+    const semValor = l => l.filter(o => o.task.expected == null).length;
+    return {
+      programados: ativos.length, previsto: prev(ativos), semValor: semValor(ativos),
+      realizados: feitos.length,
+      realizado: r2(feitos.reduce((s, o) => { const tx = rpOccTx(o); return s + Number(tx ? tx.amount : (o.done.amount || 0)); }, 0)),
+      pendentes: pend.length, pendente: prev(pend), pendSemValor: semValor(pend),
+      vencidos: venc.length, vencido: prev(venc),
+      dispensados: list.length - ativos.length,
+    };
+  }
+
+  function rpPendentes(list, kind, f) {
+    return list
+      .filter(o => !o.done)
+      .filter(o => f.situacao !== 'vencidas' || o.status === 'atrasada')
+      .map(o => {
+        const t = o.task;
+        return {
+          descricao: t.title,
+          pessoa: kind === 'pagamento' ? (t.payee || '') : (t.chargeTo || t.payee || ''),
+          categoria: rpOccCat(o),
+          conta: accNameOr(rpOccConta(o)),
+          inicio: o.from && o.from !== o.to ? o.from : null,
+          prazo: o.to,
+          previsto: t.expected != null ? Number(t.expected) : null,
+          vencido: o.status === 'atrasada',
+          situacao: o.status === 'atrasada' ? 'Vencido' : kind === 'pagamento' ? 'A pagar' : 'A receber',
+        };
+      });
+  }
+  const accNameOr = id => (id ? (state.accounts.find(a => a.id === id)?.name || 'Conta removida') : '');
+
+  function rpModelo(f) {
+    const r2 = n => Math.round(n * 100) / 100;
+    const movsTodos = state.txs
+      .filter(x => x.date >= f.ini && x.date <= f.fim)
+      .filter(x => f.origem === 'todas' || rpOrigemTx(x) === f.origem)
+      .filter(x => !f.categoria || x.category === f.categoria)
+      .filter(x => !f.conta || x.account === f.conta)
+      .sort((a, b) => txStamp(a).localeCompare(txStamp(b)) || String(a.id).localeCompare(String(b.id)));
+    const soPendentes = f.situacao === 'pendentes' || f.situacao === 'vencidas';
+    const movs = soPendentes ? [] : movsTodos;
+    const movimentos = movs.map((x, i) => {
+      const t = x.taskId ? taskById(x.taskId) : null;
+      const origem = rpOrigemTx(x);
+      return {
+        n: i + 1, id: x.id, data: x.date, hora: x.time || '',
+        descricao: x.description || '', pessoa: x.payee || '', responsavel: x.by || '',
+        origem, categoria: x.category || 'Outros', conta: accNameOr(x.account),
+        tipo: x.kind === 'income' ? 'entrada' : 'saida',
+        previsto: t && taskKind(t) !== 'documentacao' && t.expected != null ? Number(t.expected) : null,
+        realizado: Number(x.amount) || 0,
+        situacao: x.kind === 'income' ? 'Recebido' : 'Pago',
+        programacao: t ? t.title : '',
+      };
+    });
+    const receitas = r2(movs.filter(x => x.kind === 'income').reduce((s, x) => s + Number(x.amount), 0));
+    const despesas = r2(movs.filter(x => x.kind === 'expense').reduce((s, x) => s + Number(x.amount), 0));
+
+    // Saldos: só fazem sentido com todos os lançamentos das contas (sem filtro de origem/categoria).
+    let saldo = { disponivel: false, motivo: '' };
+    if (soPendentes) saldo.motivo = 'Situação filtrada para pendências: o resumo realizado não é exibido.';
+    else if (f.origem !== 'todas' || f.categoria) {
+      saldo.motivo = 'Saldo anterior e saldo final não são exibidos com filtro de origem ou categoria, pois o saldo real das contas considera todos os lançamentos.';
+    } else {
+      const contas = f.conta ? state.accounts.filter(a => a.id === f.conta) : state.accounts;
+      const ids = new Set(contas.map(a => a.id));
+      const limiteAnt = `${addDays(f.ini, -1)}T23:59`, limiteFim = `${f.fim}T23:59`;
+      const anterior = r2(contas.reduce((s, a) => s + balanceAt(a, limiteAnt), 0));
+      const final = r2(contas.reduce((s, a) => s + balanceAt(a, limiteFim), 0));
+      const resultadoContas = r2(movs.filter(x => ids.has(x.account)).reduce((s, x) => s + value(x), 0));
+      const foraDasContas = r2((receitas - despesas) - resultadoContas);
+      const ajuste = r2(final - anterior - resultadoContas);
+      const conferencias = state.accChecks.filter(c => ids.has(c.accId) && c.date >= f.ini && c.date <= f.fim).length;
+      saldo = { disponivel: true, anterior, final, ajuste, conferencias, foraDasContas, contas: contas.length };
+    }
+
+    const occPag = rpOcorrencias(f, 'pagamento');
+    const occCob = rpOcorrencias(f, 'cobranca');
+    const categorias = new Map();
+    const contasMap = new Map();
+    for (const x of movs) {
+      const c = categorias.get(x.category || 'Outros') || { nome: x.category || 'Outros', receitas: 0, despesas: 0 };
+      if (x.kind === 'income') c.receitas += Number(x.amount); else c.despesas += Number(x.amount);
+      categorias.set(c.nome, c);
+      const nome = accNameOr(x.account) || 'Sem conta';
+      const a = contasMap.get(nome) || { nome, entradas: 0, saidas: 0 };
+      if (x.kind === 'income') a.entradas += Number(x.amount); else a.saidas += Number(x.amount);
+      contasMap.set(nome, a);
+    }
+    const fix = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === 'number' ? r2(v) : v]));
+    return {
+      periodo: { ini: f.ini, fim: f.fim },
+      emissor: userName || 'Usuário',
+      geradoEm: localNow().slice(0, 16),
+      filtros: {
+        origem: f.origem, origemLabel: RP_ORIGEM[f.origem],
+        categoria: f.categoria, conta: f.conta ? accNameOr(f.conta) : '',
+        situacao: f.situacao, situacaoLabel: RP_SITUACAO[f.situacao],
+      },
+      secoes: {
+        ...f.secoes,
+        // Com situação "pendentes/vencidas" as seções do realizado ficam de fora; com "realizadas", as pendências.
+        resumo: f.secoes.resumo && !soPendentes,
+        categorias: f.secoes.categorias && !soPendentes,
+        contas: f.secoes.contas && !soPendentes,
+        movimentos: f.secoes.movimentos && !soPendentes,
+        comprovantes: f.secoes.comprovantes && !soPendentes,
+        pagamentos: f.secoes.pagamentos && (f.origem === 'todas' || f.origem === 'pagamento'),
+        cobrancas: f.secoes.cobrancas && (f.origem === 'todas' || f.origem === 'cobranca'),
+        pendPag: f.secoes.pendPag && f.situacao !== 'realizadas' && (f.origem === 'todas' || f.origem === 'pagamento'),
+        pendCob: f.secoes.pendCob && f.situacao !== 'realizadas' && (f.origem === 'todas' || f.origem === 'cobranca'),
+      },
+      receitas, despesas, saldo,
+      pagamentos: rpResumoProg(occPag),
+      cobrancas: rpResumoProg(occCob),
+      categorias: [...categorias.values()].map(fix).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+      contas: [...contasMap.values()].map(fix).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+      movimentos,
+      pendPag: rpPendentes(occPag, 'pagamento', f),
+      pendCob: rpPendentes(occCob, 'cobranca', f),
+      temTransferencia: false, // o sistema não possui lançamento do tipo transferência entre contas
+    };
+  }
+  const rpAssinatura = m => JSON.stringify({ ...m, geradoEm: '' });
+
+  function rpMontarForm() {
+    if (rp.pronto) return;
+    rp.pronto = true;
+    rpAplicarMes(period || currentMonth());
+  }
+  /** Competência (e o mês do topo) define o período do relatório: do dia 1 ao último dia. */
+  function rpAplicarMes(k) {
+    rp.mesTopo = period || currentMonth();
+    $('#rpIni').value = `${k}-01`;
+    $('#rpFim').value = rpLastDay(k);
+  }
+
+  function rpPreencherSelects() {
+    const keep = (sel, html) => { const el = $(sel); const v = el.value; el.innerHTML = html; if ([...el.options].some(o => o.value === v)) el.value = v; };
+    const ms = months();
+    const ini = $('#rpIni').value, fim = $('#rpFim').value;
+    const mesAtual = ini && fim && ini.endsWith('-01') && ym(ini) === ym(fim) && fim === rpLastDay(ym(ini)) ? ym(ini) : '';
+    const rot = m => `${MONTHS_FULL[+m.slice(5) - 1]}/${m.slice(0, 4)}`;
+    $('#rpMes').innerHTML = `<option value="">Personalizado</option>` +
+      ms.map(m => `<option value="${m}">${rot(m)}</option>`).join('');
+    $('#rpMes').value = ms.includes(mesAtual) ? mesAtual : '';
+    keep('#rpCategoria', `<option value="">Todas as categorias</option>` + rpCategorias().map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join(''));
+    keep('#rpConta', `<option value="">Todas as contas</option>` + state.accounts.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join(''));
+  }
+
+  function rpPeriodoTexto() {
+    const ini = $('#rpIni').value, fim = $('#rpFim').value;
+    $('#rpPeriodoTxt').textContent = ini && fim ? `${fullDate(ini)} até ${fullDate(fim)}` : 'Informe o início e o fim';
+  }
+
+  function rpStatus(texto, tipo = 'busy') {
+    const el = $('#rpStatus');
+    if (!texto) { el.hidden = true; el.innerHTML = ''; return; }
+    el.hidden = false;
+    el.className = `rp-status is-${tipo}`;
+    el.innerHTML = `${tipo === 'busy' ? '<span class="rp-spin" aria-hidden="true"></span>' : icon(tipo === 'erro' ? 'circle-alert' : 'info')}<span>${esc(texto)}</span>`;
+  }
+
+  /** Mostra se os dados/filtros mudaram depois da última geração. */
+  function rpChecarDesatualizado() {
+    const aviso = $('#rpStale');
+    if (!rp.pdf || rp.busy) { aviso.hidden = true; return; }
+    const f = rpLerFiltros();
+    const ok = f.ini && f.fim && f.ini <= f.fim;
+    aviso.hidden = !ok || rpAssinatura(rpModelo(f)) === rp.sig;
+  }
+
+  function renderReportIntegrado() {
+    rpMontarForm();
+    rpPreencherSelects();
+    rpPeriodoTexto();
+    if (!REMOTE) {
+      rpStatus('O Relatório Integrado usa os dados reais do banco e só é gerado dentro do sistema (Nerites), com usuário logado.', 'info');
+      return;
+    }
+    if (!rp.hidratado) { rpStatus('Aguardando os dados do banco…'); return; }
+    if (!rp.pdf && !rp.busy && !rp.erro) { rpGerar(); return; }
+    rpChecarDesatualizado();
+  }
+
+  function rpGerar(acao = null) {
+    if (!REMOTE) return;
+    if (acao) rp.acao = acao;
+    if (rp.busy) return;
+    const f = rpLerFiltros();
+    if (!f.ini || !f.fim) { rpStatus('Informe a data inicial e a data final do período.', 'erro'); return; }
+    if (f.ini > f.fim) { rpStatus('A data inicial precisa ser anterior ou igual à data final.', 'erro'); return; }
+    if (rpMesesEntre(f.ini, f.fim).length > 36) { rpStatus('Escolha um período de até 36 meses.', 'erro'); return; }
+    let modelo;
+    try { modelo = rpModelo(f); }
+    catch (e) { console.error(e); rpStatus('Não foi possível consolidar os dados do período.', 'erro'); return; }
+    rp.busy = true;
+    rp.erro = '';
+    rp.reqId = 'rp' + (++rp.seq);
+    rp.sigPendente = rpAssinatura(modelo);
+    $('#rpStale').hidden = true;
+    rpBotoes();
+    rpStatus('Consolidando os dados financeiros…');
+    window.parent.postMessage({ type: 'fp-report-build', requestId: rp.reqId, modelo }, location.origin);
+  }
+
+  function rpBotoes() {
+    ['#rpPdfBtn', '#rpPrintBtn', '#rpAtualizar'].forEach(s => { const b = $(s); if (b) b.disabled = rp.busy; });
+    $('#rpViewer').classList.toggle('is-busy', rp.busy);
+  }
+
+  function rpReceber(d) {
+    if (d.requestId !== rp.reqId) return;
+    if (d.type === 'fp-report-progress') { rpStatus(d.texto || 'Montando o relatório…'); return; }
+    rp.busy = false;
+    const acao = rp.acao;
+    rp.acao = null;
+    if (d.type === 'fp-report-erro') {
+      rp.erro = d.erro || 'Falha ao gerar o relatório.';
+      rpBotoes();
+      rpStatus(rp.erro, 'erro');
+      return;
+    }
+    rp.pageUrls.forEach(u => URL.revokeObjectURL(u));
+    rp.pdf = d.pdf;
+    rp.fileName = d.fileName || 'Relatorio_Financeiro_Integrado.pdf';
+    rp.pageUrls = (d.pages || []).map(b => URL.createObjectURL(b));
+    rp.avisos = d.avisos || [];
+    rp.resumo = d.resumo || null;
+    rp.sig = rp.sigPendente;
+    rp.page = 1;
+    rpBotoes();
+    rpStatus('');
+    rpRenderPaginas();
+    rpChecarDesatualizado();
+    if (acao === 'pdf') rpBaixar();
+    if (acao === 'print') rpImprimir();
+  }
+
+  function rpRenderPaginas() {
+    const n = rp.pageUrls.length;
+    $('#rpPages').innerHTML = rp.pageUrls.map((u, i) =>
+      `<div class="rp-page" data-rp-page="${i + 1}"><img src="${u}" alt="Página ${i + 1} de ${n}" draggable="false"></div>`).join('');
+    $('#rpPageTotal').textContent = String(n);
+    $('#rpPageIn').max = String(Math.max(1, n));
+    $('#rpPageIn').value = '1';
+    const r = rp.resumo;
+    $('#rpInfo').innerHTML = r ? [
+      `<div><b>${r.paginas}</b> ${r.paginas === 1 ? 'página' : 'páginas'} A4</div>`,
+      `<div><b>${r.movimentos}</b> movimentações · <b>${r.pendentes}</b> pendências</div>`,
+      r.comprovantes != null ? `<div><b>${r.incorporados}</b> de ${r.comprovantes} ${r.comprovantes === 1 ? 'arquivo incorporado' : 'arquivos incorporados'}</div>` : '',
+    ].join('') : '';
+    const av = $('#rpAvisos');
+    av.hidden = !rp.avisos.length;
+    av.innerHTML = rp.avisos.length
+      ? `${icon('circle-alert')}<div><b>${rp.avisos.length === 1 ? '1 arquivo não pôde ser incorporado' : `${rp.avisos.length} arquivos não puderam ser incorporados`}</b> — o relatório indica cada um como indisponível:<ul>${rp.avisos.map(a => `<li>${esc(a)}</li>`).join('')}</ul></div>`
+      : '';
+    rpZoomAplicar();
+    $('#rpPages').scrollTop = 0;
+  }
+
+  function rpZoomAplicar() {
+    const box = $('#rpPages');
+    if (!box) return;
+    const disp = Math.max(200, box.clientWidth - 48);
+    const GAP = 18;
+    let z = typeof rp.zoom === 'number' && rp.zoom > 0 ? rp.zoom : 0;
+    if (!z) {
+      // Padrão: duas folhas lado a lado (como na impressão de conferência); estreito demais → uma por linha.
+      const duas = (disp - GAP) / 2 / RP_BASE_W;
+      z = rp.zoom === 'largura' || duas < 0.42 ? disp / RP_BASE_W : duas;
+      z = Math.max(0.25, Math.min(2.5, z));
+    }
+    const rel = box.scrollHeight ? box.scrollTop / box.scrollHeight : 0;
+    box.style.setProperty('--rp-w', `${Math.floor(RP_BASE_W * z)}px`);
+    box.scrollTop = rel * box.scrollHeight;
+    $('#rpZoomLbl').textContent = `${Math.round(z * 100)}%`;
+    $$('#rpMenu [data-rp-modo]').forEach(b => b.classList.toggle('on', (rp.zoom || 'duas') === b.dataset.rpModo));
+    rp.zoomAtual = z;
+  }
+  function rpZoomPasso(dir) {
+    const z = rp.zoomAtual || 1;
+    const prox = dir > 0 ? RP_ZOOMS.find(v => v > z + 0.001) : [...RP_ZOOMS].reverse().find(v => v < z - 0.001);
+    if (prox) { rp.zoom = prox; rpZoomAplicar(); }
+  }
+  function rpIrPagina(p) {
+    const n = rp.pageUrls.length;
+    if (!n) return;
+    p = Math.min(n, Math.max(1, Math.round(Number(p) || 1)));
+    const el = $(`#rpPages [data-rp-page="${p}"]`);
+    if (el) $('#rpPages').scrollTo({ top: el.offsetTop - 16, behavior: 'smooth' });
+    rp.page = p;
+    $('#rpPageIn').value = String(p);
+  }
+  function rpPaginaVisivel() {
+    const box = $('#rpPages');
+    const meio = box.scrollTop + box.clientHeight * 0.35;
+    let atual = 1, topo = -1;
+    // Com duas folhas por linha, vale a primeira folha da linha visível.
+    $$('#rpPages .rp-page').forEach(el => {
+      if (el.offsetTop <= meio && el.offsetTop > topo) { atual = Number(el.dataset.rpPage); topo = el.offsetTop; }
+    });
+    if (atual !== rp.page) { rp.page = atual; if (document.activeElement !== $('#rpPageIn')) $('#rpPageIn').value = String(atual); }
+  }
+
+  function rpTelaCheia() {
+    const v = $('#rpViewer');
+    const docFs = document.fullscreenElement;
+    if (docFs) { document.exitFullscreen?.(); return; }
+    if (v.classList.contains('is-full')) { v.classList.remove('is-full'); rpZoomAplicar(); return; }
+    const p = v.requestFullscreen ? v.requestFullscreen() : null;
+    if (p && p.catch) p.catch(() => { v.classList.add('is-full'); rpZoomAplicar(); });
+    else if (!p) { v.classList.add('is-full'); rpZoomAplicar(); }
+  }
+
+  /** Gerar PDF / Imprimir: usam o mesmo documento. Se os dados mudaram, gera de novo antes. */
+  function rpAcao(acao) {
+    if (!REMOTE) return;
+    const f = rpLerFiltros();
+    const atual = rp.pdf && f.ini && f.fim && f.ini <= f.fim && rpAssinatura(rpModelo(f)) === rp.sig;
+    if (atual && !rp.busy) { acao === 'pdf' ? rpBaixar() : rpImprimir(); return; }
+    rpGerar(acao);
+  }
+  function rpBaixar() {
+    if (!rp.pdf) return;
+    const url = URL.createObjectURL(rp.pdf);
+    const a = document.createElement('a');
+    a.href = url; a.download = rp.fileName;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+  function rpImprimir() {
+    if (!rp.pdf) return;
+    const frame = $('#reportPrintFrame');
+    if (rp.printUrl) URL.revokeObjectURL(rp.printUrl);
+    rp.printUrl = URL.createObjectURL(rp.pdf);
+    frame.removeAttribute('srcdoc');
+    frame.onload = () => setTimeout(() => {
+      try { frame.contentWindow.focus(); frame.contentWindow.print(); }
+      catch { window.open(rp.printUrl, '_blank', 'noopener'); }
+    }, 400);
+    frame.src = rp.printUrl;
   }
 
   /* ---------- Auditoria (só Admin; o banco grava, a página React busca) ---------- */
@@ -3238,7 +3515,6 @@
       const p = Number(b.dataset.movPage);
       if (Number.isFinite(p) && p >= 1 && !b.disabled) { movPage = p; render(); }
     }
-    else if (b.dataset.rtab) { reportTab = b.dataset.rtab; renderReports(); }
     else if (b.dataset.pay) openPay(b.dataset.pay, b.dataset.payMode);
     else if (b.dataset.skip) skipOccurrence(b.dataset.skip);
     else if (b.dataset.undo) undoOccurrence(b.dataset.undo);
@@ -3354,7 +3630,61 @@
     e.currentTarget.setAttribute('aria-expanded', String(open));
     e.currentTarget.classList.toggle('on', open);
   });
-  $('#reportPdfBtn')?.addEventListener('click', exportReportPdf);
+  /* Relatório Integrado */
+  const rpMesDoPeriodo = () => {
+    const ini = $('#rpIni').value, fim = $('#rpFim').value;
+    const mes = ini && fim && ini.endsWith('-01') && ym(ini) === ym(fim) && fim === rpLastDay(ym(ini)) ? ym(ini) : '';
+    $('#rpMes').value = [...$('#rpMes').options].some(o => o.value === mes) ? mes : '';
+  };
+  $('#rpAtualizar').addEventListener('click', () => rpGerar());
+  $('#rpPdfBtn').addEventListener('click', () => rpAcao('pdf'));
+  $('#rpPrintBtn').addEventListener('click', () => rpAcao('print'));
+  $('#rpMes').addEventListener('change', e => {
+    const k = e.target.value;
+    if (!k) { rpDatas(true); $('#rpIni').focus(); return; }
+    // Competência e mês do topo andam juntos.
+    period = k; periodManual = true; fillPeriod();
+    rpAplicarMes(k);
+    rpPeriodoTexto(); rpChecarDesatualizado();
+  });
+  const rpDatas = abrir => { $('#rpDatas').hidden = !abrir; $('#rpPeriodoEdit').setAttribute('aria-expanded', String(abrir)); };
+  $('#rpPeriodoEdit').addEventListener('click', () => rpDatas($('#rpDatas').hidden));
+  $('#rpFiltrosToggle').addEventListener('click', e => {
+    const abrir = $('#rpFiltros').hidden;
+    $('#rpFiltros').hidden = !abrir;
+    e.currentTarget.setAttribute('aria-expanded', String(abrir));
+  });
+  const rpMenu = abrir => { $('#rpMenu').hidden = !abrir; $('#rpMore').setAttribute('aria-expanded', String(abrir)); };
+  $('#rpMore').addEventListener('click', e => { e.stopPropagation(); rpMenu($('#rpMenu').hidden); });
+  $('#rpMenu').addEventListener('click', e => {
+    const b = e.target.closest('[data-rp-modo]');
+    if (!b) return;
+    rp.zoom = b.dataset.rpModo === 'largura' ? 'largura' : 0;
+    rpMenu(false);
+    rpZoomAplicar();
+  });
+  document.addEventListener('click', e => { if (!e.target.closest('.rp-more')) rpMenu(false); });
+  ['#rpIni', '#rpFim'].forEach(sel => $(sel).addEventListener('change', () => { rpMesDoPeriodo(); rpPeriodoTexto(); rpChecarDesatualizado(); }));
+  ['#rpOrigem', '#rpCategoria', '#rpConta', '#rpSituacao'].forEach(sel => $(sel).addEventListener('change', rpChecarDesatualizado));
+  $('#rpSecoes').addEventListener('change', rpChecarDesatualizado);
+  $('#rpPrev').addEventListener('click', () => rpIrPagina(rp.page - 1));
+  $('#rpNext').addEventListener('click', () => rpIrPagina(rp.page + 1));
+  $('#rpPageIn').addEventListener('change', e => rpIrPagina(e.target.value));
+  $('#rpPageIn').addEventListener('keydown', e => { if (e.key === 'Enter') rpIrPagina(e.target.value); });
+  $('#rpZoomOut').addEventListener('click', () => rpZoomPasso(-1));
+  $('#rpZoomIn').addEventListener('click', () => rpZoomPasso(1));
+  $('#rpFull').addEventListener('click', rpTelaCheia);
+  $('#rpDownload').addEventListener('click', () => rpAcao('pdf'));
+  $('#rpPrintMini').addEventListener('click', () => rpAcao('print'));
+  $('#rpPages').addEventListener('scroll', () => requestAnimationFrame(rpPaginaVisivel), { passive: true });
+  document.addEventListener('fullscreenchange', () => {
+    $('#rpViewer').classList.toggle('is-fs', document.fullscreenElement === $('#rpViewer'));
+    setTimeout(rpZoomAplicar, 60);
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && $('#rpViewer').classList.contains('is-full')) { $('#rpViewer').classList.remove('is-full'); rpZoomAplicar(); }
+  });
+  if (window.ResizeObserver) new ResizeObserver(() => { if (typeof rp.zoom !== 'number' || !rp.zoom) rpZoomAplicar(); }).observe($('#rpPages'));
   $('#fInv').addEventListener('change', () => { invPage = 1; renderInvestments(); });
   ['#invQ', '#invFAcc', '#invFType', '#invFSit', '#invFRes', '#invFAge'].forEach(sel => $(sel).addEventListener(sel === '#invQ' ? 'input' : 'change', () => { invPage = 1; renderInvestments(); }));
   $('#invChartPick').addEventListener('change', investChart);
@@ -3598,6 +3928,7 @@
       });
       if (Array.isArray(p.people)) state.people = [...new Set([...state.people, ...p.people])].slice(0, 10);
       if (!periodManual) period = null;
+      rp.hidratado = true;
       refresh();
       syncStatus('Dados do banco atualizados', 'ok');
       return;
@@ -3643,6 +3974,10 @@
       $$('[data-audit-only]').forEach(el => el.classList.toggle('is-hidden', !canAudit));
       if (!canAudit && view === 'audit') show('overview');
       if (mudou) render();
+    }
+    if (d.type === 'fp-report-progress' || d.type === 'fp-report-ready' || d.type === 'fp-report-erro') {
+      rpReceber(d);
+      return;
     }
     if (d.type === 'fp-audit-data' || d.type === 'fp-audit-erro') {
       if (d.requestId === auditReq) auditReceber(d);

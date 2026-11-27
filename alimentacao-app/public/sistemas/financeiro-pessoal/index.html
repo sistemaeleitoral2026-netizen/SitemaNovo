@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="css/pagamentos.css">
 <link rel="stylesheet" href="css/visao.css">
 <link rel="stylesheet" href="css/investimentos.css">
+<link rel="stylesheet" href="css/relatorios.css?v=2">
 </head>
 <body>
 <a class="skip-link" href="#mainContent">Ir para o conteúdo</a>
@@ -78,6 +79,13 @@
 <symbol id="i-utensils" viewBox="0 0 256 256"><path d="M208,40V168H152S152,64,208,40Z" opacity="0.2"/><path d="M72,88V40a8,8,0,0,1,16,0V88a8,8,0,0,1-16,0ZM216,40V224a8,8,0,0,1-16,0V176H152a8,8,0,0,1-8-8,268.75,268.75,0,0,1,7.22-56.88c9.78-40.49,28.32-67.63,53.63-78.47A8,8,0,0,1,216,40ZM200,53.9c-32.17,24.57-38.47,84.42-39.7,106.1H200ZM119.89,38.69a8,8,0,1,0-15.78,2.63L112,88.63a32,32,0,0,1-64,0l7.88-47.31a8,8,0,1,0-15.78-2.63l-8,48A8.17,8.17,0,0,0,32,88a48.07,48.07,0,0,0,40,47.32V224a8,8,0,0,0,16,0V135.32A48.07,48.07,0,0,0,128,88a8.17,8.17,0,0,0-.11-1.31Z"/></symbol>
 <symbol id="i-wallet" viewBox="0 0 256 256"><path d="M224,80V192a8,8,0,0,1-8,8H56a16,16,0,0,1-16-16V56A16,16,0,0,0,56,72H216A8,8,0,0,1,224,80Z" opacity="0.2"/><path d="M216,64H56a8,8,0,0,1,0-16H192a8,8,0,0,0,0-16H56A24,24,0,0,0,32,56V184a24,24,0,0,0,24,24H216a16,16,0,0,0,16-16V80A16,16,0,0,0,216,64Zm0,128H56a8,8,0,0,1-8-8V78.63A23.84,23.84,0,0,0,56,80H216Zm-48-60a12,12,0,1,1,12,12A12,12,0,0,1,168,132Z"/></symbol>
 <symbol id="i-x" viewBox="0 0 256 256"><path d="M208.49,191.51a12,12,0,0,1-17,17L128,145,64.49,208.49a12,12,0,0,1-17-17L111,128,47.51,64.49a12,12,0,0,1,17-17L128,111l63.51-63.52a12,12,0,0,1,17,17L145,128Z"/></symbol>
+<symbol id="i-chevron-left" viewBox="0 0 256 256"><path d="M160 48 80 128l80 80" fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-chevron-right" viewBox="0 0 256 256"><path d="m96 48 80 80-80 80" fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-minus" viewBox="0 0 256 256"><path d="M48 128h160" fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-printer" viewBox="0 0 256 256"><path d="M64 88V40h128v48M64 184H40V96a8 8 0 0 1 8-8h160a8 8 0 0 1 8 8v88h-24M64 152h128v64H64z" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/><circle cx="188" cy="124" r="12"/></symbol>
+<symbol id="i-corners-out" viewBox="0 0 256 256"><path d="M160 48h48v48M96 208H48v-48M208 160v48h-48M48 96V48h48" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-fit-width" viewBox="0 0 256 256"><path d="M32 56v144M224 56v144M72 128h112M96 100l-28 28 28 28M160 100l28 28-28 28" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-ellipsis-v" viewBox="0 0 256 256"><circle cx="128" cy="60" r="16"/><circle cx="128" cy="128" r="16"/><circle cx="128" cy="196" r="16"/></symbol>
 </svg>
 <!-- ICON_SPRITE:END -->
 
@@ -418,28 +426,104 @@
 
       <!-- ============ RELATÓRIOS ============ -->
       <section class="view" id="view-reports">
-        <div class="block">
-          <div class="block-head">
-            <div class="seg-tabs" id="reportTabs" role="tablist" aria-label="Tipo de relatório">
-              <button type="button" data-rtab="pagamentos" class="on">Pagamentos</button>
-              <button type="button" data-rtab="cobrancas">Cobranças</button>
-              <button type="button" data-rtab="documentacao">Documentação</button>
-              <button type="button" data-rtab="movimentacoes">Movimentações</button>
-              <button type="button" data-rtab="contas">Contas</button>
-              <button type="button" data-rtab="investimentos">Investimentos</button>
+        <div class="block rp-block">
+          <!-- Relatório Financeiro Integrado -->
+          <div id="rpIntegrado">
+            <div class="rp-head">
+              <h2 class="rp-title">Pré-visualização do Relatório Integrado</h2>
+              <div class="rp-head-actions">
+                <label class="rp-comp"><span>Competência:</span>
+                  <span class="rp-comp-sel"><svg class="i i-sm"><use href="#i-calendar"/></svg><select class="select" id="rpMes" aria-label="Competência"></select></span>
+                </label>
+                <button type="button" class="btn btn-primary" id="rpPdfBtn"><svg class="i i-sm"><use href="#i-file-text"/></svg>Gerar PDF (A4)</button>
+                <button type="button" class="btn" id="rpPrintBtn"><svg class="i i-sm"><use href="#i-printer"/></svg>Imprimir</button>
+              </div>
             </div>
-            <button type="button" class="btn btn-primary btn-sm" id="reportPdfBtn"><svg class="i i-sm"><use href="#i-download"/></svg>Salvar PDF A4</button>
+            <div class="rp-grid">
+              <aside class="rp-config" aria-label="Configuração do relatório">
+                <div class="rp-config-head">
+                  <svg class="i"><use href="#i-file-text"/></svg>
+                  <div>
+                    <div class="rp-config-title">Relatório Financeiro Integrado</div>
+                    <div class="rp-config-sub">Relatório consolidado do período com movimentações, pendências e comprovantes anexados.</div>
+                  </div>
+                </div>
+                <div class="rp-period">
+                  <svg class="i"><use href="#i-calendar"/></svg>
+                  <div class="rp-period-txt"><div class="rp-period-lbl">Período do relatório</div><div class="rp-period-val" id="rpPeriodoTxt">—</div></div>
+                  <button type="button" class="rp-period-edit" id="rpPeriodoEdit" aria-expanded="false" aria-controls="rpDatas" title="Período personalizado"><svg class="i i-sm"><use href="#i-pencil-line"/></svg></button>
+                </div>
+                <div class="rp-row2" id="rpDatas" hidden>
+                  <label class="rp-field"><span>Período inicial</span><input type="date" class="input" id="rpIni"></label>
+                  <label class="rp-field"><span>Período final</span><input type="date" class="input" id="rpFim"></label>
+                </div>
+                <div class="rp-sec">
+                  <button type="button" class="rp-sec-toggle" id="rpFiltrosToggle" aria-expanded="true" aria-controls="rpFiltros">Filtros (opcionais)<svg class="i i-sm"><use href="#i-chevron-down"/></svg></button>
+                  <div class="rp-filtros" id="rpFiltros">
+                    <label class="rp-field"><span>Origem</span>
+                      <select class="select" id="rpOrigem">
+                        <option value="todas">Todas as origens</option>
+                        <option value="avulso">Avulsos</option>
+                        <option value="pagamento">Pagamentos</option>
+                        <option value="cobranca">Cobranças</option>
+                      </select></label>
+                    <label class="rp-field"><span>Categoria</span><select class="select" id="rpCategoria"><option value="">Todas as categorias</option></select></label>
+                    <label class="rp-field"><span>Conta</span><select class="select" id="rpConta"><option value="">Todas as contas</option></select></label>
+                    <label class="rp-field"><span>Situação</span>
+                      <select class="select" id="rpSituacao">
+                        <option value="todas">Todas as situações</option>
+                        <option value="realizadas">Realizadas (pagas e recebidas)</option>
+                        <option value="pendentes">Pendentes (a pagar e a receber)</option>
+                        <option value="vencidas">Somente vencidas</option>
+                      </select></label>
+                  </div>
+                </div>
+                <div class="rp-sec">
+                  <div class="rp-sec-title">Incluir no relatório</div>
+                  <div class="rp-checks" id="rpSecoes">
+                    <label class="rp-check"><input type="checkbox" value="movimentos" checked><span>Movimentações realizadas</span></label>
+                    <label class="rp-check"><input type="checkbox" value="pendentes" checked><span>Pendentes (a pagar / a receber)</span></label>
+                    <label class="rp-check"><input type="checkbox" value="comprovantes" checked><span>Comprovantes anexados</span></label>
+                  </div>
+                </div>
+                <button type="button" class="btn btn-primary rp-update" id="rpAtualizar"><svg class="i i-sm"><use href="#i-repeat"/></svg>Gerar / Atualizar Pré-visualização</button>
+                <div class="rp-stale" id="rpStale" hidden><svg class="i i-sm"><use href="#i-info"/></svg><span>Os dados ou os filtros mudaram. Atualize a pré-visualização para refletir no PDF.</span></div>
+                <div class="rp-info" id="rpInfo"></div>
+              </aside>
+
+              <div class="rp-viewer" id="rpViewer">
+                <div class="rp-bar" role="toolbar" aria-label="Controles da pré-visualização">
+                  <div class="rp-bar-grp">
+                    <button type="button" class="rp-ib" id="rpPrev" aria-label="Página anterior"><svg class="i"><use href="#i-chevron-left"/></svg></button>
+                    <label class="rp-pg"><input type="number" min="1" value="1" id="rpPageIn" aria-label="Página atual"><span>/ <b id="rpPageTotal">0</b></span></label>
+                    <button type="button" class="rp-ib" id="rpNext" aria-label="Próxima página"><svg class="i"><use href="#i-chevron-right"/></svg></button>
+                  </div>
+                  <div class="rp-bar-grp">
+                    <button type="button" class="rp-ib" id="rpZoomOut" aria-label="Diminuir zoom"><svg class="i"><use href="#i-minus"/></svg></button>
+                    <span class="rp-zoom" id="rpZoomLbl">100%</span>
+                    <button type="button" class="rp-ib" id="rpZoomIn" aria-label="Aumentar zoom"><svg class="i"><use href="#i-plus"/></svg></button>
+                  </div>
+                  <div class="rp-bar-grp">
+                    <button type="button" class="rp-ib" id="rpFull" aria-label="Tela cheia" title="Tela cheia"><svg class="i"><use href="#i-corners-out"/></svg></button>
+                    <button type="button" class="rp-ib" id="rpDownload" aria-label="Baixar PDF" title="Baixar PDF"><svg class="i"><use href="#i-download"/></svg></button>
+                    <button type="button" class="rp-ib" id="rpPrintMini" aria-label="Imprimir" title="Imprimir"><svg class="i"><use href="#i-printer"/></svg></button>
+                    <div class="rp-more">
+                      <button type="button" class="rp-ib" id="rpMore" aria-label="Mais opções de visualização" aria-expanded="false" aria-haspopup="menu"><svg class="i"><use href="#i-ellipsis-v"/></svg></button>
+                      <div class="rp-menu" id="rpMenu" role="menu" hidden>
+                        <button type="button" role="menuitem" data-rp-modo="duas">Duas páginas lado a lado</button>
+                        <button type="button" role="menuitem" data-rp-modo="largura">Ajustar à largura</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="rp-avisos" id="rpAvisos" hidden></div>
+                <div class="rp-pages" id="rpPages"></div>
+                <div class="rp-status" id="rpStatus" hidden role="status" aria-live="polite"></div>
+              </div>
+            </div>
           </div>
-          <div class="toolbar report-toolbar">
-            <div class="block-meta" id="reportPeriodLabel">Pré-visualização da folha A4 · escolha o mês no topo</div>
-          </div>
-          <div class="report-preview-wrap">
-            <div class="report-preview-label">Pré-visualização do PDF</div>
-            <div id="reportPreview" class="report-a4" aria-label="Pré-visualização do relatório em A4"></div>
-          </div>
+
         </div>
-        <div class="note"><svg class="i"><use href="#i-info"/></svg>
-          <span>Abaixo está como o PDF fica na folha A4. Em “Salvar PDF A4”, escolha “Salvar como PDF” na impressão — sem precisar liberar pop-up.</span></div>
       </section>
 
       <!-- ============ AUDITORIA (só Admin) ============ -->
@@ -747,6 +831,6 @@
 <datalist id="payeeList"></datalist>
 
 <script src="js/comprovantes.js"></script>
-<script src="js/app.js?v=71"></script>
+<script src="js/app.js?v=74"></script>
 </body>
 </html>
