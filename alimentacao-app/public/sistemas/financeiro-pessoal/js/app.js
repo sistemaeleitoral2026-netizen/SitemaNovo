@@ -77,6 +77,7 @@
   const pct2 = n => (n * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
   const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
   const MONTHS_FULL = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  const WEEKDAYS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
   const ym = d => d.slice(0, 7);
   const monthLabel = k => { const [y, m] = k.split('-'); return `${MONTHS_FULL[+m - 1]} ${y}`; };
   const shortDate = d => { const [, m, day] = d.split('-'); return `${+day} ${MONTHS[+m - 1]}`; };
@@ -835,11 +836,30 @@
   /** Normaliza para YYYY-MM (evita "2026-11" < "2026-11-01" excluir o mês atual). */
   const asMonth = v => (typeof v === 'string' && v.length >= 7 ? v.slice(0, 7) : null);
 
+  function weeklyDates(t, k) {
+    const r = t.rec || {};
+    if (r.type !== 'weekly') return [];
+    const start = `${k}-01`;
+    const last = new Date(+k.slice(0, 4), +k.slice(5), 0).getDate();
+    const finish = `${k}-${String(last).padStart(2, '0')}`;
+    const lower = t.start && `${asMonth(t.start)}-01` > start ? `${asMonth(t.start)}-01` : start;
+    const upper = t.end && `${asMonth(t.end)}-${String(new Date(+t.end.slice(0, 4), +t.end.slice(5), 0).getDate()).padStart(2, '0')}` < finish
+      ? `${asMonth(t.end)}-${String(new Date(+t.end.slice(0, 4), +t.end.slice(5), 0).getDate()).padStart(2, '0')}` : finish;
+    if (lower > upper) return [];
+    const wanted = Number(r.dayOfWeek) || 0;
+    const out = [];
+    for (let d = lower; d <= upper; d = addDays(d, 1)) {
+      if (new Date(`${d}T12:00`).getDay() === wanted) out.push(d);
+    }
+    return out;
+  }
+
   function occursIn(t, k) {
     const r = t.rec || {};
     const start = asMonth(t.start);
     const end = asMonth(t.end);
     if (r.type === 'once') return asMonth(r.dateTo || r.dateFrom || '') === k;
+    if (r.type === 'weekly') return weeklyDates(t, k).length > 0;
     if (start && k < start) return false;
     if (end && k > end) return false;
     if (r.type === 'yearly') return +k.slice(5) === +r.month;
@@ -850,6 +870,7 @@
     const r = t.rec || {};
     let from, to;
     if (r.type === 'once') { to = r.dateTo || r.dateFrom; from = r.dateFrom || to; }
+    else if (r.type === 'weekly') { from = to = k.length === 10 ? k : weeklyDates(t, k)[0]; }
     else { from = dayIn(k, r.dayFrom); to = dayIn(k, Math.max(r.dayTo || r.dayFrom, r.dayFrom)); }
     const done = doneOf(t.id, k);
     const today = todayISO();
@@ -858,9 +879,12 @@
   }
 
   function occurrencesIn(k) {
-    return state.tasks
-      .filter(t => occursIn(t, k) && (!t.paused || doneOf(t.id, k)))
-      .map(t => occurrence(t, k));
+    return state.tasks.flatMap(t => {
+      if ((t.rec || {}).type === 'weekly') {
+        return weeklyDates(t, k).filter(d => !t.paused || doneOf(t.id, d)).map(d => occurrence(t, d));
+      }
+      return occursIn(t, k) && (!t.paused || doneOf(t.id, k)) ? [occurrence(t, k)] : [];
+    });
   }
 
   // Atrasadas de até 12 meses antes do mês k
@@ -887,8 +911,11 @@
     for (let i = -12; i <= 24; i++) {
       const m = addMonths(k, i);
       if (!occursIn(t, m)) continue;
-      const o = occurrence(t, m);
-      if (!o.done) return o;
+      const options = (t.rec || {}).type === 'weekly'
+        ? weeklyDates(t, m).map(d => occurrence(t, d))
+        : [occurrence(t, m)];
+      const o = options.find(x => !x.done && x.to >= todayISO());
+      if (o) return o;
     }
     return null;
   }
@@ -896,6 +923,7 @@
   function recLabel(t) {
     const r = t.rec || {};
     if (r.type === 'once') return 'Única';
+    if (r.type === 'weekly') return `Semanal · ${WEEKDAYS[Number(r.dayOfWeek) || 0]}`;
     if (r.type === 'yearly') return `Anual · ${MONTHS[(r.month || 1) - 1]}`;
     return (r.every || 1) === 1 ? 'Mensal' : `A cada ${r.every} meses`;
   }
@@ -973,9 +1001,10 @@
     if (fv === 'variavel' && (kind === 'documentacao' || t.expected != null)) return false;
     if (fv === 'sem' && kind !== 'documentacao') return false;
     if (ff === 'unica' && r.type !== 'once') return false;
+    if (ff === 'semanal' && r.type !== 'weekly') return false;
     if (ff === 'anual' && r.type !== 'yearly') return false;
-    if (ff === 'mensal' && (r.type === 'once' || r.type === 'yearly' || (r.every || 1) !== 1)) return false;
-    if (ff === 'periodico' && (r.type === 'once' || r.type === 'yearly' || (r.every || 1) <= 1)) return false;
+    if (ff === 'mensal' && (r.type !== 'monthly' || (r.every || 1) !== 1)) return false;
+    if (ff === 'periodico' && (r.type !== 'monthly' || (r.every || 1) <= 1)) return false;
     if (fs === 'ativa' && t.paused) return false;
     if (fs === 'pausada' && !t.paused) return false;
     if (q) {
@@ -1115,7 +1144,7 @@
       actions += `<button class="icon-btn" data-undo="${o.key}" title="Reabrir" aria-label="Reabrir">${icon('undo-2', 'i-sm')}</button>`;
     }
     if (isAdmin) actions += `<button class="icon-btn" data-edit-task="${t.id}" title="Editar" aria-label="Editar">${icon('pencil-line', 'i-sm')}</button>`;
-    const prevMonthTag = o.period !== period && OPEN.includes(o.status) ? `<span class="tag rec">${monthLabel(o.period)}</span>` : '';
+    const prevMonthTag = asMonth(o.period) !== period && OPEN.includes(o.status) ? `<span class="tag rec">${monthLabel(o.period)}</span>` : '';
     const kindTag = `<span class="tag rec">${KIND_LABEL[kind]}</span>`;
     const hideValue = kind === 'documentacao' && !moneyDone;
     return `<div class="task st-${o.status}">
@@ -1312,7 +1341,7 @@
         : '<span class="t-muted">Não vence neste mês</span>';
       const valueO = occ || { task: t, done: null };
       return `<tr class="${occ ? `occ-row st-${occ.status}` : ''}">
-        <td class="sheet-cell sheet-title">${esc(t.title)}<div class="sheet-due">${esc(recLabel(t))} · ${t.rec?.dayFrom === t.rec?.dayTo || !t.rec?.dayTo ? `dia ${t.rec?.dayFrom}` : `dias ${t.rec.dayFrom}–${t.rec.dayTo}`}</div></td>
+        <td class="sheet-cell sheet-title">${esc(t.title)}<div class="sheet-due">${esc(recLabel(t))}${t.rec?.type === 'weekly' ? '' : ` · ${t.rec?.dayFrom === t.rec?.dayTo || !t.rec?.dayTo ? `dia ${t.rec?.dayFrom}` : `dias ${t.rec.dayFrom}–${t.rec.dayTo}`}`}</div></td>
         <td class="sheet-cell">${esc(taskTarget(t))}</td>
         <td class="sheet-cell t-right">${valueCell(valueO)}</td>
         <td class="sheet-cell">${cadastroTag(t)}</td>
@@ -1347,6 +1376,9 @@
     const old = overdueBefore(cur);
     const current = occurrencesIn(cur);
     const upcoming = occurrencesIn(next).filter(o => {
+      if ((o.task.rec || {}).type === 'weekly') {
+        return !current.some(c => c.task.id === o.task.id && !c.done);
+      }
       const currentDone = occursIn(o.task, cur) && doneOf(o.task.id, cur);
       return !currentDone;
     });
@@ -1528,7 +1560,7 @@
   }
 
   /* ---------- Formulário de programação (admin) ---------- */
-  function taskFormType() { return $('input[name="tkType"]:checked').value; }
+  function taskFormType() { return $('#tkRepeat')?.value || 'monthly'; }
   function taskFormKind() {
     const v = $('#tkKind')?.value;
     return v === 'documentacao' || v === 'cobranca' ? v : 'pagamento';
@@ -1569,10 +1601,8 @@
   function updateTaskForm() {
     const kind = taskFormKind();
     const isDoc = kind === 'documentacao';
-    // Documentação: sempre prazo único (sem Recorrente / Uma vez)
-    if (isDoc) $('#tkTypeO').checked = true;
+    // Documentação continua com prazo único; pagamento e cobrança usam o fluxo progressivo.
     const type = isDoc ? 'once' : taskFormType();
-    const freq = $('#tkFreq').value;
     const f = TK_FIELDS[kind];
 
     $$('[data-tk-kind]').forEach(el => {
@@ -1580,9 +1610,12 @@
       el.hidden = !allowed.includes(kind);
     });
     $$('[data-tk-when]').forEach(el => { el.hidden = isDoc; });
-    $$('[data-tk="rec"]').forEach(el => { el.hidden = isDoc || type !== 'rec'; });
+    $$('[data-tk="rec"]').forEach(el => { el.hidden = isDoc || type === 'once'; });
     $$('[data-tk="once"]').forEach(el => { el.hidden = !(isDoc || type === 'once'); });
-    $$('[data-tk="year"]').forEach(el => { el.hidden = isDoc || !(type === 'rec' && freq === 'y'); });
+    $$('[data-tk="year"]').forEach(el => { el.hidden = isDoc || type !== 'yearly'; });
+    $$('[data-tk="day-choice"]').forEach(el => { el.hidden = isDoc || (type !== 'monthly' && type !== 'yearly'); });
+    $$('[data-tk="month-day"]').forEach(el => { el.hidden = isDoc || (type !== 'monthly' && type !== 'yearly'); });
+    $$('[data-tk="week-day"]').forEach(el => { el.hidden = isDoc || type !== 'weekly'; });
 
     const fixedDay = $('input[name="tkDayMode"]:checked').value === 'fixed';
     $$('[data-range-part]').forEach(el => { el.hidden = fixedDay; });
@@ -1598,7 +1631,12 @@
     // Documentação: lista de pessoas (inclui logado). Pagamento/Cobrança: recebedores.
     $('#tkPerson').setAttribute('list', isDoc ? 'peopleList' : 'payeeList');
     $('#tkPersonHint').hidden = !isDoc;
-    $('#tkDayLabel').textContent = f.day;
+    $('#tkProgramTitle').textContent = kind === 'cobranca' ? 'Programação da cobrança' : 'Programação do pagamento';
+    $('#tkRepeat').previousElementSibling.textContent = kind === 'cobranca' ? 'Com que frequência será cobrado?' : 'Com que frequência será pago?';
+    $('#tkDayLabel').textContent = kind === 'cobranca' ? 'Quando deve cobrar?' : 'Quando deve pagar?';
+    $('#tkMonthDayLabel').textContent = fixedDay ? 'Dia do mês' : 'Período do mês';
+    $('#tkDaySuffix').textContent = type === 'yearly' ? 'no mês selecionado' : 'de cada mês';
+    $('#tkWeekdayLabel').textContent = kind === 'cobranca' ? 'Em qual dia da semana deve cobrar?' : 'Em qual dia da semana deve pagar?';
     $('#tkDateFromLabel').textContent = f.onceFrom;
     $('#tkDateToLabel').textContent = f.onceTo;
     $('#tkNotesLabel').innerHTML = `${f.notes} <span class="opt">(opcional)</span>`;
@@ -1612,29 +1650,32 @@
     if ($('#tkChargeAmount')) $('#tkChargeAmount').required = kind === 'cobranca';
     if ($('#tkDocCreated') && !$('#tkDocCreated').value) $('#tkDocCreated').value = todayISO();
 
-    const person = $('#tkPerson')?.value.trim() || '';
-    const subject = $('#tkName')?.value.trim() || KIND_LABEL[kind];
-    const amt = kind === 'cobranca' ? moneyVal('#tkChargeAmount') : moneyVal('#tkAmount');
     let timing = '';
-    if (!isDoc && type === 'rec') {
+    if (!isDoc && (type === 'monthly' || type === 'yearly')) {
       const fixed = $('input[name="tkDayMode"]:checked').value === 'fixed';
       const df = +$('#tkDayFrom').value || 1, dt = fixed ? df : (+$('#tkDayTo').value || df);
-      const freqTxt = { m1: 'todo mês', m2: 'a cada 2 meses', m3: 'a cada 3 meses', m6: 'a cada 6 meses', y: `todo ano em ${MONTHS_FULL[+$('#tkMonth').value - 1]?.toLowerCase()}` }[freq];
-      const win = df === dt ? `no dia ${df}` : `entre os dias ${Math.min(df, dt)} e ${Math.max(df, dt)}`;
+      const monthName = MONTHS_FULL[+$('#tkMonth').value - 1]?.toLowerCase();
+      const days = df === dt
+        ? `todo dia ${String(df).padStart(2, '0')}`
+        : `entre os dias ${String(Math.min(df, dt)).padStart(2, '0')} e ${String(Math.max(df, dt)).padStart(2, '0')}`;
+      const cadence = type === 'yearly' ? `${days} de ${monthName} de cada ano` : `${days} de cada mês`;
       const st = $('#tkStart').value, en = $('#tkEnd').value;
-      timing = `${freqTxt}, ${win}${st ? `, a partir de ${monthLabel(st).toLowerCase()}` : ''}${en ? ` até ${monthLabel(en).toLowerCase()}` : ''}`;
+      timing = `${cadence}${st ? `, a partir de ${monthLabel(st).toLowerCase()}` : ''}, ${en ? `até ${monthLabel(en).toLowerCase()}` : 'sem data de término'}`;
+    } else if (!isDoc && type === 'weekly') {
+      const st = $('#tkStart').value, en = $('#tkEnd').value;
+      timing = `toda ${WEEKDAYS[+$('#tkWeekday').value]}${st ? `, a partir de ${monthLabel(st).toLowerCase()}` : ''}, ${en ? `até ${monthLabel(en).toLowerCase()}` : 'sem data de término'}`;
     } else {
       const a = $('#tkDateFrom').value, b = $('#tkDateTo').value;
-      timing = a && b ? `de ${fullDate(a)} até ${fullDate(b)}` : b ? `até ${fullDate(b)}` : a ? `a partir de ${fullDate(a)}` : 'em data a definir';
+      timing = a && b && a === b ? `uma única vez em ${fullDate(a)}` : a && b ? `uma única vez, de ${fullDate(a)} até ${fullDate(b)}` : b ? `uma única vez, até ${fullDate(b)}` : a ? `uma única vez, a partir de ${fullDate(a)}` : 'uma única vez, em data a definir';
     }
-    let txt = '';
-    if (kind === 'pagamento') {
-      txt = `Pagamento: ${subject}${person ? ` para ${person}` : ''}. ${amt > 0 && !varies ? money(amt) : 'Valor não informado'}. Programado ${timing}.`;
-    } else if (kind === 'documentacao') {
+    let txt;
+    if (kind === 'documentacao') {
+      const subject = $('#tkName')?.value.trim() || KIND_LABEL[kind];
+      const person = $('#tkPerson')?.value.trim() || '';
       const created = $('#tkDocCreated')?.value;
       txt = `Documentação: ${subject}${person ? ` — responsável: ${person}` : ''}.${created ? ` Cadastrada em ${fullDate(created)}.` : ''} Resolver ${timing}. Sem valor financeiro.`;
     } else {
-      txt = `Cobrança: ${subject}${person ? ` de ${person}` : ''}. ${amt > 0 ? money(amt) : 'Valor não informado'}. Programada ${timing}. O recebimento só será lançado quando confirmado.`;
+      txt = `${kind === 'cobranca' ? 'Cobrar' : 'Pagar'} ${timing}.`;
     }
     $('#tkSummary').innerHTML = `${icon('info', 'i-sm')}<span>${esc(txt)}</span>`;
   }
@@ -1667,6 +1708,9 @@
     $('#tkSubmit').textContent = t ? 'Salvar alterações' : 'Cadastrar';
     $('#tkCat').innerHTML = CATEGORIES.expense.map(c => `<option>${c}</option>`).join('');
     $('#tkMonth').innerHTML = MONTHS_FULL.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
+    const dayOptions = Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}">${String(i + 1).padStart(2, '0')}</option>`).join('');
+    $('#tkDayFrom').innerHTML = dayOptions;
+    $('#tkDayTo').innerHTML = dayOptions;
     const r = t?.rec || {};
     $('#tkId').value = t?.id || '';
     $('#tkKind').value = kind;
@@ -1683,12 +1727,13 @@
     $('#tkDocCreated').value = (t?.createdAt && String(t.createdAt).slice(0, 10)) || todayISO();
     setMoney('#tkChargeAmount', kind === 'cobranca' ? t?.expected : null);
     $('#tkChargeAcc').value = kind === 'cobranca' ? (t?.account || '') : '';
-    $(kind === 'documentacao' || r.type === 'once' ? '#tkTypeO' : '#tkTypeR').checked = true;
-    $('#tkFreq').value = r.type === 'yearly' ? 'y' : `m${[1, 2, 3, 6].includes(r.every) ? r.every : 1}`;
+    $('#tkRepeat').value = kind === 'documentacao' ? 'once'
+      : r.type === 'weekly' ? 'weekly' : r.type === 'yearly' ? 'yearly' : r.type === 'once' ? 'once' : 'monthly';
     $('#tkMonth').value = r.month || (+currentMonth().slice(5));
-    $('#tkDayFrom').value = r.dayFrom || 10;
-    $('#tkDayTo').value = r.dayTo || r.dayFrom || 15;
-    $(t && r.type !== 'once' && r.dayFrom === r.dayTo ? '#tkDayFixed' : '#tkDayRange').checked = true;
+    $('#tkWeekday').value = r.dayOfWeek ?? 1;
+    $('#tkDayFrom').value = r.dayFrom || 1;
+    $('#tkDayTo').value = r.dayTo || r.dayFrom || 1;
+    $(t && r.type !== 'once' && r.type !== 'weekly' && r.dayFrom !== r.dayTo ? '#tkDayRange' : '#tkDayFixed').checked = true;
     const start = t?.start || currentMonth();
     const end = t?.end || '';
     $('#tkStart').innerHTML = monthSelectOptions(start);
@@ -1706,7 +1751,6 @@
     const kind = taskFormKind();
     const isDoc = kind === 'documentacao';
     const type = isDoc ? 'once' : taskFormType();
-    const freq = $('#tkFreq').value;
     const person = $('#tkPerson').value.trim();
     if (!$('#tkName').value.trim()) { alert('Preencha o título da programação.'); return; }
     if (!person) { alert(`Informe ${TK_FIELDS[kind].person.toLowerCase()}.`); return; }
@@ -1744,14 +1788,19 @@
       if (a > b) [a, b] = [b, a];
       rec = { type: 'once', dateFrom: a, dateTo: b };
       start = ym(a);
+    } else if (type === 'weekly') {
+      start = $('#tkStart').value || currentMonth();
+      rec = { type: 'weekly', dayOfWeek: +$('#tkWeekday').value };
+      const end = $('#tkEnd').value;
+      if (end && end < start) { alert('“Termina em” não pode ser antes de “Começa em”.'); return; }
     } else {
       const fixed = $('input[name="tkDayMode"]:checked').value === 'fixed';
       let df = Math.min(Math.max(+$('#tkDayFrom').value || 1, 1), 31), dt = fixed ? df : Math.min(Math.max(+$('#tkDayTo').value || df, 1), 31);
       if (df > dt) [df, dt] = [dt, df];
       start = $('#tkStart').value || currentMonth();
-      rec = freq === 'y'
+      rec = type === 'yearly'
         ? { type: 'yearly', every: 12, month: +$('#tkMonth').value, dayFrom: df, dayTo: dt }
-        : { type: 'monthly', every: +freq.slice(1), dayFrom: df, dayTo: dt };
+        : { type: 'monthly', every: 1, dayFrom: df, dayTo: dt };
       const end = $('#tkEnd').value;
       if (end && end < start) { alert('“Termina em” não pode ser antes de “Começa em”.'); return; }
     }

@@ -236,7 +236,7 @@
             <label class="tf-field" id="tfStatusField"><span>Situação</span><select class="select" id="tfStatus" aria-label="Situação"></select></label>
             <label class="tf-field tf-extra" id="tfFreqField"><span>Frequência</span>
               <select class="select" id="tfFreq" aria-label="Frequência">
-                <option value="all">Todas</option><option value="mensal">Mensal</option><option value="periodico">A cada N meses</option><option value="anual">Anual</option><option value="unica">Única</option>
+                <option value="all">Todas</option><option value="mensal">Mensal</option><option value="semanal">Semanal</option><option value="periodico">A cada N meses</option><option value="anual">Anual</option><option value="unica">Única</option>
               </select></label>
             <label class="tf-field tf-extra"><span>Valor</span>
               <select class="select" id="tfValor" aria-label="Valor">
@@ -609,33 +609,42 @@
       <div class="field" data-tk-kind="cobranca"><label for="tkChargeAmount">Valor a receber (R$)</label><input class="input num money" id="tkChargeAmount" type="text" inputmode="numeric" autocomplete="off" data-money placeholder="0,00"></div>
       <div class="field" data-tk-kind="cobranca"><label for="tkChargeAcc">Conta que vai receber</label><select class="select" id="tkChargeAcc"></select></div>
 
-      <!-- Quando: oculto em documentação (sempre prazo único) -->
-      <div class="field full" data-tk-when>
-        <label>Quando</label>
-        <div class="seg">
-          <input type="radio" name="tkType" id="tkTypeR" value="rec" checked><label for="tkTypeR">Recorrente</label>
-          <input type="radio" name="tkType" id="tkTypeO" value="once"><label for="tkTypeO">Uma vez só</label>
+      <!-- Programação progressiva: ocultada em documentação, que continua com prazo único. -->
+      <div class="field full tk-program-title" data-tk-when>
+        <span class="tk-program-icon"><svg class="i"><use href="#i-calendar-clock"/></svg></span>
+        <span><strong id="tkProgramTitle">Programação do pagamento</strong><small>Defina quando este compromisso deve aparecer</small></span>
+      </div>
+      <div class="field full" data-tk-when><label for="tkRepeat">Com que frequência será pago?</label>
+        <select class="select" id="tkRepeat">
+          <option value="monthly">Todo mês</option>
+          <option value="weekly">Toda semana</option>
+          <option value="yearly">Todo ano</option>
+          <option value="once">Uma única vez</option>
+        </select>
+      </div>
+      <div class="field full" data-tk="day-choice"><label id="tkDayLabel">Quando deve pagar?</label>
+        <div class="seg seg-sm">
+          <input type="radio" name="tkDayMode" id="tkDayFixed" value="fixed" checked><label for="tkDayFixed">Em um dia fixo do mês</label>
+          <input type="radio" name="tkDayMode" id="tkDayRange" value="range"><label for="tkDayRange">Entre dois dias do mês</label>
         </div>
       </div>
-      <div class="field" data-tk="rec"><label for="tkFreq">Frequência</label>
-        <select class="select" id="tkFreq">
-          <option value="m1">Todo mês</option><option value="m2">A cada 2 meses</option><option value="m3">A cada 3 meses</option>
-          <option value="m6">A cada 6 meses</option><option value="y">Uma vez por ano</option>
-        </select></div>
       <div class="field" data-tk="year"><label for="tkMonth">Mês do ano</label><select class="select" id="tkMonth"></select></div>
-      <div class="field" data-tk="rec"><label id="tkDayLabel">Dia do pagamento</label>
-        <div class="seg seg-sm">
-          <input type="radio" name="tkDayMode" id="tkDayFixed" value="fixed"><label for="tkDayFixed">Dia fixo</label>
-          <input type="radio" name="tkDayMode" id="tkDayRange" value="range" checked><label for="tkDayRange">Entre os dias</label>
-        </div>
-        <div class="range"><input class="input num" id="tkDayFrom" type="number" min="1" max="31" value="10" aria-label="Dia"><span data-range-part>e</span><input class="input num" id="tkDayTo" type="number" min="1" max="31" value="15" aria-label="Até o dia" data-range-part></div></div>
+      <div class="field" data-tk="month-day"><label id="tkMonthDayLabel" for="tkDayFrom">Dia do mês</label>
+        <div class="range tk-day-range"><select class="select" id="tkDayFrom" aria-label="Dia inicial"></select><span data-range-part>até</span><select class="select" id="tkDayTo" aria-label="Dia final" data-range-part></select><span class="tk-day-suffix" id="tkDaySuffix">de cada mês</span></div>
+      </div>
+      <div class="field full" data-tk="week-day"><label for="tkWeekday" id="tkWeekdayLabel">Dia da semana</label>
+        <select class="select" id="tkWeekday">
+          <option value="1">Segunda-feira</option><option value="2">Terça-feira</option><option value="3">Quarta-feira</option>
+          <option value="4">Quinta-feira</option><option value="5">Sexta-feira</option><option value="6">Sábado</option><option value="0">Domingo</option>
+        </select>
+      </div>
       <div class="field" data-tk="rec"><label for="tkStart">Começa em</label><select class="select" id="tkStart"></select></div>
       <div class="field" data-tk="rec"><label for="tkEnd">Termina em <span class="opt">(opcional)</span></label><select class="select" id="tkEnd"></select></div>
       <div class="field" data-tk="once"><label for="tkDateFrom" id="tkDateFromLabel">Pagar a partir de</label><input class="input" id="tkDateFrom" type="date"></div>
       <div class="field" data-tk="once"><label for="tkDateTo" id="tkDateToLabel">Até (vencimento)</label><input class="input" id="tkDateTo" type="date"></div>
 
       <div class="field full"><label for="tkNotes" id="tkNotesLabel">Instruções para quem vai pagar <span class="opt">(opcional)</span></label><textarea class="input textarea" id="tkNotes" maxlength="300" rows="2" placeholder="Detalhes para quem for executar"></textarea></div>
-      <div class="field full"><div class="summary" id="tkSummary"></div></div>
+      <div class="field full tk-summary-field"><label>Resumo da programação</label><div class="summary" id="tkSummary"></div></div>
     </div>
     <div class="modal-foot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn btn-primary" id="tkSubmit">Criar programação</button></div>
   </form>

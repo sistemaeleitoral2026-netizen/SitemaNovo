@@ -22,7 +22,7 @@ export type FpTx = {
   taskId?: string | null; period?: string | null; receiptId?: string | null; note?: string | null; createdBy?: string | null
 }
 export type FpRec = {
-  type: 'once' | 'monthly' | 'yearly'; every?: number; dayFrom?: number; dayTo?: number; month?: number
+  type: 'once' | 'weekly' | 'monthly' | 'yearly'; every?: number; dayFrom?: number; dayTo?: number; month?: number; dayOfWeek?: number
   dateFrom?: string; dateTo?: string
 }
 export type FpTaskKind = 'pagamento' | 'documentacao' | 'cobranca'
@@ -84,6 +84,9 @@ function asError(e: unknown, padrao: string): Error {
   if (/tipo/.test(msg) && /fp_tarefas|column|check/i.test(msg)) {
     return new Error('Falta rodar o SQL 20261125_fp_programacao_tipos.sql no Supabase (tipos de programação).')
   }
+  if (/dia_semana|recorrencia/.test(msg) && /fp_tarefas|column|check|schema/i.test(msg)) {
+    return new Error('Falta rodar o SQL 20261127_fp_programacao_semanal.sql no Supabase (programações semanais).')
+  }
   return new Error(msg || padrao)
 }
 
@@ -132,6 +135,7 @@ export function estadoParaLinhas(s: FpState): FpRows {
       if (r.type === 'once') {
         return { ...base, recorrencia: 'unica', data_inicio: r.dateFrom || r.dateTo || null, data_fim: r.dateTo || r.dateFrom || null, termina_em: null }
       }
+      if (r.type === 'weekly') return { ...base, recorrencia: 'semanal', dia_semana: Number(r.dayOfWeek) || 0 }
       const comum = { dia_inicio: Number(r.dayFrom) || 1, dia_fim: Number(r.dayTo || r.dayFrom) || 1 }
       if (r.type === 'yearly') return { ...base, ...comum, recorrencia: 'anual', a_cada_meses: 12, mes_do_ano: Number(r.month) || 1 }
       return { ...base, ...comum, recorrencia: 'mensal', a_cada_meses: Number(r.every) || 1 }
@@ -199,6 +203,8 @@ export async function carregarFinanceiroPessoal(): Promise<{ estado: FpState; li
     tasks: tarefas.map((t) => {
       const rec: FpRec = t.recorrencia === 'unica'
         ? { type: 'once', dateFrom: (t.data_inicio as string) || (t.data_fim as string), dateTo: t.data_fim as string }
+        : t.recorrencia === 'semanal'
+          ? { type: 'weekly', dayOfWeek: Number(t.dia_semana) || 0 }
         : t.recorrencia === 'anual'
           ? { type: 'yearly', every: 12, month: Number(t.mes_do_ano), dayFrom: Number(t.dia_inicio), dayTo: Number(t.dia_fim) }
           : { type: 'monthly', every: Number(t.a_cada_meses) || 1, dayFrom: Number(t.dia_inicio), dayTo: Number(t.dia_fim) }

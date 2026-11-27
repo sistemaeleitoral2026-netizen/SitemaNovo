@@ -391,6 +391,18 @@
 #modal-task .modal-foot { padding: 14px 22px; border-radius: 0; }
 #modal-task .modal-foot .btn { min-width: 140px; justify-content: center; }
 #modal-task .modal-foot .btn-primary { background: var(--task-accent); border-color: var(--task-accent); }
+#modal-task .tk-program-title { display: flex; align-items: center; gap: 11px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--task-accent) 22%, var(--line)); border-radius: 11px; background: color-mix(in srgb, var(--task-accent) 6%, #fff); }
+#modal-task .tk-program-title > span:last-child { display: grid; gap: 2px; }
+#modal-task .tk-program-title strong { color: var(--ink); font-size: 14px; }
+#modal-task .tk-program-title small { color: var(--muted); font-size: 11.5px; }
+#modal-task .tk-program-icon { display: grid; place-items: center; flex: 0 0 34px; width: 34px; height: 34px; border-radius: 9px; color: var(--task-accent); background: #fff; box-shadow: 0 2px 8px rgba(9, 24, 49, .07); }
+#modal-task .tk-program-icon .i { width: 17px; height: 17px; }
+#modal-task .tk-day-range { flex-wrap: wrap; }
+#modal-task .tk-day-range .select { flex: 0 0 82px; width: 82px; text-align: center; }
+#modal-task .tk-day-suffix { color: var(--muted); font-size: 12px; white-space: nowrap; }
+#modal-task .tk-summary-field { gap: 7px; }
+#modal-task .summary { min-height: 48px; align-items: flex-start; border: 1px solid color-mix(in srgb, var(--task-accent) 18%, transparent); background: color-mix(in srgb, var(--task-accent) 7%, #fff); color: color-mix(in srgb, var(--task-accent) 82%, #14213d); line-height: 1.45; }
+#modal-task .summary .i { color: var(--task-accent); }
 
 /* Upload de comprovante */
 .upload { border: 1.5px dashed var(--line-strong); border-radius: var(--radius); background: var(--surface-2); transition: border-color .15s, background .15s; }
@@ -443,6 +455,7 @@ a.btn { text-decoration: none; }
   #modal-task .modal { width: 100%; max-height: calc(100dvh - 24px); border-radius: 14px; }
   #modal-task .modal-head { padding: 14px 16px; }
   #modal-task .modal-body { padding: 16px; gap: 14px; }
+  #modal-task [data-tk="day-choice"] .seg { display: grid; grid-template-columns: 1fr; }
   #modal-task .modal-foot { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
   #modal-task .modal-foot .btn { min-width: 0; }
   #taskTabs { overflow-x: auto; max-width: 100%; }
