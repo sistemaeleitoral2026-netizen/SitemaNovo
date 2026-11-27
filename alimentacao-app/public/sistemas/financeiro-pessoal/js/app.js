@@ -261,7 +261,6 @@
   const TASK_PAGE = 8;
   let movPage = 1;
   const MOV_PAGE = 10;
-  let movFiltered = [];
   let taskSort = { key: null, dir: 1 };
   let reportTab = 'pagamentos';
   let chartMode = 'line';
@@ -2126,26 +2125,6 @@
     $('#modal-txview').classList.add('open');
   }
 
-  function exportMovCsv() {
-    if (!movFiltered.length) { alert('Não há lançamentos para exportar com os filtros atuais.'); return; }
-    const cell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const rows = [['Data', 'Hora', 'Descrição', 'Categoria', 'Conta', 'Origem', 'Situação', 'Valor', 'Pessoa', 'Responsável']];
-    movFiltered.forEach(x => {
-      const inc = x.kind === 'income';
-      const t = x.taskId ? taskById(x.taskId) : null;
-      rows.push([
-        fullDate(x.date), x.time || '', x.description, x.category || 'Outros', accName(x.account),
-        x.taskId ? (inc || taskKind(t) === 'cobranca' ? 'Cobrança' : 'Pagamento') : 'Movimentação',
-        inc ? 'Recebido' : 'Pago', value(x).toFixed(2).replace('.', ','), x.payee || '', x.by || '',
-      ]);
-    });
-    const csv = '\uFEFF' + rows.map(r => r.map(cell).join(';')).join('\r\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    const a = document.createElement('a');
-    a.href = url; a.download = `movimentacoes-${period}.csv`; a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-
   /* ======================================================================
      CONTAS — saldo inicial + conferências de saldo (saldo real do dia)
      ====================================================================== */
@@ -2384,7 +2363,6 @@
     const hasMovFilters = Boolean(q || fk !== 'all' || fa !== 'all' || fo !== 'all' || fs !== 'all');
     $('#movMeta').textContent = `Mostrando ${filtered.length} ${filtered.length === 1 ? 'registro' : 'registros'} de ${monthLabel(k).toLowerCase()}`;
     $('#movClear').hidden = !hasMovFilters;
-    movFiltered = filtered;
     const movPages = Math.max(1, Math.ceil(filtered.length / MOV_PAGE));
     movPage = Math.min(Math.max(1, movPage), movPages);
     const movStart = (movPage - 1) * MOV_PAGE;
@@ -3159,7 +3137,6 @@
     movPage = 1;
     render();
   });
-  $('#movExport')?.addEventListener('click', exportMovCsv);
   ['#tq', '#tfValor', '#tfFreq', '#tfState', '#tfStatus'].forEach(s => {
     const el = $(s);
     if (el) el.addEventListener(s === '#tq' ? 'input' : 'change', () => { taskPage = 1; renderTasks(); });

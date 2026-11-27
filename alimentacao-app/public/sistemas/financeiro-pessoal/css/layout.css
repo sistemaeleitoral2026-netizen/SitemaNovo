@@ -1016,8 +1016,6 @@ html.fp-grow .modal-backdrop {
 #view-transactions .mov-main { box-shadow: 0 12px 34px rgba(9, 32, 72, .1); }
 #view-transactions .mov-head { min-height: 68px; }
 .mov-head-actions { display: flex; align-items: center; gap: 8px; }
-.mov-export { color: #183b70; background: #f7faff; border-color: #cfd9e8; }
-.mov-export:hover { background: #edf4ff; border-color: #aebfd8; }
 #view-transactions .mov-toolbar { grid-template-columns: minmax(230px, 1.7fr) repeat(4, minmax(125px, .85fr)); }
 #view-transactions .mov-sheet { overflow-x: auto; }
 #view-transactions .mov-sheet .sheet { min-width: 1120px; }
@@ -1083,8 +1081,6 @@ html.fp-grow .modal-backdrop {
   #view-transactions .mov-kpi-icon { flex-basis: 36px; width: 36px; height: 36px; }
   #view-transactions .mov-kpi-copy strong { font-size: 16px; }
   .mov-head-actions { align-items: stretch; }
-  .mov-export { font-size: 0; padding-inline: 9px; }
-  .mov-export .i { margin: 0; }
   #view-transactions .mov-sheet .sheet { min-width: 0; }
   #view-transactions .mov-sheet .sheet tr { grid-template-columns: minmax(0, 1fr) auto; }
   #view-transactions .mov-proof-cell { display: block; grid-column: 1; grid-row: 4; min-width: 0; }
